@@ -69,13 +69,8 @@ const {
   resolveKnowledgeBaseSources,
 } = require('./knowledge/local-knowledge-base.cjs')
 const { LocalKnowledgeConnectors } = require('./knowledge/local-knowledge-connectors.cjs')
-const { ProviderStore } = require('./providers/provider-store.cjs')
+const { nativeOpenClawOptions } = require('./agents/cli/openclaw-runtime.cjs')
 const { migrateLegacyProductData } = require('./product-data-migration.cjs')
-const {
-  EXTERNAL_PROVIDER_KINDS,
-  providerAgentKind,
-  providerOptionsFor,
-} = require('./providers/provider-options.cjs')
 const LOCAL_AGENT_KINDS = new Set([
   'codex', 'hermes', 'openclaw', 'workbuddy', 'pi', 'kimi', 'mimo', 'claude', 'gemini', 'opencode', 'qwen',
   'opencodereview',
@@ -88,7 +83,6 @@ let workspaceRunFinishedListener = null
 let workspaceRunEventListener = null
 let installer = null
 let localAgentRefreshQueue = Promise.resolve()
-let providerStore = null
 let customAgentStore = null
 let agentConnectors = null
 let cloudAgentRuntime = null
@@ -225,18 +219,6 @@ function openExternalUrl(value) {
   return true
 }
 
-function providerOptions(kind, context = {}) {
-  if (!EXTERNAL_PROVIDER_KINDS.has(kind)) return {}
-  const status = providerStore?.status(kind) || {}
-  if (!status.configured && !(kind === 'openclaw' && context.nativeRuntime)) return {}
-  return providerOptionsFor(
-    kind,
-    status.configured ? providerStore.envForAgent(kind) : {},
-    context,
-    status,
-  )
-}
-
 async function nativeShellEnvironment(options = {}) {
   const home = app.getPath('home')
   const resolved = await resolveNativeShellEnvironment({ home, refresh: options.refresh === true })
@@ -341,34 +323,30 @@ async function runCoreAgent(agent, prompt, workdir, options = {}) {
   const connectorCredentialIsolation = options.connectorCredentialIsolation === true
   const runOptions = { ...options }
   delete runOptions.connectorCredentialIsolation
-  const status = providerStore.status(agent.kind)
-  if (!connectorCredentialIsolation && status.error) {
-    throw new Error('PROVIDER_CREDENTIAL_UNAVAILABLE')
-  }
   const shellEnvironment = connectorCredentialIsolation ? null : await nativeShellEnvironment()
-  const nativeRuntime = !connectorCredentialIsolation
-    && agent.kind === 'openclaw' && !status.configured
+  // OpenClaw runs through its isolated native runtime scope; every other Agent
+  // CLI uses its own native credentials.
+  const nativeRuntime = !connectorCredentialIsolation && agent.kind === 'openclaw'
     ? await resolveNativeOpenClawRuntime({
         executable: agent.executable,
         env: shellEnvironment.env,
         home: shellEnvironment.home,
       })
     : null
-  const injected = connectorCredentialIsolation
+  const injected = connectorCredentialIsolation || agent.kind !== 'openclaw' || !nativeRuntime
     ? {}
-    : providerOptions(agent.kind, {
-        ...runOptions,
-        workdir,
+    : nativeOpenClawOptions({
         storageRoot: app.getPath('userData'),
-        nativeRuntime,
+        workdir,
+        sessionRef: runOptions.sessionRef,
+        allowWrite: runOptions.sandbox === 'workspace-write',
+        runtime: nativeRuntime,
         openclawVersion: agent.version,
       })
   const nativeEnv = connectorCredentialIsolation || agent.kind === 'openclaw'
     ? {}
     : {
-        ...nativeCredentialEnvironment(agent.kind, shellEnvironment.env, {
-          providerConfigured: status.configured,
-        }),
+        ...nativeCredentialEnvironment(agent.kind, shellEnvironment.env),
         ...(shellEnvironment.env.PATH ? { PATH: shellEnvironment.env.PATH } : {}),
       }
   const callerEnv = connectorCredentialIsolation || agent.kind !== 'openclaw'
@@ -543,9 +521,6 @@ function createWorkspace() {
     credentialState: async (kind, agent) => {
       if (customAgentStore.has(kind)) return { state: 'ready', source: 'custom-agent' }
       if (agentConnectors.has(kind)) return { state: 'ready', source: 'agent-connector' }
-      if (providerStore.status(kind).error) {
-        return { state: 'unknown', source: 'provider-credential-unavailable' }
-      }
       const shellEnvironment = await nativeShellEnvironment()
       return resolveNativeCredentialState(kind, {
         executable: agent?.executable,
@@ -555,7 +530,6 @@ function createWorkspace() {
       })
     },
     agentLabel: kind => customAgentStore.label(kind) || agentConnectors.label(kind),
-    sharedProviderReady: kind => EXTERNAL_PROVIDER_KINDS.has(kind) && providerStore.status(kind).configured,
     connectorRuntime: agentConnectors,
     naturalAgentResponses: true,
     runAgent: async (agent, prompt, workdir, options = {}) => {
@@ -752,8 +726,6 @@ function registerIpc() {
     openExternalUrl,
     getOutcomeStore: () => workspace?.outcomeStore,
     getSkillTrustStore: () => skillTrustStore,
-    providerStore,
-    providerAgentKind,
     refreshLocalAgentState,
     registerTrustedHandle,
     skillCatalog,
@@ -786,11 +758,12 @@ if (!hasSingleInstanceLock) {
       storagePath: path.join(app.getPath('userData'), 'meldwork-cloud-agent-bridges.json'),
       fetch: globalThis.fetch,
     })
-    providerStore = new ProviderStore({
-      storagePath: path.join(app.getPath('userData'), 'meldwork-provider.json'),
-      safeStorage: lazySafeStorage,
-      allowedKinds: [...LOCAL_AGENT_KINDS],
-    })
+    // The shared Provider store was removed; drop any legacy encrypted
+    // credentials so they do not linger on disk unread.
+    try {
+      const { rmSync } = require('node:fs')
+      rmSync(path.join(app.getPath('userData'), 'meldwork-provider.json'), { force: true })
+    } catch { /* best-effort cleanup */ }
     knowledgeBaseStore = new KnowledgeBaseStore({
       storagePath: path.join(app.getPath('userData'), 'meldwork-knowledge-base.json'),
     })

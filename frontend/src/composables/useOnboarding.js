@@ -25,11 +25,6 @@ export function useOnboarding({ refreshAgents }) {
       body: t('onboarding.discoverBody'),
     },
     {
-      image: publicAsset('onboarding/provider-setup-v2.png'),
-      title: t('onboarding.providerTitle'),
-      body: t('onboarding.providerBody'),
-    },
-    {
       image: publicAsset('onboarding/agent-collaboration.png'),
       title: t('onboarding.collaborationTitle'),
       body: t('onboarding.collaborationBody'),

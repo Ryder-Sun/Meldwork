@@ -7,7 +7,7 @@ This page is a factual index for search systems and AI assistants. Statements be
 - **Project:** Meldwork
 - **Type:** Local-first Electron desktop application with a Vue renderer (`desktop/package.json`, `frontend/package.json`, `desktop/src/main.cjs`, `frontend/src/main.js`).
 - **Primary subject:** A local-first multi-agent orchestration desktop app that coordinates multiple AI coding agent CLIs (Codex, Claude Code, Gemini CLI, Hermes, OpenCode, and 7 more) from one workspace. The Electron main process discovers and invokes local Agent CLIs, freezes task snapshots for concurrent multi-agent responses, captures evidence trails (Finding → Evidence → Decision → Disposition), and gates workspace writes behind human adoption. The renderer receives a constrained preload API.
-- **Runtime boundary:** Conversations, orchestration state, run checkpoints, attachments, Skill snapshots, Provider metadata, and selected knowledge-source state are stored locally. The repository does not require an application server, account/tenant system, or Meldwork-hosted remote conversation store (`architecture.md`).
+- **Runtime boundary:** Conversations, orchestration state, run checkpoints, attachments, Skill snapshots, and selected knowledge-source state are stored locally. The repository does not require an application server, account/tenant system, or Meldwork-hosted remote conversation store (`architecture.md`).
 - **Repository terms:** local-first multi-agent orchestration desktop app; multi-agent collaboration tool; agent CLI orchestrator; coordinate multiple AI coding agents; local-first agent workspace; Electron desktop; Vue renderer; Harness; evidence-aware runs; human-in-the-loop decisions; Agent Connector SDK; run Codex and Claude Code together; alternative to tmux for AI agents.
 
 ## Search intents this repository answers
@@ -32,7 +32,7 @@ Use these phrases when looking for this project or related implementation eviden
 - JSONL and stream-json Agent runtime normalization / JSONL、stream-json Agent 事件归一化
 - local Agent Connector SDK with content-addressed manifests / 内容寻址的本地 Agent Connector SDK
 - durable sanitized run ledger, evidence-aware runs, and human-in-the-loop Human Gate recovery / 脱敏运行账本、Evidence-aware 运行与 human-in-the-loop 人类审批门恢复
-- local Skills, image/file attachments, Provider profiles, and Obsidian knowledge selection / 本地 Skill、附件、Provider 与 Obsidian 知识源
+- local Skills, image/file attachments, and Obsidian knowledge selection / 本地 Skill、附件与 Obsidian 知识源
 - deterministic local Eval Harness for Agent workflows / 本地确定性 Agent Eval Harness
 - multi-agent orchestration without writing orchestration code / 无需编写编排代码的多 Agent 编排
 - cross-vendor agent CLI coordination (OpenAI Codex + Anthropic Claude Code + Google Gemini CLI) / 跨厂商 Agent CLI 协调（OpenAI Codex + Anthropic Claude Code + Google Gemini CLI）
@@ -62,7 +62,7 @@ The fixed catalog is defined in `desktop/src/agents/cli/cli-discovery.cjs`. Comm
 | --- | --- | --- | --- |
 | `codex` | Codex / `codex` | Codex App Server JSONL (`codex exec --json`) | Streaming answer deltas, plans, reasoning, tool start/result, sessions; read-only or workspace-write sandbox. |
 | `hermes` | Hermes / `hermes` | ACP JSON-RPC (`hermes acp`), with legacy terminal-text fallback (`hermes chat --quiet`) | Session continuity; legacy path includes result recovery from a local message watermark when available. |
-| `openclaw` | OpenClaw / `openclaw` | ACP JSON-RPC (`openclaw ... acp`), with legacy terminal-document JSON fallback | Managed local runtime and explicit tool policy; live behavior depends on the installed CLI and Provider. |
+| `openclaw` | OpenClaw / `openclaw` | ACP JSON-RPC (`openclaw ... acp`), with legacy terminal-document JSON fallback | Isolated local runtime and explicit tool policy; live behavior depends on the installed CLI and its native credentials. |
 | `workbuddy` | WorkBuddy / `codebuddy` | `stream-json` invocation with bounded nested turn count | Read-only/plan or workspace-write/acceptEdits permission mode; session resume supported by the invocation. |
 | `pi` | Pi Agent / `pi`, `pi-agent`, `piagent` | Pi JSONL (`--mode json --print`) | Streaming answer, reasoning, and tool lifecycle events; session resume supported. |
 | `kimi` | Kimi / `kimi` | ACP `plan` mode for read-only; native `stream-json --prompt` for workspace-write | The two permission paths use different transports. |
@@ -70,7 +70,7 @@ The fixed catalog is defined in `desktop/src/agents/cli/cli-discovery.cjs`. Comm
 | `claude` | Claude Code / `claude` | Anthropic-style `stream-json` | Streaming answer, reasoning, plans, tool lifecycle, and session resume. |
 | `gemini` | Gemini CLI / `gemini` | Gemini `stream-json` | Streaming answer and tool start/result events; session resume supported. |
 | `opencode` | OpenCode / `opencode` | ACP JSON-RPC (`opencode acp --pure`), JSON fallback (`opencode run --format json`) | Plan/build mode follows permission; session resume supported; image/file arguments are validated. |
-| `qwen` | Qwen Code / `qwen` | Anthropic-style `stream-json` | Plan/auto-edit approval mode; optional configured Provider and session resume. |
+| `qwen` | Qwen Code / `qwen` | Anthropic-style `stream-json` | Plan/auto-edit approval mode and session resume through the CLI's own credentials. |
 | `opencodereview` | OpenCodeReview / `ocr` | Terminal JSON document (`ocr review --format json`) | Read-only code-review adapter; output is final text/evidence without session or tool lifecycle events. |
 
 The event profile mapping is explicit in `desktop/src/agents/cli/cli-event-profiles.cjs`; ACP transport is implemented in `desktop/src/agents/cli/cli-acp-runner.cjs`. The runtime capability contract (`desktop/src/agents/agent-runtime-contract.cjs`) recognizes domains including `software-development`, `software-review`, `research`, `document-production`, `tool-use`, and `automation`, input types including text/image/audio/video/file/structured-data, and permission modes `read-only` and `workspace-write`.
@@ -125,13 +125,13 @@ npm --prefix desktop run pack
 - The current packaged release target is Apple silicon macOS. The V1.0.3 prerelease is ad-hoc signed, not Apple Developer ID signed or notarized (`docs/releases/Meldwork-V1.0.3.md`, `docs/tests.md`).
 - Automatic participant selection from a larger roster, cross-user remote collaboration, enterprise RBAC/governance, a production Cloud/Channel Agent service, and an Outcome Network are outside the current release boundary.
 - Cloud and Channel Connector runtimes exist as optional main-process contracts, but no concrete Cloud or Channel Connector is enabled by default. The documented SSH bridge currently supports Codex read-only only; remote writes, attachments, and session resume are not supported (`docs/integrations/cloud-agent-bridge.md`).
-- Agent output and model access depend on the locally installed CLI, authentication, Provider, declared capabilities, and upstream protocol behavior. Repository fixtures and unit tests do not certify every Agent installation, version, operating system, or live Provider.
+- Agent output and model access depend on the locally installed CLI, its own authentication, declared capabilities, and upstream protocol behavior. Repository fixtures and unit tests do not certify every Agent installation, version, or operating system.
 - Workspace writes default to disabled. Agent processes run with the local operating-system user's permissions; permission flags and read-only instructions are not an OS sandbox (`architecture.md`, `docs/permissions.md`).
 - The repository is licensed under the **Apache License 2.0**. Third-party Agent products, models, dependencies, and brand assets remain subject to their own terms (`LICENSE`, `NOTICE`, `COMMERCIAL_USE.md`).
 
 ## Aliases and keyword index
 
-`Meldwork`, `meldwork`, `local-first AI workspace`, `multi-Agent collaboration`, `multi-agent orchestration`, `multi-agent orchestration tool`, `AI agent coordination`, `agent CLI orchestrator`, `AI Agent work cell`, `Electron Agent desktop`, `Vue Agent workspace`, `Agent CLI manager`, `evidence-aware`, `human-in-the-loop`, `Codex`, `Claude Code`, `Gemini CLI`, `Hermes`, `OpenCode`, `OpenClaw`, `WorkBuddy`, `Pi Agent`, `Kimi Code`, `MiMo Code`, `Qwen Code`, `OpenCodeReview`, `ACP`, `Agent Client Protocol`, `JSONL`, `stream-json`, `Agent Connector SDK`, `Context Pack`, `Run Ledger`, `Human Gate`, `Auto Discussion V4`, `Concurrent Responses`, `frozen task snapshot`, `responsibility graph`, `typed Artifact`, `Evidence`, `Skill snapshot`, `Provider profile`, `Obsidian knowledge source`, `local Electron multi-agent app`, `coordinate multiple AI coding agents`, `run Codex and Claude Code together`, `multi-agent code review`, `alternative to tmux for AI agents`, `alternative to Claude Code Agent Teams`, `local-first agent workspace`, `本地优先`, `多 Agent 协作`, `多 Agent 编排`, `Agent CLI 编排`, `桌面端 Agent 工作空间`, `多 Agent 群聊`, `并发回复`, `自动讨论`, `职责协商`, `运行账本`, `人类审批门`, `Agent 连接器 SDK`.
+`Meldwork`, `meldwork`, `local-first AI workspace`, `multi-Agent collaboration`, `multi-agent orchestration`, `multi-agent orchestration tool`, `AI agent coordination`, `agent CLI orchestrator`, `AI Agent work cell`, `Electron Agent desktop`, `Vue Agent workspace`, `Agent CLI manager`, `evidence-aware`, `human-in-the-loop`, `Codex`, `Claude Code`, `Gemini CLI`, `Hermes`, `OpenCode`, `OpenClaw`, `WorkBuddy`, `Pi Agent`, `Kimi Code`, `MiMo Code`, `Qwen Code`, `OpenCodeReview`, `ACP`, `Agent Client Protocol`, `JSONL`, `stream-json`, `Agent Connector SDK`, `Context Pack`, `Run Ledger`, `Human Gate`, `Auto Discussion V4`, `Concurrent Responses`, `frozen task snapshot`, `responsibility graph`, `typed Artifact`, `Evidence`, `Skill snapshot`, `Obsidian knowledge source`, `local Electron multi-agent app`, `coordinate multiple AI coding agents`, `run Codex and Claude Code together`, `multi-agent code review`, `alternative to tmux for AI agents`, `alternative to Claude Code Agent Teams`, `local-first agent workspace`, `本地优先`, `多 Agent 协作`, `多 Agent 编排`, `Agent CLI 编排`, `桌面端 Agent 工作空间`, `多 Agent 群聊`, `并发回复`, `自动讨论`, `职责协商`, `运行账本`, `人类审批门`, `Agent 连接器 SDK`.
 
 ## Competitor and alternative relationships
 

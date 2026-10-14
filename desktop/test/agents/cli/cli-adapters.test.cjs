@@ -26,7 +26,25 @@ const {
   searchPath,
 } = require('../../../src/agents/cli/cli-adapters.cjs')
 const { resolveConnectorEventProfile } = require('../../../src/agents/cli/cli-event-profiles.cjs')
-const { managedOpenClawOptions } = require('../../../src/agents/cli/openclaw-runtime.cjs')
+const { nativeOpenClawOptions } = require('../../../src/agents/cli/openclaw-runtime.cjs')
+function openClawAdapterRuntime(storageRoot, workdir, sessionRef = '') {
+  return nativeOpenClawOptions({
+    storageRoot,
+    workdir,
+    ...(sessionRef ? { sessionRef } : {}),
+    runtime: {
+      model: 'native/model',
+      provider: {
+        id: 'native',
+        baseUrl: 'https://native.example.com/v1',
+        api: 'openai-completions',
+        apiKey: 'adapter-openclaw-key',
+        model: { id: 'model', name: 'Native Model', input: ['text'] },
+      },
+    },
+  })
+}
+
 const {
   executable,
   readJsonWhenReady,
@@ -2008,16 +2026,7 @@ process.stdout.write(JSON.stringify({
 }))
 `)
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
-  const runtime = managedOpenClawOptions({
-    storageRoot: directory,
-    workdir,
-    sessionRef: 'agent:main:adapter-workspace',
-    provider: {
-      OPENAI_API_KEY: 'adapter-openclaw-key',
-      OPENAI_BASE_URL: 'https://api.example.com/v1',
-      OPENAI_MODEL: 'adapter-model',
-    },
-  })
+  const runtime = openClawAdapterRuntime(directory, workdir, 'agent:main:adapter-workspace')
 
   const events = []
   const result = await runAgent(
@@ -2092,16 +2101,7 @@ process.stdout.write(JSON.stringify({
 `)
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
   const stableSessionRef = 'agent:main:openclaw-acp-fallback'
-  const runtime = managedOpenClawOptions({
-    storageRoot: directory,
-    workdir,
-    sessionRef: stableSessionRef,
-    provider: {
-      OPENAI_API_KEY: 'adapter-openclaw-key',
-      OPENAI_BASE_URL: 'https://api.example.com/v1',
-      OPENAI_MODEL: 'adapter-model',
-    },
-  })
+  const runtime = openClawAdapterRuntime(directory, workdir, stableSessionRef)
 
   const result = await runAgent(
     { kind: 'openclaw', executable: cli, name: 'OpenClaw' },

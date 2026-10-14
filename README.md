@@ -141,7 +141,7 @@ npm --prefix desktop test
 
 ## Current boundary
 
-Meldwork is a local Electron desktop app for multi-agent orchestration and review — not a hosted agent fleet or a general agent framework. The current preview does not provide remote/cloud agent execution, automatic participant selection, enterprise SSO/RBAC/governance, or an Outcome Network. Local-first does not mean fully offline: a selected Agent may send prompts, attachments, or Skills to its configured Provider. Workspace writes are opt-in workflow controls, not an operating-system sandbox.
+Meldwork is a local Electron desktop app for multi-agent orchestration and review — not a hosted agent fleet or a general agent framework. The current preview does not provide remote/cloud agent execution, automatic participant selection, enterprise SSO/RBAC/governance, or an Outcome Network. Local-first does not mean fully offline: a selected Agent may send prompts, attachments, or Skills to its own CLI credentials' model provider. Workspace writes are opt-in workflow controls, not an operating-system sandbox.
 
 ## Docs
 

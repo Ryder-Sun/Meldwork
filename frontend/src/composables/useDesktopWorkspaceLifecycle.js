@@ -25,7 +25,6 @@ export function useDesktopWorkspaceLifecycle({
   handleRunFinished,
   installer,
   installerState,
-  provider,
   refreshAgents,
   showError,
   snapshot,
@@ -54,7 +53,7 @@ export function useDesktopWorkspaceLifecycle({
 
   async function boot() {
     beforeBoot()
-    if (!workspace.value || !installer.value || !provider.value) {
+    if (!workspace.value || !installer.value) {
       bridgeMissing.value = true
       booting.value = false
       return

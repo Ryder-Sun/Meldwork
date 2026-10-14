@@ -4,16 +4,6 @@ const { pathToFileURL } = require('node:url')
 const Module = require('node:module')
 const { EventEmitter } = require('node:events')
 
-const PROVIDER_METADATA = Object.freeze({
-  provider: 'OpenAI Compatible',
-  baseUrl: 'https://api.example.com/v1',
-  model: 'example-model',
-})
-const PROVIDER_AGENT_KINDS = Object.freeze([
-  'codex', 'hermes', 'openclaw', 'workbuddy', 'pi', 'kimi', 'mimo', 'claude', 'gemini', 'opencode', 'qwen',
-  'opencodereview',
-])
-
 function pngHeader(width = 1, height = 1) {
   const bytes = Buffer.alloc(24)
   Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(bytes)
@@ -74,11 +64,6 @@ const LOCAL_IPC_CHANNELS = Object.freeze([
   'local-attachments:preview',
   'local-attachments:open',
   'local-attachments:discard',
-  'local-agent-provider:status',
-  'local-agent-provider:probe',
-  'local-agent-provider:save',
-  'local-agent-provider:activate',
-  'local-agent-provider:delete',
   'local-knowledge-connector:list',
   'local-knowledge-connector:authorize',
   'local-knowledge-connector:revoke',
@@ -123,7 +108,6 @@ function loadMain(userData, options = {}) {
   const workspaceInstances = []
   const installerInstances = []
   const customAgentStoreInstances = []
-  const providerInstances = []
   const knowledgeBaseStoreInstances = []
   const knowledgeBaseResolveCalls = []
   const attachmentInstances = []
@@ -153,8 +137,6 @@ function loadMain(userData, options = {}) {
   const exitCalls = []
   let singleInstanceLockCalls = 0
   let attachmentConstructionCount = 0
-  const providerConfiguredKinds = new Set(options.providerConfigured === true ? ['hermes'] : [])
-  const providerActivePresets = new Map(options.providerConfigured === true ? [['hermes', 'custom']] : [])
 
   class TestWorkspace extends EventEmitter {
     constructor(input) {
@@ -307,8 +289,6 @@ function loadMain(userData, options = {}) {
       return this.agents.map(({ executable: _executable, args: _args, ...agent }) => ({
         installed: agent.installed !== false,
         installSupported: false,
-        providerCompatible: false,
-        providerMode: 'custom',
         imageAttachmentLimit: 0,
         ...agent,
         custom: true,
@@ -326,8 +306,6 @@ function loadMain(userData, options = {}) {
         custom: true,
         installed: true,
         installSupported: false,
-        providerCompatible: false,
-        providerMode: 'custom',
         imageAttachmentLimit: 0,
         version: '1.0.0',
         executable,
@@ -550,66 +528,6 @@ function loadMain(userData, options = {}) {
     }
   }
 
-  class TestProviderStore {
-    constructor(input) {
-      this.input = input
-      this.saved = []
-      this.activated = []
-      this.deleted = []
-      this.statusCalls = []
-      providerInstances.push(this)
-    }
-
-    status(kind, input) {
-      this.statusCalls.push({ kind, input })
-      return providerConfiguredKinds.has(kind)
-        ? {
-            ...PROVIDER_METADATA,
-            activePreset: providerActivePresets.get(kind) || 'custom',
-            profiles: {
-              [providerActivePresets.get(kind) || 'custom']: { ...PROVIDER_METADATA, configured: true },
-            },
-            encryptionAvailable: true,
-            configured: true,
-          }
-        : {
-            provider: '', baseUrl: '', model: '',
-            activePreset: 'official', profiles: {}, encryptionAvailable: true, configured: false,
-          }
-    }
-
-    save(kind, input) {
-      this.saved.push({ kind, input })
-      providerConfiguredKinds.add(kind)
-      providerActivePresets.set(kind, input.preset)
-      return this.status(kind)
-    }
-
-    activate(kind, preset) {
-      this.activated.push({ kind, preset })
-      providerActivePresets.set(kind, preset)
-      if (preset === 'official') providerConfiguredKinds.delete(kind)
-      else providerConfiguredKinds.add(kind)
-      return this.status(kind)
-    }
-
-    delete(kind, preset) {
-      this.deleted.push({ kind, preset })
-      providerConfiguredKinds.delete(kind)
-      providerActivePresets.set(kind, 'official')
-      return this.status(kind)
-    }
-
-    envForAgent(kind) {
-      assert.equal(providerConfiguredKinds.has(kind), true)
-      return options.providerEnv || {
-        OPENAI_API_KEY: 'provider-key',
-        OPENAI_BASE_URL: PROVIDER_METADATA.baseUrl,
-        OPENAI_MODEL: PROVIDER_METADATA.model,
-      }
-    }
-  }
-
   class TestKnowledgeBaseStore {
     constructor(input) {
       this.input = input
@@ -803,7 +721,6 @@ function loadMain(userData, options = {}) {
   })
 
   const openClawRuntimeMock = {
-    managedOpenClawOptions: input => ({ env: { MANAGED_OPENCLAW: JSON.stringify(input) } }),
     nativeOpenClawOptions: input => ({ env: { NATIVE_OPENCLAW: JSON.stringify(input) } }),
   }
 
@@ -851,7 +768,6 @@ function loadMain(userData, options = {}) {
     './skills/local-skill-trust-store.cjs': { LocalSkillTrustStore: TestLocalSkillTrustStore },
     './agents/cli/openclaw-runtime.cjs': openClawRuntimeMock,
     '../agents/cli/openclaw-runtime.cjs': openClawRuntimeMock,
-    './providers/provider-store.cjs': { ProviderStore: TestProviderStore },
     './knowledge/knowledge-base-store.cjs': { KnowledgeBaseStore: TestKnowledgeBaseStore },
     './knowledge/local-knowledge-base.cjs': {
       knowledgeBaseSelectionHint: (source, targetKinds) => {
@@ -922,7 +838,6 @@ function loadMain(userData, options = {}) {
         permissionHandlers,
         protocolHandlers,
         registeredSchemes,
-        providerInstances,
         runAgentCalls,
         skillCatalogInstances,
         skillSnapshotStoreInstances,
@@ -953,8 +868,6 @@ function loadMain(userData, options = {}) {
 
 module.exports = {
   LOCAL_IPC_CHANNELS,
-  PROVIDER_AGENT_KINDS,
-  PROVIDER_METADATA,
   deferred,
   eventFor,
   loadMain,

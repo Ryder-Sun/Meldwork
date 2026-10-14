@@ -5,7 +5,7 @@ const TEST_SUITES = Object.freeze({
   agents: ['agents'],
   attachments: ['attachments'],
   collaboration: ['collaboration'],
-  core: ['channels', 'knowledge', 'media', 'providers', 'skills'],
+  core: ['channels', 'knowledge', 'media', 'skills'],
   runs: ['runs'],
   security: ['security', 'shell'],
   workspace: ['workspace', 'gates'],

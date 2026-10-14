@@ -137,7 +137,7 @@ npm --prefix desktop test
 
 ## 当前边界
 
-Meldwork 是本地 Electron 应用，不是托管式 Agent Fleet，也不是通用 Agent 框架。当前预览版不提供远程、云端或频道 Agent 执行，不提供自动选人组队、企业 SSO/RBAC/治理或 Outcome Network。Local-first 不等于完全离线：选定的 Agent 仍可能把 Prompt、附件或 Skill（技能）发送到其配置的 Provider（模型服务商）。工作区写入是可选的工作流控制，不是操作系统级沙箱。
+Meldwork 是本地 Electron 应用，不是托管式 Agent Fleet，也不是通用 Agent 框架。当前预览版不提供远程、云端或频道 Agent 执行，不提供自动选人组队、企业 SSO/RBAC/治理或 Outcome Network。Local-first 不等于完全离线：选定的 Agent 仍可能把 Prompt、附件或 Skill（技能）发送到其自身 CLI 凭据对应的模型服务商。工作区写入是可选的工作流控制，不是操作系统级沙箱。
 
 ## 文档
 

@@ -91,7 +91,6 @@ describe('Meldwork workbench', () => {
     await wrapper.get('.sidebar-settings-entry').trigger('click')
     expect(wrapper.get('.agent-card .agent-capability-list').text()).toContain('12 local skills')
     expect(wrapper.get('.agent-card .agent-capability-list').text()).toContain('Up to 4 images')
-    expect(wrapper.get('.agent-card .agent-capability-list').text()).toContain('Not configured')
 
     await wrapper.get('.sidebar-agent-new').trigger('click')
     await flushPromises()

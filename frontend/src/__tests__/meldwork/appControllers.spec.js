@@ -71,7 +71,6 @@ function workspaceSources() {
     conversationActions: source('conversationActions'),
     conversationNavigation: source('conversationNavigation'),
     knowledgeBase: source('knowledgeBase'),
-    providerSettings: source('providerSettings'),
     timeline: source('timeline'),
   }
 }
@@ -123,9 +122,6 @@ describe('App controller contracts', () => {
     )
     expect(workspace.workspaceSidebarController.groupGroups).toBe(
       workspaceInput.conversationNavigation.groupGroups,
-    )
-    expect(workspace.systemSettingsController.providerSettings).toBe(
-      workspaceInput.providerSettings,
     )
     expect(workspace.workspaceModalController.customAgentForm).toBe(
       workspaceInput.agentManagement.customAgentForm,

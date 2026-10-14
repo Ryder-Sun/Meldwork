@@ -9,7 +9,7 @@ const { migrateLegacyProductData } = require('../src/product-data-migration.cjs'
 const LEGACY_STEM = ['round', 'relay'].join('')
 const MIGRATION_SUFFIXES = [
   'workspace.json', 'run-ledger.json', 'custom-agents.json',
-  'provider.json', 'knowledge-base.json', 'private',
+  'knowledge-base.json', 'private',
 ]
 
 function legacyPath(directory, suffix) {
@@ -38,9 +38,6 @@ test('migrates legacy product data to Meldwork names without overwriting current
   fs.writeFileSync(legacyWorkspace, '{"groups":[]}')
   fs.mkdirSync(legacyPrivate)
   fs.writeFileSync(path.join(legacyPrivate, 'outcomes.json'), '{}')
-  fs.writeFileSync(path.join(directory, 'meldwork-provider.json'), '{"current":true}')
-  fs.writeFileSync(path.join(directory, `${LEGACY_STEM}-provider.json`), '{"legacy":true}')
-
   const migrated = migrateLegacyProductData(directory)
 
   assert.deepEqual(migrated.sort(), [
@@ -50,8 +47,6 @@ test('migrates legacy product data to Meldwork names without overwriting current
   assert.equal(fs.existsSync(legacyWorkspace), false)
   assert.equal(fs.readFileSync(path.join(directory, 'meldwork-workspace.json'), 'utf8'), '{"groups":[]}')
   assert.equal(fs.readFileSync(path.join(directory, 'meldwork-private', 'outcomes.json'), 'utf8'), '{}')
-  assert.equal(fs.readFileSync(path.join(directory, 'meldwork-provider.json'), 'utf8'), '{"current":true}')
-  assert.equal(fs.existsSync(path.join(directory, `${LEGACY_STEM}-provider.json`)), true)
 })
 
 test('rolls back every completed rename when any migration position fails', async (t) => {
@@ -98,7 +93,7 @@ test('completes a mixed migration state without overwriting existing Meldwork ta
 
   const migrated = migrateLegacyProductData(directory)
 
-  assert.equal(migrated.length, 4)
+  assert.equal(migrated.length, 3)
   assert.equal(fs.readFileSync(currentPath(directory, 'workspace.json'), 'utf8'), '{"current":true}')
   assert.equal(fs.readFileSync(path.join(currentPath(directory, 'private'), 'current.json'), 'utf8'), '{}')
   assert.deepEqual(migrateLegacyProductData(directory), [])
@@ -130,7 +125,7 @@ test('reports rollback failure and a second launch recovers the remaining mixed 
   assert.equal(fs.existsSync(legacyPath(directory, 'workspace.json')), true)
   assert.equal(fs.existsSync(currentPath(directory, 'workspace.json')), false)
 
-  assert.equal(migrateLegacyProductData(directory).length, 5)
+  assert.equal(migrateLegacyProductData(directory).length, 4)
   for (const suffix of MIGRATION_SUFFIXES) {
     assert.equal(fs.existsSync(currentPath(directory, suffix)), true, suffix)
     assert.equal(fs.existsSync(legacyPath(directory, suffix)), false, suffix)

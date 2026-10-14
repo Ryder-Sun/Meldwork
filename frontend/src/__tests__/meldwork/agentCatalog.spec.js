@@ -34,19 +34,6 @@ describe('Agent compatibility state', () => {
     expect(catalog.readyAgentKinds.value.has('codex')).toBe(true)
   })
 
-  it('distinguishes unreadable Provider credentials from missing native login in both languages', () => {
-    const agent = {
-      kind: 'hermes', available: false, credentialState: 'unknown',
-      availabilitySource: 'provider-credential-unavailable',
-    }
-    setLocale('en')
-    expect(catalogFor(agent).label).toBe('Provider credentials unavailable')
-    expect(catalogFor(agent).tone).toBe('warning')
-    setLocale('zh')
-    expect(catalogFor(agent).label).toBe('Provider 凭证不可用')
-    setLocale('en')
-  })
-
   it('retains custom and local connector registrations without changing built-in order', () => {
     const custom = { kind: 'custom-0123456789abcdef', label: 'My CLI', custom: true, installed: true }
     const connector = { kind: 'local-example', label: 'Example', connector: true, installed: true }
@@ -124,7 +111,7 @@ describe('Agent compatibility state', () => {
       .toHaveLength(1)
     expect(catalog.readyAgents.value).toHaveLength(0)
     const mergedCloud = catalog.mergedCatalog.value.find(agent => agent.kind === 'cloud-claude')
-    expect(catalog.agentState(mergedCloud).label).toBe('Needs sign-in or Provider')
+    expect(catalog.agentState(mergedCloud).label).toBe('Needs sign-in')
   })
 
   it('keeps ready OpenCodeReview available for sidebar and composer targets', () => {

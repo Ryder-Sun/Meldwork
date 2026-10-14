@@ -46,7 +46,6 @@
               <span class="agent-capability-list">
                 <span v-if="agent.ready">{{ agentSkillLabel(agent.kind) }}</span>
                 <span>{{ agentImageLabel(agent) }}</span>
-                <span>{{ providerSummaryLabel(agent) }}</span>
               </span>
             </span>
             <ChevronForwardOutline class="card-chevron" />
@@ -99,14 +98,6 @@
               >
                 {{ t('installer.cancel') }}
               </button>
-              <button
-                v-else-if="supportsExternalProvider(agent)"
-                type="button"
-                @click.stop="$emit('open-provider', agent.kind)"
-              >
-                <KeyOutline />
-                {{ t('systemSettings.providerForAgent') }}
-              </button>
             </div>
           </div>
         </article>
@@ -124,7 +115,6 @@ import {
   ChevronForwardOutline,
   CloudOutline,
   DownloadOutline,
-  KeyOutline,
   RefreshOutline,
 } from '@vicons/ionicons5'
 import { t } from '../i18n.js'
@@ -142,17 +132,14 @@ defineProps({
   installerPhaseLabel: { type: String, required: true },
   installerState: { type: Object, required: true },
   isDirectCreationPending: { type: Function, required: true },
-  providerSummaryLabel: { type: Function, required: true },
   readyCount: { type: Number, required: true },
   refreshing: { type: Boolean, required: true },
-  supportsExternalProvider: { type: Function, required: true },
 })
 
 defineEmits([
   'cancel-install',
   'open-agent-detail',
   'open-direct',
-  'open-provider',
   'refresh-agents',
   'request-install',
 ])

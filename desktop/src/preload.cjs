@@ -176,13 +176,6 @@ if (isLocalDocument) Object.assign(desktopApi, {
     open: id => ipcRenderer.invoke('local-attachments:open', id),
     discard: ids => ipcRenderer.invoke('local-attachments:discard', ids),
   }),
-  localAgentProvider: Object.freeze({
-    status: kind => ipcRenderer.invoke('local-agent-provider:status', kind),
-    probe: kind => ipcRenderer.invoke('local-agent-provider:probe', kind),
-    save: (kind, input) => ipcRenderer.invoke('local-agent-provider:save', kind, input),
-    activate: (kind, preset) => ipcRenderer.invoke('local-agent-provider:activate', kind, preset),
-    delete: (kind, preset) => ipcRenderer.invoke('local-agent-provider:delete', kind, preset),
-  }),
   localKnowledgeBase: Object.freeze({
     status: kind => (kind ? ipcRenderer.invoke('local-knowledge-base:status', kind) : ipcRenderer.invoke('local-knowledge-base:status')),
     openGuide: (kind, action) => ipcRenderer.invoke('local-knowledge-base:open-guide', kind, action),

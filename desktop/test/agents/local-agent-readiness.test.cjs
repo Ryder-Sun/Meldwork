@@ -877,7 +877,6 @@ test('model-specific Vertex regions participate in cache identity and stay scope
   assert.equal(before.env[key], 'us-east5')
   assert.equal(after.env[key], '')
   assert.deepEqual(nativeCredentialEnvironment('claude', after.env), { [key]: '' })
-  assert.deepEqual(nativeCredentialEnvironment('claude', before.env, { providerConfigured: true }), {})
   assert.deepEqual(nativeCredentialEnvironment('gemini', before.env), {})
   assert.deepEqual(nativeCredentialEnvironment('codex', before.env), {})
   const removed = await resolveNativeShellEnvironment({ ...base, env: { PATH: base.env.PATH } })
@@ -934,22 +933,6 @@ test('native cloud configuration is forwarded only to compatible Agents', () => 
     GOOGLE_APPLICATION_CREDENTIALS: '/tmp/adc.json', GOOGLE_CLOUD_PROJECT: 'native-project',
   })
   assert.deepEqual(nativeCredentialEnvironment('codex', cloud), {})
-})
-
-test('selected Provider retains native configuration roots without native credentials or selectors', () => {
-  const env = {
-    CLAUDE_CONFIG_DIR: '/tmp/claude-config', CODEX_HOME: '/tmp/codex-config',
-    PI_CODING_AGENT_DIR: '/tmp/pi-config', AWS_PROFILE: 'native',
-    CLAUDE_CODE_USE_BEDROCK: '1', ANTHROPIC_API_KEY: 'native-key',
-    ANTHROPIC_BASE_URL: 'https://native.example', OPENAI_API_KEY: 'other-key',
-  }
-  for (const [kind, root] of [
-    ['claude', 'CLAUDE_CONFIG_DIR'], ['codex', 'CODEX_HOME'], ['pi', 'PI_CODING_AGENT_DIR'],
-  ]) {
-    assert.deepEqual(nativeCredentialEnvironment(kind, env, { providerConfigured: true }), {
-      [root]: env[root],
-    })
-  }
 })
 
 test('an installed Agent without credential evidence remains unverified', () => {

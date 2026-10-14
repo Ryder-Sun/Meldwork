@@ -13,7 +13,7 @@ test('installed Agents distinguish ready, local CLI, and missing credential stat
   const readinessAgents = []
   options.credentialState = async (kind, agent) => {
     readinessAgents.push(agent)
-    if (kind === 'hermes') return { state: 'missing', source: 'shared-provider-required' }
+    if (kind === 'hermes') return { state: 'missing', source: 'native-auth-status' }
     if (kind === 'kimi') return { state: 'unknown', source: 'unverified' }
     return { state: 'ready', source: 'native-credential' }
   }
@@ -260,28 +260,6 @@ test('Custom Agent kinds keep their dynamic label across execution and reload', 
     targetKinds: [kind],
   })
   assert.equal(calls.at(-1).runOptions.sandbox, 'workspace-write')
-})
-
-test('shared Provider readiness skips slow native probes while a profile is active', async (t) => {
-  const { directory, options } = fixture()
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
-  const probedKinds = []
-  options.credentialState = async kind => {
-    probedKinds.push(kind)
-    return kind === 'codex'
-      ? { state: 'ready', source: 'native-auth-status' }
-    : { state: 'ready', source: 'native-credential' }
-  }
-  options.sharedProviderReady = kind => kind === 'codex'
-  const workspace = new LocalWorkspace(options)
-
-  let snapshot = await workspace.refreshAgents()
-  let codex = snapshot.agents.find(agent => agent.kind === 'codex')
-  assert.equal(codex.credentialState, 'ready')
-  assert.equal(codex.availabilitySource, 'shared-provider')
-  assert.equal(codex.available, true)
-  assert.equal(probedKinds.includes('codex'), false)
-  assert.equal(probedKinds.length, 4)
 })
 
 test('a detected local Agent stays usable while native credential state is unverified', async (t) => {

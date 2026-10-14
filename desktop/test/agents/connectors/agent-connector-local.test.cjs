@@ -102,7 +102,6 @@ test('discovers an explicitly installed approved sample and exposes generic sani
   const [catalog] = connectors.catalog()
   assert.equal(catalog.kind, agent.kind)
   assert.equal(catalog.connector, true)
-  assert.equal(catalog.providerMode, 'connector')
   assert.equal(catalog.description, SAMPLE_AGENT_CONNECTOR_MANIFEST.description)
   assert.doesNotMatch(JSON.stringify(catalog), /private\/bin|credential-ref/i)
 

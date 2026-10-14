@@ -32,16 +32,6 @@
         <button
           type="button"
           role="tab"
-          :aria-selected="systemSettingsSection === 'providers'"
-          :class="{ active: systemSettingsSection === 'providers' }"
-          @click="selectSystemSettingsSection('providers')"
-        >
-          <KeyOutline />
-          {{ t('systemSettings.providers') }}
-        </button>
-        <button
-          type="button"
-          role="tab"
           :aria-selected="systemSettingsSection === 'knowledge-bases'"
           :class="{ active: systemSettingsSection === 'knowledge-bases' }"
           @click="selectSystemSettingsSection('knowledge-bases')"
@@ -65,14 +55,11 @@
         :installer-phase-label="installerPhaseLabel"
         :installer-state="installerState"
         :is-direct-creation-pending="isDirectCreationPending"
-        :provider-summary-label="providerSummaryLabel"
         :ready-count="readyCount"
         :refreshing="refreshing"
-        :supports-external-provider="supportsExternalProvider"
         @cancel-install="cancelInstall"
         @open-agent-detail="openAgentDetail"
         @open-direct="openDirect"
-        @open-provider="openProvider"
         @refresh-agents="refreshAgents"
         @request-install="requestInstall"
       />
@@ -98,24 +85,15 @@
         @primary-action="runKnowledgeBasePrimaryAction"
         @refresh="loadKnowledgeBaseStatuses"
       />
-
-      <ProviderSettingsPanel
-        v-else-if="systemSettingsSection === 'providers'"
-        :controller="providerSettings"
-        :form-error="formError"
-        :saving="saving"
-        @open-agent-manager="openAgentManager"
-      />
     </div>
   </section>
 </template>
 
 <script setup>
-import { CloudOutline, KeyOutline, LibraryOutline, TerminalOutline } from '@vicons/ionicons5'
+import { CloudOutline, LibraryOutline, TerminalOutline } from '@vicons/ionicons5'
 import AgentSettingsPanel from './AgentSettingsPanel.vue'
 import CloudAgentBridgePanel from './CloudAgentBridgePanel.vue'
 import KnowledgeBaseSettingsPanel from './KnowledgeBaseSettingsPanel.vue'
-import ProviderSettingsPanel from './ProviderSettingsPanel.vue'
 
 const props = defineProps({
   controller: { type: Object, required: true },
@@ -130,7 +108,6 @@ const {
   cancelInstall,
   cloudAgentBridges,
   focusedAgentKind,
-  formError,
   installConfirmKind,
   installedCount,
   installerBusy,
@@ -148,21 +125,15 @@ const {
   loadKnowledgeBaseStatuses,
   localKnowledgeBaseEntries,
   openAgentDetail,
-  openAgentManager,
   openDirect,
-  openProvider,
   plannedKnowledgeBaseEntries,
-  providerSettings,
-  providerSummaryLabel,
   readyCount,
   readyKnowledgeBaseCount,
   refreshAgents,
   refreshing,
   requestInstall,
   runKnowledgeBasePrimaryAction,
-  saving,
   selectSystemSettingsSection,
-  supportsExternalProvider,
   systemSettingsSection,
   t,
 } = props.controller

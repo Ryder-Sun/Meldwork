@@ -7,7 +7,6 @@ const MIGRATIONS = Object.freeze([
   ['workspace.json', 'workspace.json'],
   ['run-ledger.json', 'run-ledger.json'],
   ['custom-agents.json', 'custom-agents.json'],
-  ['provider.json', 'provider.json'],
   ['knowledge-base.json', 'knowledge-base.json'],
   ['private', 'private'],
 ])

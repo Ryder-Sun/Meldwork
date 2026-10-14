@@ -111,7 +111,7 @@ describe('Meldwork i18n', () => {
     }
   })
 
-  it('covers every renderer-facing installer and Provider error code', () => {
+  it('covers every renderer-facing installer error code', () => {
     const expectedCodes = [
       'INSTALL_AGENT_ALREADY_INSTALLED',
       'INSTALL_AGENT_BUSY',
@@ -124,15 +124,6 @@ describe('Meldwork i18n', () => {
       'INSTALL_AGENT_PROCESS_FAILED',
       'INSTALL_AGENT_UNSUPPORTED',
       'INSTALL_AGENT_VERIFY_FAILED',
-      'PROVIDER_CREDENTIAL_REQUIRED',
-      'PROVIDER_CREDENTIAL_UNAVAILABLE',
-      'PROVIDER_ENCRYPTION_FAILED',
-      'PROVIDER_ENCRYPTION_UNAVAILABLE',
-      'PROVIDER_INSECURE_BASE_URL',
-      'PROVIDER_INVALID_CREDENTIAL',
-      'PROVIDER_INVALID_METADATA',
-      'PROVIDER_STORAGE_PATH_REQUIRED',
-      'OPENCLAW_PROVIDER_INVALID',
     ]
 
     expect(expectedCodes.filter(code => !DESKTOP_ERROR_MESSAGE_KEYS[code])).toEqual([])
@@ -148,8 +139,6 @@ describe('Meldwork i18n', () => {
     })
 
     setLocale('en')
-    expect(translateError(new Error('PROVIDER_CREDENTIAL_REQUIRED')))
-      .toBe("Configure this Agent's Provider before running it.")
     expect(translateError(new Error('LOCAL_AGENT_AUTH_REQUIRED')))
       .toBe('Sign in to this Agent or configure its credentials, then try again.')
     expect(translateError(new Error('LOCAL_AGENT_PROCESS_FAILED')))
@@ -168,8 +157,6 @@ describe('Meldwork i18n', () => {
       .toContain('configured Providers do not offer the required media model')
 
     setLocale('zh')
-    expect(translateError(new Error('PROVIDER_CREDENTIAL_REQUIRED')))
-      .toBe('请先配置该 Agent 的独立 Provider，再运行。')
     expect(translateError(new Error('LOCAL_AGENT_AUTH_REQUIRED')))
       .toBe('请先登录该 Agent 或完成凭据配置后再试。')
     expect(translateError(new Error('LOCAL_AGENT_PROCESS_FAILED')))

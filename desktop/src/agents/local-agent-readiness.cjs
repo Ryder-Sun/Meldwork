@@ -49,7 +49,6 @@ const GOOGLE_CLOUD_ENV_KEYS = [
   'GOOGLE_APPLICATION_CREDENTIALS', 'GOOGLE_CLOUD_PROJECT', 'GCLOUD_PROJECT',
   'GOOGLE_CLOUD_LOCATION', 'GOOGLE_CLOUD_QUOTA_PROJECT', 'CLOUDSDK_CONFIG',
 ]
-const NATIVE_CONFIG_ROOT_KEYS = new Set(['CODEX_HOME', 'CLAUDE_CONFIG_DIR', 'PI_CODING_AGENT_DIR'])
 const RUNTIME_ENV_KEYS = Object.freeze({
   codex: ['OPENAI_API_KEY', 'OPENAI_BASE_URL', 'OPENAI_MODEL', 'CODEX_HOME'],
   hermes: [
@@ -159,12 +158,11 @@ function textContainsCredential(filename) {
   }
 }
 
-function nativeCredentialEnvironment(kind, env = process.env, options = {}) {
+function nativeCredentialEnvironment(kind, env = process.env) {
   const result = {}
   const keys = [...(RUNTIME_ENV_KEYS[kind] || []), ...(kind === 'claude'
     ? Object.keys(env).filter(key => VERTEX_MODEL_REGION_KEY.test(key)) : [])]
   for (const key of keys) {
-    if (options.providerConfigured && !NATIVE_CONFIG_ROOT_KEYS.has(key)) continue
     if (typeof env[key] === 'string') result[key] = env[key]
   }
   return result

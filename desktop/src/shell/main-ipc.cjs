@@ -185,8 +185,6 @@ function registerDesktopIpc(options) {
     loadKnowledgeBaseSources,
     localAgentCatalog,
     openExternalUrl,
-    providerStore,
-    providerAgentKind,
     refreshLocalAgentState,
     registerTrustedHandle,
     skillCatalog,
@@ -660,39 +658,6 @@ function registerDesktopIpc(options) {
   registerTrustedHandle('local-attachments:preview', id => attachments.preview(String(id || '')))
   registerTrustedHandle('local-attachments:open', id => attachments.open(String(id || '')))
   registerTrustedHandle('local-attachments:discard', ids => attachments.discardUnreferenced(ids))
-  registerTrustedHandle('local-agent-provider:status', kind => (
-    providerStore.status(providerAgentKind(kind))
-  ))
-  registerTrustedHandle('local-agent-provider:probe', kind => (
-    providerStore.status(providerAgentKind(kind), { probeEncryption: true })
-  ))
-  registerTrustedHandle('local-agent-provider:save', async (kind, input) => {
-    const selectedKind = providerAgentKind(kind)
-    const result = providerStore.save(selectedKind, {
-      apiKey: input?.apiKey,
-      provider: input?.provider,
-      baseUrl: input?.baseUrl,
-      model: input?.model,
-      preset: input?.preset,
-    })
-    getWorkspace()?.markRuntimeCredential(selectedKind, 'unknown')
-    await refreshLocalAgentState()
-    return result
-  })
-  registerTrustedHandle('local-agent-provider:activate', async (kind, preset) => {
-    const selectedKind = providerAgentKind(kind)
-    const result = providerStore.activate(selectedKind, preset)
-    getWorkspace()?.markRuntimeCredential(selectedKind, 'unknown')
-    await refreshLocalAgentState()
-    return result
-  })
-  registerTrustedHandle('local-agent-provider:delete', async (kind, preset) => {
-    const selectedKind = providerAgentKind(kind)
-    const result = providerStore.delete(selectedKind, preset)
-    getWorkspace()?.markRuntimeCredential(selectedKind, 'unknown')
-    await refreshLocalAgentState()
-    return result
-  })
   registerTrustedHandle('local-knowledge-connector:list', (...args) => {
     if (args.length) throw new Error('LOCAL_KNOWLEDGE_CONNECTOR_REQUEST_INVALID')
     const connectors = getKnowledgeConnectors?.()

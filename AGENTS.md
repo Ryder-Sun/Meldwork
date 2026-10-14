@@ -11,7 +11,7 @@
 
 - Meldwork is a local-first desktop application. Do not introduce a required server, container, or cluster dependency unless the task explicitly calls for it.
 - Keep Agent execution in the Electron main process. Renderer access must go through narrow, validated preload APIs.
-- Never expose executable paths, tokens, provider credentials, or unrestricted shell execution to renderer code.
+- Never expose executable paths, tokens, credentials, or unrestricted shell execution to renderer code.
 - Store secrets only through operating-system-backed secure storage. Do not add plaintext fallbacks.
 - Keep workspace write access opt-in. Conversations and groups stay local; do not add remote participants, cloud channels, or remote conversation storage.
 

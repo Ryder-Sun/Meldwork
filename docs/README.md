@@ -21,9 +21,9 @@ Meldwork 的候选定位是 **本地优先、跨 Agent 的任务与交付工作�
 ## 产品、运行与信任边界
 
 - [流程](flows.md)：启动、任务、Agent 调用、恢复和外部副作用。
-- [权限边界](permissions.md)：Renderer、Preload、Main、Agent、Provider 和 Connector 的信任边界。
+- [权限边界](permissions.md)：Renderer、Preload、Main、Agent 和 Connector 的信任边界。
 - [自动化清单](automation.md)：当前自动讨论、运行记录、安装器与外部适配边界。
-- [变量与密钥](variables.md)：Provider、Agent 凭证和本地运行变量。
+- [变量与密钥](variables.md)：Agent 凭证和本地运行变量。
 - [架构](../architecture.md)：当前 Electron、Main、Connector 和本地数据边界。
 
 ## 契约与验证

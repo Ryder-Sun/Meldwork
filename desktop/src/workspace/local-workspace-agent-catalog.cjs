@@ -43,7 +43,6 @@ class LocalWorkspaceAgentCatalog {
     this.setDetectedAgents = options.setDetectedAgents
     this.detectAgents = options.detectAgents
     this.credentialState = options.credentialState
-    this.sharedProviderReady = options.sharedProviderReady
     this.attachmentSupport = options.attachmentSupport || (() => ({}))
     this.save = options.save
     this.emitChanged = options.emitChanged
@@ -77,15 +76,6 @@ class LocalWorkspaceAgentCatalog {
     const runtimeAtRefreshStart = new Map(Object.entries(this.state().agentRuntime))
     const detected = await this.detectAgents()
     const nativeStates = await Promise.all(detected.map(async (agent) => {
-      const runtime = runtimeAtRefreshStart.get(agent.kind)
-      const sharedProviderReady = Boolean(this.sharedProviderReady(agent.kind))
-      if (sharedProviderReady && runtime?.credentialState === 'missing'
-          && !expiredAuthFailure(runtime, this.now())) {
-        return { state: 'missing', source: 'runtime-auth-failure' }
-      }
-      if (sharedProviderReady) {
-        return { state: 'ready', source: 'shared-provider' }
-      }
       try {
         return await this.credentialState(agent.kind, agent)
       } catch {
@@ -97,11 +87,8 @@ class LocalWorkspaceAgentCatalog {
     const agents = detected.map((agent, index) => {
       const native = nativeStates[index]
       let runtime = state.agentRuntime[agent.kind]
-      const sharedProviderReady = Boolean(this.sharedProviderReady(agent.kind))
       const nativeState = ['ready', 'missing'].includes(native?.state) ? native.state : 'unknown'
       const authoritativeNativeState = native?.source === 'native-auth-status'
-      const sharedProviderRequired = native?.source === 'shared-provider-required'
-      const providerCredentialUnavailable = native?.source === 'provider-credential-unavailable'
       // Give corrected native credentials a retry after the cooldown, never erase a newer failure.
       if (expiredAuthFailure(runtime, this.now())
           && !(authoritativeNativeState && nativeState === 'ready')
@@ -130,38 +117,33 @@ class LocalWorkspaceAgentCatalog {
         ? (native.source || 'native-credential')
         : ''
       let credentialState = 'unknown'
-      if (runtimeMissing || sharedProviderRequired || nativeState === 'missing') {
+      if (runtimeMissing || nativeState === 'missing') {
         credentialState = 'missing'
       }
-      if (!runtimeMissing && sharedProviderReady) credentialState = 'ready'
-      else if (!runtimeMissing && nativeState === 'ready') credentialState = 'ready'
+      if (!runtimeMissing && nativeState === 'ready') credentialState = 'ready'
       else if (!runtimeMissing && verifiedReady && nativeState !== 'missing') credentialState = 'ready'
-      if (providerCredentialUnavailable) credentialState = 'unknown'
       const installed = true
       const versionIdentified = agentVersionIdentified(agent)
       const compatible = agentCompatible(agent)
       const nativeConfigurationUnknown = !runtimeMissing
-        && !providerCredentialUnavailable
         && nativeState === 'unknown'
         && native?.source !== 'native-runtime-unavailable'
         && native?.source !== 'native-probe-failed'
-      const configured = providerCredentialUnavailable || sharedProviderReady
-        || nativeState === 'ready'
+      const configured = nativeState === 'ready'
         || native?.source === 'native-auth-status'
         || native?.source === 'native-runtime-unavailable'
         || verifiedReady
         || runtimeMissing
         || nativeConfigurationUnknown
-      const authenticated = !providerCredentialUnavailable && !runtimeMissing && nativeState !== 'missing' && (
-        sharedProviderReady || nativeState === 'ready' || verifiedReady || nativeConfigurationUnknown
+      const authenticated = !runtimeMissing && nativeState !== 'missing' && (
+        nativeState === 'ready' || verifiedReady || nativeConfigurationUnknown
       )
       const runtimePrerequisitesReady = native?.source !== 'native-runtime-unavailable'
         && (native?.source !== 'native-probe-failed' || recentlyVerified(runtime, this.now()))
       const invocable = installed && versionIdentified && compatible && configured
         && authenticated && runtimePrerequisitesReady
-      const verifiedRecently = !providerCredentialUnavailable && (
-        (authoritativeNativeState && nativeState === 'ready') || recentlyVerified(runtime, this.now())
-      )
+      const verifiedRecently = (authoritativeNativeState && nativeState === 'ready')
+        || recentlyVerified(runtime, this.now())
       const available = invocable
       const preferred = state.agentPreferences[agent.kind]?.showInSidebar
       const capabilities = agentRuntimeCapabilities(agent.kind, {
@@ -170,9 +152,7 @@ class LocalWorkspaceAgentCatalog {
       })
       let availabilitySource = 'unverified'
       if (!compatible) availabilitySource = 'incompatible'
-      else if (providerCredentialUnavailable) availabilitySource = 'provider-credential-unavailable'
       else if (runtimeMissing) availabilitySource = 'runtime-auth-failure'
-      else if (sharedProviderReady) availabilitySource = nativeReadySource || 'shared-provider'
       else if (nativeState === 'missing') availabilitySource = native.source || 'none'
       else if (native?.source === 'native-probe-failed') availabilitySource = 'native-probe-failed'
       else if (nativeReadySource) availabilitySource = nativeReadySource
@@ -220,7 +200,7 @@ class LocalWorkspaceAgentCatalog {
       checkedAt: this.now(),
     }
     const agent = this.detectedAgents().find(item => item.kind === kind)
-    if (agent && agent.availabilitySource !== 'provider-credential-unavailable') {
+    if (agent) {
       agent.credentialState = credentialState
       agent.versionIdentified = agentVersionIdentified(agent)
       agent.compatible = agentCompatible(agent)

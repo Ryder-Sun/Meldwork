@@ -261,17 +261,6 @@
         <small>{{ agentDetailSkillSummary }}</small>
       </span>
       <span>
-        <strong>{{ selectedAgentDetail.cloud ? t('agentDetail.location') : t('agentDetail.provider') }}</strong>
-        <small>
-          {{ selectedAgentDetail.cloud
-            ? t('agentDetail.cloudLocation', {
-              server: selectedAgentDetail.serverLabel,
-              version: selectedAgentDetail.version,
-            })
-            : providerSummaryLabel(selectedAgentDetail) }}
-        </small>
-      </span>
-      <span>
         <strong>{{ t('agentDetail.images') }}</strong>
         <small>{{ agentImageLabel(selectedAgentDetail) }}</small>
       </span>
@@ -322,15 +311,6 @@
       </button>
       <button class="secondary-button" type="button" @click="closeModal">{{ t('common.close') }}</button>
       <button
-        v-if="supportsExternalProvider(selectedAgentDetail)"
-        class="secondary-button"
-        type="button"
-        @click="openProvider(selectedAgentDetail.kind)"
-      >
-        <KeyOutline />
-        {{ t('systemSettings.providerForAgent') }}
-      </button>
-      <button
         v-if="selectedAgentDetail.ready"
         class="primary-button"
         type="button"
@@ -362,7 +342,6 @@ import {
   CloudOutline,
   DownloadOutline,
   FolderOpenOutline,
-  KeyOutline,
   TrashOutline,
   WarningOutline,
 } from '@vicons/ionicons5'
@@ -399,9 +378,7 @@ const {
   isDirectCreationPending,
   modal,
   openDirect,
-  openProvider,
   pickGroupDirectory,
-  providerSummaryLabel,
   readyAgentGroups,
   requestDeleteConfirmation,
   requestInstall,
@@ -410,7 +387,6 @@ const {
   selectedAgentDetail,
   setAgentSidebarVisibility,
   settingsForm,
-  supportsExternalProvider,
   t,
 } = props.controller
 

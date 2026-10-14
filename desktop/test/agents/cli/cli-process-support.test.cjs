@@ -5,7 +5,25 @@ const os = require('node:os')
 const path = require('node:path')
 
 const { childEnvironment, failedAgentProcessError } = require('../../../src/agents/cli/cli-process-support.cjs')
-const { managedOpenClawOptions } = require('../../../src/agents/cli/openclaw-runtime.cjs')
+const { nativeOpenClawOptions } = require('../../../src/agents/cli/openclaw-runtime.cjs')
+
+function openClawChildEnvRuntime(directory, workdir) {
+  return nativeOpenClawOptions({
+    storageRoot: directory,
+    workdir,
+    sessionRef: 'agent:main:child-env',
+    runtime: {
+      model: 'native/model',
+      provider: {
+        id: 'native',
+        baseUrl: 'https://native.example.com/v1',
+        api: 'openai-completions',
+        apiKey: 'selected-openclaw-key',
+        model: { id: 'model', name: 'Native Model', input: ['text'] },
+      },
+    },
+  })
+}
 
 test('local Agent child environments keep supported runtime settings but reject process injection', () => {
   const env = childEnvironment(
@@ -69,16 +87,7 @@ test('OpenClaw child environment keeps only its guarded runtime and selected cre
     }
   })
 
-  const runtime = managedOpenClawOptions({
-    storageRoot: directory,
-    workdir,
-    sessionRef: 'agent:main:child-env',
-    provider: {
-      OPENAI_API_KEY: 'selected-openclaw-key',
-      OPENAI_BASE_URL: 'https://api.example.com/v1',
-      OPENAI_MODEL: 'example-model',
-    },
-  })
+  const runtime = openClawChildEnvRuntime(directory, workdir)
   const env = childEnvironment(
     { kind: 'openclaw' },
     workdir,
@@ -89,7 +98,7 @@ test('OpenClaw child environment keeps only its guarded runtime and selected cre
         https_proxy: 'http://proxy.example:3128',
         NO_PROXY: 'localhost,127.0.0.1,::1',
         NODE_EXTRA_CA_CERTS: '/certs/company.pem',
-        MELDWORK_OPENCLAW_NATIVE_API_KEY: 'wrong-openclaw-key',
+        MELDWORK_OPENCLAW_API_KEY: 'legacy-openclaw-key',
         GITHUB_TOKEN: 'caller-secret',
         ANTHROPIC_API_KEY: 'caller-anthropic-secret',
         XDG_CONFIG_HOME: '/tmp/caller-config',
@@ -98,13 +107,13 @@ test('OpenClaw child environment keeps only its guarded runtime and selected cre
     process.platform,
   )
 
-  assert.equal(env.MELDWORK_OPENCLAW_API_KEY, 'selected-openclaw-key')
+  assert.equal(env.MELDWORK_OPENCLAW_NATIVE_API_KEY, 'selected-openclaw-key')
   assert.equal(env.https_proxy, 'http://proxy.example:3128')
   assert.equal(env.NO_PROXY, 'localhost,127.0.0.1,::1')
   assert.equal(env.NODE_EXTRA_CA_CERTS, '/certs/company.pem')
   assert.equal(env.OPENCLAW_GATEWAY_TOKEN, runtime.env.OPENCLAW_GATEWAY_TOKEN)
   assert.equal(env.OPENCLAW_DISABLE_BONJOUR, '1')
-  assert.equal(Object.hasOwn(env, 'MELDWORK_OPENCLAW_NATIVE_API_KEY'), false)
+  assert.equal(Object.hasOwn(env, 'MELDWORK_OPENCLAW_API_KEY'), false)
   assert.equal(Object.hasOwn(env, 'GITHUB_TOKEN'), false)
   assert.equal(Object.hasOwn(env, 'ANTHROPIC_API_KEY'), false)
   assert.equal(env.OPENCLAW_WORKSPACE_DIR, workdir)

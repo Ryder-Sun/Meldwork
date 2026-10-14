@@ -158,7 +158,6 @@ describe('Meldwork workbench', () => {
       available: true,
       credentialState: 'ready',
       showInSidebar: true,
-      providerMode: 'connector',
       custom: false,
       connector: true,
       cloud: true,
@@ -201,7 +200,6 @@ describe('Meldwork workbench', () => {
 
     expect(wrapper.get('.agent-detail-logo.cloud img').attributes('src'))
       .toContain('agent-logos/codex.svg')
-    expect(wrapper.get('.agent-detail-metrics').text()).toContain('Research server · Version 0.146.1')
     expect(wrapper.get('.agent-detail-skill-grid').text()).toContain('@Review')
     expect(bridge.agentInstaller.skills).toHaveBeenCalledWith(cloudKind)
     wrapper.unmount()
@@ -217,7 +215,6 @@ describe('Meldwork workbench', () => {
       custom: true,
       installed: true,
       installSupported: false,
-      providerMode: 'custom',
       imageAttachmentLimit: 0,
       version: 'review-agent 1.0.0',
     }
@@ -1266,85 +1263,6 @@ describe('Meldwork workbench', () => {
     wrapper.unmount()
   })
 
-  it('saves the exact Provider payload exposed by preload', async () => {
-    const { wrapper, bridge } = await mountApp()
-
-    await wrapper.get('.sidebar-settings-entry').trigger('click')
-    await wrapper.findAll(".settings-tabs button")[2].trigger("click")
-    await wrapper.findAll('.provider-agent-list button')
-      .find(button => button.text().includes('Hermes'))
-      .trigger('click')
-    await flushPromises()
-    expect(wrapper.get('.provider-editor .primary-button').text()).toContain('Save and use')
-    await wrapper.findAll('.provider-source-options button')[2].trigger('click')
-    const inputs = wrapper.findAll('.provider-editor input')
-    await inputs[0].setValue('Local gateway')
-    await inputs[1].setValue('https://gateway.example/v1')
-    await inputs[2].setValue('meldwork-model')
-    await inputs[3].setValue('secret-key')
-    await wrapper.get('form.provider-editor').trigger('submit')
-    await flushPromises()
-
-    expect(bridge.localAgentProvider.save).toHaveBeenCalledWith('hermes', {
-      preset: 'custom',
-      provider: 'Local gateway',
-      baseUrl: 'https://gateway.example/v1',
-      model: 'meldwork-model',
-      apiKey: 'secret-key',
-    })
-    wrapper.unmount()
-  })
-
-  it('reruns Agent detection when a Provider save overlaps an existing refresh', async () => {
-    const firstRefresh = deferred()
-    const secondRefresh = deferred()
-    const { wrapper, bridge, state } = await mountApp(({ bridge: nextBridge, state: nextState }) => {
-      const hermes = nextState.agents.find(agent => agent.kind === 'hermes')
-      hermes.available = false
-      hermes.credentialState = 'missing'
-      const staleSnapshot = structuredClone(nextState)
-      const readySnapshot = structuredClone(nextState)
-      const readyHermes = readySnapshot.agents.find(agent => agent.kind === 'hermes')
-      readyHermes.available = true
-      readyHermes.credentialState = 'ready'
-      nextBridge.localWorkspace.refreshAgents
-        .mockReturnValueOnce(firstRefresh.promise)
-        .mockReturnValueOnce(secondRefresh.promise)
-      firstRefresh.snapshot = staleSnapshot
-      secondRefresh.snapshot = readySnapshot
-    })
-
-    expect(bridge.localWorkspace.refreshAgents).toHaveBeenCalledTimes(1)
-    await wrapper.get('.sidebar-settings-entry').trigger('click')
-    await wrapper.findAll(".settings-tabs button")[2].trigger("click")
-    await wrapper.findAll('.provider-agent-list button')
-      .find(button => button.text().includes('Hermes'))
-      .trigger('click')
-    await flushPromises()
-    await wrapper.findAll('.provider-source-options button')[2].trigger('click')
-    const inputs = wrapper.findAll('.provider-editor input')
-    await inputs[0].setValue('Local gateway')
-    await inputs[1].setValue('https://gateway.example/v1')
-    await inputs[2].setValue('meldwork-model')
-    await inputs[3].setValue('secret-key')
-    await wrapper.get('form.provider-editor').trigger('submit')
-    await flushPromises()
-
-    firstRefresh.resolve(firstRefresh.snapshot)
-    await flushPromises()
-    expect(bridge.localWorkspace.refreshAgents).toHaveBeenCalledTimes(2)
-    expect(wrapper.get('form.provider-editor .primary-button').attributes()).toHaveProperty('disabled')
-
-    secondRefresh.resolve(secondRefresh.snapshot)
-    await flushPromises()
-    await wrapper.findAll('.settings-tabs button')[0].trigger('click')
-    const hermesCard = wrapper.findAll('.settings-agent-card')
-      .find(card => card.text().includes('Hermes'))
-    expect(hermesCard.get('.agent-state').text()).toContain('Ready')
-    expect(state.agents.find(agent => agent.kind === 'hermes').available).toBe(false)
-    wrapper.unmount()
-  })
-
   it('localizes default group names and structured system messages at render time', async () => {
     const { wrapper } = await mountApp(({ state }) => {
       state.groups.push({
@@ -2001,8 +1919,8 @@ describe('Meldwork workbench', () => {
       })
     })
     const agent = wrapper.findAll('.sidebar-agent').find(row => row.text().includes('Hermes'))
-    expect(agent.get('small').text()).toBe('Needs sign-in or Provider')
-    expect(agent.get('.sidebar-agent-main').attributes('title')).toContain('Needs sign-in or Provider')
+    expect(agent.get('small').text()).toBe('Needs sign-in')
+    expect(agent.get('.sidebar-agent-main').attributes('title')).toContain('Needs sign-in')
     expect(agent.get('.sidebar-agent-new').attributes()).toHaveProperty('disabled')
     await agent.get('.sidebar-agent-main').trigger('click')
     await flushPromises()

@@ -66,8 +66,6 @@
             </template>
             <span class="meta-separator">/</span>
             <span>{{ agentImageLabel(activeDirectAgent) }}</span>
-            <span class="meta-separator">/</span>
-            <span>{{ providerModeShortLabel(activeDirectAgent.providerMode) }}</span>
           </template>
         </p>
       </div>
@@ -160,7 +158,6 @@ const {
   inlineTitleDraft,
   inlineTitleEditing,
   openGroupSettings,
-  providerModeShortLabel,
   saveInlineTitle,
   saving,
   sending,

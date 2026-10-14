@@ -122,7 +122,6 @@ export function createConversationControllers({
     inlineTitleDraft: conversationActions.inlineTitleDraft,
     inlineTitleEditing: conversationActions.inlineTitleEditing,
     openGroupSettings: conversationActions.openGroupSettings,
-    providerModeShortLabel: agentCatalog.providerModeShortLabel,
     saveInlineTitle: conversationActions.saveInlineTitle,
     saving: app.saving,
     sending: app.sending,

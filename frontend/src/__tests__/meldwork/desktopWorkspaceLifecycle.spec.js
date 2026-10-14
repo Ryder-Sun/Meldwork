@@ -31,7 +31,6 @@ function mountLifecycle(overrides = {}) {
     handleRunFinished: vi.fn(),
     installer: ref(installerApi),
     installerState: ref({ phase: 'loading' }),
-    provider: ref({}),
     refreshAgents: vi.fn(async () => {}),
     showError: vi.fn(),
     snapshot: ref(snapshot()),
@@ -76,7 +75,6 @@ describe('desktop workspace lifecycle', () => {
     const fixture = mountLifecycle({
       dependencies: {
         installer: ref(null),
-        provider: ref(null),
         workspace: ref(null),
       },
     })

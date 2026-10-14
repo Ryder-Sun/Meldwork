@@ -273,7 +273,6 @@
   color: var(--danger);
 }
 
-.agent-provider-mode,
 .agent-version {
   overflow: hidden;
   color: var(--muted);

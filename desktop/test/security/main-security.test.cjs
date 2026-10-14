@@ -13,8 +13,6 @@ const {
 const { serializeAgentConnectorPackage } = require('../../src/agents/connectors/agent-connector-package-store.cjs')
 const {
   LOCAL_IPC_CHANNELS,
-  PROVIDER_AGENT_KINDS,
-  PROVIDER_METADATA,
   deferred,
   eventFor,
   loadMain,
@@ -80,7 +78,6 @@ test('product data migration failure stops ready initialization before stores or
 
   assert.equal(harness.quitCount, 1)
   assert.equal(harness.workspaceInstances.length, 0)
-  assert.equal(harness.providerInstances.length, 0)
   assert.equal(harness.knowledgeBaseStoreInstances.length, 0)
   assert.equal(harness.windows.length, 0)
   assert.deepEqual(reported, [[
@@ -168,14 +165,8 @@ test('ready activates one fixed local workspace and loads the bundled frontend',
     /^fit-matrix-[a-f0-9]{64}$/,
   )
   assert.equal(harness.workspaceInstances[0].refreshCount, 0)
-  assert.equal(harness.providerInstances[0].input.storagePath,
-    path.join(directory, 'meldwork-provider.json'))
   assert.equal(harness.customAgentStoreInstances[0].input.storagePath,
     path.join(directory, 'meldwork-custom-agents.json'))
-  assert.deepEqual(
-    [...harness.providerInstances[0].input.allowedKinds].sort(),
-    [...PROVIDER_AGENT_KINDS].sort(),
-  )
   assert.equal(harness.knowledgeBaseStoreInstances[0].input.storagePath,
     path.join(directory, 'meldwork-knowledge-base.json'))
   assert.equal(harness.attachmentInstances[0].input.rootPath,
@@ -331,7 +322,6 @@ test('an explicitly installed Agent Connector is available through generic catal
   const catalog = await harness.ipcHandlers.get('local-agent-installer:catalog')(harness.event())
   const profile = catalog.agents.find(agent => agent.kind === connector.kind)
   assert.equal(profile.connector, true)
-  assert.equal(profile.providerMode, 'connector')
   assert.equal(profile.description, SAMPLE_AGENT_CONNECTOR_MANIFEST.description)
   assert.doesNotMatch(JSON.stringify(profile), /private\/bin|credential-ref/i)
 
@@ -361,7 +351,6 @@ test('Agent Connector IPC persists isolated accounts without returning Credentia
     serializeAgentConnectorManifest(SAMPLE_CREDENTIAL_AGENT_CONNECTOR_MANIFEST),
   )
   const options = {
-    providerConfigured: true,
     detectedAgents: [{
       kind: 'codex', name: 'Codex CLI', executable: '/private/bin/codex',
       version: 'codex-cli 0.147.0', compatibilityState: 'compatible',
@@ -410,7 +399,6 @@ test('Agent Connector IPC persists isolated accounts without returning Credentia
     { runId: 'run-account-b', agentRunId: 'agent-run-account-b', sandbox: 'read-only' },
   )
   assert.equal(harness.runAgentCalls.at(-1)[3].env.OPENAI_API_KEY, 'connector-main-secret-b')
-  assert.notEqual(harness.runAgentCalls.at(-1)[3].env.OPENAI_API_KEY, 'provider-key')
 
   const instanceFile = fs.readFileSync(
     path.join(directory, 'agent-connectors', 'instances.json'),
@@ -1363,7 +1351,7 @@ test('ready creates the desktop window without eagerly duplicating renderer Agen
   assert.equal(harness.workspaceInstances[0].refreshCount, 0)
 })
 
-test('Electron safeStorage stays lazy until after the desktop window exists', async (t) => {
+test('Electron safeStorage stays lazy during startup', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-ready-safe-storage-'))
   const safeStorageAccesses = []
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
@@ -1373,9 +1361,7 @@ test('Electron safeStorage stays lazy until after the desktop window exists', as
 
   await harness.ready()
   assert.deepEqual(safeStorageAccesses, [])
-
-  assert.equal(harness.providerInstances[0].input.safeStorage.isEncryptionAvailable(), true)
-  assert.deepEqual(safeStorageAccesses, [1])
+  assert.equal(harness.windows.length, 1)
 })
 
 test('window navigation permits only local app pages and credential-free HTTPS links', async (t) => {
@@ -1411,64 +1397,6 @@ test('window navigation permits only local app pages and credential-free HTTPS l
   assert.deepEqual(harness.externalUrls, [
     'https://example.com/docs',
     'https://example.com/help',
-  ])
-})
-
-test('Provider IPC accepts the complete user payload and supports local deletion', async (t) => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-provider-ipc-'))
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
-  const { harness } = loadMain(directory)
-  await harness.ready()
-  const input = { ...PROVIDER_METADATA, apiKey: 'renderer-provider-key', preset: 'custom' }
-
-  const initial = await harness.ipcHandlers.get('local-agent-provider:status')(
-    harness.event(), 'hermes',
-  )
-  assert.equal(initial.configured, false)
-  assert.deepEqual(harness.providerInstances[0].statusCalls, [{ kind: 'hermes', input: undefined }])
-
-  await harness.ipcHandlers.get('local-agent-provider:probe')(harness.event(), 'hermes')
-  assert.deepEqual(harness.providerInstances[0].statusCalls, [
-    { kind: 'hermes', input: undefined },
-    { kind: 'hermes', input: { probeEncryption: true } },
-  ])
-
-  const saved = await harness.ipcHandlers.get('local-agent-provider:save')(
-    harness.event(), 'hermes', input,
-  )
-  assert.deepEqual(harness.providerInstances[0].saved, [{ kind: 'hermes', input }])
-  assert.equal(saved.configured, true)
-  assert.equal(harness.workspaceInstances[0].refreshCount, 1)
-  assert.deepEqual(harness.workspaceInstances[0].runtimeCredentialMarks, [
-    { kind: 'hermes', credentialState: 'unknown' },
-  ])
-
-  const activated = await harness.ipcHandlers.get('local-agent-provider:activate')(
-    harness.event(), 'hermes', 'custom',
-  )
-  assert.deepEqual(harness.providerInstances[0].activated, [{ kind: 'hermes', preset: 'custom' }])
-  assert.equal(activated.activePreset, 'custom')
-  assert.equal(harness.workspaceInstances[0].refreshCount, 2)
-  assert.deepEqual(harness.workspaceInstances[0].runtimeCredentialMarks, [
-    { kind: 'hermes', credentialState: 'unknown' },
-    { kind: 'hermes', credentialState: 'unknown' },
-  ])
-
-  await assert.rejects(
-    async () => harness.ipcHandlers.get('local-agent-provider:status')(harness.event(), 'not-an-agent'),
-    { message: 'PROVIDER_AGENT_UNSUPPORTED' },
-  )
-
-  const deleted = await harness.ipcHandlers.get('local-agent-provider:delete')(
-    harness.event(), 'hermes', 'custom',
-  )
-  assert.deepEqual(harness.providerInstances[0].deleted, [{ kind: 'hermes', preset: 'custom' }])
-  assert.equal(deleted.configured, false)
-  assert.equal(harness.workspaceInstances[0].refreshCount, 3)
-  assert.deepEqual(harness.workspaceInstances[0].runtimeCredentialMarks, [
-    { kind: 'hermes', credentialState: 'unknown' },
-    { kind: 'hermes', credentialState: 'unknown' },
-    { kind: 'hermes', credentialState: 'unknown' },
   ])
 })
 
@@ -1736,7 +1664,7 @@ test('Cloud Agent catalog and Skills IPC preserve remote metadata without exposi
       return [{
         kind, sourceKind: 'claude', label: 'Claude Code @ Research server',
         description: 'Remote Claude Code', version: '2.1.123', installed: true,
-        installSupported: false, providerMode: 'connector', custom: false,
+        installSupported: false, custom: false,
         connector: true, cloud: true, available: false, credentialState: 'missing',
         serverLabel: 'Research server',
       }]
@@ -1990,11 +1918,10 @@ test('deleting a message normalizes identifiers and discards only newly unrefere
   assert.deepEqual(harness.attachmentInstances[0].discarded, [['only-message']])
 })
 
-test('configured Provider is injected only through local Agent execution options', async (t) => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-provider-routing-'))
+test('native Agent credentials are injected only through local Agent execution options', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-routing-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
   const { harness } = loadMain(directory, {
-    providerConfigured: true,
     nativeShellEnvironment: () => ({
       env: { PATH: '/opt/native-agent/bin:/usr/bin', https_proxy: 'http://proxy.example:3128', NO_PROXY: 'localhost,127.0.0.1', ANTHROPIC_API_KEY: 'native-hermes-key' },
       source: 'native-shell',
@@ -2010,43 +1937,11 @@ test('configured Provider is injected only through local Agent execution options
   )
 
   const options = harness.runAgentCalls[0][3]
-  assert.deepEqual(options.provider, { id: 'openai-api', model: 'example-model' })
-  assert.equal(options.env.OPENAI_API_KEY, 'provider-key')
-  assert.equal(options.env.OPENAI_BASE_URL, PROVIDER_METADATA.baseUrl)
-  assert.equal(options.env.OPENAI_MODEL, PROVIDER_METADATA.model)
-  assert.equal(options.env.HERMES_INFERENCE_PROVIDER, 'openai-api')
-  assert.equal(options.env.HERMES_INFERENCE_MODEL, PROVIDER_METADATA.model)
-  assert.equal(options.env.ANTHROPIC_API_KEY, undefined)
+  assert.equal(options.env.ANTHROPIC_API_KEY, 'native-hermes-key')
   assert.equal(options.env.CURRENT_RUN, '1')
   assert.equal(options.env.PATH, '/opt/native-agent/bin:/usr/bin')
   assert.equal(options.env.https_proxy, 'http://proxy.example:3128')
   assert.equal(options.env.NO_PROXY, 'localhost,127.0.0.1')
-})
-
-test('unreadable saved Provider credentials never silently fall back to native execution', async (t) => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-provider-locked-'))
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
-  const { harness } = loadMain(directory)
-  await harness.ready()
-  const store = harness.providerInstances[0]
-  const originalStatus = store.status.bind(store)
-  store.status = () => ({ configured: false, error: true, activePreset: 'custom' })
-  assert.deepEqual(await harness.workspaceInstances[0].input.credentialState('hermes'), {
-    state: 'unknown', source: 'provider-credential-unavailable',
-  })
-  await assert.rejects(harness.workspaceInstances[0].input.runAgent(
-    { kind: 'hermes', executable: '/tmp/hermes' }, 'hello', directory,
-  ), { message: 'PROVIDER_CREDENTIAL_UNAVAILABLE' })
-  assert.equal(harness.runAgentCalls.length, 0)
-
-  store.status = originalStatus
-  assert.deepEqual(await harness.workspaceInstances[0].input.credentialState('hermes'), {
-    state: 'ready', source: 'native-credential',
-  })
-  await harness.workspaceInstances[0].input.runAgent(
-    { kind: 'hermes', executable: '/tmp/hermes' }, 'hello', directory,
-  )
-  assert.equal(harness.runAgentCalls.length, 1)
 })
 
 test('OpenClaw native auth is routed through the app-owned isolated runtime', async (t) => {
