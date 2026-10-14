@@ -805,6 +805,7 @@ export default {
     'system.autoStopped': '自动讨论已停止：{reason}',
     'system.autoDiscussionStalled': '自动讨论因重复转交且没有新增内容而停止。',
     'system.autoRoundLimit': '自动讨论已达到 {rounds} 轮上限，尚未达成共识。',
+    'system.autoCrossReview': '交付负责人在同伴讨论前判断任务完成；将先进行一轮交叉审查。',
     'system.autoTaskDecisionMissing': '讨论已停止，尚无有效的任务完成判断。',
     'system.autoTaskBlocked': '任务受阻：{reason}',
     'system.autoTaskNeedsHuman': '需要人类决定：{reason}',

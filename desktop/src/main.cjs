@@ -361,6 +361,7 @@ async function runCoreAgent(agent, prompt, workdir, options = {}) {
         workdir,
         storageRoot: app.getPath('userData'),
         nativeRuntime,
+        openclawVersion: agent.version,
       })
   const nativeEnv = connectorCredentialIsolation || agent.kind === 'openclaw'
     ? {}

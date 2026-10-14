@@ -102,8 +102,19 @@ for (const writerKind of ['hermes', '']) {
     const result = ledger.list(group.id)[0]
     assert.equal(result.status, 'completed', JSON.stringify(workspace.snapshot().messages.map(message => message.content)))
     assert.equal(result.orchestration.discussionWriterKind || '', writerKind)
-    assert.deepEqual(calls.filter(call => call.sandbox === 'workspace-write'), writerKind
-      ? [{ kind: writerKind, discussion: true, sandbox: 'workspace-write' }] : [])
+    const writeCalls = calls.filter(call => call.sandbox === 'workspace-write')
+    if (writerKind) {
+      // The writer may join both the opening full round and a later owner
+      // review round, but only the declared writer ever receives write access.
+      assert.ok(writeCalls.length >= 1)
+      assert.ok(writeCalls.every(call => (
+        call.kind === writerKind && call.discussion === true
+      )))
+      assert.ok(calls.filter(call => call.sandbox !== 'workspace-write')
+        .every(call => call.sandbox === 'read-only'))
+    } else {
+      assert.deepEqual(writeCalls, [])
+    }
   })
 }
 

@@ -192,7 +192,7 @@ function normalizeProvider(input) {
   return { apiKey, baseUrl, model }
 }
 
-function runtimePaths({ storageRoot, workdir, sessionRef, configName }) {
+function runtimePaths({ storageRoot, workdir, sessionRef, configName, runtimeVersion }) {
   if (!path.isAbsolute(storageRoot) || !path.isAbsolute(workdir)) {
     throw new Error('OPENCLAW_RUNTIME_INVALID_SCOPE')
   }
@@ -204,8 +204,15 @@ function runtimePaths({ storageRoot, workdir, sessionRef, configName }) {
     throw new Error('OPENCLAW_RUNTIME_INVALID_SCOPE')
   }
   const resolvedWorkdir = path.resolve(workdir)
+  // The managed scope is keyed by session, workspace, and CLI version. OpenClaw
+  // refuses to start on state written by an older CLI ("Legacy workspace setup
+  // state requires migration"), so a version-scoped directory gives an upgraded
+  // CLI a fresh isolated scope instead of a guaranteed startup failure.
+  const versionSegment = String(runtimeVersion || '').trim()
   const scope = crypto.createHash('sha256')
-    .update(`${sessionRef || 'configure'}\0${resolvedWorkdir}`)
+    .update(versionSegment
+      ? `${sessionRef || 'configure'}\0${resolvedWorkdir}\0${versionSegment}`
+      : `${sessionRef || 'configure'}\0${resolvedWorkdir}`)
     .digest('hex')
     .slice(0, 24)
   const runtimeRoot = path.join(resolvedStorageRoot, 'openclaw-managed', scope)
@@ -459,14 +466,14 @@ function normalizedNativeModel(input) {
 }
 
 function managedOpenClawOptions({
-  storageRoot, workdir, sessionRef = '', allowWrite = false, provider,
+  storageRoot, workdir, sessionRef = '', allowWrite = false, provider, openclawVersion,
 }) {
   const normalized = normalizeProvider(provider)
   const configName = allowWrite
     ? 'openclaw.provider.workspace-write.json'
     : 'openclaw.provider.read-only.json'
   const runtime = runtimePaths({
-    storageRoot, workdir, sessionRef, configName,
+    storageRoot, workdir, sessionRef, configName, runtimeVersion: openclawVersion,
   })
   const { resolvedWorkdir, home, state, configPath } = runtime
 
@@ -525,7 +532,7 @@ function managedOpenClawOptions({
 }
 
 function nativeOpenClawOptions({
-  storageRoot, workdir, sessionRef = '', allowWrite = false, runtime,
+  storageRoot, workdir, sessionRef = '', allowWrite = false, runtime, openclawVersion,
 }) {
   const modelRef = String(runtime?.model || '').trim()
   const provider = runtime?.provider
@@ -557,7 +564,7 @@ function nativeOpenClawOptions({
     ? 'openclaw.native.workspace-write.json'
     : 'openclaw.native.read-only.json'
   const runtimePathsResult = runtimePaths({
-    storageRoot, workdir, sessionRef, configName,
+    storageRoot, workdir, sessionRef, configName, runtimeVersion: openclawVersion,
   })
   const { resolvedWorkdir, home, state, configPath } = runtimePathsResult
   const modelConfig = { primary: modelRef }

@@ -51,7 +51,7 @@ test('capability timeouts retry once and remain inconclusive when both attempts 
         return { stdout: argsForProbe(_command, _args) }
       },
     })
-    assert.deepEqual(timeouts, recover ? [8000, 8000, 16000] : [8000, 8000, 16000, 16000])
+    assert.deepEqual(timeouts, recover ? [8000, 16000] : [8000, 16000])
     assert.equal(result.compatibilityState, recover ? 'compatible' : 'unknown')
     if (!recover) assert.equal(result.incompatibilityReason, 'LOCAL_AGENT_CAPABILITY_PROBE_TIMEOUT')
   }

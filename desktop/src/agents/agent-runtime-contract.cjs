@@ -219,6 +219,15 @@ function terminalAuthenticationDiagnostic(value) {
     : ''
 }
 
+function authConfigurationFailure(detail) {
+  return String(detail || '').split(/\r?\n/).some((line) => {
+    const text = line.trim().replace(/^(?:error|fatal)\s*:\s*/i, '')
+    return Boolean(terminalAuthenticationDiagnostic(text))
+      || /^(?:(?:invalid|expired|missing|incorrect)\s+(?:api[ _-]?key|(?:access|refresh|auth)[ _-]?token|credentials?)\b|(?:authentication|authorization)\s+(?:failed|required)\b|(?:please\s+)?(?:log|sign)\s+in\b|not\s+logged\s+in\b|select an auth type\b|provider rejected\b)/i.test(text)
+      || /^(?:认证|鉴权|登录)(?:失败|过期)|^(?:令牌|凭据|密钥)(?:无效|缺失|已过期)|^请(?:先|重新)登录/.test(text)
+  })
+}
+
 function failureCategory(code) {
   const value = String(code || '')
   if (value === 'LOCAL_AGENT_SESSION_INVALID') return 'session'
@@ -299,9 +308,16 @@ function requireTerminalAgentResult(result) {
     throw agentRuntimeError('LOCAL_AGENT_EXECUTION_STOPPED')
   }
   if (normalized.outcome === 'failed') {
-    const failure = normalized.failure?.code
+    let failure = normalized.failure?.code
       ? normalized.failure
       : agentRuntimeFailure('LOCAL_AGENT_PROCESS_FAILED')
+    const diagnostic = String(normalized.diagnostic || normalized.text || '')
+    // A structured failure whose diagnostic names an authentication problem is
+    // an authentication failure even when the CLI reported a generic process
+    // error, so the catalog can mark the Agent as needing a fresh login.
+    if (failure.category !== 'authentication' && authConfigurationFailure(diagnostic)) {
+      failure = agentRuntimeFailure('LOCAL_AGENT_AUTH_REQUIRED')
+    }
     throw agentRuntimeError(
       failure.code,
       normalized.diagnostic || normalized.text,
@@ -338,6 +354,7 @@ module.exports = {
   agentRuntimeCapabilities,
   agentRuntimeError,
   agentRuntimeFailure,
+  authConfigurationFailure,
   isCodeReviewAgentKind,
   isReviewOnlyAgentKind,
   normalizeAgentResult,

@@ -90,6 +90,27 @@ test('managed runtime isolates OpenClaw state and keeps the API key out of confi
   assert.equal(fs.statSync(result.env.OPENCLAW_CONFIG_PATH).mode & 0o777, 0o600)
 })
 
+test('managed runtime scope is keyed by session, workspace, and CLI version', (t) => {
+  const { directory, workdir } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+
+  const base = {
+    storageRoot: directory,
+    workdir,
+    sessionRef: 'agent:main:desktop-meldwork-scope-openclaw',
+    provider: provider(),
+  }
+  const versionA = managedOpenClawOptions({ ...base, openclawVersion: 'OpenClaw 2026.7.1-2 (a1b2c3)' })
+  const versionARepeat = managedOpenClawOptions({ ...base, openclawVersion: 'OpenClaw 2026.7.1-2 (a1b2c3)' })
+  const versionB = managedOpenClawOptions({ ...base, openclawVersion: 'OpenClaw 2026.9.1 (ad6fe23)' })
+  const unversioned = managedOpenClawOptions({ ...base })
+
+  assert.equal(versionA.env.OPENCLAW_STATE_DIR, versionARepeat.env.OPENCLAW_STATE_DIR)
+  assert.notEqual(versionA.env.OPENCLAW_STATE_DIR, versionB.env.OPENCLAW_STATE_DIR)
+  assert.notEqual(versionA.env.OPENCLAW_STATE_DIR, unversioned.env.OPENCLAW_STATE_DIR)
+  assert.equal(versionB.env.OPENCLAW_STATE_DIR.startsWith(fs.realpathSync(directory)), true)
+})
+
 test('Gateway setup rewrites the guarded config without persisting credentials', (t) => {
   const { directory, workdir } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

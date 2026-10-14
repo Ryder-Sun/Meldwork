@@ -521,6 +521,45 @@ process.exitCode = 1
   assert.equal(events.some(event => event.type === 'answer_delta'), true)
 })
 
+for (const exitCode of [0, 1]) {
+  test(`WorkBuddy authentication failures classify as auth-required with exit code ${exitCode}`, async (t) => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), `meldwork-workbuddy-auth-${exitCode}-`))
+    const cli = executable(directory, 'workbuddy-auth-required.cjs', `
+  process.stdout.write(JSON.stringify({
+    type: 'system', subtype: 'init', session_id: 'workbuddy-auth-session',
+    apiKeySource: 'www.workbuddy.cn',
+  }) + '\\n')
+  process.stdout.write(JSON.stringify({
+    type: 'assistant', session_id: 'workbuddy-auth-session',
+    message: { role: 'assistant', content: [
+      { type: 'text', text: 'Authentication required. Please use /login command to sign in to your account' },
+    ] },
+  }) + '\\n')
+  process.stdout.write(JSON.stringify({
+    type: 'result', subtype: 'error_during_execution', is_error: true,
+    session_id: 'workbuddy-auth-session',
+    errors: ['Authentication required. Please use /login command to sign in to your account'],
+  }) + '\\n')
+  process.exitCode = ${exitCode}
+  `)
+    t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+
+    await assert.rejects(
+      runAgent(
+        { kind: 'workbuddy', executable: cli, name: 'WorkBuddy' },
+        'hello',
+        directory,
+        { },
+      ),
+      (error) => {
+        assert.equal(error.code, 'LOCAL_AGENT_AUTH_REQUIRED')
+        assert.match(error.diagnostic || '', /Authentication required/u)
+        return true
+      },
+    )
+  })
+}
+
 test('Gemini profile state retains one real tool lifecycle id and summary', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-gemini-profile-state-'))
   const cli = executable(directory, 'gemini-profile-state.cjs', `

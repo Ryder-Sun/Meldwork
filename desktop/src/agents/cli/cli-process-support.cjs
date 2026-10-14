@@ -2,7 +2,10 @@ const path = require('node:path')
 const { searchPath, systemChildEnvironment } = require('./cli-discovery.cjs')
 const { NETWORK_ENV_KEYS, networkEnvironment } = require('./cli-network-environment.cjs')
 const { redactChildSecrets } = require('./cli-runtime-events.cjs')
-const { agentRuntimeError, terminalAuthenticationDiagnostic } = require('../agent-runtime-contract.cjs')
+const {
+  agentRuntimeError,
+  authConfigurationFailure,
+} = require('../agent-runtime-contract.cjs')
 const { validateOpenClawRuntimeGuard } = require('./openclaw-runtime.cjs')
 
 const TERMINATE_GRACE_MS = 500
@@ -27,15 +30,6 @@ const BLOCKED_RUNTIME_ENV = /^(?:NODE_OPTIONS|NODE_PATH|LD_PRELOAD|LD_LIBRARY_PA
 
 function agentExecutionError(code, diagnostic = '') {
   return agentRuntimeError(code, diagnostic)
-}
-
-function authConfigurationFailure(detail) {
-  return String(detail || '').split(/\r?\n/).some((line) => {
-    const text = line.trim().replace(/^(?:error|fatal)\s*:\s*/i, '')
-    return Boolean(terminalAuthenticationDiagnostic(text))
-      || /^(?:(?:invalid|expired|missing|incorrect)\s+(?:api[ _-]?key|(?:access|refresh|auth)[ _-]?token|credentials?)\b|(?:authentication|authorization)\s+(?:failed|required)\b|(?:please\s+)?(?:log|sign)\s+in\b|not\s+logged\s+in\b|select an auth type\b|provider rejected\b)/i.test(text)
-      || /^(?:认证|鉴权|登录)(?:失败|过期)|^(?:令牌|凭据|密钥)(?:无效|缺失|已过期)|^请(?:先|重新)登录/.test(text)
-  })
 }
 
 function invalidSessionFailure(detail) {

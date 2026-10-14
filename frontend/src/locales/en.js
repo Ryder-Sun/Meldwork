@@ -805,6 +805,7 @@ export default {
     'system.autoStopped': 'Automatic discussion stopped: {reason}',
     'system.autoDiscussionStalled': 'Automatic discussion stopped because repeated handoffs produced no new contribution.',
     'system.autoRoundLimit': 'Automatic discussion reached the {rounds}-round limit without reaching consensus.',
+    'system.autoCrossReview': 'The delivery owner signaled completion before peer discussion; one cross-review round runs first.',
     'system.autoTaskDecisionMissing': 'Discussion stopped without a valid task completion decision.',
     'system.autoTaskBlocked': 'Task blocked: {reason}',
     'system.autoTaskNeedsHuman': 'Human decision needed: {reason}',
