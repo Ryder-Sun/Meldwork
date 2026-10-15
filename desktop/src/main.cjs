@@ -1,6 +1,8 @@
 const electron = require('electron')
 const { app, BrowserWindow, dialog, ipcMain, Menu, Notification, protocol, shell } = electron
+const fs = require('node:fs')
 const path = require('node:path')
+const { redactSecrets } = require('./security/secret-redaction.cjs')
 const { AttachmentStore } = require('./attachments/attachment-store.cjs')
 const { ContentBlobStore } = require('./attachments/content-blob-store.cjs')
 const { ContextPackStore } = require('./collaboration/context-pack-store.cjs')
@@ -77,6 +79,23 @@ const LOCAL_AGENT_KINDS = new Set([
 ])
 const QUIT_CLEANUP_TIMEOUT_MS = 2500
 let mainWindow = null
+
+// Faults outside a request handler are written to a small private log in
+// userData (secrets redacted, size-capped) instead of disappearing or
+// taking the app down, so instability reports have evidence.
+function recordMainProcessFault(kind, detail) {
+  const text = String(detail?.stack || detail?.message || detail || '').slice(0, 4000)
+  console.error(`[meldwork] ${kind}`, text)
+  try {
+    const file = path.join(app.getPath('userData'), 'meldwork-diagnostics.log')
+    try {
+      if (fs.statSync(file).size > 1024 * 1024) fs.renameSync(file, `${file}.1`)
+    } catch { /* first entry */ }
+    fs.appendFileSync(file, `${new Date().toISOString()} ${kind} ${redactSecrets(text)}\n`, { mode: 0o600 })
+  } catch { /* diagnostics must never throw */ }
+}
+process.on('unhandledRejection', reason => recordMainProcessFault('unhandledRejection', reason))
+process.on('uncaughtException', error => recordMainProcessFault('uncaughtException', error))
 let workspace = null
 let workspaceChangedListener = null
 let workspaceRunFinishedListener = null
@@ -677,6 +696,14 @@ function createWindow() {
     showOfflinePage(errorCode)
   })
   mainWindow.webContents.on('did-finish-load', flushPendingOpenGroup)
+  // A crashed renderer used to leave a blank window; reload it so the
+  // workspace (whose state lives in the main process) comes back.
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    recordMainProcessFault('render-process-gone', details?.reason || 'unknown')
+    if (details?.reason !== 'clean-exit' && mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.reload()
+    }
+  })
   mainWindow.on('closed', () => {
     mainWindow = null
   })
