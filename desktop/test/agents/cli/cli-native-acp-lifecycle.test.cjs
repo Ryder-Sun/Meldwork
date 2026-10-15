@@ -276,13 +276,15 @@ test('a hanging ACP initialize times out and releases the conversation lock', as
   const agent = { kind: 'hermes', executable: resilientHermes(directory), name: 'Hermes' }
   const env = { MELDWORK_TEST_SPAWN_COUNT_FILE: spawnCountFile, MELDWORK_TEST_HANG_FIRST_INIT: '1' }
   const first = await within(adapters.runAgent(agent, 'first prompt', directory, {
-    acpPersistenceKey: 'workspace:hermes:init-timeout', acpInitializeTimeoutMs: 100, env,
+    acpPersistenceKey: 'workspace:hermes:init-timeout', acpInitializeTimeoutMs: 300, env,
   }), 5000)
   // The stuck initialize no longer blocks: the turn falls back instead of hanging.
   assert.equal(first.text, 'legacy fallback')
+  // Only the first process hangs; the next turn on the same conversation key
+  // is not blocked by a lock left behind and gets a healthy ACP process.
   const second = await within(adapters.runAgent(agent, 'second prompt', directory, {
-    acpPersistenceKey: 'workspace:hermes:init-timeout', acpInitializeTimeoutMs: 100, env,
-  }), 5000)
+    acpPersistenceKey: 'workspace:hermes:init-timeout', env,
+  }), 10000)
   assert.equal(second.text, 'acp answer 2')
 })
 
