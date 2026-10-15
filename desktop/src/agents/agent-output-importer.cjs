@@ -442,8 +442,13 @@ function importAgentOutputs(input, attachmentStore) {
       const realPath = fs.realpathSync(reportedPath)
       const stat = fs.statSync(realPath)
       const extension = path.extname(realPath).toLowerCase()
+      // A path the Agent merely mentioned (a file it read, the user's input,
+      // a staged attachment) is not an output. Only files written during this
+      // run outside the input staging folder are imported.
       if (!stat.isFile() || !SUPPORTED_EXTENSIONS.has(extension)
-          || stat.size > 64 * 1024 * 1024 || !isInside(workdirRealPath, realPath)) continue
+          || stat.size > 64 * 1024 * 1024 || !isInside(workdirRealPath, realPath)
+          || realPath.split(path.sep).includes('.meldwork-input')
+          || stat.mtimeMs < startedAt - 2000) continue
       reportedCandidates.push({
         name: path.basename(realPath), path: realPath, size: stat.size,
         mtimeMs: stat.mtimeMs, ctimeMs: stat.ctimeMs,

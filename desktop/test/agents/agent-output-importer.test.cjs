@@ -326,3 +326,26 @@ test('preserves the existing four-media attachment import limit', (t) => {
   const imported = importAgentOutputs({ workdir, baseline, startedAt }, store)
   assert.deepEqual(imported.map(item => item.name), ['e.png', 'd.png', 'c.png', 'b.png'])
 })
+
+test('reported paths import only files written during the run, outside input staging', (t) => {
+  const { workdir, store } = fixture(t)
+  const existing = path.join(workdir, 'README.png')
+  fs.writeFileSync(existing, PNG)
+  const old = new Date(Date.now() - 60 * 60 * 1000)
+  fs.utimesSync(existing, old, old)
+  const staged = path.join(workdir, '.meldwork-input', '.run-1', 'input.png')
+  fs.mkdirSync(path.dirname(staged), { recursive: true })
+  fs.writeFileSync(staged, PNG)
+  const baseline = captureAgentOutputState(workdir)
+  const startedAt = Date.now()
+  const written = path.join(workdir, 'charts', 'result chart.png')
+  fs.mkdirSync(path.dirname(written), { recursive: true })
+  fs.writeFileSync(written, PNG)
+
+  const imported = importAgentOutputs({
+    workdir, baseline, startedAt, reportedPaths: [existing, staged, written],
+  }, store)
+
+  // A file the Agent only mentioned (or the user's staged input) is not an output.
+  assert.deepEqual(imported.map(item => item.name), ['result chart.png'])
+})

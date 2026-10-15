@@ -52,8 +52,14 @@ const OUTCOME_REF_FIELDS = Object.freeze([
 
 function extractReportedOutputPaths(text) {
   if (typeof text !== 'string') return []
-  const matches = text.match(/(?:\/(?:Users|home|tmp|private\/tmp)\/[^\s"'<>`\]\[)]+)/g) || []
-  return [...new Set(matches.map(value => value.replace(/[.,;:!?]+$/, '')))]
+  const root = '\\/(?:Users|home|tmp|private\\/tmp|Volumes)\\/'
+  // Quoted, backticked or Markdown-linked paths may contain spaces; bare
+  // paths end at whitespace.
+  const delimited = [...text.matchAll(new RegExp(`[\`"'(<](${root}[^\`"'<>\\n)]+)[\`"')>]`, 'g'))]
+    .map(match => match[1])
+  const bare = (text.match(new RegExp(`${root}[^\\s"'<>\`\\]\\[)]+`, 'g')) || [])
+    .filter(value => !delimited.some(full => full !== value && full.startsWith(value)))
+  return [...new Set([...delimited, ...bare].map(value => value.trim().replace(/[.,;:!?]+$/, '')))]
 }
 
 function mergeOutcomeRefs(sources, options = {}) {
