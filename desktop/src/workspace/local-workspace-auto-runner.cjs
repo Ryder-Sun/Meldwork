@@ -4979,7 +4979,7 @@ class LocalWorkspaceAutoRunner {
       this.addMessage(
         group.id,
         'system',
-        `Automatic discussion reached the ${controller.maxRounds || 6}-round safety limit without consensus.`,
+        `Automatic discussion reached its ${controller.maxRounds || 6}-round limit. The latest replies above are the current result.`,
         '',
         threadRootId,
         { key: 'system.autoRoundLimit', params: { rounds: controller.maxRounds || 6 } },
@@ -5874,7 +5874,7 @@ class LocalWorkspaceAutoRunner {
       this.addMessage(
         group.id,
         'system',
-        `Automatic discussion reached the ${maxRounds}-round safety limit without consensus.`,
+        `Automatic discussion reached its ${maxRounds}-round limit. The latest replies above are the current result.`,
         '',
         threadRootId,
         { key: 'system.autoRoundLimit', params: { rounds: maxRounds } },

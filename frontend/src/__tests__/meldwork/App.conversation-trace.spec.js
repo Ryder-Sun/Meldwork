@@ -68,7 +68,7 @@ describe('Meldwork workbench', () => {
     expect(panel.text()).toContain(status === 'completed' ? '· Completed' : '· Partially completed')
     expect(panel.find('.solo-run-status').exists()).toBe(false)
     expect(wrapper.get('.turn-rail button').attributes('data-status')).toBe(status)
-    expect(wrapper.text()).toContain('LOCAL_RUN_PERSIST_FAILED')
+    expect(wrapper.text()).toContain('Meldwork could not save this run')
     setLocale('zh')
     await flushPromises()
     expect(panel.text()).toContain(status === 'completed' ? '已完成' : '部分完成')
