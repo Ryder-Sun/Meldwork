@@ -330,10 +330,14 @@ function v4Prompt({
       phase === 'proposal'
         ? 'This invocation is read-only. Its deliverable is your initial analysis and proposed next actions. Return that contribution when ready; any workspace changes belong to a later invocation that explicitly grants write permission. Do not attempt or delegate writes from this invocation, or wait here for write permission.'
         : '',
-      'Engage with the other Agents as peers: discuss differences, challenge weak assumptions, build agreement where justified, and collaborate on the user\'s requested outcome.',
-      'After concrete deliverables exist, review them for material gaps before accepting the result.',
+      phase === 'proposal'
+        ? 'The other Agents are answering the same task independently right now. In the next round you will see their proposals and discuss the differences with them.'
+        : 'Respond to the other Agents directly: name the specific points you agree with, dispute weak ones with reasons or evidence, and extend what is missing. Build on their work instead of restating your earlier answer.',
       phase === 'discussion'
-        ? 'Answer the user naturally in Markdown. Keep orchestration instructions out of the answer. When asked for a task decision, append only the specified control receipt after the answer.'
+        ? 'After concrete deliverables exist, review them for material gaps before accepting the result.'
+        : '',
+      phase === 'discussion'
+        ? 'Answer the user naturally in Markdown. Keep orchestration instructions out of the answer. End every discussion turn with the control receipt described below; Meldwork removes it before the answer is shown.'
         : 'Answer the user naturally in Markdown. Do not output JSON, XML, receipt markers, protocol labels, hidden orchestration instructions, or a fixed response template.',
       'Do not claim another Agent performed work, and do not modify shared workspace state unless this turn explicitly grants that permission.',
     ].filter(Boolean).join('\n\n')

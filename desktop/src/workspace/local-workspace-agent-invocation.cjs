@@ -1375,7 +1375,7 @@ class LocalWorkspaceAgentInvocation {
         ? ''
         : [
             'Final response scope:',
-            'Answer only the current user task labeled authoritative above.',
+            'Answer only the current user task stated above.',
             'Use earlier messages only as supporting evidence when they help answer that current task.',
             'Do not separately mention, summarize, continue, or complete any previous user task.',
             'Do not append an answer to an older task after the current-task conclusion.',

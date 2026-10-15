@@ -2697,12 +2697,16 @@ class LocalWorkspaceAutoRunner {
             `The current delivery owner is @${options.ownerKind}. Ownership starts with the first selected participant and can be handed off explicitly by that owner.`,
             kind === options.ownerKind
               ? [
-                  'You are responsible for judging progress against the original user task and the actual available deliverables. Decide whether to continue work, report a blocker, request a human decision, or declare completion. Silence from peers is not evidence of completion. You may continue working yourself; another reviewer is optional.',
+                  'You are responsible for judging progress against the original user task and the actual available deliverables. Decide whether to continue work, report a blocker, request a human decision, or declare completion. Silence from peers is not evidence of completion.',
+                  'Before you declare completion, make sure the peers whose expertise covers the result have reviewed the actual deliverables. If one has not, ask them a concrete question and request them in nextKinds instead of completing.',
                   'In your final collaboration receipt use taskDecision.status completed, continue, blocked or needs-human to judge the whole task. A completed judgment requires actual deliverables. This is your task judgment, not human adoption or independent system verification.',
                   'To hand off responsibility, use status continue and add handoffTo with one exact selected Agent kind inside taskDecision. Do not hand off to an absent participant. Append nothing after the receipt.',
                 ].join('\n')
-              : 'Contribute freely and request peers when useful. Only the current delivery owner can decide task completion or hand off that responsibility.',
+              : 'Respond to the delivery owner and the other peers on the specific points they raised. If you are blocked or need a human decision, explain why and use status blocked or needs-human; the delivery owner then decides how to proceed. Only the current delivery owner can decide task completion or hand off that responsibility.',
           ].join('\n')
+        : '',
+      phase === 'discussion' && options.allowRouting !== true
+        ? 'Every selected Agent speaks in order each round, so you do not need to request peers. Finish this invocation instead of waiting for another participant; Meldwork runs the next one after you.'
         : '',
       phase === 'discussion' && options.allowRouting === true
         ? [
@@ -2711,11 +2715,11 @@ class LocalWorkspaceAutoRunner {
             'Selected peers are external Meldwork participants; their @handles are not addresses for your native agent messaging or wait tools. Meldwork dispatches requested peers only after this invocation completes. Put the request in your final response and finish this invocation so they can run; do not wait inside this invocation for their reply.',
             `In taskDecision.nextKinds list the selected Agent identifiers whose contribution you actually request next, chosen from ${JSON.stringify(activeKinds)}, or [] when none is needed. Use status continue for a nonempty list. Multiple kinds request a concurrent batch. Do not request yourself or absent participants. Historical, negated and explanatory mentions do not belong in nextKinds.`,
             'Avoid repeating the same handoff or conclusions. Invite a peer who has not recently contributed when their earlier proposal can resolve the issue, and state what new evidence or decision you need.',
-            'Request a peer only when you need their contribution. You may finish your own contribution with nextKinds: []; the delivery owner will judge overall task completion.',
+            'List in nextKinds every peer whose answer, review or work you need next, and ask each of them a concrete question in your answer. Leave nextKinds empty only when no peer input would change the result; the delivery owner then judges overall task completion.',
           ].join('\n')
         : '',
       phase === 'discussion'
-        ? 'After your natural answer append exactly one receipt: [[MELDWORK_COLLABORATION:{"summary":"concise result","taskDecision":{"status":"continue","reason":"what you accomplished and what remains","deliverables":[],"nextKinds":[]}}]]. This receipt is transport metadata: Meldwork removes it before displaying your answer. User requirements such as exact text, one line, JSON only, or no explanation apply to the visible answer before the receipt; preserve that requested answer exactly and still append the receipt separately. Do not explain the receipt in the visible answer. List actual deliverables when available. Only the current delivery owner judges the whole task; other participants report their contribution and may request peers with nextKinds. Merge any owner judgment or handoffTo into this same receipt. Append nothing after it.'
+        ? `After your natural answer append exactly one receipt, for example [[MELDWORK_COLLABORATION:{"summary":"concise result","taskDecision":{"status":"continue","reason":"what you accomplished and what remains","deliverables":[],"nextKinds":${JSON.stringify(options.allowRouting === true ? [activeKinds.find(peer => peer !== kind) || kind] : [])}}}]] while work or review remains, or a taskDecision of {"status":"completed","reason":"why the task is done","deliverables":["what was delivered"]} when the delivery owner judges the whole task done. Use blocked or needs-human with the reason when you cannot continue. This receipt is transport metadata: Meldwork removes it before displaying your answer. User requirements such as exact text, one line, JSON only, or no explanation apply to the visible answer before the receipt; preserve that requested answer exactly and still append the receipt separately. Do not explain the receipt in the visible answer. List actual deliverables when available. Only the current delivery owner judges the whole task; other participants report their contribution and may request peers with nextKinds. Merge any owner judgment or handoffTo into this same receipt. Append nothing after it.`
         : '',
     ].filter(Boolean).join('\n\n')
   }
@@ -2802,7 +2806,7 @@ class LocalWorkspaceAutoRunner {
               skillHints: context.rootSkillsByKind.get(promptKind) || [],
               ownerKind: this.v4NaturalOwner(group, controller, threadRootId, activeKinds),
               writerKind,
-              allowRouting: true,
+              allowRouting: false,
             },
           ),
         })
