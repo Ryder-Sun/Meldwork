@@ -161,6 +161,29 @@ test('Natural discussion accepts a fenced, loosely written owner receipt instead
   assert.equal(ledger.get(controller.runId).agentRuns.at(-1).context.taskDecision.status, 'completed')
 })
 
+test('Natural discussion shows peers workspace files as relative paths', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const prompts = []
+  const workspace = new LocalWorkspace({
+    ...options, naturalAgentResponses: true,
+    runAgent: async (agent, prompt) => {
+      prompts.push({ kind: agent.kind, phase: naturalPhase(prompt), prompt })
+      if (naturalPhase(prompt) === 'proposal') {
+        return { outcome: 'completed', text: `${agent.kind} would change ${path.join(directory, 'src', 'app.ts')} and the /api/users route.` }
+      }
+      return { outcome: 'completed', text: decisionReply(`${agent.kind} reviewed the change.`) }
+    },
+  })
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Paths', agentKinds: ['codex', 'hermes'], workdir: directory, allowWrite: false })
+  await runDiscussion(workspace, group, { discussionStyle: 'agent-led', maxRounds: 3 })
+  const discussion = prompts.find(item => item.phase === 'discussion' && item.kind === 'hermes')
+  assert.ok(discussion)
+  assert.match(discussion.prompt, /codex would change src\/app\.ts and the \/api\/users route\./)
+  assert.doesNotMatch(discussion.prompt, /would change \[path\]/)
+})
+
 test('Natural discussion hands a peer blocker to the delivery owner instead of ending', async t => {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

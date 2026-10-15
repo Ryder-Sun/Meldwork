@@ -1,4 +1,5 @@
 const { createHash } = require('node:crypto')
+const path = require('node:path')
 const { MAX_MESSAGE_TEXT_CHARS } = require('./local-workspace-contracts.cjs')
 
 const {
@@ -21,6 +22,7 @@ const {
   collaborationPackageText,
   createBlackboardEntryRecord,
   emptyCollaborationState,
+  peerCollaborationText,
   publicCollaborationText,
   roleForIndex,
   visibleBlackboardEntries,
@@ -1711,11 +1713,13 @@ class LocalWorkspaceAutoRunner {
     }
   }
 
-  v4SanitizeDeliveryText(value, limit = 6000) {
+  v4SanitizeDeliveryText(value, limit = 6000, options = {}) {
     const privateWrapper = '(?:private[ _-]?(?:reasoning|thoughts?)|analysis|chain[ _-]?of[ _-]?thought|cot)'
     const privateHeading = '(?:private[ _-]?(?:reasoning|thoughts?)|chain[ _-]?of[ _-]?thought|cot)'
     const stripped = this.v4StripMeldworkControls(
-      publicCollaborationText(value, Number.MAX_SAFE_INTEGER),
+      options.workspaceRoot
+        ? peerCollaborationText(value, { workspaceRoot: options.workspaceRoot })
+        : publicCollaborationText(value, Number.MAX_SAFE_INTEGER),
     )
     const maximum = Number.isSafeInteger(limit) && limit >= 0 ? limit : 6000
     let privateSectionLevel = null
@@ -2530,7 +2534,11 @@ class LocalWorkspaceAutoRunner {
       phase: message.trace?.phase || 'proposal',
       operationId: message.trace?.context?.operationId || '',
     })).map(entry => ({
-      ...entry, text: this.v4SanitizeDeliveryText(entry.text, Number.MAX_SAFE_INTEGER),
+      // Peers collaborating on the same workspace must be able to name its
+      // files; keep workspace paths readable as relative paths.
+      ...entry, text: this.v4SanitizeDeliveryText(entry.text, Number.MAX_SAFE_INTEGER, {
+        workspaceRoot: group.workdir ? path.resolve(group.workdir) : '',
+      }),
     }))
     return entries.map(entry => ({ ...entry, hash: hashValue(entry) }))
   }

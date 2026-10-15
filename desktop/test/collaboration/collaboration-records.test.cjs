@@ -138,3 +138,15 @@ test('conflicting claims append a conflict and remain selectively visible', () =
   })
   assert.deepEqual(parseCollaborationState(state), state)
 })
+
+test('peer transcripts keep workspace files readable and other local paths private', () => {
+  const { peerCollaborationText } = require('../../src/collaboration/collaboration-records.cjs')
+  const text = peerCollaborationText(
+    'Edited /work/proj/src/app.ts (see file:///work/proj/docs/a.md). /api/users still fails; '
+      + 'logs are in /Users/me/private.log and /tmp/run.log; run /login.',
+    { workspaceRoot: '/work/proj' },
+  )
+  assert.equal(text,
+    'Edited src/app.ts (see docs/a.md). /api/users still fails; '
+      + 'logs are in [path] and [path]; run /login.')
+})
