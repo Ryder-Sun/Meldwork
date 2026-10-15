@@ -34,11 +34,6 @@ function defaultAgentLabel(kind) {
   return AGENT_LABELS[kind] || String(kind || 'Agent')
 }
 
-function credentialFailure(error) {
-  return /api[ _-]?key|credential|auth(?:entication|orization)?|login|log in|unauthorized|forbidden|401|403|令牌|凭据|登录|认证/i
-    .test(String(error?.message || error || ''))
-}
-
 function cleanText(value, limit = MAX_MESSAGE_TEXT_CHARS) {
   return String(value || '').trim().slice(0, limit)
 }
@@ -61,7 +56,6 @@ module.exports = {
   STABLE_USER_TURNS_PER_EDGE,
   cleanInline,
   cleanText,
-  credentialFailure,
   defaultAgentLabel,
   isSupportedAgentKind,
 }

@@ -4,8 +4,9 @@ const { NETWORK_ENV_KEYS, networkEnvironment } = require('./cli-network-environm
 const { redactChildSecrets } = require('./cli-runtime-events.cjs')
 const {
   agentRuntimeError,
-  authConfigurationFailure,
+  authFailureCode,
 } = require('../agent-runtime-contract.cjs')
+const { authFailureCertainty, isContextOverflow } = require('../../runs/failure-signals.cjs')
 const { validateOpenClawRuntimeGuard } = require('./openclaw-runtime.cjs')
 
 const TERMINATE_GRACE_MS = 500
@@ -34,8 +35,17 @@ function agentExecutionError(code, diagnostic = '') {
 
 function invalidSessionFailure(detail) {
   const text = String(detail || '').trim()
-  if (!text || authConfigurationFailure(text)
+  if (!text || authFailureCertainty(text)
       || /\b(?:api|access|refresh|auth|session)[ _-]?token\b/i.test(text)) return false
+  // A resumed native session that no longer fits the model context cannot be
+  // continued; rebuilding it with compact continuation context is the fix.
+  if (isContextOverflow(text)) return true
+  // Runtime crashes ("thread 'main' panicked ... invalid ...") and parser
+  // errors mention threads or invalid input without saying anything about the
+  // stored session. Discarding a healthy session for them loses context.
+  if (/\bpanicked\b|\bSyntaxError\b|\binvalid JSON\b|\bUnexpected token\b|\bstack backtrace\b/i.test(text)) {
+    return false
+  }
   return /\b(?:no|unknown|invalid|expired|missing|stale)\s+(?:saved\s+)?(?:session|conversation|thread)\b|\b(?:session|conversation|thread)(?:\s+(?:id|key|reference))?\b[^\n]{0,100}\b(?:not found|does not exist|no longer exists|invalid|unknown|expired|has expired|was deleted|cannot be resumed)\b/i
     .test(text)
 }
@@ -45,9 +55,7 @@ function failedAgentProcessError(detail, options = {}) {
   return agentExecutionError(
     options.sessionRef && invalidSessionFailure(detail)
       ? 'LOCAL_AGENT_SESSION_INVALID'
-      : authConfigurationFailure(detail)
-        ? 'LOCAL_AGENT_AUTH_REQUIRED'
-        : 'LOCAL_AGENT_PROCESS_FAILED',
+      : authFailureCode(detail) || 'LOCAL_AGENT_PROCESS_FAILED',
     detail,
   )
 }

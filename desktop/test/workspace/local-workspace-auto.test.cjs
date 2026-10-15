@@ -4563,9 +4563,54 @@ test('automatic dialogue honors bounded Retry-After backoff and recovers', async
   assert.deepEqual(calls.map(call => call.agent.kind), [
     'hermes', 'hermes', 'hermes', 'hermes', 'codex',
   ])
-  assert.deepEqual(delays, [4, 4, 4])
+  // Provider throttling honors the server's Retry-After instead of the
+  // generic process-retry cap, still bounded by the rate-limit cap.
+  assert.deepEqual(delays, [10, 10, 10])
   assert.equal(new Set(calls.slice(0, 4).map(call => call.runOptions.operationId)).size, 1)
   assert.equal(finished[0].status, 'completed')
+})
+
+test('automatic dialogue retries an ambiguous 403 and network errors without touching readiness', async (t) => {
+  const { directory, calls, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const delays = []
+  const failures = [
+    agentRuntimeError('LOCAL_AGENT_PROCESS_FAILED', 'HTTP 403: Forbidden'),
+    agentRuntimeError('LOCAL_AGENT_PROCESS_FAILED', 'fetch failed: read ECONNRESET'),
+  ]
+  options.retrySleep = async delayMs => { delays.push(delayMs) }
+  options.runAgent = async (agent, prompt, workdir, runOptions) => {
+    calls.push({ agent, prompt, workdir, runOptions })
+    if (agent.kind === 'hermes' && failures.length) throw failures.shift()
+    return {
+      text: `${agent.kind} agrees\n[[MELDWORK_CONSENSUS:agree]]`,
+      sessionRef: runOptions.sessionRef || `${agent.kind}-session`,
+    }
+  }
+  const workspace = new LocalWorkspace(options)
+  const finished = []
+  workspace.on('run-finished', result => finished.push(result))
+  await workspace.refreshAgents()
+  const readyBefore = workspace.snapshot().agents.find(agent => agent.kind === 'hermes').available
+  const group = workspace.createGroup({
+    name: 'Transient refusals', agentKinds: ['hermes', 'codex'], workdir: directory,
+    allowWrite: false,
+  })
+  workspace.addMessage(group.id, 'user', 'Recover from transient refusals')
+
+  workspace.startAuto({ groupId: group.id, maxRounds: 1 })
+  await workspace.activeRuns.get(group.id).promise
+
+  assert.deepEqual(calls.map(call => call.agent.kind), ['hermes', 'hermes', 'hermes', 'codex'])
+  assert.equal(delays.length, 2)
+  assert.equal(finished[0].status, 'completed')
+  const hermes = workspace.snapshot().agents.find(agent => agent.kind === 'hermes')
+  assert.equal(hermes.available, readyBefore)
+  assert.notEqual(hermes.credentialState, 'missing')
+  assert.deepEqual(workspace.getGroup(group.id).agentKinds, ['hermes', 'codex'])
+  assert.equal(workspace.snapshot().messages.some(message => (
+    message.system?.key === 'system.agentPausedAfterFailure'
+  )), false)
 })
 
 test('automatic dialogue retries one protocol failure without removing the Agent', async (t) => {

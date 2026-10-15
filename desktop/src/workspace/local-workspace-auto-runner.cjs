@@ -3,7 +3,6 @@ const { MAX_MESSAGE_TEXT_CHARS } = require('./local-workspace-contracts.cjs')
 
 const {
   cleanText,
-  credentialFailure,
   normalizeKnowledgeBaseHint,
   normalizeSkillHint,
 } = require('./local-workspace-inputs.cjs')
@@ -122,6 +121,11 @@ class LocalWorkspaceAutoRunner {
       : 250
     this.retryMaxDelayMs = Number.isFinite(options.retryMaxDelayMs)
       ? Math.max(this.retryBaseDelayMs, Math.floor(options.retryMaxDelayMs))
+      : 2000
+    // Provider throttling without a Retry-After hint waits at least this long
+    // so automatic retries do not burn the remaining quota within a second.
+    this.retryRateLimitMinDelayMs = Number.isFinite(options.retryRateLimitMinDelayMs)
+      ? Math.max(0, Math.floor(options.retryRateLimitMinDelayMs))
       : 2000
     this.sleep = options.retrySleep || abortableDelay
   }
@@ -306,14 +310,18 @@ class LocalWorkspaceAutoRunner {
         }
         // Session recovery is owned by LocalWorkspaceAgentInvocation so a stale
         // native Session gets exactly one fresh attempt across every run mode.
+        // An ambiguous refusal (HTTP 403, proxy or region block) gets exactly
+        // one more attempt: a transient gateway refusal recovers, while a real
+        // permission problem fails fast without signing the Agent out.
         const maxAttempts = failure.category === 'timeout' && options.retryTimeouts !== true
           ? 1
-          : 4
+          : failure.code === 'LOCAL_AGENT_ACCESS_DENIED' ? 2 : 4
         const decision = retryDecision(failure, {
           attempt,
           maxAttempts,
           baseDelayMs: this.retryBaseDelayMs,
           maxDelayMs: this.retryMaxDelayMs,
+          rateLimitMinDelayMs: this.retryRateLimitMinDelayMs,
           safety,
         })
         if (decision.action === 'human_gate') {
@@ -403,10 +411,9 @@ class LocalWorkspaceAutoRunner {
           finalOutcome: 'failed',
           ...safety,
         })
-        this.markRuntimeCredential(kind, 'unknown')
-        try { await this.refreshAgents() } catch {
-          if (controller.signal.aborted) throw new Error('LOCAL_AGENT_EXECUTION_STOPPED')
-        }
+        // Transient retries keep the Agent's readiness untouched. Refreshing
+        // the whole catalog here re-ran discovery and credential probes while
+        // the Agent was busy and could flip a healthy Agent to unavailable.
         await this.sleep(decision.delayMs, controller.signal)
       }
     }
@@ -524,11 +531,11 @@ class LocalWorkspaceAutoRunner {
           continue
         }
         if (control) return { result: null, removed: false, control, error }
-        if (!unauthorizedFailure(error)) {
-          if (credentialFailure(error)) this.markRuntimeCredential(kind, 'unknown')
-          throw error
-        }
-        this.markRuntimeCredential(kind, 'unknown')
+        if (!unauthorizedFailure(error)) throw error
+        // Only explicit sign-in failures reach this point. Mark the Agent as
+        // needing a fresh login; the catalog clears it on the next refresh
+        // after the retry window or as soon as native credentials verify.
+        this.markRuntimeCredential(kind, 'missing')
         this.recordAttempt(group, controller, {
           agentKind: kind,
           phase,

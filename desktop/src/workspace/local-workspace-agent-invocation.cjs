@@ -24,7 +24,6 @@ const {
   attachmentType,
   cleanText,
   cleanProgressSteps,
-  credentialFailure,
   normalizeAttachmentMetadata,
   parseAutoReply,
   settleWithin,
@@ -1958,8 +1957,11 @@ class LocalWorkspaceAgentInvocation {
             : agentCancelled
               ? agentStoppedError()
               : caughtError
-      if (credentialFailure(error) && context.deferCredentialFailure !== true) {
-        this.markRuntimeCredential(kind, 'unknown')
+      // Only an explicit sign-in failure changes readiness. Network, quota and
+      // provider refusals stay run-scoped so a healthy Agent remains usable.
+      if (error?.code === 'LOCAL_AGENT_AUTH_REQUIRED'
+          && context.deferCredentialFailure !== true) {
+        this.markRuntimeCredential(kind, 'missing')
       }
       const status = parentTimedOut
         ? 'timeout'
