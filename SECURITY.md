@@ -1,6 +1,6 @@
 # Security Policy
 
-Meldwork is a local-first desktop application that invokes local Agent CLIs, stores local conversations, imports validated image, media, document, code, and archive attachments, and manages Provider credentials through the Electron main process.
+Meldwork is a local-first desktop application that invokes local Agent CLIs, stores local conversations, imports validated image, media, document, code, and archive attachments, and runs each Agent with its own native CLI credentials through the Electron main process.
 
 ## Reporting
 
@@ -11,10 +11,10 @@ Do not open a public issue with exploit details, secrets, local file paths, or p
 ## In Scope
 
 - Renderer-to-main IPC authorization bypasses.
-- Exposure of executable paths, attachment paths, native session references, Provider API keys, or Skill file paths to renderer code.
+- Exposure of executable paths, attachment paths, native session references, CLI API keys, or Skill file paths to renderer code.
 - Arbitrary shell execution, arbitrary file read/write, unsafe navigation, or unsafe installer behavior.
 - Attachment validation, private storage, checksum, or preview isolation failures.
-- Credential storage or Provider configuration failures that expose secrets.
+- Credential storage failures that expose secrets.
 
 ## Out of Scope
 

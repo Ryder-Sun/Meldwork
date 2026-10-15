@@ -51,14 +51,13 @@ function loadPreload(protocol) {
   return { api: exposed, exposedName, invocations, listeners }
 }
 
-test('local preload exposes the local-only Meldwork API and narrow Provider methods', async () => {
+test('local preload exposes the local-only Meldwork API', async () => {
   const { api, exposedName, invocations } = loadPreload('file:')
 
   assert.equal(exposedName, 'meldworkDesktop')
   assert.equal(Object.isFrozen(api), true)
   assert.equal(api.localOnly, true)
   assert.equal(api.platform, process.platform)
-  assert.equal(Object.isFrozen(api.localAgentProvider), true)
   assert.equal(Object.isFrozen(api.localAgentConnector), true)
   assert.equal(Object.isFrozen(api.localSkillTrust), true)
   assert.equal(Object.isFrozen(api.cloudAgent), true)
@@ -83,37 +82,12 @@ test('local preload exposes the local-only Meldwork API and narrow Provider meth
   )
   assert.equal('configure' in api.localWorkspace, false)
   assert.equal('cancelConfigure' in api.localWorkspace, false)
+  assert.equal('localAgentProvider' in api, false)
   await api.localWorkspace.deleteMessage('group-1', 'message-1')
   assert.deepEqual(invocations, [{
     channel: 'local-workspace:delete-message',
     args: ['group-1', 'message-1'],
   }])
-  invocations.length = 0
-  assert.deepEqual(
-    Object.keys(api.localAgentProvider).sort(),
-    ['activate', 'delete', 'probe', 'save', 'status'],
-  )
-  assert.equal('envForAgent' in api.localAgentProvider, false)
-  assert.equal('read' in api.localAgentProvider, false)
-
-  await api.localAgentProvider.status('hermes')
-  await api.localAgentProvider.probe('hermes')
-  await api.localAgentProvider.save('hermes', {
-    provider: 'Example', baseUrl: 'https://api.example.com/v1',
-    model: 'example-model', apiKey: 'test-renderer-key', preset: 'custom',
-  })
-  await api.localAgentProvider.activate('hermes', 'custom')
-  await api.localAgentProvider.delete('hermes', 'custom')
-  assert.deepEqual(invocations.map(call => call.channel), [
-    'local-agent-provider:status',
-    'local-agent-provider:probe',
-    'local-agent-provider:save',
-    'local-agent-provider:activate',
-    'local-agent-provider:delete',
-  ])
-  assert.deepEqual(invocations.map(call => call.args[0]), [
-    'hermes', 'hermes', 'hermes', 'hermes', 'hermes',
-  ])
   invocations.length = 0
 
   assert.deepEqual(

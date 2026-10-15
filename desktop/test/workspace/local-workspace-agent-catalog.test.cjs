@@ -30,7 +30,6 @@ function fixture(overrides = {}) {
     credentialState: overrides.credentialState || (async () => ({
       state: 'unknown', source: 'unverified',
     })),
-    sharedProviderReady: overrides.sharedProviderReady || (() => false),
     save: () => events.push('save'),
     emitChanged: () => events.push('emit'),
     snapshot: () => {
@@ -60,42 +59,6 @@ test('one credential probe failure retains that installation and does not hide h
   assert.deepEqual(agents.map(agent => agent.available), [false, true])
   assert.equal(agents[0].credentialState, 'unknown')
   assert.equal(agents[0].availabilitySource, 'native-probe-failed')
-})
-
-test('unreadable selected Provider overrides historical success without losing installation or native auth', async () => {
-  let locked = true
-  const { catalog, state } = fixture({
-    detectAgents: async () => ['hermes', 'codex'].map(kind => ({ kind, compatibilityState: 'compatible' })),
-    credentialState: async kind => kind === 'hermes' && locked
-      ? { state: 'unknown', source: 'provider-credential-unavailable' }
-      : { state: 'ready', source: 'native-auth-status' },
-    sharedProviderReady: kind => kind === 'hermes' && !locked,
-  })
-  state.messages.push({ role: 'agent', agentKind: 'hermes' })
-  const verified = { credentialState: 'ready', checkedAt: '2026-08-03T00:00:00.000Z' }
-  state.agentRuntime.hermes = verified
-
-  const first = await catalog.refresh()
-  const agent = first.agents[0]
-  assert.equal(agent.installed, true)
-  assert.equal(agent.configured, true)
-  assert.equal(agent.authenticated, false)
-  assert.equal(agent.invocable, false)
-  assert.equal(agent.available, false)
-  assert.equal(agent.recentlyVerified, false)
-  assert.equal(agent.credentialState, 'unknown')
-  assert.equal(agent.availabilitySource, 'provider-credential-unavailable')
-  assert.equal(first.agents[1].available, true)
-  assert.equal(state.agentRuntime.hermes, verified)
-  catalog.markRuntimeCredential('hermes', 'ready')
-  assert.equal(agent.available, false)
-  assert.equal(agent.credentialState, 'unknown')
-  assert.equal(agent.availabilitySource, 'provider-credential-unavailable')
-
-  locked = false
-  const second = await catalog.refresh()
-  assert.equal(second.agents[0].available, true)
-  assert.equal(second.agents[0].availabilitySource, 'shared-provider')
 })
 
 test('refresh starts credential checks concurrently and reads current runtime state after them', async () => {
@@ -173,7 +136,6 @@ test('incompatible Agents remain installed but unavailable with ready credential
       incompatibilityReason: 'LOCAL_AGENT_VERSION_UNSUPPORTED',
     }],
     credentialState: async () => ({ state: 'ready', source: 'native-auth-status' }),
-    sharedProviderReady: () => true,
   })
 
   await catalog.refresh()
@@ -224,13 +186,12 @@ test('locally detected compatible Agents remain invocable when native configurat
   }])
 })
 
-test('shared Provider readiness cannot override a recorded runtime auth failure', async () => {
+test('native readiness cannot override a recorded runtime auth failure', async () => {
   const { agents, catalog, events, state } = fixture({
     detectAgents: async () => [{
       kind: 'codex', executable: '/tmp/codex', compatibilityState: 'compatible',
     }],
     credentialState: async () => ({ state: 'ready', source: 'native-credential' }),
-    sharedProviderReady: () => true,
   })
   state.agentRuntime.codex = {
     credentialState: 'missing', checkedAt: '2026-08-03T00:00:00.000Z',
@@ -244,46 +205,18 @@ test('shared Provider readiness cannot override a recorded runtime auth failure'
   assert.deepEqual(events, ['emit', 'snapshot'])
 })
 
-test('shared Provider readiness skips slow native credential probes', async () => {
-  let nativeProbeCalls = 0
-  const { agents, catalog } = fixture({
-    detectAgents: async () => [{
-      kind: 'codex', executable: '/tmp/codex', compatibilityState: 'compatible',
-    }],
-    credentialState: async () => {
-      nativeProbeCalls += 1
-      return { state: 'missing', source: 'native-auth-status' }
-    },
-    sharedProviderReady: () => true,
+test('expired auth failures allow native credentials to be tried again', async () => {
+  const { agents, catalog, state } = fixture({
+    detectAgents: async () => [{ kind: 'codex', compatibilityState: 'compatible' }],
+    credentialState: async () => ({ state: 'unknown', source: 'unverified' }),
   })
-
-  await catalog.refresh()
-
-  assert.equal(nativeProbeCalls, 0)
-  assert.equal(agents()[0].credentialState, 'ready')
-  assert.equal(agents()[0].availabilitySource, 'shared-provider')
-  assert.equal(agents()[0].configured, true)
-  assert.equal(agents()[0].authenticated, true)
-  assert.equal(agents()[0].invocable, true)
-  assert.equal(agents()[0].recentlyVerified, false)
-  assert.equal(agents()[0].available, true)
-})
-
-test('expired auth failures allow native and shared credentials to be tried again', async () => {
-  for (const shared of [false, true]) {
-    const { agents, catalog, state } = fixture({
-      detectAgents: async () => [{ kind: 'codex', compatibilityState: 'compatible' }],
-      credentialState: async () => ({ state: 'unknown', source: 'unverified' }),
-      sharedProviderReady: () => shared,
-    })
-    state.agentRuntime.codex = {
-      credentialState: 'missing', checkedAt: '2026-08-02T23:59:29.000Z',
-    }
-    await catalog.refresh()
-    assert.equal(agents()[0].invocable, true)
-    assert.equal(state.agentRuntime.codex, undefined)
-    assert.equal(agents()[0].recentlyVerified, false)
+  state.agentRuntime.codex = {
+    credentialState: 'missing', checkedAt: '2026-08-02T23:59:29.000Z',
   }
+  await catalog.refresh()
+  assert.equal(agents()[0].invocable, true)
+  assert.equal(state.agentRuntime.codex, undefined)
+  assert.equal(agents()[0].recentlyVerified, false)
 })
 
 test('legacy authentication failures with missing or invalid timestamps permit re-evaluation', async () => {

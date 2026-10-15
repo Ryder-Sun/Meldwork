@@ -2856,8 +2856,10 @@ class LocalWorkspaceAutoRunner {
       }
     } else {
       round = 2
-      nextKinds = [this.v4NaturalOwner(group, controller, threadRootId)]
-      if (!activeKinds.includes(nextKinds[0])) return 'partial'
+      // The first discussion round is a full participant round: every selected
+      // Agent reacts to the proposal set before the delivery owner reviews and
+      // judges completion, so a group run cannot collapse to owner-only turns.
+      nextKinds = [...activeKinds]
     }
 
     while (!controller.signal.aborted) {

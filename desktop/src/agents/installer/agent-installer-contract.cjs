@@ -99,50 +99,17 @@ const NPM_RELEASES = Object.freeze({
 const ALLOWED_SCRIPT_URLS = new Set(Object.values(HERMES_RECIPES).map(recipe => recipe.url))
 
 const AGENT_CATALOG = Object.freeze([
-  {
-    kind: 'codex', label: 'Codex', recommended: false, providerCompatible: false,
-    providerSupport: 'responses-required',
-  },
-  {
-    kind: 'claude', label: 'Claude Code', recommended: false, providerCompatible: false,
-    providerSupport: 'anthropic-required',
-  },
-  {
-    kind: 'hermes', label: 'Hermes', recommended: true, providerCompatible: true,
-    providerSupport: 'supported',
-  },
-  {
-    kind: 'workbuddy', label: 'WorkBuddy', recommended: true, providerCompatible: true,
-    providerSupport: 'experimental',
-  },
-  {
-    kind: 'openclaw', label: 'OpenClaw', recommended: true, providerCompatible: true,
-    providerSupport: 'supported',
-  },
-  {
-    kind: 'pi', label: 'Pi Agent', recommended: false, providerCompatible: false,
-    providerSupport: 'native-config',
-  },
-  {
-    kind: 'opencode', label: 'OpenCode', recommended: false, providerCompatible: false,
-    providerSupport: 'native-config',
-  },
-  {
-    kind: 'opencodereview', label: 'OpenCodeReview', recommended: false, providerCompatible: true,
-    providerSupport: 'supported',
-  },
-  {
-    kind: 'kimi', label: 'Kimi Code', recommended: false, providerCompatible: false,
-    providerSupport: 'native-config',
-  },
-  {
-    kind: 'mimo', label: 'MiMo Code', recommended: false, providerCompatible: false,
-    providerSupport: 'native-config',
-  },
-  {
-    kind: 'qwen', label: 'Qwen Code', recommended: false, providerCompatible: true,
-    providerSupport: 'supported',
-  },
+  { kind: 'codex', label: 'Codex', recommended: false },
+  { kind: 'claude', label: 'Claude Code', recommended: false },
+  { kind: 'hermes', label: 'Hermes', recommended: true },
+  { kind: 'workbuddy', label: 'WorkBuddy', recommended: true },
+  { kind: 'openclaw', label: 'OpenClaw', recommended: true },
+  { kind: 'pi', label: 'Pi Agent', recommended: false },
+  { kind: 'opencode', label: 'OpenCode', recommended: false },
+  { kind: 'opencodereview', label: 'OpenCodeReview', recommended: false },
+  { kind: 'kimi', label: 'Kimi Code', recommended: false },
+  { kind: 'mimo', label: 'MiMo Code', recommended: false },
+  { kind: 'qwen', label: 'Qwen Code', recommended: false },
 ])
 
 function installRecipe(kind, platform) {

@@ -5,7 +5,6 @@ const { isDeepStrictEqual } = require('node:util')
 
 const { atomicWritePrivateFile } = require('../../security/private-file.cjs')
 
-const MANAGED_OPENCLAW_PROVIDER_ID = 'meldwork-desktop'
 const READ_ONLY_TOOLS = [
   'read', 'web_search', 'web_fetch', 'memory_search', 'memory_get', 'session_status',
 ]
@@ -37,7 +36,6 @@ const OPENCLAW_RUNTIME_PATH_ENV_KEYS = Object.freeze([
   'OPENCLAW_WORKSPACE_DIR',
 ])
 const OPENCLAW_RUNTIME_CREDENTIAL_KEYS = new Set([
-  'MELDWORK_OPENCLAW_API_KEY',
   'MELDWORK_OPENCLAW_NATIVE_API_KEY',
   'OPENCLAW_GATEWAY_TOKEN',
 ])
@@ -173,26 +171,7 @@ function validateFileIdentity(expected) {
   }
 }
 
-function normalizeProvider(input) {
-  const apiKey = typeof input?.OPENAI_API_KEY === 'string' ? input.OPENAI_API_KEY.trim() : ''
-  const baseUrl = String(input?.OPENAI_BASE_URL || '')
-    .trim()
-    .replace(/\/+$/, '')
-    .replace(/\/chat\/completions$/i, '')
-  const model = String(input?.OPENAI_MODEL || '').trim()
-  let parsed
-  try { parsed = new URL(baseUrl) } catch { throw new Error('OPENCLAW_PROVIDER_INVALID') }
-  const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname)
-  if (!apiKey || apiKey.length > 8192 || isOpenClawSecretReference(apiKey)
-      || !model || model.length > 120
-      || (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && loopback))
-      || parsed.username || parsed.password || parsed.search || parsed.hash) {
-    throw new Error('OPENCLAW_PROVIDER_INVALID')
-  }
-  return { apiKey, baseUrl, model }
-}
-
-function runtimePaths({ storageRoot, workdir, sessionRef, configName }) {
+function runtimePaths({ storageRoot, workdir, sessionRef, configName, runtimeVersion }) {
   if (!path.isAbsolute(storageRoot) || !path.isAbsolute(workdir)) {
     throw new Error('OPENCLAW_RUNTIME_INVALID_SCOPE')
   }
@@ -204,8 +183,15 @@ function runtimePaths({ storageRoot, workdir, sessionRef, configName }) {
     throw new Error('OPENCLAW_RUNTIME_INVALID_SCOPE')
   }
   const resolvedWorkdir = path.resolve(workdir)
+  // The managed scope is keyed by session, workspace, and CLI version. OpenClaw
+  // refuses to start on state written by an older CLI ("Legacy workspace setup
+  // state requires migration"), so a version-scoped directory gives an upgraded
+  // CLI a fresh isolated scope instead of a guaranteed startup failure.
+  const versionSegment = String(runtimeVersion || '').trim()
   const scope = crypto.createHash('sha256')
-    .update(`${sessionRef || 'configure'}\0${resolvedWorkdir}`)
+    .update(versionSegment
+      ? `${sessionRef || 'configure'}\0${resolvedWorkdir}\0${versionSegment}`
+      : `${sessionRef || 'configure'}\0${resolvedWorkdir}`)
     .digest('hex')
     .slice(0, 24)
   const runtimeRoot = path.join(resolvedStorageRoot, 'openclaw-managed', scope)
@@ -458,74 +444,8 @@ function normalizedNativeModel(input) {
   return model
 }
 
-function managedOpenClawOptions({
-  storageRoot, workdir, sessionRef = '', allowWrite = false, provider,
-}) {
-  const normalized = normalizeProvider(provider)
-  const configName = allowWrite
-    ? 'openclaw.provider.workspace-write.json'
-    : 'openclaw.provider.read-only.json'
-  const runtime = runtimePaths({
-    storageRoot, workdir, sessionRef, configName,
-  })
-  const { resolvedWorkdir, home, state, configPath } = runtime
-
-  const modelRef = `${MANAGED_OPENCLAW_PROVIDER_ID}/${normalized.model}`
-  const gatewayCredentialKey = 'OPENCLAW_GATEWAY_TOKEN'
-  const gatewayToken = crypto.randomBytes(32).toString('base64url')
-  const config = {
-    agents: {
-      defaults: {
-        workspace: resolvedWorkdir,
-        model: { primary: modelRef },
-        skipBootstrap: true,
-      },
-    },
-    models: {
-      mode: 'replace',
-      providers: {
-        [MANAGED_OPENCLAW_PROVIDER_ID]: {
-          baseUrl: normalized.baseUrl,
-          apiKey: {
-            source: 'env', provider: 'default', id: 'MELDWORK_OPENCLAW_API_KEY',
-          },
-          api: 'openai-completions',
-          models: [{ id: normalized.model, name: normalized.model, input: ['text'] }],
-        },
-      },
-    },
-    tools: toolPolicy(allowWrite),
-    gateway: {
-      mode: 'local',
-      bind: 'loopback',
-      auth: {
-        mode: 'token',
-        token: { source: 'env', provider: 'default', id: gatewayCredentialKey },
-      },
-      controlUi: { enabled: false },
-    },
-  }
-  const credentialKey = 'MELDWORK_OPENCLAW_API_KEY'
-  const openClawRuntimeGuard = writeRuntimeConfig(runtime, config, {
-    [credentialKey]: normalized.apiKey,
-    [gatewayCredentialKey]: gatewayToken,
-  }, credentialKey)
-
-  return {
-    openClawRuntimeGuard,
-    env: {
-      OPENCLAW_HOME: home,
-      OPENCLAW_STATE_DIR: state,
-      OPENCLAW_CONFIG_PATH: configPath,
-      OPENCLAW_WORKSPACE_DIR: resolvedWorkdir,
-      [credentialKey]: normalized.apiKey,
-      [gatewayCredentialKey]: gatewayToken,
-    },
-  }
-}
-
 function nativeOpenClawOptions({
-  storageRoot, workdir, sessionRef = '', allowWrite = false, runtime,
+  storageRoot, workdir, sessionRef = '', allowWrite = false, runtime, openclawVersion,
 }) {
   const modelRef = String(runtime?.model || '').trim()
   const provider = runtime?.provider
@@ -557,7 +477,7 @@ function nativeOpenClawOptions({
     ? 'openclaw.native.workspace-write.json'
     : 'openclaw.native.read-only.json'
   const runtimePathsResult = runtimePaths({
-    storageRoot, workdir, sessionRef, configName,
+    storageRoot, workdir, sessionRef, configName, runtimeVersion: openclawVersion,
   })
   const { resolvedWorkdir, home, state, configPath } = runtimePathsResult
   const modelConfig = { primary: modelRef }
@@ -618,7 +538,6 @@ function nativeOpenClawOptions({
 module.exports = {
   configureOpenClawGatewayRuntime,
   isOpenClawSecretReference,
-  managedOpenClawOptions,
   nativeOpenClawOptions,
   refreshOpenClawRuntimeAfterStartup,
   validateOpenClawRuntimeGuard,

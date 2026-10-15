@@ -28,7 +28,6 @@ export function useAgentCatalog({
         sourceKind: agent.sourceKind,
         label: agent.label || agent.name || agent.kind,
         logo: agent.logo,
-        providerMode: agent.providerMode || (agent.custom ? 'custom' : 'connector'),
         imageLimit: Number(agent.imageAttachmentLimit || 0),
         custom: agent.custom === true,
         connector: agent.connector === true,
@@ -48,7 +47,6 @@ export function useAgentCatalog({
         detected.sourceKind || installedProfile.sourceKind || profile.sourceKind || profile.kind,
         theme.value,
       ),
-      providerMode: profile.providerMode,
       imageLimit: profile.custom
         ? MAX_ATTACHMENTS
         : Number(detected.imageAttachmentLimit ?? installedProfile.imageAttachmentLimit ?? profile.imageLimit) || 0,
@@ -118,10 +116,6 @@ export function useAgentCatalog({
     return mergedCatalog.value.find(agent => agent.kind === activeGroup.value.directAgentKind) || null
   })
 
-  function providerModeShortLabel(mode) {
-    return t(`agent.providerShort.${mode}`)
-  }
-
   function agentDescription(kind) {
     const profile = mergedCatalog.value.find(agent => agent.kind === kind)
     if (profile?.connector && profile.description) return profile.description
@@ -158,9 +152,6 @@ export function useAgentCatalog({
       })[agent.incompatibilityReason] || 'agent.incompatible'
       return { label: t(reasonKey), tone: 'warning', icon: WarningOutline }
     }
-    if (agent.availabilitySource === 'provider-credential-unavailable') {
-      return { label: t('agent.providerCredentialUnavailable'), tone: 'warning', icon: WarningOutline }
-    }
     if (agent.credentialState === 'missing') return { label: t('agent.needsLogin'), tone: 'warning', icon: WarningOutline }
     return { label: t('agent.unverified'), tone: 'neutral', icon: WarningOutline }
   }
@@ -174,7 +165,6 @@ export function useAgentCatalog({
     agentState,
     installedCount,
     mergedCatalog,
-    providerModeShortLabel,
     readyAgentKinds,
     readyAgentGroups,
     readyAgentSignature,

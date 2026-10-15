@@ -172,17 +172,38 @@ function stepFinishOutcome(reason) {
   return 'partial'
 }
 
+function structuredResultDiagnostic(event) {
+  const parts = []
+  if (typeof event?.error === 'string' && event.error.trim()) parts.push(event.error.trim())
+  else if (event?.error?.message) parts.push(String(event.error.message))
+  if (typeof event?.result === 'string' && event.result.trim()) parts.push(event.result.trim())
+  if (Array.isArray(event?.errors)) {
+    parts.push(...event.errors.map(value => String(value || '').trim()).filter(Boolean))
+  }
+  return parts.join('\n')
+}
+
 function ingestStructuredEvent(state, event) {
   if (!event || typeof event !== 'object' || Array.isArray(event)) return
   state.seen = true
   if (['workbuddy', 'claude', 'qwen'].includes(state.kind)
-      && event.type === 'result' && typeof event.result === 'string') {
+      && event.type === 'result') {
     if (typeof event.session_id === 'string') state.sessionRef = event.session_id
-    state.failure = null
-    state.diagnostic = ''
-    state.text = ''
-    appendStructuredText(state, event.result, '')
-    state.outcome = event.is_error === true ? 'partial' : 'completed'
+    if (typeof event.result === 'string') {
+      state.failure = null
+      state.diagnostic = ''
+      state.text = ''
+      appendStructuredText(state, event.result, '')
+      state.outcome = event.is_error === true ? 'partial' : 'completed'
+      return
+    }
+    // An error result without a usable result string still carries the CLI's
+    // error list; keep it as the failure diagnostic so authentication and
+    // session problems are classified instead of surfacing as a bare
+    // LOCAL_AGENT_PROCESS_FAILED.
+    if (event.is_error === true || String(event.subtype || '').startsWith('error')) {
+      markStructuredFailure(state, 'LOCAL_AGENT_PROCESS_FAILED', structuredResultDiagnostic(event))
+    }
     return
   }
   if (structuredEventFailed(event)) {
@@ -885,7 +906,8 @@ function classifyCliOutcome(kind, stdout) {
 function structuredCliError(stdout) {
   const failed = parseJsonOutputEvents(stdout)
     .findLast(event => event?.is_error || event?.subtype?.startsWith('error'))
-  return String(failed?.error?.message || failed?.result || '').trim()
+  if (!failed) return ''
+  return structuredResultDiagnostic(failed)
 }
 
 function hermesSessionRef(stderr) {

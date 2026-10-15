@@ -126,14 +126,6 @@
             <small>{{ t('setupGuide.detectBody') }}</small>
           </span>
         </li>
-        <li :class="{ complete: providerConfiguredCount > 0 || configurableProviderCount === 0 }">
-          <CheckmarkCircleOutline v-if="providerConfiguredCount > 0 || configurableProviderCount === 0" />
-          <KeyOutline v-else />
-          <span>
-            <strong>{{ t('setupGuide.providerTitle') }}</strong>
-            <small>{{ t('setupGuide.providerBody') }}</small>
-          </span>
-        </li>
         <li :class="{ complete: readyCount > 0 }">
           <CheckmarkCircleOutline v-if="readyCount > 0" />
           <ChatbubblesOutline v-else />
@@ -147,10 +139,6 @@
         <button class="secondary-button" type="button" :disabled="refreshing" @click="$emit('refresh-agents')">
           <RefreshOutline :class="{ spinning: refreshing }" />
           {{ refreshing ? t('home.refreshing') : t('home.refresh') }}
-        </button>
-        <button class="secondary-button" type="button" @click="$emit('open-provider')">
-          <KeyOutline />
-          {{ t('systemSettings.providers') }}
         </button>
         <button class="primary-button" type="button" @click="$emit('open-agent-manager')">
           <SettingsOutline />
@@ -168,7 +156,6 @@ import {
   ChatbubblesOutline,
   CheckmarkCircleOutline,
   ChevronForwardOutline,
-  KeyOutline,
   RefreshOutline,
   SettingsOutline,
   TerminalOutline,
@@ -179,13 +166,11 @@ import { t } from '../i18n.js'
 
 const props = defineProps({
   agentDescription: { type: Function, required: true },
-  configurableProviderCount: { type: Number, required: true },
   groupName: { type: Function, required: true },
   groups: { type: Array, required: true },
   installedCount: { type: Number, required: true },
   isGroupRunning: { type: Function, required: true },
   onboardingCompleted: { type: Boolean, required: true },
-  providerConfiguredCount: { type: Number, required: true },
   readyAgents: { type: Array, required: true },
   recentGroupMeta: { type: Function, required: true },
   refreshing: { type: Boolean, required: true },
@@ -196,7 +181,6 @@ defineEmits([
   'open-agent-manager',
   'open-direct',
   'open-new-group',
-  'open-provider',
   'refresh-agents',
   'select-group',
 ])
@@ -224,9 +208,5 @@ const homeWorkspaceSummary = computed(() => (
         conversations: props.groups.length,
       })
 ))
-const setupGuideMessage = computed(() => {
-  if (!props.installedCount) return t('setupGuide.detectBody')
-  if (props.configurableProviderCount && !props.providerConfiguredCount) return t('setupGuide.providerBody')
-  return t('setupGuide.detectBody')
-})
+const setupGuideMessage = computed(() => t('setupGuide.detectBody'))
 </script>

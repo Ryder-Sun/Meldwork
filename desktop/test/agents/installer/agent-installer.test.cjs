@@ -124,7 +124,7 @@ function detectedRelease(kind, platform = 'darwin', executable = `/tmp/${kind}`)
   }
 }
 
-test('catalog reports installed, recommended and provider-compatible Agents', async () => {
+test('catalog reports installed and recommended Agents', async () => {
   const service = installer({
     detectAgents: async () => [
       {
@@ -156,13 +156,7 @@ test('catalog reports installed, recommended and provider-compatible Agents', as
     'opencode', 'opencodereview', 'kimi', 'mimo', 'qwen',
   ])
   assert.equal(result.agents.find(agent => agent.kind === 'workbuddy').installed, true)
-  assert.equal(result.agents.find(agent => agent.kind === 'workbuddy').providerCompatible, true)
   assert.equal(result.agents.find(agent => agent.kind === 'hermes').recommended, true)
-  assert.equal(result.agents.find(agent => agent.kind === 'openclaw').providerCompatible, true)
-  assert.equal(result.agents.find(agent => agent.kind === 'openclaw').providerSupport,
-    'supported')
-  assert.equal(result.agents.find(agent => agent.kind === 'kimi').providerCompatible, false)
-  assert.equal(result.agents.find(agent => agent.kind === 'kimi').providerSupport, 'native-config')
   assert.equal(result.agents.find(agent => agent.kind === 'pi').installed, true)
   assert.equal(result.agents.find(agent => agent.kind === 'pi').version, '')
   assert.deepEqual(
@@ -195,9 +189,6 @@ test('catalog reports installed, recommended and provider-compatible Agents', as
   )
   assert.equal(result.agents.find(agent => agent.kind === 'openclaw').installSupported, true)
   assert.equal(result.agents.find(agent => agent.kind === 'openclaw').installErrorCode, '')
-  assert.equal(result.agents.find(agent => agent.kind === 'pi').providerSupport, 'native-config')
-  assert.equal(result.agents.find(agent => agent.kind === 'opencode').providerCompatible, false)
-  assert.equal(result.agents.find(agent => agent.kind === 'opencodereview').providerCompatible, true)
   assert.equal(JSON.stringify(result).includes('/tmp/codebuddy'), false)
   assert.equal(JSON.stringify(result).includes('/tmp/kimi'), false)
   assert.equal(JSON.stringify(result).includes('must-not-cross-ipc'), false)

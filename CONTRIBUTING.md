@@ -9,7 +9,7 @@ Unless a separate written agreement applies, a contribution accepted into this r
 - Keep changes small and tied to a clear product or engineering need.
 - Do not submit secrets, tokens, private logs, private prompts, or user data.
 - Do not add remote services, telemetry, credential collection, or server dependencies without explicit project approval.
-- Preserve the local-first boundary: renderer code must not gain unrestricted filesystem, shell, Provider credential, or executable-path access.
+- Preserve the local-first boundary: renderer code must not gain unrestricted filesystem, shell, credential, or executable-path access.
 - Include focused tests for behavior, security boundary, storage, or IPC changes.
 - Confirm that all submitted code and assets are yours to contribute and do not introduce incompatible license obligations.
 

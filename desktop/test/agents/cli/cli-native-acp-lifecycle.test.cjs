@@ -5,7 +5,25 @@ const os = require('node:os')
 const path = require('node:path')
 
 const adapters = require('../../../src/agents/cli/cli-adapters.cjs')
-const { managedOpenClawOptions } = require('../../../src/agents/cli/openclaw-runtime.cjs')
+const { nativeOpenClawOptions } = require('../../../src/agents/cli/openclaw-runtime.cjs')
+function openClawAdapterRuntime(storageRoot, workdir, sessionRef = '') {
+  return nativeOpenClawOptions({
+    storageRoot,
+    workdir,
+    ...(sessionRef ? { sessionRef } : {}),
+    runtime: {
+      model: 'native/model',
+      provider: {
+        id: 'native',
+        baseUrl: 'https://native.example.com/v1',
+        api: 'openai-completions',
+        apiKey: 'adapter-openclaw-key',
+        model: { id: 'model', name: 'Native Model', input: ['text'] },
+      },
+    },
+  })
+}
+
 const {
   executable,
   readJsonWhenReady,
@@ -628,16 +646,7 @@ input.on('line', (line) => {
   const spec = adapters.invocation('openclaw', cli, workdir, stableSessionRef)
   assert.equal(spec.eventTransport, 'acp')
 
-  const runtime = managedOpenClawOptions({
-    storageRoot: directory,
-    workdir,
-    sessionRef: stableSessionRef,
-    provider: {
-      OPENAI_API_KEY: 'adapter-openclaw-key',
-      OPENAI_BASE_URL: 'https://api.example.com/v1',
-      OPENAI_MODEL: 'adapter-model',
-    },
-  })
+  const runtime = openClawAdapterRuntime(directory, workdir, stableSessionRef)
   const events = []
   let receivedStream
   const streamReceived = new Promise(resolve => { receivedStream = resolve })
@@ -764,15 +773,7 @@ input.on('line', (line) => {
 })
 `)
   let settled = false
-  const runtime = managedOpenClawOptions({
-    storageRoot: directory,
-    workdir,
-    provider: {
-      OPENAI_API_KEY: 'adapter-openclaw-key',
-      OPENAI_BASE_URL: 'https://api.example.com/v1',
-      OPENAI_MODEL: 'adapter-model',
-    },
-  })
+  const runtime = openClawAdapterRuntime(directory, workdir)
   const resultPromise = adapters.runAgent(
     { kind: 'openclaw', executable: cli, name: 'OpenClaw' },
     'hold until shutdown',
@@ -857,15 +858,7 @@ input.on('line', (line) => {
 })
 `)
   let settled = false
-  const runtime = managedOpenClawOptions({
-    storageRoot: directory,
-    workdir,
-    provider: {
-      OPENAI_API_KEY: 'adapter-openclaw-key',
-      OPENAI_BASE_URL: 'https://api.example.com/v1',
-      OPENAI_MODEL: 'adapter-model',
-    },
-  })
+  const runtime = openClawAdapterRuntime(directory, workdir)
   const resultPromise = adapters.runAgent(
     { kind: 'openclaw', executable: cli, name: 'OpenClaw' },
     'stop during Gateway readiness',
@@ -957,15 +950,7 @@ input.on('line', (line) => {
 })
 `)
   let settled = false
-  const runtime = managedOpenClawOptions({
-    storageRoot: directory,
-    workdir,
-    provider: {
-      OPENAI_API_KEY: 'adapter-openclaw-key',
-      OPENAI_BASE_URL: 'https://api.example.com/v1',
-      OPENAI_MODEL: 'adapter-model',
-    },
-  })
+  const runtime = openClawAdapterRuntime(directory, workdir)
   const resultPromise = adapters.runAgent(
     { kind: 'openclaw', executable: cli, name: 'OpenClaw' },
     'stop during Gateway health',

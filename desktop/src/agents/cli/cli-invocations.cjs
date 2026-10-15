@@ -95,8 +95,6 @@ function invocation(kind, executable, workdir, sessionRef = '', options = {}) {
         'chat',
         '--quiet',
         ...(options.sandbox === 'workspace-write' ? ['--yolo'] : []),
-        ...(options.provider?.id ? ['--provider', options.provider.id] : []),
-        ...(options.provider?.model ? ['--model', options.provider.model] : []),
         ...(legacySessionRef ? ['--resume', legacySessionRef] : []),
         ...(attachments[0] ? ['--image', attachments[0]] : []),
         '--query',
@@ -218,24 +216,6 @@ function invocation(kind, executable, workdir, sessionRef = '', options = {}) {
         '--include-partial-messages',
         '--verbose',
         '--permission-mode', options.sandbox === 'workspace-write' ? 'acceptEdits' : 'plan',
-        ...(options.provider?.id === 'anthropic' ? [
-          '--settings', JSON.stringify({
-            // Native settings.env overrides process env. The helper keeps the key out of argv.
-            apiKeyHelper: (options.platform || process.platform) === 'win32'
-              ? 'powershell.exe -NoLogo -NoProfile -NonInteractive -Command "[Console]::Write([Environment]::GetEnvironmentVariable(\'MELDWORK_PROVIDER_API_KEY\'))"'
-              : 'printf \'%s\' "$MELDWORK_PROVIDER_API_KEY"',
-            env: {
-              CLAUDE_CODE_USE_BEDROCK: '0', CLAUDE_CODE_USE_VERTEX: '0',
-              CLAUDE_CODE_USE_FOUNDRY: '0', CLAUDE_CODE_USE_MANTLE: '0',
-              ANTHROPIC_BASE_URL: options.provider.baseUrl,
-              ANTHROPIC_API_KEY: '', ANTHROPIC_AUTH_TOKEN: '', CLAUDE_CODE_OAUTH_TOKEN: '',
-              ANTHROPIC_CUSTOM_HEADERS: '',
-              ANTHROPIC_DEFAULT_OPUS_MODEL: '', ANTHROPIC_DEFAULT_SONNET_MODEL: '',
-              ANTHROPIC_DEFAULT_HAIKU_MODEL: '',
-            },
-          }),
-        ] : []),
-        ...(options.provider?.model ? ['--model', options.provider.model] : []),
         ...(sessionRef ? ['--resume', sessionRef] : []),
       ],
       promptArg: true,
@@ -248,8 +228,6 @@ function invocation(kind, executable, workdir, sessionRef = '', options = {}) {
         '--output-format', 'stream-json',
         '--include-partial-messages',
         '--approval-mode', options.sandbox === 'workspace-write' ? 'auto-edit' : 'plan',
-        ...(options.provider?.id === 'openai' ? ['--auth-type', 'openai'] : []),
-        ...(options.provider?.model ? ['--model', options.provider.model] : []),
         ...(sessionRef ? ['--resume', sessionRef] : []),
       ],
       promptArg: true,

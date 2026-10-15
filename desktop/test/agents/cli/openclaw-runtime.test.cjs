@@ -7,7 +7,6 @@ const path = require('node:path')
 
 const {
   configureOpenClawGatewayRuntime,
-  managedOpenClawOptions,
   nativeOpenClawOptions,
   refreshOpenClawRuntimeAfterStartup,
   validateOpenClawRuntimeGuard,
@@ -24,14 +23,6 @@ function fixture() {
   const workdir = path.join(directory, 'workspace')
   fs.mkdirSync(workdir)
   return { directory, workdir }
-}
-
-function provider(apiKey = 'test-openclaw-key') {
-  return {
-    OPENAI_API_KEY: apiKey,
-    OPENAI_BASE_URL: 'https://api.example.com/v1',
-    OPENAI_MODEL: 'example-model',
-  }
 }
 
 function nativeRuntime(apiKey = 'native-openclaw-key') {
@@ -60,44 +51,35 @@ function runtimeScope(sessionRef, workdir) {
     .slice(0, 24)
 }
 
-test('managed runtime isolates OpenClaw state and keeps the API key out of config', (t) => {
+test('native runtime scope is keyed by session, workspace, and CLI version', (t) => {
   const { directory, workdir } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
 
-  const result = managedOpenClawOptions({
+  const base = {
     storageRoot: directory,
     workdir,
-    sessionRef: 'agent:main:desktop-meldwork-group-topic-openclaw',
-    provider: provider(),
-  })
-  const configText = fs.readFileSync(result.env.OPENCLAW_CONFIG_PATH, 'utf8')
-  const config = JSON.parse(configText)
+    sessionRef: 'agent:main:desktop-meldwork-scope-openclaw',
+    runtime: nativeRuntime(),
+  }
+  const versionA = nativeOpenClawOptions({ ...base, openclawVersion: 'OpenClaw 2026.7.1-2 (a1b2c3)' })
+  const versionARepeat = nativeOpenClawOptions({ ...base, openclawVersion: 'OpenClaw 2026.7.1-2 (a1b2c3)' })
+  const versionB = nativeOpenClawOptions({ ...base, openclawVersion: 'OpenClaw 2026.9.1 (ad6fe23)' })
+  const unversioned = nativeOpenClawOptions({ ...base })
 
-  assert.equal(configText.includes('test-openclaw-key'), false)
-  assert.deepEqual(config.models.providers['meldwork-desktop'].apiKey, {
-    source: 'env', provider: 'default', id: 'MELDWORK_OPENCLAW_API_KEY',
-  })
-  assert.equal(config.agents.defaults.workspace, workdir)
-  assert.equal(config.agents.defaults.skipBootstrap, true)
-  assert.deepEqual(config.tools.allow, [
-    'read', 'web_search', 'web_fetch', 'memory_search', 'memory_get', 'session_status',
-  ])
-  assert.equal(config.tools.fs.workspaceOnly, true)
-  assert.equal(config.tools.elevated.enabled, false)
-  assert.equal(result.env.MELDWORK_OPENCLAW_API_KEY, 'test-openclaw-key')
-  assert.equal(result.env.OPENCLAW_WORKSPACE_DIR, workdir)
-  assert.ok(result.env.OPENCLAW_STATE_DIR.startsWith(fs.realpathSync(directory)))
-  assert.equal(fs.statSync(result.env.OPENCLAW_CONFIG_PATH).mode & 0o777, 0o600)
+  assert.equal(versionA.env.OPENCLAW_STATE_DIR, versionARepeat.env.OPENCLAW_STATE_DIR)
+  assert.notEqual(versionA.env.OPENCLAW_STATE_DIR, versionB.env.OPENCLAW_STATE_DIR)
+  assert.notEqual(versionA.env.OPENCLAW_STATE_DIR, unversioned.env.OPENCLAW_STATE_DIR)
+  assert.equal(versionB.env.OPENCLAW_STATE_DIR.startsWith(fs.realpathSync(directory)), true)
 })
 
 test('Gateway setup rewrites the guarded config without persisting credentials', (t) => {
   const { directory, workdir } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
-  const runtime = managedOpenClawOptions({
+  const runtime = nativeOpenClawOptions({
     storageRoot: directory,
     workdir,
     sessionRef: 'agent:main:gateway-runtime',
-    provider: provider(),
+    runtime: nativeRuntime(),
   })
 
   const configured = configureOpenClawGatewayRuntime(runtime, 43123)
@@ -126,15 +108,15 @@ test('Gateway setup rewrites the guarded config without persisting credentials',
   assert.equal(config.update.checkOnStart, false)
   assert.equal(config.update.auto.enabled, false)
   assert.equal(config.logging.file, path.join(runtime.env.OPENCLAW_STATE_DIR, 'gateway.log'))
-  assert.equal(configText.includes(runtime.env.MELDWORK_OPENCLAW_API_KEY), false)
+  assert.equal(configText.includes(runtime.env.MELDWORK_OPENCLAW_NATIVE_API_KEY), false)
   assert.equal(configText.includes(runtime.env.OPENCLAW_GATEWAY_TOKEN), false)
 })
 
 test('startup migration refreshes the guard without changing execution policy', (t) => {
   const { directory, workdir } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
-  const options = configureOpenClawGatewayRuntime(managedOpenClawOptions({
-    storageRoot: directory, workdir, provider: provider(),
+  const options = configureOpenClawGatewayRuntime(nativeOpenClawOptions({
+    storageRoot: directory, workdir, runtime: nativeRuntime(),
   }), 43123)
   const configPath = options.env.OPENCLAW_CONFIG_PATH
   const config = JSON.parse(fs.readFileSync(configPath, 'utf8'))
@@ -157,7 +139,7 @@ test('startup migration rejects changed policies, credentials, paths and unknown
     workspace: config => { config.agents.defaults.workspace = os.homedir() },
     agentOverride: config => { config.agents.entries = { main: { tools: { allow: ['exec'] } } } },
     credentials: config => { config.gateway.auth.token = 'replacement-token' },
-    provider: config => { config.models.providers['meldwork-desktop'].baseUrl = 'https://other.example' },
+    provider: config => { config.models.providers.native.baseUrl = 'https://other.example' },
     bind: config => { config.gateway.bind = 'lan' },
     discovery: config => { config.discovery.wideArea.enabled = true },
     unknown: config => { config.plugins = { enabled: true } },
@@ -166,8 +148,8 @@ test('startup migration rejects changed policies, credentials, paths and unknown
     await t.test(name, () => {
       const { directory, workdir } = fixture()
       t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
-      const options = configureOpenClawGatewayRuntime(managedOpenClawOptions({
-        storageRoot: directory, workdir, provider: provider(),
+      const options = configureOpenClawGatewayRuntime(nativeOpenClawOptions({
+        storageRoot: directory, workdir, runtime: nativeRuntime(),
       }), 43123)
       const configPath = options.env.OPENCLAW_CONFIG_PATH
       const config = JSON.parse(fs.readFileSync(configPath, 'utf8'))
@@ -183,7 +165,7 @@ test('startup migration rejects changed policies, credentials, paths and unknown
 test('startup migration rejects symlinks and broadened file permissions', (t) => {
   const { directory, workdir } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
-  const options = managedOpenClawOptions({ storageRoot: directory, workdir, provider: provider() })
+  const options = nativeOpenClawOptions({ storageRoot: directory, workdir, runtime: nativeRuntime() })
   const configPath = options.env.OPENCLAW_CONFIG_PATH
   fs.renameSync(configPath, `${configPath}.original`)
   fs.symlinkSync(`${configPath}.original`, configPath)
@@ -199,7 +181,7 @@ test('startup migration rejects symlinks and broadened file permissions', (t) =>
 test('startup migration rejects an oversized config before parsing it', (t) => {
   const { directory, workdir } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
-  const options = managedOpenClawOptions({ storageRoot: directory, workdir, provider: provider() })
+  const options = nativeOpenClawOptions({ storageRoot: directory, workdir, runtime: nativeRuntime() })
   fs.appendFileSync(options.env.OPENCLAW_CONFIG_PATH, ' '.repeat(256 * 1024))
   assert.throws(() => refreshOpenClawRuntimeAfterStartup(options), {
     message: 'OPENCLAW_RUNTIME_UNSAFE_PATH',
@@ -265,11 +247,11 @@ process.on('SIGTERM', () => {
 setInterval(() => {}, 1000)
 `)
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
-  const runtime = managedOpenClawOptions({
+  const runtime = nativeOpenClawOptions({
     storageRoot: directory,
     workdir,
     sessionRef: 'agent:main:gateway-lifecycle',
-    provider: provider(),
+    runtime: nativeRuntime(),
   })
   let callbackPort
 
@@ -343,11 +325,11 @@ process.on('SIGTERM', () => {
 setInterval(() => {}, 1000)
 `)
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
-  const runtime = managedOpenClawOptions({
+  const runtime = nativeOpenClawOptions({
     storageRoot: directory,
     workdir,
     sessionRef: 'agent:main:gateway-callback-failed',
-    provider: provider(),
+    runtime: nativeRuntime(),
   })
 
   await assert.rejects(() => withOpenClawGateway({
@@ -401,11 +383,11 @@ if (args[commandOffset + 1] === 'health') {
 }
 `)
       t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
-      const runtime = managedOpenClawOptions({
+      const runtime = nativeOpenClawOptions({
         storageRoot: directory,
         workdir,
         sessionRef: `agent:main:gateway-health-${scenario.name}`,
-        provider: provider(),
+        runtime: nativeRuntime(),
       })
       let callbackCalled = false
 
@@ -436,23 +418,6 @@ test('OpenClaw ACP keeps deterministic global CLI flags before the subcommand', 
   ])
 })
 
-test('managed runtime defensively normalizes chat completion endpoints to the API root', (t) => {
-  const { directory, workdir } = fixture()
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
-
-  const result = managedOpenClawOptions({
-    storageRoot: directory,
-    workdir,
-    provider: {
-      ...provider(),
-      OPENAI_BASE_URL: 'https://api.example.com/v1/chat/completions/',
-    },
-  })
-  const config = JSON.parse(fs.readFileSync(result.env.OPENCLAW_CONFIG_PATH, 'utf8'))
-
-  assert.equal(config.models.providers['meldwork-desktop'].baseUrl, 'https://api.example.com/v1')
-})
-
 test('write authorization uses an immutable config and preserves the topic state', (t) => {
   const { directory, workdir } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
@@ -461,10 +426,10 @@ test('write authorization uses an immutable config and preserves the topic state
     storageRoot: directory,
     workdir,
     sessionRef: 'agent:main:desktop-meldwork-group-topic-openclaw',
-    provider: provider(),
+    runtime: nativeRuntime(),
   }
-  const readOnly = managedOpenClawOptions(input)
-  const writable = managedOpenClawOptions({ ...input, allowWrite: true })
+  const readOnly = nativeOpenClawOptions(input)
+  const writable = nativeOpenClawOptions({ ...input, allowWrite: true })
   const readOnlyConfig = JSON.parse(fs.readFileSync(readOnly.env.OPENCLAW_CONFIG_PATH, 'utf8'))
   const writableConfig = JSON.parse(fs.readFileSync(writable.env.OPENCLAW_CONFIG_PATH, 'utf8'))
 
@@ -477,17 +442,13 @@ test('write authorization uses an immutable config and preserves the topic state
   assert.equal(writableConfig.tools.exec.security, 'deny')
 })
 
-test('native auth uses the same isolated tool policy without importing user configuration', (t) => {
+test('native auth uses the isolated tool policy without importing user configuration', (t) => {
   const { directory, workdir } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
-  const common = {
+  const nativeOptions = nativeOpenClawOptions({
     storageRoot: directory,
     workdir,
     sessionRef: 'agent:main:desktop-meldwork-native-openclaw',
-  }
-  const providerOptions = managedOpenClawOptions({ ...common, provider: provider() })
-  const nativeOptions = nativeOpenClawOptions({
-    ...common,
     runtime: {
       ...nativeRuntime(),
       provider: {
@@ -498,10 +459,11 @@ test('native auth uses the same isolated tool policy without importing user conf
       tools: { allow: ['exec'] },
     },
   })
-  const providerConfig = JSON.parse(fs.readFileSync(providerOptions.env.OPENCLAW_CONFIG_PATH, 'utf8'))
   const nativeConfig = JSON.parse(fs.readFileSync(nativeOptions.env.OPENCLAW_CONFIG_PATH, 'utf8'))
 
-  assert.deepEqual(nativeConfig.tools, providerConfig.tools)
+  assert.deepEqual(nativeConfig.tools.allow, [
+    'read', 'web_search', 'web_fetch', 'memory_search', 'memory_get', 'session_status',
+  ])
   assert.equal(nativeConfig.models.mode, 'replace')
   assert.equal(nativeConfig.agents.defaults.model.primary, 'native/model')
   assert.equal(Object.hasOwn(nativeConfig.agents, 'list'), false)
@@ -515,7 +477,6 @@ test('native auth uses the same isolated tool policy without importing user conf
   assert.equal(JSON.stringify(nativeConfig).includes('native-openclaw-key'), false)
   assert.equal(Object.hasOwn(nativeConfig.models.providers.native.models[0], 'params'), false)
   assert.equal(nativeOptions.env.MELDWORK_OPENCLAW_NATIVE_API_KEY, 'native-openclaw-key')
-  assert.equal(Object.hasOwn(nativeOptions.env, 'MELDWORK_OPENCLAW_API_KEY'), false)
   assert.ok(nativeOptions.env.OPENCLAW_STATE_DIR.startsWith(fs.realpathSync(directory)))
 })
 
@@ -571,7 +532,7 @@ test('native runtime descriptors fail closed before a config is written', (t) =>
   }
 })
 
-test('managed and native runtime boundaries reject every SecretRef form', (t) => {
+test('native runtime boundaries reject every SecretRef form', (t) => {
   const { directory, workdir } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
   const references = [
@@ -592,11 +553,6 @@ test('managed and native runtime boundaries reject every SecretRef form', (t) =>
   ]
 
   for (const apiKey of references) {
-    assert.throws(() => managedOpenClawOptions({
-      storageRoot: directory,
-      workdir,
-      provider: provider(apiKey),
-    }), { message: 'OPENCLAW_PROVIDER_INVALID' })
     assert.throws(() => nativeOpenClawOptions({
       storageRoot: directory,
       workdir,
@@ -634,11 +590,11 @@ test('runtime paths reject pre-existing symlinks without writing outside app sto
     }[position]
     fs.symlinkSync(external, target, 'dir')
 
-    assert.throws(() => managedOpenClawOptions({
+    assert.throws(() => nativeOpenClawOptions({
       storageRoot,
       workdir,
       sessionRef,
-      provider: provider(),
+      runtime: nativeRuntime(),
     }), { message: 'OPENCLAW_RUNTIME_UNSAFE_PATH' })
     assert.deepEqual(fs.readdirSync(external), [])
   }
@@ -660,7 +616,7 @@ test('runtime paths repair overly broad directory permissions', {
     fs.chmodSync(target, 0o777)
   }
 
-  managedOpenClawOptions({ storageRoot, workdir, sessionRef, provider: provider() })
+  nativeOpenClawOptions({ storageRoot, workdir, sessionRef, runtime: nativeRuntime() })
 
   for (const target of directories) {
     assert.equal(fs.statSync(target).mode & 0o777, 0o700)
@@ -717,11 +673,11 @@ test('runtime config creation revalidates parent identities before writing', {
   }
 
   try {
-    assert.throws(() => managedOpenClawOptions({
+    assert.throws(() => nativeOpenClawOptions({
       storageRoot: directory,
       workdir,
       sessionRef: 'agent:main:runtime-parent-change',
-      provider: provider(),
+      runtime: nativeRuntime(),
     }), { message: 'OPENCLAW_RUNTIME_UNSAFE_PATH' })
   } finally {
     fs.realpathSync = originalRealpath
@@ -735,11 +691,11 @@ test('runtime guard rejects directory and config identity changes before executi
   const { directory, workdir } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
 
-  const directoryOptions = managedOpenClawOptions({
+  const directoryOptions = nativeOpenClawOptions({
     storageRoot: directory,
     workdir,
     sessionRef: 'agent:main:runtime-directory-guard',
-    provider: provider(),
+    runtime: nativeRuntime(),
   })
   const runtimeRoot = path.dirname(directoryOptions.env.OPENCLAW_CONFIG_PATH)
   const originalRuntimeRoot = `${runtimeRoot}.original`
@@ -753,11 +709,11 @@ test('runtime guard rejects directory and config identity changes before executi
     directoryOptions.env,
   ), { message: 'OPENCLAW_RUNTIME_UNSAFE_PATH' })
 
-  const fileOptions = managedOpenClawOptions({
+  const fileOptions = nativeOpenClawOptions({
     storageRoot: directory,
     workdir,
     sessionRef: 'agent:main:runtime-file-guard',
-    provider: provider(),
+    runtime: nativeRuntime(),
   })
   const configPath = fileOptions.env.OPENCLAW_CONFIG_PATH
   const contents = fs.readFileSync(configPath)
@@ -774,20 +730,20 @@ test('runtime guard rejects in-place config and credential changes without expos
   const { directory, workdir } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
 
-  const configOptions = managedOpenClawOptions({
+  const configOptions = nativeOpenClawOptions({
     storageRoot: directory,
     workdir,
     sessionRef: 'agent:main:runtime-content-guard',
-    provider: provider(),
+    runtime: nativeRuntime(),
   })
   const serializedGuard = JSON.stringify(configOptions.openClawRuntimeGuard)
   const credentialDigest = crypto.createHash('sha256')
-    .update(configOptions.env.MELDWORK_OPENCLAW_API_KEY)
+    .update(configOptions.env.MELDWORK_OPENCLAW_NATIVE_API_KEY)
     .digest('hex')
   const gatewayDigest = crypto.createHash('sha256')
     .update(configOptions.env.OPENCLAW_GATEWAY_TOKEN)
     .digest('hex')
-  assert.equal(serializedGuard.includes(configOptions.env.MELDWORK_OPENCLAW_API_KEY), false)
+  assert.equal(serializedGuard.includes(configOptions.env.MELDWORK_OPENCLAW_NATIVE_API_KEY), false)
   assert.equal(serializedGuard.includes(configOptions.env.OPENCLAW_GATEWAY_TOKEN), false)
   assert.equal(serializedGuard.includes(credentialDigest), false)
   assert.equal(serializedGuard.includes(gatewayDigest), false)
@@ -802,17 +758,17 @@ test('runtime guard rejects in-place config and credential changes without expos
     configOptions.env,
   ), { message: 'OPENCLAW_RUNTIME_UNSAFE_PATH' })
 
-  const credentialOptions = managedOpenClawOptions({
+  const credentialOptions = nativeOpenClawOptions({
     storageRoot: directory,
     workdir,
     sessionRef: 'agent:main:runtime-credential-guard',
-    provider: provider(),
+    runtime: nativeRuntime(),
   })
   assert.throws(() => validateOpenClawRuntimeGuard(
     credentialOptions.openClawRuntimeGuard,
     {
       ...credentialOptions.env,
-      MELDWORK_OPENCLAW_API_KEY: 'tampered-openclaw-key',
+      MELDWORK_OPENCLAW_NATIVE_API_KEY: 'tampered-openclaw-key',
     },
   ), { message: 'OPENCLAW_RUNTIME_CREDENTIAL_SCOPE_INVALID' })
   assert.throws(() => validateOpenClawRuntimeGuard(
@@ -831,11 +787,11 @@ test('runtime guard rejects permissions broadened after creation', {
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
 
   for (const target of ['directory', 'config']) {
-    const options = managedOpenClawOptions({
+    const options = nativeOpenClawOptions({
       storageRoot: directory,
       workdir,
       sessionRef: `agent:main:runtime-${target}-permission-guard`,
-      provider: provider(),
+      runtime: nativeRuntime(),
     })
     fs.chmodSync(
       target === 'directory' ? options.env.OPENCLAW_HOME : options.env.OPENCLAW_CONFIG_PATH,
@@ -857,13 +813,13 @@ test('runtime paths are stable and isolated per topic and workspace', (t) => {
     storageRoot: directory,
     workdir,
     sessionRef: 'agent:main:desktop-meldwork-group-topic-openclaw',
-    provider: provider(),
+    runtime: nativeRuntime(),
   }
 
-  const first = managedOpenClawOptions(input)
-  const repeated = managedOpenClawOptions(input)
-  const otherTopic = managedOpenClawOptions({ ...input, sessionRef: `${input.sessionRef}-other` })
-  const otherWorkspace = managedOpenClawOptions({ ...input, workdir: otherWorkdir })
+  const first = nativeOpenClawOptions(input)
+  const repeated = nativeOpenClawOptions(input)
+  const otherTopic = nativeOpenClawOptions({ ...input, sessionRef: `${input.sessionRef}-other` })
+  const otherWorkspace = nativeOpenClawOptions({ ...input, workdir: otherWorkdir })
 
   assert.equal(repeated.env.OPENCLAW_STATE_DIR, first.env.OPENCLAW_STATE_DIR)
   assert.notEqual(otherTopic.env.OPENCLAW_STATE_DIR, first.env.OPENCLAW_STATE_DIR)
@@ -871,19 +827,11 @@ test('runtime paths are stable and isolated per topic and workspace', (t) => {
   assert.equal(otherWorkspace.env.OPENCLAW_WORKSPACE_DIR, otherWorkdir)
 })
 
-test('invalid runtime scopes and Provider metadata fail closed', (t) => {
+test('invalid runtime scopes fail closed', (t) => {
   const { directory, workdir } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
 
-  assert.throws(() => managedOpenClawOptions({
-    storageRoot: 'relative', workdir, provider: provider(),
+  assert.throws(() => nativeOpenClawOptions({
+    storageRoot: 'relative', workdir, runtime: nativeRuntime(),
   }), { message: 'OPENCLAW_RUNTIME_INVALID_SCOPE' })
-  assert.throws(() => managedOpenClawOptions({
-    storageRoot: directory, workdir,
-    provider: provider(''),
-  }), { message: 'OPENCLAW_PROVIDER_INVALID' })
-  assert.throws(() => managedOpenClawOptions({
-    storageRoot: directory, workdir,
-    provider: { ...provider(), OPENAI_BASE_URL: 'http://provider.example/v1' },
-  }), { message: 'OPENCLAW_PROVIDER_INVALID' })
 })

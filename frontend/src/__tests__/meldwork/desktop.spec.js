@@ -50,7 +50,6 @@ describe('desktop bridge access', () => {
     const bridge = {
       localWorkspace: { get() {} },
       agentInstaller: { catalog() {} },
-      localAgentProvider: { status() {} },
     }
     window.meldworkDesktop = bridge
 

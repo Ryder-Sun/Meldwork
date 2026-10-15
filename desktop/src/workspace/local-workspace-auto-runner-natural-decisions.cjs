@@ -55,7 +55,21 @@ const v4NaturalDecisionMethods = {
         '', threadRootId, { key: 'system.autoTaskDecisionMissing' })
       return { status: 'partial' }
     }
-    if (decision.status === 'completed') return { status: controller.failedKinds.length ? 'partial' : 'completed' }
+    if (decision.status === 'completed') {
+      // The owner may not close the task before selected peers had one discussion
+      // round of their own; otherwise a single full round collapses into an
+      // owner-only review and peers never get to challenge the result.
+      if (activeKinds.some(kind => kind !== owner)
+          && !this.v4NaturalPriorPeerDiscussion(group, controller, threadRootId, round, owner)) {
+        this.addMessage(
+          group.id, 'system',
+          'The delivery owner signaled completion before peer discussion; running one cross-review round first.',
+          '', threadRootId, { key: 'system.autoCrossReview' },
+        )
+        return { nextKinds: [...activeKinds], ownerReview: false }
+      }
+      return { status: controller.failedKinds.length ? 'partial' : 'completed' }
+    }
     if (decision.status === 'needs-human' && this.requestTaskDecision) {
       const response = await this.requestTaskDecision(group, controller, ownerMessage)
       if (response?.status === 'approved') return { nextKinds: [owner], ownerReview: true }
@@ -79,6 +93,19 @@ const v4NaturalDecisionMethods = {
     )))
     if (!selected.size) return []
     return activeKinds.filter(kind => selected.has(kind))
+  },
+
+  v4NaturalPriorPeerDiscussion(group, controller, threadRootId, round, owner) {
+    return this.state().messages.some(message => (
+      message.groupId === group.id
+      && message.threadRootId === threadRootId
+      && message.role === 'agent'
+      && message.agentKind !== owner
+      && message.trace?.runId === controller.runId
+      && message.trace?.phase === 'discussion'
+      && Number(message.trace?.round) < round
+      && this.v4NaturalMessageMatchesBinding(message, controller)
+    ))
   },
 
   v4NaturalOwner(group, controller, threadRootId) {

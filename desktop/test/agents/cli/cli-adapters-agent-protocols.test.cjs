@@ -30,7 +30,7 @@ const {
   searchPath,
 } = require('../../../src/agents/cli/cli-adapters.cjs')
 const { resolveConnectorEventProfile } = require('../../../src/agents/cli/cli-event-profiles.cjs')
-const { managedOpenClawOptions } = require('../../../src/agents/cli/openclaw-runtime.cjs')
+const { nativeOpenClawOptions } = require('../../../src/agents/cli/openclaw-runtime.cjs')
 const {
   executable,
   readJsonWhenReady,
@@ -134,14 +134,19 @@ input.on('line', (line) => {
 }
 
 function signedOpenClawRuntime(storageRoot, workdir, sessionRef) {
-  return managedOpenClawOptions({
+  return nativeOpenClawOptions({
     storageRoot,
     workdir,
     sessionRef,
-    provider: {
-      OPENAI_API_KEY: 'adapter-openclaw-key',
-      OPENAI_BASE_URL: 'https://api.example.com/v1',
-      OPENAI_MODEL: 'adapter-model',
+    runtime: {
+      model: 'native/model',
+      provider: {
+        id: 'native',
+        baseUrl: 'https://native.example.com/v1',
+        api: 'openai-completions',
+        apiKey: 'adapter-openclaw-key',
+        model: { id: 'model', name: 'Native Model', input: ['text'] },
+      },
     },
   })
 }
@@ -1033,24 +1038,14 @@ test('Claude uses partial stream JSON and resumes its native session', () => {
   assert.equal(spec.promptArg, true)
 })
 
-test('Claude selected Provider overrides native cloud selection without credentials in argv', () => {
+test('Claude keeps its native credentials without a settings override', () => {
   const spec = invocation('claude', '/tmp/claude', '/tmp/work', 'native-session', {
-    provider: { id: 'anthropic', model: 'selected-model', baseUrl: 'https://selected.example' },
-    env: { ANTHROPIC_API_KEY: 'selected-secret-key' },
+    sandbox: 'read-only',
   })
-  const settings = JSON.parse(spec.args[spec.args.indexOf('--settings') + 1])
-  assert.equal(settings.env.ANTHROPIC_BASE_URL, 'https://selected.example')
-  assert.equal(settings.env.ANTHROPIC_API_KEY, '')
-  assert.equal(settings.env.ANTHROPIC_AUTH_TOKEN, '')
-  assert.equal(settings.env.CLAUDE_CODE_OAUTH_TOKEN, '')
-  assert.equal(settings.env.ANTHROPIC_CUSTOM_HEADERS, '')
-  assert.match(settings.apiKeyHelper, /MELDWORK_PROVIDER_API_KEY/)
-  for (const flag of ['BEDROCK', 'VERTEX', 'FOUNDRY', 'MANTLE']) {
-    assert.equal(settings.env[`CLAUDE_CODE_USE_${flag}`], '0')
-  }
-  assert.equal(spec.args[spec.args.indexOf('--model') + 1], 'selected-model')
+  assert.equal(spec.args.includes('--settings'), false)
+  assert.equal(spec.args.includes('--model'), false)
   assert.equal(spec.args[spec.args.indexOf('--resume') + 1], 'native-session')
-  assert.equal(JSON.stringify(spec.args).includes('selected-secret-key'), false)
+  assert.equal(spec.args[spec.args.indexOf('--permission-mode') + 1], 'plan')
 })
 
 test('MiMo uses ACP by default and declares its JSON setup fallback', () => {
@@ -1230,14 +1225,13 @@ test('Qwen uses plan mode by default and auto-edit after authorization', () => {
   ])
 })
 
-test('Qwen selects OpenAI auth when the shared provider is enabled', () => {
+test('Qwen keeps its native auth without a provider override', () => {
   const spec = invocation('qwen', '/tmp/qwen', '/tmp/work', '', {
-    provider: { id: 'openai', model: 'glm' },
+    sandbox: 'read-only',
   })
   assert.deepEqual(spec.args, [
     '--output-format', 'stream-json', '--include-partial-messages',
     '--approval-mode', 'plan',
-    '--auth-type', 'openai', '--model', 'glm',
   ])
 })
 

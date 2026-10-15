@@ -131,7 +131,6 @@ class LocalWorkspace extends EventEmitter {
       image: this.imageAttachmentLimitFn(kind),
     }))
     this.credentialStateFn = options.credentialState || (async () => ({ state: 'unknown', source: 'unverified' }))
-    this.sharedProviderReadyFn = options.sharedProviderReady || (() => false)
     this.agentLabelFn = options.agentLabel || defaultAgentLabel
     this.runSilenceWarningMs = Number.isFinite(options.runSilenceWarningMs)
       && options.runSilenceWarningMs > 0
@@ -204,7 +203,6 @@ class LocalWorkspace extends EventEmitter {
       setDetectedAgents: agents => { this.detectedAgents = agents },
       detectAgents: () => this.detectAgentsFn(),
       credentialState: (...args) => this.credentialStateFn(...args),
-      sharedProviderReady: kind => this.sharedProviderReadyFn(kind),
       attachmentSupport: kind => this.attachmentSupportFn(kind),
       save: () => this.save(),
       emitChanged: () => this.emitChanged(),

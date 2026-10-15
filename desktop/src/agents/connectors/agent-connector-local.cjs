@@ -603,8 +603,6 @@ class LocalAgentConnectors {
         installed: true,
         installSupported: false,
         installErrorCode: '',
-        providerCompatible: false,
-        providerMode: 'connector',
         imageAttachmentLimit: manifest.inputTypes.includes('image') ? 32 : 0,
         custom: !cloud,
         connector: true,

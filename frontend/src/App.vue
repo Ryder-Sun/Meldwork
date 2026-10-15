@@ -68,13 +68,11 @@
         <HomeDashboard
           v-else-if="activeView === 'home'"
           :agent-description="agentDescription"
-          :configurable-provider-count="configurableProviderAgents.length"
           :group-name="groupName"
           :groups="snapshot.groups"
           :installed-count="installedCount"
           :is-group-running="isGroupRunning"
           :onboarding-completed="onboardingCompleted"
-          :provider-configured-count="providerConfiguredCount"
           :ready-agents="readyAgents"
           :recent-group-meta="recentGroupMeta"
           :refreshing="refreshing"
@@ -82,7 +80,6 @@
           @open-agent-manager="openAgentManager"
           @open-direct="openDirect"
           @open-new-group="openNewGroup"
-          @open-provider="openProvider"
           @refresh-agents="refreshAgents"
           @select-group="selectGroup"
         />
@@ -230,7 +227,6 @@ import { useKnowledgeBaseSettings } from './composables/useKnowledgeBaseSettings
 import { useMessageActions } from './composables/useMessageActions.js'
 import { useOnboarding } from './composables/useOnboarding.js'
 import { useOverlayLifecycle } from './composables/useOverlayLifecycle.js'
-import { useProviderSettings } from './composables/useProviderSettings.js'
 import { useRunFinishedNotifications } from './composables/useRunFinishedNotifications.js'
 import { useSystemSettingsNavigation } from './composables/useSystemSettingsNavigation.js'
 import { useWorkspaceNavigationState } from './composables/useWorkspaceNavigationState.js'
@@ -304,7 +300,6 @@ const desktopPlatform = computed(() => api.value?.platform || installCatalog.val
 const workspace = computed(() => api.value?.localWorkspace || null)
 const installer = computed(() => api.value?.agentInstaller || null)
 const customAgent = computed(() => api.value?.customAgent || null)
-const provider = computed(() => api.value?.localAgentProvider || null)
 const knowledgeBase = computed(() => api.value?.localKnowledgeBase || null)
 const cloudAgentBridge = computed(() => api.value?.cloudAgentBridge || null)
 const attachmentsApi = computed(() => api.value?.localAttachments || null)
@@ -592,13 +587,6 @@ const { messageDeleteArmedId } = messageActions
 const contentInteractionBlocked = computed(() => (
   blockingOverlayOpen.value || traceDrawerBlocking.value || agentDiscoveryPending.value
 ))
-const providerSettings = useProviderSettings({
-  agents: mergedCatalog,
-  provider,
-  saving,
-  formError,
-  refreshAgents,
-})
 const composerContext = useComposerContext({
   activeGroup,
   activeRun,
@@ -616,14 +604,6 @@ const composerContext = useComposerContext({
   t,
   theme,
 })
-const {
-  configurableProviderAgents,
-  loadProviderWorkspace,
-  providerConfiguredCount,
-  providerRemoveArmed,
-  selectedProviderKind,
-  supportsExternalProvider,
-} = providerSettings
 systemSettingsNavigation = useSystemSettingsNavigation({
   activeView,
   closeModal,
@@ -631,12 +611,8 @@ systemSettingsNavigation = useSystemSettingsNavigation({
   formError,
   installConfirmKind,
   loadKnowledgeBaseStatuses,
-  loadProviderWorkspace,
   modal,
-  providerRemoveArmed,
   saving,
-  selectedProviderKind,
-  supportsExternalProvider,
   systemSettingsSection,
 })
 const {
@@ -883,7 +859,6 @@ const {
     isGroupRunning,
     modal,
     openAgentManager,
-    openProvider,
     openSystemSettings,
     productMark,
     refreshing,
@@ -906,7 +881,6 @@ const {
   conversationActions,
   conversationNavigation,
   knowledgeBase: knowledgeBaseSettings,
-  providerSettings,
   timeline: conversationTimeline,
 })
 
@@ -951,7 +925,6 @@ const { booting, bridgeMissing } = useDesktopWorkspaceLifecycle({
       agentDiscoveryPending.value = true
       void refreshAgents().finally(() => { agentDiscoveryPending.value = false })
     }
-    void loadProviderWorkspace()
     void loadKnowledgeBaseStatuses()
   },
   beforeBoot: () => {
@@ -964,7 +937,6 @@ const { booting, bridgeMissing } = useDesktopWorkspaceLifecycle({
   handleRunFinished,
   installer,
   installerState,
-  provider,
   refreshAgents,
   showError,
   snapshot,
@@ -1039,10 +1011,6 @@ function restoreRoundSettings(group = activeGroup.value) {
   unlimitedRounds.value = saved?.unlimitedRounds === true
 }
 
-function openProvider(kind = '') {
-  return systemSettingsNavigation.openProvider(kind)
-}
-
 function closeModal(options = {}) {
   if (saving.value && options?.force !== true) return false
   if (!modal.value) return false
@@ -1051,7 +1019,6 @@ function closeModal(options = {}) {
   formError.value = ''
   deleteArmed.value = false
   customAgentDeleteArmed.value = false
-  providerRemoveArmed.value = false
   installConfirmKind.value = ''
   focusedAgentKind.value = ''
   unlimitedConfirmationGroupId.value = ''

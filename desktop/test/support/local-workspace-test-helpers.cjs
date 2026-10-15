@@ -26,7 +26,6 @@ function fixture() {
     storagePath: path.join(directory, 'workspace.json'),
     detectAgents: async () => agents,
     credentialState: async () => ({ state: 'ready', source: 'native-credential' }),
-    sharedProviderReady: () => false,
     resolveAttachments: async refs => refs.map(ref => ({
       id: ref.id,
       name: ref.name,

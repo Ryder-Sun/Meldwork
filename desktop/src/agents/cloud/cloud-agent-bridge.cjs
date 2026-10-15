@@ -632,8 +632,6 @@ class CloudAgentBridgeStore {
       installed: true,
       installSupported: false,
       installErrorCode: '',
-      providerCompatible: false,
-      providerMode: 'connector',
       imageAttachmentLimit: 0,
       custom: false,
       connector: true,

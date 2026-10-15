@@ -64,15 +64,6 @@ export const DESKTOP_ERROR_MESSAGE_KEYS = Object.freeze({
   INSTALL_AGENT_ALREADY_INSTALLED: 'error.installAlreadyInstalled',
   INSTALL_AGENT_FAILED: 'error.installFailed',
   INSTALL_AGENT_VERIFY_FAILED: 'error.installVerify',
-  PROVIDER_CREDENTIAL_REQUIRED: 'error.providerRequired',
-  PROVIDER_ENCRYPTION_FAILED: 'error.providerEncryption',
-  PROVIDER_ENCRYPTION_UNAVAILABLE: 'error.providerEncryption',
-  PROVIDER_INVALID_CREDENTIAL: 'error.providerEncryption',
-  PROVIDER_CREDENTIAL_UNAVAILABLE: 'error.providerCredentialUnavailable',
-  PROVIDER_INVALID_METADATA: 'error.providerMetadata',
-  PROVIDER_INSECURE_BASE_URL: 'error.providerMetadata',
-  PROVIDER_STORAGE_PATH_REQUIRED: 'error.generic',
-  OPENCLAW_PROVIDER_INVALID: 'error.providerMetadata',
   LOCAL_GROUP_RUNNING: 'error.groupRunning',
   LOCAL_MESSAGE_NOT_FOUND: 'error.messageNotFound',
   LOCAL_MESSAGE_REQUIRED: 'error.messageRequired',
@@ -177,7 +168,6 @@ export const DESKTOP_ERROR_MESSAGE_KEYS = Object.freeze({
 
 const LEGACY_ERROR_PATTERNS = [
   [/Desktop workspace is unavailable/i, 'error.workspaceUnavailable'],
-  [/PROVIDER_ENCRYPTION/i, 'error.providerEncryption'],
   [/active run/i, 'error.groupRunning'],
 ]
 

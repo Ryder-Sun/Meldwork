@@ -125,7 +125,6 @@ async function runAgent(agent, prompt, workdir, options = {}) {
   const spec = invocation(agent.kind, agent.executable, workdir, sessionRef, {
     platform,
     sandbox: options.sandbox,
-    provider: options.provider,
     attachments: options.attachments,
     hermesAcpAvailable,
     invocationTransport: options.invocationTransport,

@@ -26,7 +26,25 @@ const {
   searchPath,
 } = require('../../../src/agents/cli/cli-adapters.cjs')
 const { resolveConnectorEventProfile } = require('../../../src/agents/cli/cli-event-profiles.cjs')
-const { managedOpenClawOptions } = require('../../../src/agents/cli/openclaw-runtime.cjs')
+const { nativeOpenClawOptions } = require('../../../src/agents/cli/openclaw-runtime.cjs')
+function openClawAdapterRuntime(storageRoot, workdir, sessionRef = '') {
+  return nativeOpenClawOptions({
+    storageRoot,
+    workdir,
+    ...(sessionRef ? { sessionRef } : {}),
+    runtime: {
+      model: 'native/model',
+      provider: {
+        id: 'native',
+        baseUrl: 'https://native.example.com/v1',
+        api: 'openai-completions',
+        apiKey: 'adapter-openclaw-key',
+        model: { id: 'model', name: 'Native Model', input: ['text'] },
+      },
+    },
+  })
+}
+
 const {
   executable,
   readJsonWhenReady,
@@ -520,6 +538,45 @@ process.exitCode = 1
   assert.equal(result.sessionRef, 'result-before-exit-session')
   assert.equal(events.some(event => event.type === 'answer_delta'), true)
 })
+
+for (const exitCode of [0, 1]) {
+  test(`WorkBuddy authentication failures classify as auth-required with exit code ${exitCode}`, async (t) => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), `meldwork-workbuddy-auth-${exitCode}-`))
+    const cli = executable(directory, 'workbuddy-auth-required.cjs', `
+  process.stdout.write(JSON.stringify({
+    type: 'system', subtype: 'init', session_id: 'workbuddy-auth-session',
+    apiKeySource: 'www.workbuddy.cn',
+  }) + '\\n')
+  process.stdout.write(JSON.stringify({
+    type: 'assistant', session_id: 'workbuddy-auth-session',
+    message: { role: 'assistant', content: [
+      { type: 'text', text: 'Authentication required. Please use /login command to sign in to your account' },
+    ] },
+  }) + '\\n')
+  process.stdout.write(JSON.stringify({
+    type: 'result', subtype: 'error_during_execution', is_error: true,
+    session_id: 'workbuddy-auth-session',
+    errors: ['Authentication required. Please use /login command to sign in to your account'],
+  }) + '\\n')
+  process.exitCode = ${exitCode}
+  `)
+    t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+
+    await assert.rejects(
+      runAgent(
+        { kind: 'workbuddy', executable: cli, name: 'WorkBuddy' },
+        'hello',
+        directory,
+        { },
+      ),
+      (error) => {
+        assert.equal(error.code, 'LOCAL_AGENT_AUTH_REQUIRED')
+        assert.match(error.diagnostic || '', /Authentication required/u)
+        return true
+      },
+    )
+  })
+}
 
 test('Gemini profile state retains one real tool lifecycle id and summary', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-gemini-profile-state-'))
@@ -1969,16 +2026,7 @@ process.stdout.write(JSON.stringify({
 }))
 `)
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
-  const runtime = managedOpenClawOptions({
-    storageRoot: directory,
-    workdir,
-    sessionRef: 'agent:main:adapter-workspace',
-    provider: {
-      OPENAI_API_KEY: 'adapter-openclaw-key',
-      OPENAI_BASE_URL: 'https://api.example.com/v1',
-      OPENAI_MODEL: 'adapter-model',
-    },
-  })
+  const runtime = openClawAdapterRuntime(directory, workdir, 'agent:main:adapter-workspace')
 
   const events = []
   const result = await runAgent(
@@ -2053,16 +2101,7 @@ process.stdout.write(JSON.stringify({
 `)
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
   const stableSessionRef = 'agent:main:openclaw-acp-fallback'
-  const runtime = managedOpenClawOptions({
-    storageRoot: directory,
-    workdir,
-    sessionRef: stableSessionRef,
-    provider: {
-      OPENAI_API_KEY: 'adapter-openclaw-key',
-      OPENAI_BASE_URL: 'https://api.example.com/v1',
-      OPENAI_MODEL: 'adapter-model',
-    },
-  })
+  const runtime = openClawAdapterRuntime(directory, workdir, stableSessionRef)
 
   const result = await runAgent(
     { kind: 'openclaw', executable: cli, name: 'OpenClaw' },
