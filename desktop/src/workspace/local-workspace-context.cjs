@@ -21,10 +21,15 @@ const {
   normalizeSkillHint,
   skillHintsPrompt,
 } = require('./local-workspace-inputs.cjs')
+const { MAX_MESSAGE_TEXT_CHARS } = require('./local-workspace-contracts.cjs')
 
 const CONTINUATION_STABLE_CONTEXT_TEXT_LIMIT = 1400
 const CONTINUATION_RECENT_CONTEXT_TEXT_LIMIT = 4600
-const CURRENT_TASK_TEXT_LIMIT = 6000
+// User messages are already capped at MAX_MESSAGE_TEXT_CHARS when they are
+// submitted. The current task must reach the Agent in full: truncating it, or
+// failing the turn when it is longer than a fixed budget, made long pasted
+// documents unusable. The extra room covers the attached-file note.
+const CURRENT_TASK_TEXT_LIMIT = MAX_MESSAGE_TEXT_CHARS + 2000
 const V4_SNAPSHOT_HISTORY_LIMIT = 16
 const NATURAL_TRANSCRIPT_TEXT_LIMIT = 48000
 const NATURAL_TRANSCRIPT_ENTRY_LIMIT = 20000
@@ -808,6 +813,72 @@ function packedPromptContext({
   }
 }
 
+// The write-access and deliverable contract applies to every turn, including
+// direct chats that rely on the native Agent session for history. Without it
+// Agents do not know where to put files, so generated outputs are never
+// captured and read-only chats claim media that does not exist.
+function deliveryContract(group) {
+  return group?.allowWrite
+    ? [
+        'Workspace access: You may create and edit files in the conversation working directory. When the user requests a deliverable, execute the work instead of returning only a plan.',
+        'Deliverable capture contract: Save or copy each final document, code file, diff, structured-data file, media file, or bundle into .meldwork-output/ in the conversation working directory.',
+        'Only files created or changed during this run are captured as durable outputs. Do not claim a deliverable exists until the real file has been written there.',
+        'When the user asks for an image, audio, or video, do not claim it was generated unless a real file exists.',
+        'Supported chat attachments include common images, media, documents, source code, configuration text, and archives. Other recognized outputs remain durable Artifacts.',
+      ].join('\n')
+    : [
+        'This conversation is read-only. Do not claim that a media file was generated or delivered because no writable output can be attached.',
+        'If the user requests generated media, explain that workspace write access must be enabled before a real file can be delivered.',
+      ].join('\n')
+}
+
+// Direct chats keep one native Agent session for the whole conversation, so
+// a resumed turn only needs the user's request plus the per-turn contract.
+// When the session is new or was rebuilt, the earlier conversation is packed
+// before the request so the Agent never loses either of them.
+function directPromptFor({
+  group,
+  label = '',
+  packed,
+  skillHints = [],
+  knowledgeBaseHints = [],
+  includeHistory = false,
+}) {
+  const currentTaskText = packed?.currentTaskText || '(none)'
+  const latestId = String(packed?.latestUserMessageId || '')
+  const hasPriorContext = includeHistory
+    && (packed?.continuationSourceMessageIds || []).some(id => id && id !== latestId)
+  // The full contract is delivered once per native session; resumed turns
+  // carry a one-line reminder so long chats do not re-send the same block.
+  const notes = includeHistory
+    ? [
+        label ? `You are working in this Meldwork chat as ${label}.` : '',
+        deliveryContract(group),
+        responseLanguagePrompt(packed?.latestUserLanguage),
+      ]
+    : [
+        group?.allowWrite
+          ? 'Save deliverables into .meldwork-output/ in the working directory; do not claim a file exists until it was written.'
+          : 'This chat is read-only; do not claim that a file or media was generated or delivered.',
+        'Answer in the language of the current request unless it asks for another language.',
+      ]
+  notes.push(skillHintsPrompt(skillHints), knowledgeBaseHintsPrompt(knowledgeBaseHints))
+  return [
+    ...(hasPriorContext
+      ? [
+          'Earlier conversation in this chat (reference only; verify it before relying on it):',
+          packed.continuationText,
+          '',
+          'Current request:',
+        ]
+      : []),
+    currentTaskText,
+    '',
+    'Meldwork conversation notes:',
+    ...notes.filter(Boolean),
+  ].join('\n')
+}
+
 function promptFor({
   group,
   kind,
@@ -837,18 +908,7 @@ function promptFor({
     packed?.currentTaskText || '(none)',
     'Treat older group messages and conclusions as reference only. Do not continue an older task unless the current user task explicitly asks you to do so.',
   ].join('\n')
-  const mediaDelivery = group.allowWrite
-      ? [
-          'Workspace access: You may create and edit files in the conversation working directory. When the user requests a deliverable, execute the work instead of returning only a plan.',
-          'Deliverable capture contract: Save or copy each final document, code file, diff, structured-data file, media file, or bundle into .meldwork-output/ in the conversation working directory.',
-          'Only files created or changed during this run are captured as durable outputs. Do not claim a deliverable exists until the real file has been written there.',
-          'When the user asks for an image, audio, or video, do not claim it was generated unless a real file exists.',
-          'Supported chat attachments include common images, media, documents, source code, configuration text, and archives. Other recognized outputs remain durable Artifacts.',
-        ].join('\n')
-    : [
-        'This conversation is read-only. Do not claim that a media file was generated or delivered because no writable output can be attached.',
-        'If the user requests generated media, explain that workspace write access must be enabled before a real file can be delivered.',
-      ].join('\n')
+  const mediaDelivery = deliveryContract(group)
   if (promptMode === 'continuation') {
     const continuationMediaDelivery = group.allowWrite
       ? 'Workspace write access remains enabled for this task; execute requested deliverables and capture them as required.'
@@ -898,6 +958,8 @@ function promptFor({
 }
 
 module.exports = {
+  deliveryContract,
+  directPromptFor,
   packNaturalDiscussionTranscript,
   clearSessionState,
   openClawSessionRef,

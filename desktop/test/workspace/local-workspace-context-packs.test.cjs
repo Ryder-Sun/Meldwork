@@ -463,24 +463,25 @@ test('long in-budget requests verify the exact prompt that is actually delivered
   assert.equal(workspace.contextPacks.compareDelivery(delivery.deliveryRecordId).status, 'match')
 })
 
-test('required current-task overflow fails closed before Agent execution', async (t) => {
+test('a long current task reaches the Agent in full instead of failing the turn', async (t) => {
   const { directory, calls, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
   const workspace = new LocalWorkspace(options)
   await workspace.refreshAgents()
   const group = workspace.createGroup({
-    name: 'Required context overflow', agentKinds: ['codex'], workdir: directory,
+    name: 'Long current task', agentKinds: ['codex'], workdir: directory,
     conversationType: 'direct', directAgentKind: 'codex',
   })
-  const request = `Generate this image exactly: ${'dense visual direction '.repeat(500)}`
+  // Longer than the former 6,000-character budget that failed every turn.
+  const request = `Generate this image exactly: ${'dense visual direction '.repeat(800)}end-of-request`
 
   await workspace.sendMessage({ groupId: group.id, text: request })
 
-  assert.equal(calls.length, 0)
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].prompt.includes(request.trim()), true)
   assert.equal(workspace.snapshot().messages.some(message => (
-    message.system?.key === 'system.agentCallFailed'
-      && message.system.params.reason === 'LOCAL_RUN_REQUIRED_CONTEXT_OVERFLOW'
-  )), true)
+    message.system?.params?.reason === 'LOCAL_RUN_REQUIRED_CONTEXT_OVERFLOW'
+  )), false)
 })
 
 test('Codex-shaped stdin delivery verifies the exact budgeted prompt', async (t) => {

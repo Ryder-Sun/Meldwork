@@ -17,6 +17,7 @@ const {
   normalizeContextPackId,
 } = require('../collaboration/context-pack-records.cjs')
 const {
+  defaultAgentLabel,
   HERMES_WORKSPACE_ACP_ENABLED,
   MAX_MESSAGE_ATTACHMENTS,
   abortableOperation,
@@ -29,6 +30,7 @@ const {
   settleWithin,
 } = require('./local-workspace-inputs.cjs')
 const { assertLocalSkillExecution } = require('../skills/local-skill-contract.cjs')
+const { directPromptFor } = require('./local-workspace-context.cjs')
 const { outboundWirePayloadBytes } = require('../collaboration/outbound-payload.cjs')
 const { processRunScheduler } = require('../runs/run-scheduler.cjs')
 const {
@@ -515,6 +517,9 @@ class LocalWorkspaceAgentInvocation {
     this.scheduleRunCheckpoint = options.scheduleRunCheckpoint
     this.emitChanged = options.emitChanged
     this.promptFor = options.promptFor
+    this.agentLabel = typeof options.agentLabel === 'function'
+      ? options.agentLabel
+      : kind => defaultAgentLabel(kind)
     this.persistSessionState = options.persistSessionState
     this.createAttemptContextPack = options.createAttemptContextPack
     this.recordContextDelivery = options.recordContextDelivery
@@ -704,7 +709,9 @@ class LocalWorkspaceAgentInvocation {
         }
       : null
     const idempotencyMode = agent.idempotencyMode === 'durable' ? 'durable' : 'none'
-    const resolvedSession = reviewOnly
+    // Isolated invocations must see only their approved prompt, so they never
+    // resume or persist the conversation's native session.
+    const resolvedSession = reviewOnly || isolated
       ? {
           key: this.sessionKey(group.id, kind),
           sessionRef: '',
@@ -1278,10 +1285,24 @@ class LocalWorkspaceAgentInvocation {
       const buildPrompt = (afterKind, contextPackage) => isolated || frozen
         ? v4Prompt
           : group.conversationType === 'direct'
-          ? (sessionRotated
-            ? (contextPackage.continuationText || contextPackage.stableText
-              || contextPackage.currentTaskText)
-            : contextPackage.currentTaskText)
+          ? [
+              // A resumed native session already holds the conversation. A new
+              // or rebuilt session needs the earlier turns and, always, the
+              // current request plus the per-turn delivery contract.
+              directPromptFor({
+                group,
+                label: this.agentLabel(kind),
+                packed: contextPackage,
+                skillHints: context.skillHints || [],
+                knowledgeBaseHints: context.knowledgeBaseHints || [],
+                includeHistory: sessionRotated || !sessionRef,
+              }),
+              stagedAgentInputPrompt(stagedInputs),
+              runtimeInstruction ? `Harness recovery task:\n${runtimeInstruction}` : '',
+              regenerationInstruction
+                ? `Fresh response instruction:\n${regenerationInstruction}`
+                : '',
+            ].filter(Boolean).join('\n\n')
         : [
             context.v4 === true && v4Prompt
               ? v4Prompt
@@ -1441,7 +1462,7 @@ class LocalWorkspaceAgentInvocation {
         onSessionRef: (nextSessionRef, metadata = {}) => {
           if (agentCallbacksClosed || agentController.signal.aborted) return
           noteWatchdogProgress()
-          if (reviewOnly) return
+          if (reviewOnly || isolated) return
           const transport = ['legacy', 'acp'].includes(metadata?.transport)
             ? metadata.transport
             : ''
@@ -1454,7 +1475,7 @@ class LocalWorkspaceAgentInvocation {
           }))
         },
         onSessionInvalidated: () => {
-          if (kind !== 'hermes' || reviewOnly || resumedPermission) return null
+          if (kind !== 'hermes' || reviewOnly || isolated || resumedPermission) return null
           return { prompt: rebuildFreshSession() }
         },
         signal: agentController.signal,
@@ -1904,7 +1925,7 @@ class LocalWorkspaceAgentInvocation {
             pendingMessage.metadata,
           )
         : null
-      if (!reviewOnly) {
+      if (!reviewOnly && !isolated) {
         this.persistSessionState(key, result.sessionRef || sessionRef, completedSessionMeta(
           sessionMeta, sessionProvenance, taskId, {
           promptChars: prompt.length,

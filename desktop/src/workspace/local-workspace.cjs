@@ -267,6 +267,7 @@ class LocalWorkspace extends EventEmitter {
     })
     this.agentInvocation = new LocalWorkspaceAgentInvocation({
       state: () => this.state,
+      agentLabel: kind => this.agentLabel(kind),
       detectedAgents: () => this.detectedAgents,
       activeRuns: this.activeRuns,
       runAgentTimeoutMs: this.runAgentTimeoutMs,

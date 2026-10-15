@@ -1377,7 +1377,13 @@ test('direct conversations force manual mode and reuse their group Agent session
   assert.equal(direct.directAgentKind, 'codex')
   assert.deepEqual(calls.map(call => call.agent.kind), ['codex', 'codex'])
   assert.deepEqual(calls.map(call => call.runOptions.sessionRef), ['', 'codex-session'])
-  assert.deepEqual(calls.map(call => call.prompt), ['第一条', '第二条'])
+  // Direct chats lead with the user's own words and carry no group framing.
+  // The delivery contract is sent in full when the native session starts and
+  // as a one-line reminder on resumed turns.
+  assert.deepEqual(calls.map(call => call.prompt.split('\n')[0]), ['第一条', '第二条'])
+  assert.equal(calls.some(call => /You are participating|group Session|Group topic/.test(call.prompt)), false)
+  assert.match(calls[0].prompt, /\.meldwork-output\//)
+  assert.ok(calls[1].prompt.length < calls[0].prompt.length)
   assert.equal(calls.some(call => call.prompt.includes('MELDWORK_CONSENSUS')), false)
   assert.equal(workspace.snapshot().messages.some(message => message.threadRootId), false)
   const restored = new LocalWorkspace(options)
