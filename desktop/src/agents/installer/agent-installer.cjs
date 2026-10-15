@@ -3,6 +3,7 @@ const fs = require('node:fs')
 const { randomUUID } = require('node:crypto')
 const { DISPLAY_LIMIT, listLocalAgentSkills } = require('../../skills/local-skill-catalog.cjs')
 const {
+  installedVersionCurrent,
   AGENT_CATALOG,
   DETECTION_CACHE_TTL_MS,
   abortError,
@@ -169,7 +170,8 @@ class AgentInstaller extends EventEmitter {
         const recipe = installRecipe(profile.kind, this.platform)
         const targetVersion = recipe?.detectedVersion || recipe?.version || ''
         const currentVersion = String(agent?.version || '')
-        const upToDate = Boolean(agent && targetVersion && currentVersion.includes(targetVersion))
+        const upToDate = Boolean(agent && targetVersion
+          && installedVersionCurrent(currentVersion, targetVersion))
         let installSupported = Boolean(recipe)
         let installErrorCode = ''
         if (!recipe) {
@@ -241,7 +243,7 @@ class AgentInstaller extends EventEmitter {
     const current = installed.find(agent => agent.kind === profile.kind)
     const targetVersion = recipe.detectedVersion || recipe.version
     if (current && (current.compatibilityState !== 'compatible'
-      || String(current.version || '').includes(targetVersion))) {
+      || installedVersionCurrent(current.version, targetVersion))) {
       throw installerError('INSTALL_AGENT_ALREADY_INSTALLED')
     }
     let command = recipe.interpreter || ''

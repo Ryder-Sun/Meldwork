@@ -265,6 +265,7 @@ module.exports = {
   AGENT_COMPATIBILITY,
   assessAgentVersion,
   capabilityProbes,
+  compareReleaseVersions,
   extractAgentVersion,
   identifyAgentVersion,
 }

@@ -4,6 +4,17 @@ const fs = require('node:fs')
 const path = require('node:path')
 const { promisify } = require('node:util')
 const { searchPath } = require('../cli/cli-adapters.cjs')
+const { compareReleaseVersions, extractAgentVersion } = require('../agent-compatibility.cjs')
+
+// True when the installed CLI is the recipe's version or newer. A substring
+// test treated "11.2.3" as "1.2.3" and offered downgrades for newer CLIs.
+function installedVersionCurrent(installedVersion, targetVersion) {
+  const installed = extractAgentVersion(installedVersion).split('-')[0]
+  const target = extractAgentVersion(targetVersion).split('-')[0]
+  const comparison = installed && target ? compareReleaseVersions(installed, target) : null
+  if (comparison != null) return comparison >= 0
+  return Boolean(targetVersion) && String(installedVersion || '').includes(targetVersion)
+}
 
 const execFileAsync = promisify(execFile)
 const DETECTION_CACHE_TTL_MS = 30000
@@ -339,6 +350,7 @@ function verifiedRecipeAgent(agent, recipe) {
 }
 
 module.exports = {
+  installedVersionCurrent,
   AGENT_CATALOG,
   DETECTION_CACHE_TTL_MS,
   abortError,

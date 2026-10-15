@@ -1105,3 +1105,14 @@ setInterval(() => {}, 1000)
     errorCode: '',
   })
 })
+
+test('installed versions compare as releases instead of substrings', () => {
+  const { installedVersionCurrent } = require('../../../src/agents/installer/agent-installer-contract.cjs')
+  assert.equal(installedVersionCurrent('codex-cli 0.146.0', '0.146.0'), true)
+  assert.equal(installedVersionCurrent('0.150.1', '0.146.0'), true)
+  assert.equal(installedVersionCurrent('0.84.2', '0.84.20'), false)
+  assert.equal(installedVersionCurrent('11.2.3', '1.2.3'), true)
+  assert.equal(installedVersionCurrent('1.2.3', '11.2.3'), false)
+  assert.equal(installedVersionCurrent('openclaw 2026.7.1-2', '2026.7.1-2'), true)
+  assert.equal(installedVersionCurrent('', '0.20.0'), false)
+})
