@@ -1184,7 +1184,9 @@ class LocalWorkspace extends EventEmitter {
       && continuation.snapshotHash === request.snapshotHash
       && slot?.agentRunId === source.agentRunId && slot.agentKind === source.kind
       && slot.operationId === request.operationId && slot.commitStatus === 'committed'
-      && this.autoRunner.v4NaturalOwner(group, durable, durable.threadRootId) === source.kind)
+      && this.autoRunner.v4NaturalOwner(
+        group, durable, durable.threadRootId, durable.orchestration?.activeKinds,
+      ) === source.kind)
   }
 
   v4TaskDecisionResponses(runId) {
