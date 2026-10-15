@@ -87,6 +87,9 @@ function invocation(kind, executable, workdir, sessionRef = '', options = {}) {
         eventTransport: 'acp',
         fallbackTransport: 'legacy',
         fallbackSessionPolicy: 'invalidate',
+        // Hermes ACP advertises image prompts; send images as content blocks
+        // instead of silently dropping them from a text-only prompt.
+        ...(attachments.length ? { imageAttachments: attachments } : {}),
       }
     }
     return {

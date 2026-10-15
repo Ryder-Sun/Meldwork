@@ -1,5 +1,7 @@
 const { spawn } = require('node:child_process')
 const { createHash } = require('node:crypto')
+const fs = require('node:fs')
+const path = require('node:path')
 const { PassThrough, Readable, Writable } = require('node:stream')
 const { AGENT_PROFILES, prepareCommand } = require('./cli-discovery.cjs')
 const {
@@ -529,6 +531,32 @@ function persistenceKey(agent, options) {
   return `${agent.kind}:${value}`
 }
 
+const ACP_IMAGE_MIME_TYPES = new Map([
+  ['.png', 'image/png'], ['.jpg', 'image/jpeg'], ['.jpeg', 'image/jpeg'],
+  ['.gif', 'image/gif'], ['.webp', 'image/webp'],
+])
+const ACP_MAX_IMAGE_BYTES = 10 * 1024 * 1024
+
+// Images travel as ACP content blocks only when the Agent advertises image
+// prompts during initialize. Otherwise the turn fails before prompting so the
+// adapter can fall back to a transport that accepts image arguments.
+function acpImageBlocks(runtime, imageAttachments) {
+  const images = Array.isArray(imageAttachments) ? imageAttachments : []
+  if (!images.length) return []
+  if (runtime.agentCapabilities?.promptCapabilities?.image !== true) {
+    throw allowAcpSetupFallback(agentExecutionError('LOCAL_AGENT_IMAGE_UNSUPPORTED'))
+  }
+  return images.map((filename) => {
+    const mimeType = ACP_IMAGE_MIME_TYPES.get(path.extname(filename).toLowerCase())
+    if (!mimeType) throw agentExecutionError('LOCAL_AGENT_IMAGE_UNSUPPORTED')
+    const stat = fs.statSync(filename)
+    if (!stat.isFile() || stat.size > ACP_MAX_IMAGE_BYTES) {
+      throw agentExecutionError('LOCAL_AGENT_IMAGE_LIMIT')
+    }
+    return { type: 'image', mimeType, data: fs.readFileSync(filename).toString('base64') }
+  })
+}
+
 function withAcpRuntimeLock(key, callback) {
   const previous = acpRuntimeLocks.get(key) || Promise.resolve()
   const current = previous.catch(() => {}).then(callback)
@@ -714,10 +742,14 @@ async function createAcpRuntime(input) {
   runtime.connection = new ClientSideConnection(() => client, stream)
   acpInitializingRuntimes.add(runtime)
   try {
-    await Promise.race([
+    const initialized = await Promise.race([
       runtime.connection.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {} }),
       runtime.failurePromise,
     ])
+    runtime.agentCapabilities = initialized?.agentCapabilities
+      && typeof initialized.agentCapabilities === 'object'
+      ? initialized.agentCapabilities
+      : {}
   } catch (error) {
     await closeAcpRuntime(runtime)
     throw allowAcpSetupFallback(acpProtocolError(error, childEnv))
@@ -844,13 +876,14 @@ async function runAcpTurn(runtime, prompt, options, spec, profile) {
     if (visibleSessionRef && typeof options.onSessionRef === 'function') {
       await operation(options.onSessionRef(visibleSessionRef, { transport: 'acp' }))
     }
+    const imageBlocks = acpImageBlocks(runtime, spec.imageAttachments)
     runtime.replyState.collecting = true
     let promptResult
     try {
       promptStarted = true
       promptResult = await operation(runtime.connection.prompt({
         sessionId: protocolSessionRef,
-        prompt: [{ type: 'text', text: prompt }],
+        prompt: [{ type: 'text', text: prompt }, ...imageBlocks],
       }))
     } finally {
       runtime.replyState.collecting = false

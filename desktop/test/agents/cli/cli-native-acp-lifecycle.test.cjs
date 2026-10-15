@@ -162,6 +162,65 @@ input.on('line', (line) => {
     && error.failure?.category === 'authentication')
 })
 
+test('Hermes ACP receives image attachments as content blocks or falls back when unsupported', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-acp-image-'))
+  const image = path.join(directory, 'diagram.png')
+  fs.writeFileSync(image, Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+    'base64',
+  ))
+  const fakeHermes = supportsImages => executable(directory, `hermes-image-${supportsImages}.cjs`, `
+const readline = require('node:readline')
+if (process.argv[2] !== 'acp') {
+  process.stdout.write('legacy ' + process.argv.slice(2).filter(arg => arg !== '--query').join(' ').replace(${JSON.stringify(directory)}, '<dir>'))
+  process.exit(0)
+}
+const input = readline.createInterface({ input: process.stdin })
+const send = value => process.stdout.write(JSON.stringify(value) + '\\n')
+input.on('line', (line) => {
+  const message = JSON.parse(line)
+  const sessionId = message.params?.sessionId || 'hermes-image-session'
+  if (message.method === 'initialize') {
+    send({ jsonrpc: '2.0', id: message.id, result: {
+      protocolVersion: 1,
+      agentCapabilities: { promptCapabilities: { image: ${supportsImages} } },
+    } })
+  } else if (message.method === 'session/new') {
+    send({ jsonrpc: '2.0', id: message.id, result: { sessionId } })
+  } else if (message.method === 'session/set_mode') {
+    send({ jsonrpc: '2.0', id: message.id, result: {} })
+  } else if (message.method === 'session/prompt') {
+    const blocks = message.params?.prompt || []
+    const summary = blocks.map(block => block.type === 'image'
+      ? 'image:' + block.mimeType + ':' + (block.data.length > 20)
+      : block.type).join(',')
+    send({ jsonrpc: '2.0', method: 'session/update', params: { sessionId, update: {
+      sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: summary },
+    } } })
+    send({ jsonrpc: '2.0', id: message.id, result: { stopReason: 'end_turn' } })
+  }
+})
+`)
+  t.after(async () => {
+    await adapters.shutdownAcpSessionRuntime?.()
+    fs.rmSync(directory, { recursive: true, force: true })
+  })
+
+  const capable = await adapters.runAgent(
+    { kind: 'hermes', executable: fakeHermes(true), name: 'Hermes' },
+    'describe the diagram', directory,
+    { acpPersistenceKey: 'workspace:hermes:image', attachments: [image] },
+  )
+  assert.equal(capable.text, 'text,image:image/png:true')
+
+  const fallback = await adapters.runAgent(
+    { kind: 'hermes', executable: fakeHermes(false), name: 'Hermes' },
+    'describe the diagram', directory,
+    { acpPersistenceKey: 'workspace:hermes:image-fallback', attachments: [image] },
+  )
+  assert.match(fallback.text, /^legacy chat --quiet --image <dir>\/diagram\.png/)
+})
+
 test('ACP closes a start-only tool with the partial terminal outcome', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-acp-start-only-tool-'))
   const cli = executable(directory, 'acp-start-only-tool.cjs', `

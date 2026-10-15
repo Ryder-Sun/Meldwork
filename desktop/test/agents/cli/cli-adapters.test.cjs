@@ -1652,11 +1652,19 @@ test('Pi uses non-interactive JSON flags and keeps provider settings out of argu
 test('Hermes forwards one image and rejects additional images instead of dropping them', () => {
   const first = path.resolve('diagram-one.png')
   const second = path.resolve('diagram-two.png')
+  // ACP Hermes keeps its session and receives the image as a content block.
   const spec = invocation('hermes', '/tmp/hermes', '/tmp', '', {
     attachments: [first],
   })
-  assert.deepEqual(spec.args, [
-    'chat', '--quiet', '--image', first, '--query',
+  assert.deepEqual(spec.args, ['acp'])
+  assert.deepEqual(spec.imageAttachments, [first])
+  // A conversation already on the legacy transport passes the image argument.
+  const legacy = invocation('hermes', '/tmp/hermes', '/tmp', 'hermes-legacy-session', {
+    attachments: [first],
+    sessionTransport: 'legacy',
+  })
+  assert.deepEqual(legacy.args, [
+    'chat', '--quiet', '--resume', 'hermes-legacy-session', '--image', first, '--query',
   ])
   assert.throws(
     () => invocation('hermes', '/tmp/hermes', '/tmp', '', {
