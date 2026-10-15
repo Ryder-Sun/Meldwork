@@ -107,6 +107,9 @@ function stripV4InternalProtocolTail(value) {
   return paragraphs.join('\n\n').trim()
 }
 
+// Tool kinds an Agent may use without approval during a read-only turn.
+const READ_ONLY_SAFE_TOOL_KINDS = new Set(['read', 'search', 'fetch', 'think'])
+
 function boundedReceiptText(value, limit = V4_RECEIPT_MAX_TEXT) {
   if (typeof value !== 'string' || value.trim().length > limit) return ''
   const text = cleanText(value, limit)
@@ -1599,11 +1602,20 @@ class LocalWorkspaceAgentInvocation {
           // `yolo: false`; sandbox and workspace authorization remain enforced
           // before this callback is reached.
           if ((context.yolo ?? this.defaultYolo) !== false) {
-            const option = Array.isArray(request?.options)
-              ? request.options.find(candidate => candidate?.kind === 'allow_once')
-                || request.options.find(candidate => candidate?.kind === 'allow_always')
-                || request.options[0]
-              : null
+            const options = Array.isArray(request?.options) ? request.options : []
+            // A read-only turn must stay read-only even when the Agent asks:
+            // only side-effect-free tools are approved automatically, and
+            // edits, deletes, moves, commands and mode switches are refused.
+            if (!allowWrite && !READ_ONLY_SAFE_TOOL_KINDS.has(request?.toolCall?.kind)) {
+              const rejection = options.find(candidate => candidate?.kind === 'reject_once')
+                || options.find(candidate => candidate?.kind === 'reject_always')
+              return Promise.resolve(rejection?.optionId
+                ? { status: 'rejected', optionId: rejection.optionId }
+                : null)
+            }
+            const option = options.find(candidate => candidate?.kind === 'allow_once')
+              || options.find(candidate => candidate?.kind === 'allow_always')
+              || options[0]
             if (option?.optionId) {
               return Promise.resolve({ status: 'approved', optionId: option.optionId })
             }
