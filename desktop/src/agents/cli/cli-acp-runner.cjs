@@ -25,6 +25,21 @@ const { createAcpOutboundPayload } = require('../../collaboration/outbound-paylo
 const { redactSecrets } = require('../../security/secret-redaction.cjs')
 
 const ACP_CANCEL_GRACE_MS = 250
+// After a stop or timeout the Agent gets this long to answer the cancelled
+// prompt. A clean cancellation keeps the long-lived process and its native
+// session; only an Agent that ignores cancel is torn down.
+const ACP_CANCEL_SETTLE_MS = 3000
+const ACP_INITIALIZE_TIMEOUT_MS = 60 * 1000
+const ACP_STDERR_TAIL_BYTES = 64 * 1024
+// Process identity must not change when only volatile shell values change.
+// Version managers such as fnm put a per-shell directory on PATH, so a fresh
+// login-shell capture used to restart the ACP process and drop its session.
+const ACP_VOLATILE_ENV_KEYS = new Set([
+  'PATH', 'Path', 'TERM', 'TERM_PROGRAM', 'TERM_PROGRAM_VERSION', 'TERM_SESSION_ID',
+  'SHLVL', 'PWD', 'OLDPWD', '_', 'TMPDIR', 'COLUMNS', 'LINES', 'SHELL',
+  'FNM_MULTISHELL_PATH', 'FNM_DIR', 'FNM_VERSION_FILE_STRATEGY', 'FNM_LOGLEVEL',
+  'FNM_NODE_DIST_MIRROR', 'FNM_ARCH', 'FNM_COREPACK_ENABLED', 'FNM_RESOLVE_ENGINES',
+])
 const ACP_MAX_LINE_BYTES = 1024 * 1024
 const ACP_MAX_INPUT_BYTES = 16 * 1024 * 1024
 const ACP_MAX_REPLY_BYTES = 10 * 1024 * 1024
@@ -568,7 +583,9 @@ function withAcpRuntimeLock(key, callback) {
 }
 
 function runtimeSignature(agent, workdir, spec, profile, childEnv) {
-  const environment = Object.keys(childEnv).sort().map(key => [key, childEnv[key]])
+  const environment = Object.keys(childEnv).sort()
+    .filter(key => !ACP_VOLATILE_ENV_KEYS.has(key))
+    .map(key => [key, childEnv[key]])
   return createHash('sha256').update(JSON.stringify({
     kind: agent.kind,
     executable: agent.executable,
@@ -681,8 +698,14 @@ async function createAcpRuntime(input) {
   })
   child.stderr.on('data', (chunk) => {
     try { runtime.activeTurn?.noteActivity?.() } catch { /* activity is best-effort */ }
+    // Keep only recent stderr. A long-lived process used to keep the first
+    // megabyte of its whole lifetime, so a new failure was classified from
+    // stale early lines (for example an old auth warning).
+    runtime.stderr.push(chunk)
     runtime.stderrBytes += chunk.length
-    if (runtime.stderrBytes <= 1024 * 1024) runtime.stderr.push(chunk)
+    while (runtime.stderrBytes > ACP_STDERR_TAIL_BYTES && runtime.stderr.length > 1) {
+      runtime.stderrBytes -= runtime.stderr.shift().length
+    }
   })
   runtime.observedStdout = createObservedAcpInput(
     child.stdout, runtime.replyState, protocolLabel,
@@ -741,10 +764,30 @@ async function createAcpRuntime(input) {
   )
   runtime.connection = new ClientSideConnection(() => client, stream)
   acpInitializingRuntimes.add(runtime)
+  const abortSignal = input.options?.signal
+  const initializeTimeoutMs = Number.isFinite(input.options?.acpInitializeTimeoutMs)
+    && input.options.acpInitializeTimeoutMs > 0
+    ? input.options.acpInitializeTimeoutMs
+    : ACP_INITIALIZE_TIMEOUT_MS
+  let initializeTimer = null
+  let abortListener = null
   try {
+    // initialize used to wait forever while holding the per-conversation
+    // lock, leaving the Agent unusable in that conversation until restart.
     const initialized = await Promise.race([
       runtime.connection.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {} }),
       runtime.failurePromise,
+      new Promise((_, reject) => {
+        initializeTimer = setTimeout(() => reject(agentExecutionError(
+          'LOCAL_AGENT_PROTOCOL_UNAVAILABLE',
+          `${protocolLabel} did not answer the ACP initialize request.`,
+        )), initializeTimeoutMs)
+      }),
+      new Promise((_, reject) => {
+        abortListener = () => reject(agentExecutionError('LOCAL_AGENT_EXECUTION_STOPPED'))
+        if (abortSignal?.aborted) abortListener()
+        else abortSignal?.addEventListener('abort', abortListener, { once: true })
+      }),
     ])
     runtime.agentCapabilities = initialized?.agentCapabilities
       && typeof initialized.agentCapabilities === 'object'
@@ -752,8 +795,11 @@ async function createAcpRuntime(input) {
       : {}
   } catch (error) {
     await closeAcpRuntime(runtime)
+    if (abortSignal?.aborted) throw agentExecutionError('LOCAL_AGENT_EXECUTION_STOPPED')
     throw allowAcpSetupFallback(acpProtocolError(error, childEnv))
   } finally {
+    clearTimeout(initializeTimer)
+    if (abortListener) abortSignal?.removeEventListener('abort', abortListener)
     acpInitializingRuntimes.delete(runtime)
   }
   return runtime
@@ -801,6 +847,8 @@ async function runAcpTurn(runtime, prompt, options, spec, profile) {
     pendingPermissionCallbacks: new Set(),
   }
   runtime.activeTurn = turn
+  runtime.stderr = []
+  runtime.stderrBytes = 0
   runtime.replyState.bytes = 0
   runtime.replyState.inputBytes = 0
   runtime.replyState.observedInputBytes = 0
@@ -817,6 +865,8 @@ async function runAcpTurn(runtime, prompt, options, spec, profile) {
     runtime.publicSessionRef = visibleSessionRef
   }
   let promptStarted = false
+  let promptRequest = null
+  let caughtError = null
   let abortRequested = false
   let timeoutRequested = false
   let cancelPromise = Promise.resolve()
@@ -881,10 +931,12 @@ async function runAcpTurn(runtime, prompt, options, spec, profile) {
     let promptResult
     try {
       promptStarted = true
-      promptResult = await operation(runtime.connection.prompt({
+      promptRequest = Promise.resolve(runtime.connection.prompt({
         sessionId: protocolSessionRef,
         prompt: [{ type: 'text', text: prompt }, ...imageBlocks],
       }))
+      promptRequest.catch(() => {})
+      promptResult = await operation(promptRequest)
     } finally {
       runtime.replyState.collecting = false
     }
@@ -927,6 +979,7 @@ async function runAcpTurn(runtime, prompt, options, spec, profile) {
     if (!promptStarted && normalized.message !== 'LOCAL_AGENT_SESSION_INVALID') {
       allowAcpSetupFallback(normalized)
     }
+    caughtError = normalized
     throw normalized
   } finally {
     clearTimeout(timeout)
@@ -939,7 +992,25 @@ async function runAcpTurn(runtime, prompt, options, spec, profile) {
     turn.pendingPermissionCallbacks.clear()
     runtime.activeTurn = null
     runtime.lastUsedAt = Date.now()
-    if (abortRequested) await settleWithin(cancelPromise, ACP_CANCEL_GRACE_MS)
+    if (abortRequested) {
+      await settleWithin(cancelPromise, ACP_CANCEL_GRACE_MS)
+      // A user stop or watchdog timeout used to destroy the process and its
+      // native session. Keep both when the Agent honours the cancellation.
+      let promptSettled = false
+      // Disposable runtimes are always closed after the turn; only a
+      // persistent runtime is worth waiting for.
+      if (promptRequest && !acpDisposableRuntimes.has(runtime)) {
+        await settleWithin(
+          promptRequest.then(() => { promptSettled = true }, () => { promptSettled = true }),
+          ACP_CANCEL_SETTLE_MS,
+        )
+      }
+      if (caughtError && promptSettled && !runtime.closed && !runtime.failureError) {
+        Object.defineProperty(caughtError, 'acpRuntimeReusable', {
+          value: true, enumerable: false, configurable: true,
+        })
+      }
+    }
   }
 }
 
@@ -1003,8 +1074,10 @@ async function runPersistentAcpAgent(agent, prompt, workdir, options, spec, prof
     try {
       return await runAcpTurn(runtime, prompt, options, spec, profile)
     } catch (error) {
-      acpSessionRuntimes.delete(key)
-      await closeAcpRuntime(runtime)
+      if (error?.acpRuntimeReusable !== true) {
+        acpSessionRuntimes.delete(key)
+        await closeAcpRuntime(runtime)
+      }
       throw error
     } finally {
       runtime.active = false
