@@ -145,8 +145,10 @@ function invocation(kind, executable, workdir, sessionRef = '', options = {}) {
         '--print',
         '--output-format', 'stream-json',
         '--include-partial-messages',
+        // Workspace write access means accepting file edits in the working
+        // directory. Skipping every permission check would also let the CLI
+        // run any command anywhere on the machine without confirmation.
         '--permission-mode', options.sandbox === 'workspace-write' ? 'acceptEdits' : 'plan',
-        ...(options.sandbox === 'workspace-write' ? ['--dangerously-skip-permissions'] : []),
         ...(maxTurns ? ['--max-turns', String(maxTurns)] : []),
         ...(sessionRef ? ['--resume', sessionRef] : []),
       ],

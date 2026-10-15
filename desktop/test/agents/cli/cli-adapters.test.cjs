@@ -1653,6 +1653,14 @@ test('Pi uses non-interactive JSON flags and keeps provider settings out of argu
   assert.equal(typeof parsePiOutput, 'function')
 })
 
+test('WorkBuddy write mode accepts edits without skipping every permission check', () => {
+  const writable = invocation('workbuddy', '/tmp/codebuddy', '/tmp', '', { sandbox: 'workspace-write' })
+  assert.equal(writable.args[writable.args.indexOf('--permission-mode') + 1], 'acceptEdits')
+  assert.equal(writable.args.includes('--dangerously-skip-permissions'), false)
+  const readOnly = invocation('workbuddy', '/tmp/codebuddy', '/tmp', '', { sandbox: 'read-only' })
+  assert.equal(readOnly.args[readOnly.args.indexOf('--permission-mode') + 1], 'plan')
+})
+
 test('Hermes forwards one image and rejects additional images instead of dropping them', () => {
   const first = path.resolve('diagram-one.png')
   const second = path.resolve('diagram-two.png')
