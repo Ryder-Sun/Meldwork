@@ -215,8 +215,10 @@ function normalizeLoadedMessage(input) {
   const agentKind = isSupportedAgentKind(requestedAgentKind) ? requestedAgentKind : ''
   if (!id || !groupId || !role || (role === 'agent' && !agentKind)) return null
   const systemKey = role === 'system' ? cleanInline(input.system?.key, 100) : ''
+  const turnSeq = Number(input.turnSeq)
 
   const message = {
+    ...(Number.isSafeInteger(turnSeq) && turnSeq > 0 ? { turnSeq } : {}),
     id,
     groupId,
     role,

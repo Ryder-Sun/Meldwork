@@ -413,6 +413,7 @@ export function normalizeRunAgent(value, run = {}) {
     ...(orchestration ? { orchestration } : {}),
     ...(startedAt !== '' ? { startedAt } : {}),
     ...(lastActivityAt !== '' ? { lastActivityAt } : {}),
+    ...(Number.isSafeInteger(input.turnSeq) && input.turnSeq > 0 ? { turnSeq: input.turnSeq } : {}),
     silent: input.silent === true,
     truncated: input.truncated === true,
     seenSeqs,

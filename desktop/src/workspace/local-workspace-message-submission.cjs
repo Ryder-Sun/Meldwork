@@ -108,6 +108,9 @@ class LocalWorkspaceMessageSubmission {
     this.bindRunTask = options.bindRunTask
     this.releasePreparation = options.releasePreparation
     this.addMessage = options.addMessage
+    this.reserveTurnSeqs = typeof options.reserveTurnSeqs === 'function'
+      ? options.reserveTurnSeqs
+      : () => []
     this.rollbackAddedMessage = options.rollbackAddedMessage
     this.startAutoRunner = options.startAutoRunner
     this.beginRun = options.beginRun
@@ -545,6 +548,7 @@ class LocalWorkspaceMessageSubmission {
         ...(pendingMessage.metadata?.responseVersionRootId
           ? { responseVersionRootId: pendingMessage.metadata.responseVersionRootId } : {}),
         ...(trace ? { trace } : {}),
+        ...(pendingMessage.metadata?.turnSeq ? { turnSeq: pendingMessage.metadata.turnSeq } : {}),
       },
     }))
     const contentRef = this.contentBlobStore.put(canonicalJson(body), {
@@ -887,6 +891,10 @@ class LocalWorkspaceMessageSubmission {
       snapshot,
       skillHints: skillHintsByKind.get(kind) || [],
     })]))
+    // Concurrent replies keep slot order in the timeline whatever order they
+    // finish in; failure notices take their slot's number too.
+    const reservedTurns = this.reserveTurnSeqs(group.id, threadRootId, activeKinds.length)
+    const turnSeqByKind = new Map(activeKinds.map((kind, index) => [kind, reservedTurns[index]]))
     const pending = await Promise.all(activeKinds.map(async (kind) => {
       const index = targetKinds.indexOf(kind)
       const slot = slots[index]
@@ -923,6 +931,7 @@ class LocalWorkspaceMessageSubmission {
             slotId: slot.slotId,
             snapshotHash: frozenSnapshotHash,
             sessionPolicy: 'frozen',
+            ...(turnSeqByKind.get(kind) ? { turnSeq: turnSeqByKind.get(kind) } : {}),
             promptOverride: prompts.get(kind),
             contextPackId: controller.contextPackId,
             snapshotSourceMessageIds,

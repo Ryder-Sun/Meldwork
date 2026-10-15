@@ -9,6 +9,11 @@ const {
   terminalStatusPrefix,
 } = require('./local-workspace-inputs.cjs')
 
+function turnSeqMetadata(error) {
+  const turnSeq = Number(error?.turnSeq)
+  return Number.isSafeInteger(turnSeq) && turnSeq > 0 ? { turnSeq } : {}
+}
+
 class LocalWorkspaceRunMessages {
   constructor(options) {
     this.state = options.state
@@ -73,7 +78,7 @@ class LocalWorkspaceRunMessages {
         kind,
         threadRootId,
         system,
-        { trace, responseVersionRootId },
+        { trace, responseVersionRootId, ...turnSeqMetadata(error) },
       )
     }
     return { label, reason }
@@ -114,7 +119,7 @@ class LocalWorkspaceRunMessages {
         key: interrupted ? 'system.agentInterrupted' : 'system.agentStopped',
         params: { agent: label },
       },
-      { trace, responseVersionRootId },
+      { trace, responseVersionRootId, ...turnSeqMetadata(error) },
     )
     return trace
   }

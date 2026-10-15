@@ -166,7 +166,7 @@ describe('Meldwork workbench', () => {
     wrapper.unmount()
   })
 
-  it('keeps live Round 2 Agent replies after Round 1 in sequential execution order', async () => {
+  it('keeps live Round 2 Agent replies after Round 1 in dispatch turn order', async () => {
     const { wrapper } = await mountApp(({ state }) => {
       state.groups.push({
         id: 'group-live-round-order',
@@ -194,6 +194,7 @@ describe('Meldwork workbench', () => {
           agentKind: 'codex',
           content: 'Codex proposal',
           threadRootId: 'live-round-root',
+          turnSeq: 1,
           trace: {
             runId: 'run-live-round-order',
             agentRunId: 'codex-round-1',
@@ -211,6 +212,7 @@ describe('Meldwork workbench', () => {
           agentKind: 'hermes',
           content: 'Hermes proposal',
           threadRootId: 'live-round-root',
+          turnSeq: 2,
           trace: {
             runId: 'run-live-round-order',
             agentRunId: 'hermes-round-1',
@@ -235,23 +237,23 @@ describe('Meldwork workbench', () => {
             agentRunId: 'codex-round-2',
             kind: 'codex',
             round: 2,
-            executionSequence: 1,
+            turnSeq: 3,
             status: 'completed',
             output: 'Codex challenge',
             events: [],
-            context: { phase: 'challenge' },
-            startedAt: '2026-07-29T07:59:00Z',
+            // Production live runs carry numeric timestamps; the order must
+            // come from the dispatch turn, not from these (reversed) times.
+            startedAt: Date.parse('2026-07-29T07:59:00Z'),
           },
           {
             agentRunId: 'hermes-round-2',
             kind: 'hermes',
             round: 2,
-            executionSequence: 2,
+            turnSeq: 4,
             status: 'running',
             output: 'Hermes challenge',
             events: [],
-            context: { phase: 'challenge' },
-            startedAt: '2026-07-29T07:58:00Z',
+            startedAt: Date.parse('2026-07-29T07:58:00Z'),
           },
         ],
       }]

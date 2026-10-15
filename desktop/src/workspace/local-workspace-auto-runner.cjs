@@ -94,6 +94,9 @@ class LocalWorkspaceAutoRunner {
     this.recordAgentFailure = options.recordAgentFailure
     this.recordAgentInterruption = options.recordAgentInterruption
     this.addMessage = options.addMessage
+    this.reserveTurnSeqs = typeof options.reserveTurnSeqs === 'function'
+      ? options.reserveTurnSeqs
+      : () => []
     this.commitV4AgentMessage = typeof options.commitV4AgentMessage === 'function'
       ? options.commitV4AgentMessage
       : null
@@ -2508,7 +2511,18 @@ class LocalWorkspaceAutoRunner {
       && (!options.controller || this.v4NaturalMessageMatchesBinding(
         message, options.controller,
       ))
-    )).map(message => ({
+    )).map((message, index) => ({ message, index }))
+      // Peers read turns in dispatch order, the same order the user sees,
+      // instead of the order replies happened to be saved in.
+      .sort((left, right) => {
+        const leftTurn = Number.isSafeInteger(left.message.turnSeq) ? left.message.turnSeq : 0
+        const rightTurn = Number.isSafeInteger(right.message.turnSeq) ? right.message.turnSeq : 0
+        return (leftTurn ? 1 : 0) - (rightTurn ? 1 : 0)
+          || leftTurn - rightTurn
+          || left.index - right.index
+      })
+      .map(({ message }) => message)
+      .map(message => ({
       ...this.v4NaturalMessageContent(message),
       id: message.id,
       agentKind: message.agentKind,
@@ -3902,7 +3916,8 @@ class LocalWorkspaceAutoRunner {
     this.emitChanged()
 
     if (phase === 'proposal') {
-      const dispatches = activeKinds.map(kind => {
+      const proposalTurns = this.reserveTurnSeqs(group.id, threadRootId, activeKinds.length)
+      const dispatches = activeKinds.map((kind, kindIndex) => {
         const slot = phaseSlots.find(candidate => candidate.agentKind === kind)
         const prompt = this.v4PhasePrompt(
           group, kind, phase, snapshot, receiptRecords, 'participant', {
@@ -3921,6 +3936,7 @@ class LocalWorkspaceAutoRunner {
             batchId,
             slotId: slot.slotId,
             snapshotHash,
+            ...(proposalTurns[kindIndex] ? { turnSeq: proposalTurns[kindIndex] } : {}),
             ...(sessionPolicy ? { sessionPolicy } : {}),
             promptOverride: prompt,
             contextPackId: controller.contextPackId,
@@ -3988,6 +4004,10 @@ class LocalWorkspaceAutoRunner {
       workAdmissionTail = admission.catch(() => { workAdmissionClosed = true })
       return admission
     }
+    // Batched peers keep dispatch order in the timeline whatever order they
+    // finish in.
+    const phaseTurns = this.reserveTurnSeqs(group.id, threadRootId, activeKinds.length)
+    const turnSeqByKind = new Map(activeKinds.map((kind, index) => [kind, phaseTurns[index]]))
     const settled = await Promise.all(activeKinds.map(async kind => {
       const slot = phaseSlots.find(candidate => candidate.agentKind === kind)
       const challengeBinding = phase === 'challenge'
@@ -4049,6 +4069,7 @@ class LocalWorkspaceAutoRunner {
             batchId,
             slotId: slot.slotId,
             snapshotHash,
+            ...(turnSeqByKind.get(kind) ? { turnSeq: turnSeqByKind.get(kind) } : {}),
             ...(sessionPolicy ? { sessionPolicy } : {}),
             promptOverride: prompt,
             contextPackId: controller.contextPackId,

@@ -517,6 +517,9 @@ class LocalWorkspaceAgentInvocation {
     this.scheduleRunCheckpoint = options.scheduleRunCheckpoint
     this.emitChanged = options.emitChanged
     this.promptFor = options.promptFor
+    this.reserveTurnSeq = typeof options.reserveTurnSeq === 'function'
+      ? options.reserveTurnSeq
+      : null
     this.agentLabel = typeof options.agentLabel === 'function'
       ? options.agentLabel
       : kind => defaultAgentLabel(kind)
@@ -551,6 +554,17 @@ class LocalWorkspaceAgentInvocation {
   }
 
   async invoke(group, kind, mode, signal, threadRootId = '', context = {}) {
+    // Group turns get a per-topic dispatch number before anything awaits, so
+    // concurrent dispatches keep their call order. Batch dispatchers reserve
+    // numbers themselves and pass them in.
+    const requestedTurnSeq = Number(context.turnSeq)
+    const turnSeq = Number.isSafeInteger(requestedTurnSeq) && requestedTurnSeq > 0
+      ? requestedTurnSeq
+      : (group.conversationType !== 'direct' && threadRootId
+        && typeof this.reserveTurnSeq === 'function'
+        ? this.reserveTurnSeq(group.id, threadRootId)
+        : null)
+    if (turnSeq) context = { ...context, turnSeq }
     const activeRun = this.activeRuns.get(group.id)
     const taskId = cleanText(activeRun?.taskId || context.taskId || threadRootId, 120)
     if (!taskId) throw new Error('LOCAL_RUN_TASK_INVALID')
@@ -877,7 +891,9 @@ class LocalWorkspaceAgentInvocation {
     if (!isolated && !frozen) assertRequiredContextFits(packedContext)
     let deliveredContext = deliveredPackedContext(packedContext, promptMode)
     const harness = this.ensureRunHarness(group, activeRun, threadRootId)
-    const harnessRun = harness?.beginAgent(kind, round, deliveredContext.sourceMessageIds)
+    const harnessRun = harness?.beginAgent(kind, round, deliveredContext.sourceMessageIds, {
+      turnSeq: context.turnSeq,
+    })
     let deliveryContext = {
       contextPackId: invocationContext?.contextPackId || activeRun?.contextPackId || '',
       deliveryRecordIds: [],
@@ -1936,6 +1952,7 @@ class LocalWorkspaceAgentInvocation {
         attachments,
         trace,
         responseVersionRootId,
+        ...(context.turnSeq ? { turnSeq: context.turnSeq } : {}),
       }
       const pendingMessage = internal
         ? null
@@ -2033,6 +2050,14 @@ class LocalWorkspaceAgentInvocation {
       if (trace && error && (typeof error === 'object' || typeof error === 'function')) {
         Object.defineProperty(error, 'runTrace', {
           value: trace,
+          enumerable: false,
+          configurable: true,
+        })
+      }
+      // Failure and stop notices take the turn's slot in the timeline.
+      if (context.turnSeq && error && (typeof error === 'object' || typeof error === 'function')) {
+        Object.defineProperty(error, 'turnSeq', {
+          value: context.turnSeq,
           enumerable: false,
           configurable: true,
         })

@@ -16,6 +16,7 @@ const {
 
 class LocalWorkspaceConversations {
   constructor(options) {
+    this.reserveTurnSeq = typeof options.reserveTurnSeq === 'function' ? options.reserveTurnSeq : null
     this.state = options.state
     this.detectedAgents = options.detectedAgents
     this.save = options.save
@@ -239,6 +240,16 @@ class LocalWorkspaceConversations {
       createdAt: this.now(),
     }
     if (threadRootId) message.threadRootId = threadRootId
+    // Group topics order by dispatch turn. Replies and failure notices carry
+    // the number reserved at dispatch; any other topic message (system
+    // notices, follow-up input) takes the next number when it is written.
+    const requestedTurnSeq = Number(metadata.turnSeq)
+    const turnSeq = Number.isSafeInteger(requestedTurnSeq) && requestedTurnSeq > 0
+      ? requestedTurnSeq
+      : (threadRootId && group.conversationType !== 'direct' && this.reserveTurnSeq
+        ? this.reserveTurnSeq(groupId, threadRootId)
+        : null)
+    if (turnSeq) message.turnSeq = turnSeq
     if (systemKey) {
       message.system = {
         key: systemKey,

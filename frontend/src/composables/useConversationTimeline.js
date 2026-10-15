@@ -1,4 +1,10 @@
 import { computed, ref } from 'vue'
+import {
+  compareSortKeys,
+  positiveSequence,
+  timelineSortKey,
+  timestampValue,
+} from '../conversationOrdering.js'
 import { agentLabel } from '../catalog.js'
 import {
   durableRunTurnStatus,
@@ -197,8 +203,19 @@ export function useConversationTimeline({
       .map(message => message?.trace?.agentRunId)
       .filter(Boolean))
     const rootId = run.threadRootId || topLevelUserMessages.value.at(-1)?.id || ''
+    // While a retry is still live, earlier attempts render as response
+    // versions of the same turn. Once the retry's reply is saved, a failed
+    // earlier attempt has no message of its own and would linger as a ghost
+    // bubble next to the real reply, so it is dropped.
+    const supersededAttempt = agent => ['failed', 'timeout', 'stopped', 'interrupted'].includes(agent.status)
+      && activeRunAgentRuns.value.some(other => (
+        other !== agent && other.kind === agent.kind
+          && durableAgentRunIds.has(other.agentRunId)
+          && timestampValue(other.startedAt) > timestampValue(agent.startedAt)
+      ))
     return activeRunAgentRuns.value
       .filter(agent => !durableAgentRunIds.has(agent.agentRunId))
+      .filter(agent => !supersededAttempt(agent))
       .filter(agent => group.conversationType === 'direct' || agent.output || (agent.events || []).some(event => event.type !== 'answer_delta'))
       .map(agent => ({
         id: `run-message-${agent.agentRunId}`,
@@ -207,6 +224,7 @@ export function useConversationTimeline({
         agentKind: agent.kind,
         content: agent.output || '',
         createdAt: agent.startedAt || Date.now(),
+        ...(positiveSequence(agent.turnSeq) ? { turnSeq: positiveSequence(agent.turnSeq) } : {}),
         threadRootId: rootId,
         provisional: true,
         traceRunId: run.runId,
@@ -509,49 +527,20 @@ export function useConversationTimeline({
       return !rootId || isTopicExpanded(rootId)
     })
     if (activeGroup.value?.conversationType === 'direct') return messages
-    const agentOrder = new Map((activeGroup.value?.agentKinds || []).map((kind, index) => [kind, index]))
-    const phaseOrder = new Map([
-      ['proposal', 0], ['challenge', 1], ['coordination', 2], ['work', 3],
-      ['synthesis', 4], ['verification', 5], ['commit', 6],
-    ])
-    const messageTime = message => {
-      const parsed = Date.parse(message?.createdAt || '')
-      return Number.isFinite(parsed) ? parsed : 0
-    }
     const topicOrder = new Map(topLevelUserMessages.value.map((message, index) => [message.id, index]))
     const unanchoredTopicOrder = topLevelUserMessages.value.length + 1
-    const rank = (message, index) => {
+    const topicIndexFor = (message) => {
       const rootId = message.role === 'user' && !message.threadRootId
         ? message.id
         : messageThreadRootId(message)
-      const topicIndex = rootId && topicOrder.has(rootId)
-        ? topicOrder.get(rootId)
-        : unanchoredTopicOrder
-      if (message.role === 'user' && !message.threadRootId) return [topicIndex, 0, 0, 0, index]
-      const trace = message.trace || {}
-      const liveAgentRun = message.liveAgentRun || {}
-      const round = Number(trace.round ?? liveAgentRun.round)
-      const executionSequence = Number(trace.executionSequence ?? liveAgentRun.executionSequence)
-      const phase = phaseOrder.get(String(
-        trace.phase || message.tracePhase || liveAgentRun.context?.phase || '',
-      ).toLowerCase()) ?? 9
-      const kind = agentOrder.get(message.agentKind) ?? 99
-      if (Number.isInteger(round) && round > 0) {
-        if (Number.isInteger(executionSequence) && executionSequence > 0) {
-          return [topicIndex, 1, round, 0, executionSequence, index]
-        }
-        return [topicIndex, 1, round, 1, phase * 100 + kind, index]
-      }
-      return [topicIndex, 1, messageTime(message), kind, index]
+      return rootId && topicOrder.has(rootId) ? topicOrder.get(rootId) : unanchoredTopicOrder
     }
     return messages
-      .map((message, index) => ({ message, key: rank(message, index) }))
-      .sort((left, right) => {
-        for (let index = 0; index < left.key.length; index += 1) {
-          if (left.key[index] !== right.key[index]) return left.key[index] - right.key[index]
-        }
-        return 0
-      })
+      .map((message, index) => ({
+        message,
+        key: timelineSortKey(message, { topicIndex: topicIndexFor(message), index }),
+      }))
+      .sort((left, right) => compareSortKeys(left.key, right.key))
       .map(item => item.message)
   })
   const conversationEmptyVisible = computed(() => (

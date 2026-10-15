@@ -149,7 +149,7 @@ class RunHarness {
     return next
   }
 
-  beginAgent(kind, round = 0, sourceMessageIds = []) {
+  beginAgent(kind, round = 0, sourceMessageIds = [], options = {}) {
     const safeKind = cleanId(kind)
     if (!safeKind) throw new Error('RUN_HARNESS_AGENT_REQUIRED')
     if (!this.targetKinds.includes(safeKind)) {
@@ -184,6 +184,10 @@ class RunHarness {
       seenSeqs: [],
       eventCursor: 0,
       context: {},
+      // Per-topic dispatch order; the live bubble and the saved reply share it.
+      ...(Number.isSafeInteger(options?.turnSeq) && options.turnSeq > 0
+        ? { turnSeq: options.turnSeq }
+        : {}),
     }
     this.agentRuns.push(run)
     while (this.agentRuns.length > this.maxAgentRuns) {
@@ -328,6 +332,7 @@ class RunHarness {
       seenSeqs: [...run.seenSeqs],
       eventCursor: run.eventCursor,
       context: { ...run.context },
+      ...(run.turnSeq ? { turnSeq: run.turnSeq } : {}),
     }))
   }
 }

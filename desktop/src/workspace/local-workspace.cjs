@@ -192,6 +192,10 @@ class LocalWorkspace extends EventEmitter {
     this.detectedAgents = []
     this.preparingRuns = new Map()
     this.activeRuns = new Map()
+    // Highest turn number handed out per group topic in this process. Saved
+    // messages are the durable source; reservations only cover turns that are
+    // dispatched but not written yet.
+    this.turnSeqReservations = new Map()
     this.pendingV4ManualRecoveries = new Map()
     this.pendingV4AutoRecoveries = new Map()
     this.runCheckpointTimers = new Map()
@@ -247,6 +251,7 @@ class LocalWorkspace extends EventEmitter {
       terminalRetrySleep: options.terminalRetrySleep,
     })
     this.conversations = new LocalWorkspaceConversations({
+      reserveTurnSeq: (groupId, threadRootId) => this.reserveTurnSeqs(groupId, threadRootId, 1)[0],
       state: () => this.state,
       detectedAgents: () => this.detectedAgents,
       save: () => this.save(),
@@ -266,6 +271,7 @@ class LocalWorkspace extends EventEmitter {
       addMessage: (...args) => this.addMessage(...args),
     })
     this.agentInvocation = new LocalWorkspaceAgentInvocation({
+      reserveTurnSeq: (groupId, threadRootId) => this.reserveTurnSeqs(groupId, threadRootId, 1)[0],
       state: () => this.state,
       agentLabel: kind => this.agentLabel(kind),
       detectedAgents: () => this.detectedAgents,
@@ -311,6 +317,7 @@ class LocalWorkspace extends EventEmitter {
       attachmentSupport: (...args) => this.attachmentSupportFn(...args),
     })
     this.autoRunner = new LocalWorkspaceAutoRunner({
+      reserveTurnSeqs: (...args) => this.reserveTurnSeqs(...args),
       state: () => this.state,
       canWriteWorkspace: kind => agentRuntimeCapabilities(kind, {
         agent: this.detectedAgents.find(agent => agent.kind === kind),
@@ -352,6 +359,7 @@ class LocalWorkspace extends EventEmitter {
       retrySleep: options.retrySleep,
     })
     this.messageSubmission = new LocalWorkspaceMessageSubmission({
+      reserveTurnSeqs: (...args) => this.reserveTurnSeqs(...args),
       state: () => this.state,
       detectedAgents: () => this.detectedAgents,
       isShuttingDown: () => this.shuttingDown,
@@ -2430,6 +2438,22 @@ class LocalWorkspace extends EventEmitter {
     )
   }
 
+  // Reserves `count` consecutive dispatch-turn numbers for one group topic.
+  reserveTurnSeqs(groupId, threadRootId, count = 1) {
+    const amount = Math.max(0, Math.min(64, Math.floor(Number(count) || 0)))
+    if (!groupId || !threadRootId || !amount) return []
+    const key = `${groupId}\u0000${threadRootId}`
+    let cursor = this.turnSeqReservations.get(key) || 0
+    for (const message of this.state.messages) {
+      if (message.groupId === groupId && message.threadRootId === threadRootId
+          && Number.isSafeInteger(message.turnSeq) && message.turnSeq > cursor) {
+        cursor = message.turnSeq
+      }
+    }
+    this.turnSeqReservations.set(key, cursor + amount)
+    return Array.from({ length: amount }, (_, index) => cursor + index + 1)
+  }
+
   commitV4AgentMessage(input = {}) {
     const messageId = String(input.messageId || '')
     const existing = this.state.messages.find(message => message.id === messageId)
@@ -2459,6 +2483,11 @@ class LocalWorkspace extends EventEmitter {
       ...(input.metadata?.responseVersionRootId
         ? { responseVersionRootId: input.metadata.responseVersionRootId } : {}),
       ...(input.metadata?.trace ? { trace: input.metadata.trace } : {}),
+      ...(input.metadata?.turnSeq
+        ? { turnSeq: input.metadata.turnSeq }
+        : (input.threadRootId && group.conversationType !== 'direct'
+          ? { turnSeq: this.reserveTurnSeqs(group.id, input.threadRootId, 1)[0] }
+          : {})),
     })
     if (!message || message.id !== messageId) throw new Error('LOCAL_RUN_COMMIT_INVALID')
     const previousMessages = [...this.state.messages]
