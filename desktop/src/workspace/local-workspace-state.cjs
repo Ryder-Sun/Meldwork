@@ -389,6 +389,9 @@ function workspaceSnapshot({
         responseVersionRootId: run.responseVersionRootId || '',
         startedAt: run.startedAt || Date.now(),
         agentRuns: run.harness?.snapshot?.() || [],
+        waitingForWorkspaceKinds: run.waitingForWorkspace instanceof Set
+          ? [...run.waitingForWorkspace]
+          : [],
         waitingGateIds: [...(run.waitingGateIds || [])],
         budget: run.budget?.snapshot?.() || null,
         ...(publicOrchestration ? { orchestration: publicOrchestration } : {}),

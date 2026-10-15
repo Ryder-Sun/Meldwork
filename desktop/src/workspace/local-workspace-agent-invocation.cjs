@@ -625,13 +625,11 @@ class LocalWorkspaceAgentInvocation {
     if (!taskId) throw new Error('LOCAL_RUN_TASK_INVALID')
     let workspacePath = group.workdir ? path.resolve(group.workdir) : group.id
     try { workspacePath = fs.realpathSync(workspacePath) } catch { /* runtime validates unavailable directories */ }
-    // Direct chats are independent execution surfaces. Scope their scheduler
-    // resource to the chat so one writable chat cannot block another Agent.
-    const schedulerWorkspaceKey = group.conversationType === 'direct'
-      ? `${workspacePath}\u0000direct:${group.id}`
-      : workspacePath
+    // One writer per real folder, across group and direct chats, so two Agents
+    // never edit the same files at once. A waiting writer is reported to the
+    // UI (see onQueued below) instead of looking stuck.
     const workspaceKey = createHash('sha256')
-      .update(String(schedulerWorkspaceKey))
+      .update(String(workspacePath))
       .digest('hex')
     const writerKind = cleanText(context.singleWriterKind || context.writerKind, 80)
     const permissionMode = group.allowWrite === true
@@ -651,11 +649,24 @@ class LocalWorkspaceAgentInvocation {
       else signal.addEventListener('abort', queuedAbortHandler, { once: true })
     }
     try {
+      const waiting = () => {
+        if (!activeRun) return null
+        if (!(activeRun.waitingForWorkspace instanceof Set)) activeRun.waitingForWorkspace = new Set()
+        return activeRun.waitingForWorkspace
+      }
       return await this.runScheduler.withLease({
         taskId,
         workspaceKey,
         permissionMode,
         signal: agentController.signal,
+        onQueued: () => {
+          waiting()?.add(kind)
+          this.emitChanged?.()
+        },
+        onGranted: () => {
+          waiting()?.delete(kind)
+          this.emitChanged?.()
+        },
       }, (lease) => {
         if (signal && queuedAbortHandler) {
           signal.removeEventListener('abort', queuedAbortHandler)
@@ -672,6 +683,11 @@ class LocalWorkspaceAgentInvocation {
         )
       })
     } finally {
+      // A stopped or failed wait must not leave the Agent marked as queued.
+      if (activeRun?.waitingForWorkspace instanceof Set
+          && activeRun.waitingForWorkspace.delete(kind)) {
+        this.emitChanged?.()
+      }
       if (signal && queuedAbortHandler) {
         signal.removeEventListener('abort', queuedAbortHandler)
       }

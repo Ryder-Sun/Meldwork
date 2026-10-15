@@ -201,6 +201,7 @@ export default {
     'run.roundProgressUnlimited': '第 {current} 轮 / 不限轮数',
     'run.retainedEvents': '保留 {count} 条过程事件',
     'run.openDetails': '打开运行详情',
+    'run.waitingForWorkspace': '{agents} 正在等待同一文件夹中另一个正在写入的 Agent 完成。',
     'run.status.pending': '待处理',
     'run.status.queued': '排队中',
     'run.status.preparing': '准备中',

@@ -82,10 +82,10 @@ test('read-only group invocations retain parallel execution in the same director
   await Promise.all(runs)
 })
 
-test('writable direct chats do not block another Agent in the same directory', { timeout: 10000 }, async (t) => {
+test('writable chats in one folder take turns and show who is waiting', { timeout: 10000 }, async (t) => {
   const { directory, options } = fixture()
   const release = deferred()
-  const bothStarted = deferred()
+  const firstStarted = deferred()
   t.after(() => {
     release.resolve()
     fs.rmSync(directory, { recursive: true, force: true })
@@ -94,8 +94,10 @@ test('writable direct chats do not block another Agent in the same directory', {
   const calls = []
   options.runAgent = async (agent, _prompt, _cwd, runOptions) => {
     calls.push({ kind: agent.kind, sandbox: runOptions.sandbox })
-    if (calls.length === 2) bothStarted.resolve()
-    await release.promise
+    if (agent.kind === 'codex') {
+      firstStarted.resolve()
+      await release.promise
+    }
     return { text: `${agent.kind} completed.` }
   }
   const workspace = new LocalWorkspace(options)
@@ -104,11 +106,24 @@ test('writable direct chats do not block another Agent in the same directory', {
     name: `${kind} direct`, agentKinds: [kind], directAgentKind: kind,
     conversationType: 'direct', workdir: directory, allowWrite: true,
   }))
-  const runs = groups.map(group => workspace.sendMessage({ groupId: group.id, text: 'Run independently.' }))
-  await bothStarted.promise
-  assert.deepEqual(calls.map(call => call.sandbox), ['workspace-write', 'workspace-write'])
+  const first = workspace.sendMessage({ groupId: groups[0].id, text: 'Write first.' })
+  await firstStarted.promise
+  const second = workspace.sendMessage({ groupId: groups[1].id, text: 'Write second.' })
+  // The second writer waits for the folder and the snapshot says so.
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const run = workspace.snapshot().runs.find(item => item.groupId === groups[1].id)
+    if (run?.waitingForWorkspaceKinds?.includes('hermes')) break
+    await new Promise(resolve => setTimeout(resolve, 10))
+  }
+  const waitingRun = workspace.snapshot().runs.find(item => item.groupId === groups[1].id)
+  assert.deepEqual(waitingRun.waitingForWorkspaceKinds, ['hermes'])
+  assert.deepEqual(calls.map(call => call.kind), ['codex'])
   release.resolve()
-  await Promise.all(runs)
+  await Promise.all([first, second])
+  assert.deepEqual(calls.map(call => [call.kind, call.sandbox]), [
+    ['codex', 'workspace-write'], ['hermes', 'workspace-write'],
+  ])
+  assert.equal(workspace.snapshot().runs.some(run => run.waitingForWorkspaceKinds?.length), false)
 })
 
 test('Manual V4 retains parallel readers alongside its single writer and stable message order', { timeout: 10000 }, async (t) => {

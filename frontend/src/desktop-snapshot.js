@@ -247,6 +247,8 @@ function normalizeRun(value) {
   run.agentRuns = Array.isArray(rawAgentRuns)
     ? rawAgentRuns.slice(0, MAX_RUN_AGENTS).map(agent => normalizeRunAgent(agent, run)).filter(Boolean)
     : []
+  // Agents waiting for another writer in the same folder.
+  run.waitingForWorkspaceKinds = normalizedAgentKinds(input.waitingForWorkspaceKinds)
   run.waitingGateIds = [...new Set((Array.isArray(input.waitingGateIds)
     ? input.waitingGateIds.slice(0, 32)
     : []).filter(gateId => typeof gateId === 'string' && HUMAN_GATE_ID.test(gateId)))]
