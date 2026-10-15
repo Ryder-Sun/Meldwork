@@ -184,8 +184,17 @@ function loadWorkspaceState(storagePath) {
   }
 
   try {
+    const repliedAgentKinds = new Map()
+    for (const message of Array.isArray(parsed.messages) ? parsed.messages : []) {
+      if (message?.role !== 'agent' || typeof message.groupId !== 'string') continue
+      const kinds = repliedAgentKinds.get(message.groupId) || []
+      if (!kinds.includes(message.agentKind)) kinds.push(message.agentKind)
+      repliedAgentKinds.set(message.groupId, kinds)
+    }
     const groups = parsed.groups
-      .map(normalizeLoadedGroup)
+      .map(group => normalizeLoadedGroup(group, {
+        recoveredAgentKinds: repliedAgentKinds.get(group?.id) || [],
+      }))
       .filter(Boolean)
     const groupIds = new Set(groups.map(group => group.id))
     const messages = parsed.messages

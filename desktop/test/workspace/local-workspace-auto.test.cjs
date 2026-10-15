@@ -4362,7 +4362,10 @@ test('automatic HTTP 401 completes without a retry delay or recovery handoff', a
 
   assert.deepEqual(calls.map(call => call.agent.kind), ['hermes', 'codex'])
   assert.deepEqual(delays, [])
-  assert.deepEqual(workspace.getGroup(group.id).agentKinds, ['codex'])
+  assert.deepEqual(workspace.getGroup(group.id).agentKinds, ['hermes', 'codex'])
+  assert.equal(workspace.snapshot().messages.some(message => (
+    message.agentKind === 'hermes' && message.system?.key === 'system.agentPausedAfterFailure'
+  )), true)
   assert.equal(calls.some(call => call.prompt.includes('Harness recovery task')), false)
   assert.equal(workspace.snapshot().messages.some(message => (
     message.system?.key === 'system.autoTimeout'
@@ -4707,7 +4710,7 @@ test('automatic dialogue exhausts bounded transient retries before continuing', 
   )), false)
 })
 
-test('automatic dialogue fails HTTP 401 once, removes the Agent, and continues healthy slots', async (t) => {
+test('automatic dialogue fails HTTP 401 once, pauses the Agent for the run, and continues healthy slots', async (t) => {
   const { directory, calls, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
   let hermesAttempts = 0
@@ -4736,7 +4739,10 @@ test('automatic dialogue fails HTTP 401 once, removes the Agent, and continues h
   assert.deepEqual(calls.map(call => call.agent.kind), [
     'hermes', 'codex',
   ])
-  assert.deepEqual(workspace.getGroup(group.id).agentKinds, ['codex'])
+  assert.deepEqual(workspace.getGroup(group.id).agentKinds, ['hermes', 'codex'])
+  assert.equal(workspace.snapshot().messages.some(message => (
+    message.agentKind === 'hermes' && message.system?.key === 'system.agentPausedAfterFailure'
+  )), true)
   assert.equal(workspace.snapshot().messages.some(message => (
     message.system?.key === 'system.agentCallFailed'
   )), true)
@@ -4838,7 +4844,10 @@ test('automatic dialogue does not send an authentication recovery handoff to ano
     'hermes', 'codex',
   ])
   assert.doesNotMatch(calls[1].prompt, /Harness recovery task|Invalid token/)
-  assert.deepEqual(workspace.getGroup(group.id).agentKinds, ['codex'])
+  assert.deepEqual(workspace.getGroup(group.id).agentKinds, ['hermes', 'codex'])
+  assert.equal(workspace.snapshot().messages.some(message => (
+    message.agentKind === 'hermes' && message.system?.key === 'system.agentPausedAfterFailure'
+  )), true)
   assert.equal(finished[0].status, 'partial')
 })
 
@@ -4882,7 +4891,7 @@ test('automatic dialogue keeps a failed authentication slot out of later group c
   assert.doesNotMatch(persistedContext, /Harness recovery task|repaired auth/)
 })
 
-test('automatic dialogue persists one failed 401 attempt and removes the Agent', async (t) => {
+test('automatic dialogue persists one failed 401 attempt and pauses the Agent for the run', async (t) => {
   const { directory, calls, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
   const ledgerPath = path.join(directory, 'run-ledger.json')
@@ -4915,7 +4924,10 @@ test('automatic dialogue persists one failed 401 attempt and removes the Agent',
   assert.deepEqual(calls.map(call => call.agent.kind), [
     'hermes', 'codex', 'workbuddy',
   ])
-  assert.deepEqual(workspace.getGroup(group.id).agentKinds, ['codex', 'workbuddy'])
+  assert.deepEqual(workspace.getGroup(group.id).agentKinds, ['hermes', 'codex', 'workbuddy'])
+  assert.equal(workspace.snapshot().messages.some(message => (
+    message.agentKind === 'hermes' && message.system?.key === 'system.agentPausedAfterFailure'
+  )), true)
   assert.equal(
     workspace.state.sessions[workspace.sessionKey(group.id, 'hermes')],
     'unusable-hermes-session',
@@ -4930,7 +4942,7 @@ test('automatic dialogue persists one failed 401 attempt and removes the Agent',
   assert.equal(failure.system.params.reason, 'HTTP 401; authentication failed; Agent retained')
   assert.equal(workspace.snapshot().messages.some(message => (
     message.agentKind === 'hermes' && message.system?.key === 'system.agentRemovedAfterFailure'
-  )), true)
+  )), false)
   assert.equal(finished.length, 1)
   assert.equal(finished[0].status, 'partial')
   assert.equal(finished[0].failedKinds.includes('hermes'), true)
@@ -4953,7 +4965,7 @@ test('automatic dialogue persists one failed 401 attempt and removes the Agent',
   )
 })
 
-test('automatic dialogue treats HTTP 403 as terminal and removes the Agent', async (t) => {
+test('automatic dialogue treats an adapter-classified 403 sign-in failure as terminal and pauses the Agent', async (t) => {
   const { directory, calls, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
   options.runAgent = async (agent, prompt, workdir, runOptions) => {
@@ -4979,7 +4991,10 @@ test('automatic dialogue treats HTTP 403 as terminal and removes the Agent', asy
   assert.deepEqual(calls.map(call => call.agent.kind), [
     'hermes', 'codex',
   ])
-  assert.deepEqual(workspace.getGroup(group.id).agentKinds, ['codex'])
+  assert.deepEqual(workspace.getGroup(group.id).agentKinds, ['hermes', 'codex'])
+  assert.equal(workspace.snapshot().messages.some(message => (
+    message.agentKind === 'hermes' && message.system?.key === 'system.agentPausedAfterFailure'
+  )), true)
   assert.equal(
     workspace.snapshot().agents.find(agent => agent.kind === 'hermes').credentialState,
     'missing',

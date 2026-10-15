@@ -693,6 +693,7 @@ export default {
     'system.autoTaskDecisionMissing': 'Discussion stopped without a valid task completion decision.',
     'system.autoTaskBlocked': 'Task blocked: {reason}',
     'system.autoTaskNeedsHuman': 'Human decision needed: {reason}',
+    'system.agentPausedAfterFailure': '{agent} is paused for the rest of this discussion: {reason} It stays in the group and will be tried again on the next message.',
     'system.agentRemovedAfterFailure': '{agent} was removed from the group after a terminal failure. The discussion continued with the remaining Agents.',
     'system.autoTimeout': 'Automatic discussion stopped after a runtime timeout before consensus.',
     'system.runCircuitBreaker': 'The mandatory circuit breaker stopped this run after {maxAttempts} Agent attempts.',

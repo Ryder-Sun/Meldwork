@@ -693,6 +693,7 @@ export default {
     'system.autoTaskDecisionMissing': '讨论已停止，尚无有效的任务完成判断。',
     'system.autoTaskBlocked': '任务受阻：{reason}',
     'system.autoTaskNeedsHuman': '需要人类决定：{reason}',
+    'system.agentPausedAfterFailure': '{agent} 在本次讨论中暂停：{reason} 它仍在群聊中，下一条消息会再次尝试。',
     'system.agentRemovedAfterFailure': '{agent} 发生终止性故障，已自动移出群聊；其余 Agent 将继续讨论。',
     'system.autoTimeout': '自动讨论在达成共识前因运行超时而停止。',
     'system.runCircuitBreaker': '不可关闭的熔断器已在 {maxAttempts} 次 Agent 尝试后停止本次运行。',

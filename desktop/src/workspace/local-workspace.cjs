@@ -329,7 +329,6 @@ class LocalWorkspace extends EventEmitter {
       recordAgentFailure: (...args) => this.recordAgentFailure(...args),
       recordAgentInterruption: (...args) => this.recordAgentInterruption(...args),
       addMessage: (...args) => this.addMessage(...args),
-      removeAgent: (...args) => this.conversations.removeAgent(...args),
       commitV4AgentMessage: input => this.commitV4AgentMessage(input),
       emitChanged: () => this.emitChanged(),
       finishRun: (...args) => this.finishRun(...args),

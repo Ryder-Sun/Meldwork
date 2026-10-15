@@ -95,7 +95,6 @@ class LocalWorkspaceAutoRunner {
     this.recordAgentFailure = options.recordAgentFailure
     this.recordAgentInterruption = options.recordAgentInterruption
     this.addMessage = options.addMessage
-    this.removeAgent = typeof options.removeAgent === 'function' ? options.removeAgent : null
     this.commitV4AgentMessage = typeof options.commitV4AgentMessage === 'function'
       ? options.commitV4AgentMessage
       : null
@@ -133,39 +132,43 @@ class LocalWorkspaceAutoRunner {
     this.emitChanged()
   }
 
-  removeFailedAgent(group, controller, kind, threadRootId) {
-    if (!this.removeAgent || group.conversationType === 'direct' || !group.agentKinds.includes(kind)) {
-      return false
-    }
-    const removed = this.removeAgent(group.id, kind)
-    if (!removed) return false
+  pauseFailedAgentForRun(group, controller, kind, threadRootId, error = null) {
+    // Failures are scoped to the current run. Group membership is user
+    // configuration: editing it after a provider or login hiccup made the
+    // Agent disappear from every later conversation turn, and removing the
+    // last member made the whole group (and its history) unloadable.
+    if (group.conversationType === 'direct' || !group.agentKinds.includes(kind)) return false
     if (!controller.failedKinds.includes(kind)) controller.failedKinds.push(kind)
     const alreadyReported = this.state().messages.some(message => (
       message.threadRootId === threadRootId
         && message.agentKind === kind
-        && message.system?.key === 'system.agentRemovedAfterFailure'
+        && message.system?.key === 'system.agentPausedAfterFailure'
+        && message.system?.params?.runId === controller.runId
     ))
     if (!alreadyReported) {
       const agent = this.agentLabel(kind)
+      const reason = normalizeFailure(error).code || 'LOCAL_AGENT_PROCESS_FAILED'
       this.addMessage(
         group.id,
         'system',
-        `${agent} was removed from the group after a terminal failure. The discussion continued with the remaining Agents.`,
+        `${agent} is paused for the rest of this discussion (${reason}). It stays in the group and will be tried again on the next message.`,
         kind,
         threadRootId,
-        { key: 'system.agentRemovedAfterFailure', params: { agent } },
+        {
+          key: 'system.agentPausedAfterFailure',
+          params: { agent, reason, runId: controller.runId },
+        },
       )
     }
     return true
   }
 
-  shouldRemoveFailedAgent(error) {
+  shouldPauseFailedAgent(error) {
     const category = normalizeFailure(error).category
-    // Runtime, provider, rate-limit, protocol, and timeout failures are
-    // isolated to this run. A local CLI may recover on the next turn, so its
-    // configured group membership must remain intact. Only failures proving
-    // that the installed Agent cannot currently authenticate or run are
-    // removed from the persistent group.
+    // Runtime, provider, rate-limit, protocol, and timeout failures stay
+    // silent run-scoped exclusions; their own failure message explains them.
+    // Authentication and compatibility failures get an explicit notice
+    // because the user usually has to act (sign in or update the CLI).
     return ['authentication', 'compatibility'].includes(category)
   }
 
@@ -4941,10 +4944,10 @@ class LocalWorkspaceAutoRunner {
       const removed = []
       for (const kind of failedKinds) {
         const failure = (result?.failures || []).find(item => item.kind === kind)?.error
-        // A local CLI timeout is a run-scoped availability problem. Keep the
-        // configured group membership intact so a later turn can retry it.
-        const didRemove = this.shouldRemoveFailedAgent(failure)
-          ? this.removeFailedAgent(group, controller, kind, threadRootId)
+        // Every failure is a run-scoped exclusion. Group membership is never
+        // edited, so a later turn can use the Agent again.
+        const didRemove = this.shouldPauseFailedAgent(failure)
+          ? this.pauseFailedAgentForRun(group, controller, kind, threadRootId, failure)
           : false
         // The failed slot is still isolated from this run's active queue even
         // when its configured group membership is retained.
@@ -5801,10 +5804,10 @@ class LocalWorkspaceAutoRunner {
             controller.failedKinds.push(executionKind)
           }
           terminalFailureOccurred = true
-          // Preserve timed-out CLIs in the configured group. They are removed
-          // only from this run's active queue and can be retried next turn.
-          if (this.shouldRemoveFailedAgent(error)) {
-            this.removeFailedAgent(group, controller, executionKind, threadRootId)
+          // Failed CLIs leave only this run's active queue; the configured
+          // group keeps them so the next turn can retry.
+          if (this.shouldPauseFailedAgent(error)) {
+            this.pauseFailedAgentForRun(group, controller, executionKind, threadRootId, error)
           }
           activeKinds = activeKinds.filter(activeKind => activeKind !== executionKind)
         }
