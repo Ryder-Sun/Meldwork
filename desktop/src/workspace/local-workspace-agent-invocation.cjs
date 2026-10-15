@@ -913,6 +913,9 @@ class LocalWorkspaceAgentInvocation {
     let watchdogPromise = null
     let watchdogReject = null
     let watchdogLastProgressAt = Date.now()
+    // Substantive progress (mapped events, answer text, tool lifecycle,
+    // structured progress). Raw process output only proves liveness.
+    let watchdogLastSubstantiveAt = Date.now()
     let watchdogPaused = false
     let watchdogEstablished = false
     let watchdogToolActive = false
@@ -931,13 +934,12 @@ class LocalWorkspaceAgentInvocation {
     const startedAt = Date.now()
     // Automatic discussions must make progress between rounds even when an
     // Agent keeps emitting heartbeat events without ever returning a result.
-    // The watchdog is an inactivity timeout: streamed text, tool lifecycle,
-    // and structured progress refresh it. Raw local process activity alone is
-    // not proof of progress because some CLIs emit empty heartbeats forever.
-    // Heartbeats keep a process alive long enough to prove that it started,
-    // but cannot keep a turn alive forever without substantive output. Once a
-    // real runtime event or structured progress arrives, the deadline is
-    // lifted and the inactivity watchdog becomes event-driven.
+    // Three windows apply: a startup deadline (group runs) until the process
+    // shows any sign of life, an inactivity window refreshed by any activity
+    // outside tool calls (tool calls use the longer tool window), and a
+    // no-progress cap that only streamed text, tool lifecycle, reasoning
+    // status and structured progress reset, so a CLI that emits empty
+    // heartbeats forever still stops.
     const hardDeadlineAt = mode === 'auto' && Number.isFinite(this.runAgentTimeoutMs)
       && this.runAgentTimeoutMs > 0
       ? startedAt + this.runAgentTimeoutMs
@@ -965,7 +967,20 @@ class LocalWorkspaceAgentInvocation {
       const hardRemainingMs = Math.max(
         0, (watchdogEstablished ? Number.POSITIVE_INFINITY : hardDeadlineAt) - Date.now(),
       )
-      const remainingMs = Math.min(inactivityRemainingMs, hardRemainingMs)
+      // In automatic discussions liveness keeps a turn alive, but not
+      // forever: without substantive progress a heartbeat-only CLI stops after
+      // three inactivity windows so the remaining participants can continue.
+      // Manual and direct turns keep running while the process is active;
+      // the user can stop them.
+      const stallLimitMs = mode !== 'auto'
+        ? Number.POSITIVE_INFINITY
+        : watchdogToolActive
+          ? this.runAgentToolTimeoutMs
+          : this.runAgentTimeoutMs * 3
+      const stallRemainingMs = Math.max(
+        0, stallLimitMs - (Date.now() - watchdogLastSubstantiveAt),
+      )
+      const remainingMs = Math.min(inactivityRemainingMs, hardRemainingMs, stallRemainingMs)
       watchdogTimer = setTimeout(() => {
         watchdogTimer = null
         if (parentAbortObserved || signal?.aborted || watchdogPaused
@@ -986,6 +1001,21 @@ class LocalWorkspaceAgentInvocation {
     const noteWatchdogProgress = () => {
       if (agentCallbacksClosed || agentController.signal.aborted) return
       watchdogLastProgressAt = Date.now()
+      watchdogLastSubstantiveAt = watchdogLastProgressAt
+      if (!watchdogPaused) {
+        clearTimeout(watchdogTimer)
+        watchdogTimer = null
+        armWatchdog()
+      }
+    }
+    // Raw stdout/stderr bytes or ACP traffic prove the process is alive. They
+    // lift the startup deadline (a thinking Agent used to be killed after
+    // three minutes in group runs) and refresh the inactivity window outside
+    // tool calls, but never count as substantive progress.
+    const noteWatchdogLiveness = () => {
+      if (agentCallbacksClosed || agentController.signal.aborted) return
+      watchdogEstablished = true
+      if (!watchdogToolActive) watchdogLastProgressAt = Date.now()
       if (!watchdogPaused) {
         clearTimeout(watchdogTimer)
         watchdogTimer = null
@@ -1485,9 +1515,11 @@ class LocalWorkspaceAgentInvocation {
           // A cloud request has no local process events while the remote CLI
           // is working. Its activity callback is therefore the first proof
           // that the run has started and must release the initial deadline.
-          if (agent.cloud === true) establishWatchdog()
-          if (agent.cloud === true || !watchdogToolActive) {
+          if (agent.cloud === true) {
+            establishWatchdog()
             noteWatchdogProgress()
+          } else {
+            noteWatchdogLiveness()
           }
         },
         onProgress,
@@ -1583,9 +1615,11 @@ class LocalWorkspaceAgentInvocation {
           runId: activeRun.runId,
           agentRunId: harnessRun.agentRunId,
           onActivity: () => {
-            if (agent.cloud === true) establishWatchdog()
-            if (agent.cloud === true || !watchdogToolActive) {
+            if (agent.cloud === true) {
+              establishWatchdog()
               noteWatchdogProgress()
+            } else {
+              noteWatchdogLiveness()
             }
           },
           onConnectorState: (nextContext) => {

@@ -10,8 +10,12 @@ const {
 const AUTO_CONSENSUS_MARKER = /\[\[MELDWORK_CONSENSUS:(agree|continue)\]\]/gi
 const AUTO_FINAL_CONSENSUS_MARKER = /(?:^|\r?\n)[ \t]*\[\[MELDWORK_CONSENSUS:(agree|continue)\]\][ \t]*$/i
 const DEFAULT_RUN_SILENCE_WARNING_MS = 20 * 1000
-const DEFAULT_RUN_AGENT_TIMEOUT_MS = 3 * 60 * 1000
-const DEFAULT_RUN_AGENT_TOOL_TIMEOUT_MS = 5 * 60 * 1000
+// Inactivity windows for one Agent turn. Real CLIs regularly think, run builds
+// or wait on slow providers for several minutes; the former 3/5 minute limits
+// killed Agents that were still working. A separate no-progress cap (three
+// times the inactivity window) still stops CLIs that only emit heartbeats.
+const DEFAULT_RUN_AGENT_TIMEOUT_MS = 10 * 60 * 1000
+const DEFAULT_RUN_AGENT_TOOL_TIMEOUT_MS = 20 * 60 * 1000
 const DEFAULT_RUN_ABORT_GRACE_MS = 2500
 const DEFAULT_AUTO_ROUNDS = 6
 const MAX_AUTO_ROUNDS = 10

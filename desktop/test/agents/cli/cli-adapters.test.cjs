@@ -1139,7 +1139,11 @@ input.on('line', (line) => {
       (answer, event) => event.replace === true ? event.delta : answer + event.delta,
       '',
     ), 'current answer')
-  assert.deepEqual(events.slice(0, 3).map(event => [event.type, event.status]), [
+  assert.equal(events.some(event => (
+    event.type === 'reasoning_summary' && event.status === 'running' && !event.summary
+  )), true)
+  assert.deepEqual(events.filter(event => event.type !== 'reasoning_summary')
+    .slice(0, 3).map(event => [event.type, event.status]), [
     ['plan', 'running'],
     ['tool_start', 'running'],
     ['tool_result_summary', 'completed'],

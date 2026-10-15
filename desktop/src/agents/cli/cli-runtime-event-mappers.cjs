@@ -425,7 +425,7 @@ function acpPlanSummary(update) {
 }
 
 function createAcpRuntimeState() {
-  return { tools: new Map() }
+  return { tools: new Map(), reasoning: new Map() }
 }
 
 const ACP_TOOL_KINDS = new Set([
@@ -447,10 +447,22 @@ function acpToolOperation(update) {
 function acpRuntimeEvents(update, state) {
   if (!update || typeof update !== 'object') return []
   if (update.sessionUpdate === 'agent_message_chunk' && update.content?.type === 'text') {
-    return [{ type: 'answer_delta', status: 'running', delta: update.content.text }]
+    // Close an open reasoning phase once the visible answer starts.
+    const closed = state?.reasoning?.get('reasoning:acp')?.startsWith('running:')
+      ? reasoningLifecycleEvent(state, 'reasoning:acp', 'completed')
+      : null
+    return [
+      ...(closed ? [closed] : []),
+      { type: 'answer_delta', status: 'running', delta: update.content.text },
+    ]
   }
   if (update.sessionUpdate === 'agent_thought_chunk' && update.content?.type === 'text') {
-    return []
+    // Thinking is real progress: report a text-free reasoning status so the
+    // watchdog and the trace know the Agent is working. The private thought
+    // text itself never leaves the main process.
+    if (!state?.reasoning) return []
+    const event = reasoningLifecycleEvent(state, 'reasoning:acp', 'running')
+    return event ? [event] : []
   }
   if (update.sessionUpdate === 'tool_call' || update.sessionUpdate === 'tool_call_update') {
     const status = runtimeEventStatus(update.status)

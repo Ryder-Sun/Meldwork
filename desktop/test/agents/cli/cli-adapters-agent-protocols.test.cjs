@@ -389,7 +389,12 @@ input.on('line', (line) => {
     ),
     'new|plan|cancelled|first prompt|[path]',
   )
-  assert.deepEqual(createdEvents.slice(0, 2).map(event => ({
+  // Thinking surfaces only as a text-free reasoning status event.
+  assert.equal(createdEvents.some(event => (
+    event.type === 'reasoning_summary' && event.status === 'running' && !event.summary
+  )), true)
+  const createdToolEvents = createdEvents.filter(event => event.type !== 'reasoning_summary')
+  assert.deepEqual(createdToolEvents.slice(0, 2).map(event => ({
     id: event.id,
     type: event.type,
     status: event.status,
@@ -398,8 +403,8 @@ input.on('line', (line) => {
     { id: 'tool-1', type: 'tool_start', status: 'running', title: 'search' },
     { id: 'tool-1', type: 'tool_result_summary', status: 'completed', title: 'search' },
   ])
-  assert.equal(createdEvents[0].summary, 'search: [operation hidden]')
-  assert.match(createdEvents[1].detail, /Output: 1 line, 19 bytes/)
+  assert.equal(createdToolEvents[0].summary, 'search: [operation hidden]')
+  assert.match(createdToolEvents[1].detail, /Output: 1 line, 19 bytes/)
   assert.doesNotMatch(
     JSON.stringify(createdEvents),
     /PRIVATE_CHAIN_OF_THOUGHT|command|rg |Users|private tool output|stderr/i,
