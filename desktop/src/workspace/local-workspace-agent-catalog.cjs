@@ -4,6 +4,12 @@ const {
 
 const RECENT_VERIFICATION_MS = 24 * 60 * 60 * 1000
 const AUTH_FAILURE_RETRY_MS = 30 * 1000
+// A readiness probe that times out or crashes says nothing about whether the
+// Agent works: it is not a "not signed in" answer. An Agent that was usable
+// stays usable through such results for this long; a definitive answer
+// (signed out, incompatible, a recorded auth failure) applies immediately.
+const INDETERMINATE_PROBE_GRACE_MS = 10 * 60 * 1000
+const INDETERMINATE_PROBE_SOURCES = new Set(['native-runtime-unavailable', 'native-probe-failed'])
 
 function expiredAuthFailure(runtime, now) {
   if (runtime?.credentialState !== 'missing') return false
@@ -50,6 +56,7 @@ class LocalWorkspaceAgentCatalog {
     this.now = options.now
     this.refreshTask = null
     this.refreshAgain = false
+    this.indeterminateSince = new Map()
   }
 
   async refresh() {
@@ -74,6 +81,7 @@ class LocalWorkspaceAgentCatalog {
 
   async refreshOnce() {
     const runtimeAtRefreshStart = new Map(Object.entries(this.state().agentRuntime))
+    const previousAgents = new Map(this.detectedAgents().map(agent => [agent.kind, agent]))
     const detected = await this.detectAgents()
     const nativeStates = await Promise.all(detected.map(async (agent) => {
       try {
@@ -116,12 +124,16 @@ class LocalWorkspaceAgentCatalog {
       const nativeReadySource = nativeState === 'ready'
         ? (native.source || 'native-credential')
         : ''
+      const retained = this.retainedAvailability({
+        agent, previous: previousAgents.get(agent.kind), native, runtimeMissing,
+      })
       let credentialState = 'unknown'
       if (runtimeMissing || nativeState === 'missing') {
         credentialState = 'missing'
       }
       if (!runtimeMissing && nativeState === 'ready') credentialState = 'ready'
       else if (!runtimeMissing && verifiedReady && nativeState !== 'missing') credentialState = 'ready'
+      if (retained && retained.credentialState === 'ready') credentialState = 'ready'
       const installed = true
       const versionIdentified = agentVersionIdentified(agent)
       const compatible = agentCompatible(agent)
@@ -129,17 +141,19 @@ class LocalWorkspaceAgentCatalog {
         && nativeState === 'unknown'
         && native?.source !== 'native-runtime-unavailable'
         && native?.source !== 'native-probe-failed'
-      const configured = nativeState === 'ready'
+      const configured = retained !== null
+        || nativeState === 'ready'
         || native?.source === 'native-auth-status'
         || native?.source === 'native-runtime-unavailable'
         || verifiedReady
         || runtimeMissing
         || nativeConfigurationUnknown
-      const authenticated = !runtimeMissing && nativeState !== 'missing' && (
+      const authenticated = retained !== null || (!runtimeMissing && nativeState !== 'missing' && (
         nativeState === 'ready' || verifiedReady || nativeConfigurationUnknown
-      )
-      const runtimePrerequisitesReady = native?.source !== 'native-runtime-unavailable'
-        && (native?.source !== 'native-probe-failed' || recentlyVerified(runtime, this.now()))
+      ))
+      const runtimePrerequisitesReady = retained !== null
+        || (native?.source !== 'native-runtime-unavailable'
+          && (native?.source !== 'native-probe-failed' || recentlyVerified(runtime, this.now())))
       const invocable = installed && versionIdentified && compatible && configured
         && authenticated && runtimePrerequisitesReady
       const verifiedRecently = (authoritativeNativeState && nativeState === 'ready')
@@ -158,6 +172,7 @@ class LocalWorkspaceAgentCatalog {
       else if (nativeReadySource) availabilitySource = nativeReadySource
       else if (verifiedReady) availabilitySource = 'verified-run'
       else if (nativeConfigurationUnknown) availabilitySource = 'local-cli'
+      if (retained) availabilitySource = retained.availabilitySource
       return {
         ...agent,
         installed,
@@ -182,6 +197,27 @@ class LocalWorkspaceAgentCatalog {
     return this.snapshot()
   }
 
+  // The state an Agent keeps while a readiness probe is inconclusive, or null
+  // when the probe result must be taken at face value.
+  retainedAvailability({ agent, previous, native, runtimeMissing }) {
+    if (!INDETERMINATE_PROBE_SOURCES.has(native?.source)) {
+      this.indeterminateSince.delete(agent.kind)
+      return null
+    }
+    const nowMs = Date.parse(String(this.now()))
+    if (!this.indeterminateSince.has(agent.kind) && Number.isFinite(nowMs)) {
+      this.indeterminateSince.set(agent.kind, nowMs)
+    }
+    const since = this.indeterminateSince.get(agent.kind)
+    if (previous?.available !== true || runtimeMissing || !Number.isFinite(nowMs)
+        || !Number.isFinite(since) || nowMs - since >= INDETERMINATE_PROBE_GRACE_MS
+        || !agentVersionIdentified(agent) || !agentCompatible(agent)) return null
+    return {
+      credentialState: previous.credentialState,
+      availabilitySource: previous.availabilitySource || 'native-probe-failed',
+    }
+  }
+
   setSidebarVisibility(kind, visible) {
     const agent = this.detectedAgents().find(item => item.kind === kind)
     if (!agent) throw new Error('LOCAL_AGENT_NOT_INSTALLED')
@@ -199,6 +235,7 @@ class LocalWorkspaceAgentCatalog {
       credentialState,
       checkedAt: this.now(),
     }
+    if (credentialState === 'ready') this.indeterminateSince.delete(kind)
     const agent = this.detectedAgents().find(item => item.kind === kind)
     if (agent && !(credentialState === 'unknown' && agent.authenticated === true)) {
       agent.credentialState = credentialState
