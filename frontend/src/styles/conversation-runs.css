@@ -241,6 +241,12 @@
   display: flex;
   align-items: center;
   padding-right: 4px;
+  /* The avatars overlap and use z-index to decide which one sits on top. That
+     ordering only matters between the avatars, so keep it inside this strip:
+     without a stacking context of its own, z-index 100 competes with the page
+     and draws the avatars over the composer's menus. */
+  position: relative;
+  isolation: isolate;
 }
 
 .relay-run-agent {
