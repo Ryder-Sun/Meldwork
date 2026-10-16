@@ -186,6 +186,44 @@ test('the same Agent answers in two conversations at once', { timeout: 10000 }, 
   assert.equal(scheduler.snapshot().active.global, 0)
 })
 
+test('a conversation stuck on an Agent does not stop another conversation from using it', { timeout: 10000 }, async (t) => {
+  const { directory, options } = fixture()
+  const stuck = deferred()
+  t.after(() => {
+    stuck.resolve()
+    fs.rmSync(directory, { recursive: true, force: true })
+  })
+  options.runScheduler = new RunScheduler()
+  options.runAgent = async (agent, prompt) => {
+    // The first conversation's turn never finishes by itself.
+    if (prompt.includes('stay busy')) await stuck.promise
+    return { text: `${agent.kind} answered: ${prompt.includes('quick') ? 'quick' : 'other'}` }
+  }
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const [busy, free] = [1, 2].map(number => workspace.createGroup({
+    name: `Hermes chat ${number}`, agentKinds: ['hermes'], directAgentKind: 'hermes',
+    conversationType: 'direct', workdir: directory, allowWrite: true,
+  }))
+
+  const first = workspace.sendMessage({ groupId: busy.id, text: 'stay busy' })
+  await new Promise(resolve => setTimeout(resolve, 20))
+  assert.equal(workspace.snapshot().runningGroupIds.includes(busy.id), true)
+
+  // The second conversation answers while the first is still running.
+  await workspace.sendMessage({ groupId: free.id, text: 'a quick question' })
+  const answers = workspace.snapshot().messages.filter(message => (
+    message.groupId === free.id && message.role === 'agent'
+  ))
+  assert.equal(answers.length, 1)
+  assert.match(answers[0].content, /quick/)
+  assert.equal(workspace.snapshot().runningGroupIds.includes(busy.id), true, 'the first is still running')
+  assert.equal(workspace.snapshot().runningGroupIds.includes(free.id), false)
+
+  stuck.resolve()
+  await first
+})
+
 test('Manual V4 retains parallel readers alongside its single writer and stable message order', { timeout: 10000 }, async (t) => {
   const { directory, options } = fixture()
   const release = deferred()
