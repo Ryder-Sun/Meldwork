@@ -53,6 +53,17 @@ const MAX_STDOUT_CAPTURE_BYTES = 10 * 1024 * 1024
 const MAX_STDERR_CAPTURE_BYTES = 1024 * 1024
 const OUTPUT_TRUNCATION_MARKER = Buffer.from('\n[output truncated]\n')
 
+const BROKEN_INPUT_GRACE_MS = 5000
+
+// A step that ends because the model asked for tools is followed by more
+// steps (the tools run, then the model continues); only the last step's finish
+// ends the run. Ending the process after the first one cut every tool-using
+// MiMo or OpenCode turn short.
+function stepFinishContinues(event) {
+  const reason = String(event?.part?.reason || event?.reason || '').toLowerCase()
+  return /^tool[-_ ]?(calls?|use)$/.test(reason)
+}
+
 function createBoundedOutputCapture(maxBytes) {
   const headLimit = Math.floor(maxBytes / 2)
   const tailLimit = maxBytes - headLimit
@@ -245,6 +256,7 @@ async function runAgent(agent, prompt, workdir, options = {}) {
     let stopRequested = false
     let timeoutRequested = false
     let inputError = null
+    let brokenInputTimer = null
     let timeout
     let forceKillTimeout
     let forceSettleTimeout
@@ -294,6 +306,7 @@ async function runAgent(agent, prompt, workdir, options = {}) {
       clearTimeout(forceSettleTimeout)
       clearTimeout(terminalKillTimer)
       clearTimeout(terminalForceKillTimer)
+      clearTimeout(brokenInputTimer)
       options.signal?.removeEventListener('abort', abort)
       callback()
     }
@@ -315,7 +328,8 @@ async function runAgent(agent, prompt, workdir, options = {}) {
         (['workbuddy', 'claude', 'qwen'].includes(agent.kind) && event.type === 'result')
         || (agent.kind === 'pi' && event.type === 'agent_end')
         || (agent.kind === 'codex' && event.type === 'turn.completed')
-        || (['mimo', 'opencode'].includes(agent.kind) && event.type === 'step_finish')
+        || (['mimo', 'opencode'].includes(agent.kind) && event.type === 'step_finish'
+          && !stepFinishContinues(event))
         || (agent.kind === 'gemini' && event.type === 'result')
         || (agent.kind === 'kimi' && event.type === 'session.resume_hint')
       )
@@ -384,10 +398,23 @@ async function runAgent(agent, prompt, workdir, options = {}) {
     })
     child.stdin.on('error', (error) => {
       if (settled || inputError) return
-      inputError = agentExecutionError(
+      const sendFailure = () => agentExecutionError(
         'LOCAL_AGENT_SEND_FAILED',
         redactChildSecrets(error?.message || error, childEnv),
       )
+      // A closed pipe usually means the CLI exited before it read the whole
+      // prompt (expired sign-in, rejected flag). Its own output says why, so
+      // let the process finish and report that. Only a process that stays
+      // alive without reading its input is a send failure.
+      if (['EPIPE', 'ERR_STREAM_DESTROYED', 'ECONNRESET'].includes(error?.code)) {
+        brokenInputTimer ||= setTimeout(() => {
+          if (settled || inputError) return
+          inputError = sendFailure()
+          abort()
+        }, BROKEN_INPUT_GRACE_MS)
+        return
+      }
+      inputError = sendFailure()
       abort()
     })
     child.on('error', error => finish(() => rejectTerminal(

@@ -2149,3 +2149,72 @@ process.stdout.write(JSON.stringify({
     '--json',
   ])
 })
+
+test('MiMo and OpenCode keep running after a step that ended in tool calls', async (t) => {
+  for (const kind of ['mimo', 'opencode']) {
+    await t.test(kind, async (t) => {
+      const directory = fs.mkdtempSync(path.join(os.tmpdir(), `meldwork-${kind}-multistep-`))
+      const cli = executable(directory, `${kind}-multistep.cjs`, `
+const send = value => process.stdout.write(JSON.stringify(value) + '\\n')
+send({ type: 'step_start', sessionID: '${kind}-multistep-session', part: { type: 'step-start' } })
+send({ type: 'text', sessionID: '${kind}-multistep-session', part: { type: 'text', text: 'Reading the files first. ' } })
+// The model asked for tools: this step is over, the run is not.
+send({ type: 'step_finish', sessionID: '${kind}-multistep-session', part: { type: 'step-finish', reason: 'tool-calls' } })
+setTimeout(() => {
+  send({ type: 'step_start', sessionID: '${kind}-multistep-session', part: { type: 'step-start' } })
+  send({ type: 'text', sessionID: '${kind}-multistep-session', part: { type: 'text', text: 'Final answer after the tools.' } })
+  send({ type: 'step_finish', sessionID: '${kind}-multistep-session', part: { type: 'step-finish', reason: 'stop' } })
+}, 900)
+`)
+      t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+
+      const result = await within(runAgent(
+        { kind, executable: cli, name: kind },
+        'inspect and answer',
+        directory,
+        { loadAcpSdkFn: async () => { throw new Error('ACP SDK unavailable') } },
+      ), 15000)
+
+      assert.match(result.text, /Reading the files first\./)
+      assert.match(result.text, /Final answer after the tools\./)
+      assert.equal(result.outcome, 'completed')
+    })
+  }
+})
+
+test('a CLI that exits before reading its prompt reports its own error, not a broken pipe', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-codex-early-exit-'))
+  // Codex reads the prompt from stdin. A CLI that rejects the run at startup
+  // exits at once; a prompt larger than the pipe buffer then hits EPIPE.
+  const cli = executable(directory, 'codex-early-exit.cjs', `
+process.stderr.write('Not logged in. Please run codex login.\\n')
+process.exit(1)
+`)
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const prompt = `Review this document.\n${'lorem ipsum '.repeat(300000)}`
+
+  await assert.rejects(
+    within(runAgent({ kind: 'codex', executable: cli, name: 'Codex' }, prompt, directory, {}), 15000),
+    (error) => {
+      assert.equal(error.code, 'LOCAL_AGENT_AUTH_REQUIRED')
+      assert.notEqual(error.message, 'LOCAL_AGENT_SEND_FAILED')
+      return true
+    },
+  )
+})
+
+test('a CLI that stays alive without reading its prompt still fails as a send failure', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-codex-no-reader-'))
+  const cli = executable(directory, 'codex-no-reader.cjs', `
+// Closes its input without reading it, then idles.
+require('node:fs').closeSync(0)
+setInterval(() => {}, 1000)
+`)
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const prompt = `Review this document.\n${'lorem ipsum '.repeat(300000)}`
+
+  await assert.rejects(
+    within(runAgent({ kind: 'codex', executable: cli, name: 'Codex' }, prompt, directory, {}), 20000),
+    error => error.message === 'LOCAL_AGENT_SEND_FAILED',
+  )
+})
