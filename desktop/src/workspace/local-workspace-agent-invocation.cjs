@@ -1,7 +1,13 @@
 const { createHash, randomUUID } = require('node:crypto')
 const fs = require('node:fs')
 const path = require('node:path')
-const { parseLenientTaskDecision } = require('../collaboration/task-decision.cjs')
+const { createAnswerMarkerFilter } = require('../collaboration/answer-marker-filter.cjs')
+const {
+  V4_AGENT_PHASES,
+  parseV4CollaborationReceipt,
+} = require('../collaboration/collaboration-receipt.cjs')
+const { automaticPermissionResponse } = require('../agents/agent-permission-policy.cjs')
+const { createInvocationWatchdog } = require('../runs/invocation-watchdog.cjs')
 const {
   agentRuntimeCapabilities,
   isCodeReviewAgentKind,
@@ -86,289 +92,9 @@ function mergeOutcomeRefs(sources, options = {}) {
 
 const OPERATION_ID = /^[A-Za-z0-9._:-]{1,120}$/
 const SHA256 = /^[a-f0-9]{64}$/
-const V4_PHASES = new Set([
-  'proposal', 'discussion', 'challenge', 'work', 'synthesis', 'verification',
-])
-const V4_RECEIPT_MARKER_PREFIX = '[[MELDWORK_COLLABORATION'
-const V4_RECEIPT_MARKER = /\s*\[\[MELDWORK_COLLABORATION(?:_JSON)?:([\s\S]*?)\]\]/i
-const V4_RECEIPT_BLOCK = /\s*\[\[MELDWORK_COLLABORATION(?:_JSON)?\]\]([\s\S]*?)\[\[\/MELDWORK_COLLABORATION(?:_JSON)?\]\]/i
-const LEGACY_CONSENSUS_MARKER = /^\s*\[\[MELDWORK_CONSENSUS:(?:agree|continue)\]\]\s*$/gim
-const V4_RECEIPT_MAX_TEXT = 800
-const V4_RECEIPT_MAX_ITEMS = 16
-const V4_RECEIPT_MAX_BYTES = 16 * 1024
 
-function isV4InternalProtocolCommentary(value) {
-  const text = String(value || '').replace(/\s+/g, ' ').trim()
-  if (!text || text.length > 4000 || /\[\[MELDWORK_COLLABORATION/i.test(text)) return false
-  const mentionsControl = /(?:\breceipt\b|structured marker|MELDWORK framework|ExitPlanMode|\u7ed3\u6784\u5316\s*receipt|receipt\s*\u6807\u8bb0)/i.test(text)
-  const describesInternalProcess = /(?:coordination\/self-introduction|not a code implementation task|no plan file|implementation planning|plan mode|waiting for (?:the )?(?:next|subsequent).*(?:phase|instruction)|\u534f\u4f5c\u534f\u8c03\u7c7b\u6587\u672c\u4ea7\u51fa|\u975e\u4ee3\u7801\u5b9e\u73b0\u4efb\u52a1|\u6267\u884c\u8ba1\u5212\u6d41\u7a0b|\u4e0d\u8c03\u7528\s*ExitPlanMode|\u672c\u8f6e\u4ea4\u4ed8|\u7b49\u5f85\u540e\u7eed.*(?:\u9636\u6bb5|\u6307\u4ee4))/i.test(text)
-  return mentionsControl && describesInternalProcess
-}
 
-function stripV4InternalProtocolTail(value) {
-  const paragraphs = String(value || '').trim().split(/\n{2,}/)
-  while (paragraphs.length && isV4InternalProtocolCommentary(paragraphs.at(-1))) {
-    paragraphs.pop()
-  }
-  return paragraphs.join('\n\n').trim()
-}
 
-// Tool kinds an Agent may use without approval during a read-only turn.
-const READ_ONLY_SAFE_TOOL_KINDS = new Set(['read', 'search', 'fetch', 'think'])
-
-function boundedReceiptText(value, limit = V4_RECEIPT_MAX_TEXT) {
-  if (typeof value !== 'string' || value.trim().length > limit) return ''
-  const text = cleanText(value, limit)
-  return text && !text.includes('\u0000') ? text : ''
-}
-
-function boundedReceiptList(value) {
-  if (value == null) return []
-  if (!Array.isArray(value) || value.length > V4_RECEIPT_MAX_ITEMS) {
-    throw new Error('LOCAL_RUN_COLLABORATION_RECEIPT_INVALID')
-  }
-  const result = value.map(item => boundedReceiptText(item))
-  if (result.some(item => !item)) throw new Error('LOCAL_RUN_COLLABORATION_RECEIPT_INVALID')
-  return result
-}
-
-// A decision that is still unreadable after normalisation is treated as no
-// decision: the orchestrator then asks the owner again instead of failing
-// the Agent and removing it from the discussion.
-function leniencyTaskDecision(value, summary) {
-  try {
-    return { taskDecision: parseLenientTaskDecision(value, { fallbackReason: summary }) }
-  } catch {
-    return {}
-  }
-}
-
-function parseV4CollaborationReceiptStrict(result, required = false, expectedPhase = '', options = {}) {
-  const rawText = typeof result?.text === 'string' ? result.text : ''
-  if (!required) return { text: rawText, collaboration: null }
-  let text = rawText
-  let receipt = result?.collaboration
-  // Natural discussion turns are free-form answers; a slightly malformed
-  // receipt there must not fail the turn and end the discussion. Strict
-  // phased-V4 receipts keep failing closed.
-  const lenient = expectedPhase === 'discussion'
-  let trailingVisibleText = ''
-  let unreadableReceipt = false
-  const block = rawText.match(V4_RECEIPT_BLOCK) || rawText.match(V4_RECEIPT_MARKER)
-  if (block) {
-    const markerStart = Number(block.index) || 0
-    const suffix = rawText.slice(markerStart + block[0].length).trim()
-    // A closing code fence after the receipt is formatting, not content.
-    if (suffix && !isV4InternalProtocolCommentary(suffix) && !/^[\s`~]*$/.test(suffix)) {
-      if (!lenient) throw new Error('LOCAL_RUN_COLLABORATION_RECEIPT_INVALID')
-      trailingVisibleText = suffix
-    }
-    const encoded = String(block[1] || '').trim()
-    if (!encoded || Buffer.byteLength(encoded) > V4_RECEIPT_MAX_BYTES) {
-      if (!lenient) throw new Error('LOCAL_RUN_COLLABORATION_RECEIPT_INVALID')
-      unreadableReceipt = true
-    }
-    if (!unreadableReceipt) {
-      try {
-        let parsed
-        try {
-          parsed = JSON.parse(encoded)
-        } catch (error) {
-          if (!lenient) throw error
-          // Common hand-written slips: smart quotes and trailing commas.
-          parsed = JSON.parse(encoded
-            .replace(/[\u201c\u201d]/g, '"')
-            .replace(/[\u2018\u2019]/g, "'")
-            .replace(/,\s*([}\]])/g, '$1'))
-        }
-        if (receipt != null && canonicalJson(receipt) !== canonicalJson(parsed)) {
-          throw new Error('LOCAL_RUN_COLLABORATION_RECEIPT_MISMATCH')
-        }
-        receipt = parsed
-      } catch (error) {
-        if (error?.message === 'LOCAL_RUN_COLLABORATION_RECEIPT_MISMATCH') throw error
-        if (!lenient) throw new Error('LOCAL_RUN_COLLABORATION_RECEIPT_INVALID')
-        unreadableReceipt = true
-      }
-    }
-    text = rawText.slice(0, markerStart) + (trailingVisibleText ? `\n\n${trailingVisibleText}` : '')
-  } else if (/\[\[MELDWORK_COLLABORATION/i.test(rawText)) {
-    if (!lenient) throw new Error('LOCAL_RUN_COLLABORATION_RECEIPT_INVALID')
-    unreadableReceipt = true
-    text = rawText.slice(0, rawText.search(/\[\[MELDWORK_COLLABORATION/i))
-  }
-  if (unreadableReceipt) receipt = null
-  if (lenient && receipt && typeof receipt === 'object' && !Array.isArray(receipt)) {
-    // Keep only discussion fields and fill a missing summary, so an extra key
-    // or a long summary does not discard the Agent's whole contribution.
-    const decisionReason = typeof receipt.taskDecision?.reason === 'string'
-      ? receipt.taskDecision.reason
-      : ''
-    const summary = typeof receipt.summary === 'string' && receipt.summary.trim()
-      ? receipt.summary.trim().slice(0, V4_RECEIPT_MAX_TEXT)
-      : (decisionReason.trim().slice(0, V4_RECEIPT_MAX_TEXT) || 'Discussion contribution')
-    receipt = {
-      version: 1,
-      phase: 'discussion',
-      summary,
-      ...(receipt.taskDecision != null ? { taskDecision: receipt.taskDecision } : {}),
-    }
-  }
-  text = stripV4InternalProtocolTail(
-    text.replace(LEGACY_CONSENSUS_MARKER, '').replace(/\n{3,}/g, '\n\n'),
-  )
-  if (receipt == null && options.allowMissingV4Receipt === true && text) {
-    return { text, collaboration: null }
-  }
-  if (receipt == null && expectedPhase === 'proposal'
-      && options.allowMissingProposalReceipt === true && text) {
-    receipt = {
-      version: 1,
-      phase: 'proposal',
-      summary: 'The Agent returned a visible proposal without a structured receipt.',
-      capabilities: ['Delivered a user-facing proposal'],
-      intendedWork: ['Addressed the current user task'],
-      deliverables: ['Visible Agent response'],
-      dependencies: [],
-    }
-  }
-  if (receipt == null) throw new Error('LOCAL_RUN_COLLABORATION_RECEIPT_REQUIRED')
-  if (!receipt || typeof receipt !== 'object' || Array.isArray(receipt)) {
-    throw new Error('LOCAL_RUN_COLLABORATION_RECEIPT_INVALID')
-  }
-  try {
-    if (Buffer.byteLength(canonicalJson(receipt)) > V4_RECEIPT_MAX_BYTES) {
-      throw new Error('LOCAL_RUN_COLLABORATION_RECEIPT_INVALID')
-    }
-  } catch (error) {
-    if (error?.message === 'LOCAL_RUN_COLLABORATION_RECEIPT_INVALID') throw error
-    throw new Error('LOCAL_RUN_COLLABORATION_RECEIPT_INVALID')
-  }
-  const phase = String(expectedPhase || '')
-  const summary = boundedReceiptText(receipt.summary)
-  const allowed = new Set([
-    'version', 'phase', 'summary',
-    ...(phase === 'discussion' ? ['taskDecision'] : []),
-    ...(['challenge', 'verification'].includes(phase) ? ['verdict'] : []),
-    ...(phase === 'proposal'
-      ? ['capabilities', 'intendedWork', 'deliverables', 'dependencies'] : []),
-    ...(phase === 'challenge'
-      ? [
-          'proposedAssignments', 'finalizerKind', 'verifierKinds',
-          'supportedPlanHash', 'agreeToPlan',
-        ] : []),
-    ...(phase === 'work' ? ['workItemId', 'deliverables'] : []),
-    ...(phase === 'synthesis' ? ['resolvedIssueIds'] : []),
-  ])
-  if (!V4_PHASES.has(phase) || !summary
-      || Object.keys(receipt).some(key => !allowed.has(key))
-      || (receipt.version != null && receipt.version !== 1)
-      || (receipt.phase != null && receipt.phase !== phase)) {
-    throw new Error('LOCAL_RUN_COLLABORATION_RECEIPT_INVALID')
-  }
-  if (['challenge', 'verification'].includes(phase)
-      && !['support', 'contradict'].includes(receipt.verdict)) {
-    throw new Error('LOCAL_RUN_COLLABORATION_RECEIPT_INVALID')
-  }
-  const resolvedIssueIds = phase === 'synthesis'
-    ? boundedReceiptList(receipt.resolvedIssueIds)
-    : null
-  if (phase === 'synthesis' && !Array.isArray(receipt.resolvedIssueIds)) {
-    throw new Error('LOCAL_RUN_COLLABORATION_RECEIPT_INVALID')
-  }
-  if (phase === 'challenge' && receipt.supportedPlanHash != null
-      && !SHA256.test(String(receipt.supportedPlanHash))) {
-    throw new Error('LOCAL_RUN_COLLABORATION_RECEIPT_INVALID')
-  }
-  const proposalList = (field, requireItem = false) => {
-    if (!Array.isArray(receipt[field])) {
-      throw new Error('LOCAL_RUN_COLLABORATION_RECEIPT_INVALID')
-    }
-    const list = boundedReceiptList(receipt[field])
-    if (requireItem && list.length === 0) {
-      throw new Error('LOCAL_RUN_COLLABORATION_RECEIPT_INVALID')
-    }
-    return list
-  }
-  const boundedList = value => {
-    if (value == null) return []
-    if (!Array.isArray(value) || value.length > V4_RECEIPT_MAX_ITEMS) {
-      throw new Error('LOCAL_RUN_COLLABORATION_RECEIPT_INVALID')
-    }
-    const result = value.map(item => boundedReceiptText(item))
-    if (result.some(item => !item)) throw new Error('LOCAL_RUN_COLLABORATION_RECEIPT_INVALID')
-    return result
-  }
-  const normalized = {
-    version: 1,
-    phase,
-    summary,
-    ...(phase === 'discussion' && receipt.taskDecision != null
-      ? leniencyTaskDecision(receipt.taskDecision, summary) : {}),
-    ...(['challenge', 'verification'].includes(phase) ? { verdict: receipt.verdict } : {}),
-    ...(phase === 'proposal' ? {
-      capabilities: proposalList('capabilities', true),
-      intendedWork: proposalList('intendedWork', true),
-      deliverables: proposalList('deliverables', true),
-      dependencies: proposalList('dependencies'),
-    } : {}),
-    ...(phase === 'challenge' ? {
-      ...(Array.isArray(receipt.proposedAssignments)
-        ? {
-            proposedAssignments: receipt.proposedAssignments.map(assignment => (
-              assignment && typeof assignment === 'object' && !Array.isArray(assignment)
-                && assignment.role === 'finalizer'
-                ? { ...assignment, role: 'integrator' }
-                : assignment
-            )),
-          }
-        : {}),
-      ...(receipt.finalizerKind ? { finalizerKind: boundedReceiptText(receipt.finalizerKind, 120) } : {}),
-      ...(Array.isArray(receipt.verifierKinds) ? { verifierKinds: boundedList(receipt.verifierKinds) } : {}),
-      ...(receipt.supportedPlanHash ? { supportedPlanHash: receipt.supportedPlanHash } : {}),
-      ...(typeof receipt.agreeToPlan === 'boolean' ? { agreeToPlan: receipt.agreeToPlan } : {}),
-    } : {}),
-    ...(phase === 'work' ? {
-      ...(receipt.workItemId ? { workItemId: boundedReceiptText(receipt.workItemId, 120) } : {}),
-      deliverables: boundedList(receipt.deliverables),
-    } : {}),
-    ...(phase === 'synthesis' ? { resolvedIssueIds } : {}),
-  }
-  return { text, collaboration: Object.freeze(JSON.parse(canonicalJson(normalized))) }
-}
-
-function parseV4CollaborationReceipt(result, required = false, expectedPhase = '', options = {}) {
-  try {
-    return parseV4CollaborationReceiptStrict(result, required, expectedPhase, options)
-  } catch (error) {
-    const code = String(error?.message || '')
-    if (expectedPhase !== 'proposal'
-        || options.allowMissingProposalReceipt !== true
-        || !['LOCAL_RUN_COLLABORATION_RECEIPT_INVALID', 'LOCAL_RUN_COLLABORATION_RECEIPT_REQUIRED']
-          .includes(code)) {
-      throw error
-    }
-    const rawText = typeof result?.text === 'string' ? result.text : ''
-    const markerIndex = rawText.search(/\[\[MELDWORK_COLLABORATION/i)
-    const visibleText = (markerIndex >= 0 ? rawText.slice(0, markerIndex) : rawText)
-      .replace(LEGACY_CONSENSUS_MARKER, '')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim()
-    if (!visibleText) throw error
-    return {
-      text: visibleText,
-      collaboration: Object.freeze({
-        version: 1,
-        phase: 'proposal',
-        summary: 'The Agent returned a visible proposal without a valid structured receipt.',
-        capabilities: ['Delivered a user-facing proposal'],
-        intendedWork: ['Addressed the current user task'],
-        deliverables: ['Visible Agent response'],
-        dependencies: [],
-      }),
-    }
-  }
-}
 
 function attachInvocationFailure(error, input) {
   if (!error || (typeof error !== 'object' && typeof error !== 'function')) return error
@@ -789,7 +515,7 @@ class LocalWorkspaceAgentInvocation {
           round,
         })).digest('hex')}`
     const v4AgentSlotBinding = context.v4 === true
-      && V4_PHASES.has(context.phase)
+      && V4_AGENT_PHASES.has(context.phase)
       && OPERATION_ID.test(String(context.slotId || ''))
       && SHA256.test(String(context.snapshotHash || ''))
       ? {
@@ -998,20 +724,8 @@ class LocalWorkspaceAgentInvocation {
     this.registerAgentController?.(
       activeRun, kind, registration.agentRunId, agentController,
     )
-    let watchdogTimedOut = false
-    let watchdogError = null
     let parentAbortObserved = false
     let agentCallbacksClosed = false
-    let watchdogTimer = null
-    let watchdogPromise = null
-    let watchdogReject = null
-    let watchdogLastProgressAt = Date.now()
-    // Substantive progress (mapped events, answer text, tool lifecycle,
-    // structured progress). Raw process output only proves liveness.
-    let watchdogLastSubstantiveAt = Date.now()
-    let watchdogPaused = false
-    let watchdogEstablished = false
-    let watchdogToolActive = false
     let parentAbortHandler = null
     let parentAbortPromise = null
     let capturePromise = null
@@ -1025,18 +739,6 @@ class LocalWorkspaceAgentInvocation {
     let resumedPermissionUsed = false
     let resumedPermissionError = null
     const startedAt = Date.now()
-    // Automatic discussions must make progress between rounds even when an
-    // Agent keeps emitting heartbeat events without ever returning a result.
-    // Three windows apply: a startup deadline (group runs) until the process
-    // shows any sign of life, an inactivity window refreshed by any activity
-    // outside tool calls (tool calls use the longer tool window), and a
-    // no-progress cap that only streamed text, tool lifecycle, reasoning
-    // status and structured progress reset, so a CLI that emits empty
-    // heartbeats forever still stops.
-    const hardDeadlineAt = mode === 'auto' && Number.isFinite(this.runAgentTimeoutMs)
-      && this.runAgentTimeoutMs > 0
-      ? startedAt + this.runAgentTimeoutMs
-      : Number.POSITIVE_INFINITY
     if (signal) {
       parentAbortPromise = new Promise((_, reject) => {
         parentAbortHandler = () => {
@@ -1049,104 +751,37 @@ class LocalWorkspaceAgentInvocation {
       if (signal.aborted) parentAbortHandler()
       else signal.addEventListener('abort', parentAbortHandler, { once: true })
     }
-    const armWatchdog = () => {
-      if (watchdogTimer || watchdogPaused || agentController.signal.aborted
-          || !Number.isFinite(this.runAgentTimeoutMs) || this.runAgentTimeoutMs <= 0) return
-      const elapsedSinceProgress = Date.now() - watchdogLastProgressAt
-      const inactivityTimeoutMs = watchdogToolActive
-        ? this.runAgentToolTimeoutMs
-        : this.runAgentTimeoutMs
-      const inactivityRemainingMs = Math.max(0, inactivityTimeoutMs - elapsedSinceProgress)
-      const hardRemainingMs = Math.max(
-        0, (watchdogEstablished ? Number.POSITIVE_INFINITY : hardDeadlineAt) - Date.now(),
-      )
-      // In automatic discussions liveness keeps a turn alive, but not
-      // forever: without substantive progress a heartbeat-only CLI stops after
-      // three inactivity windows so the remaining participants can continue.
-      // Manual and direct turns keep running while the process is active;
-      // the user can stop them.
-      const stallLimitMs = mode !== 'auto'
-        ? Number.POSITIVE_INFINITY
-        : watchdogToolActive
-          ? this.runAgentToolTimeoutMs
-          : this.runAgentTimeoutMs * 3
-      const stallRemainingMs = Math.max(
-        0, stallLimitMs - (Date.now() - watchdogLastSubstantiveAt),
-      )
-      const remainingMs = Math.min(inactivityRemainingMs, hardRemainingMs, stallRemainingMs)
-      watchdogTimer = setTimeout(() => {
-        watchdogTimer = null
-        if (parentAbortObserved || signal?.aborted || watchdogPaused
-            || agentController.signal.aborted) return
-        // This is an inactivity/stall timeout. Substantive progress refreshes
-        // the window, while an unmatched tool lifecycle remains bounded.
-        watchdogTimedOut = true
-        watchdogError = new Error('LOCAL_AGENT_TIMEOUT')
-        agentController.abort()
-        watchdogReject(watchdogError)
-      }, remainingMs)
-    }
-    const pauseWatchdog = () => {
-      watchdogPaused = true
-      clearTimeout(watchdogTimer)
-      watchdogTimer = null
-    }
-    const noteWatchdogProgress = () => {
-      if (agentCallbacksClosed || agentController.signal.aborted) return
-      watchdogLastProgressAt = Date.now()
-      watchdogLastSubstantiveAt = watchdogLastProgressAt
-      if (!watchdogPaused) {
-        clearTimeout(watchdogTimer)
-        watchdogTimer = null
-        armWatchdog()
-      }
-    }
-    // Raw stdout/stderr bytes or ACP traffic prove the process is alive. They
-    // lift the startup deadline (a thinking Agent used to be killed after
-    // three minutes in group runs) and refresh the inactivity window outside
-    // tool calls, but never count as substantive progress.
-    const noteWatchdogLiveness = () => {
-      if (agentCallbacksClosed || agentController.signal.aborted) return
-      watchdogEstablished = true
-      if (!watchdogToolActive) watchdogLastProgressAt = Date.now()
-      if (!watchdogPaused) {
-        clearTimeout(watchdogTimer)
-        watchdogTimer = null
-        armWatchdog()
-      }
-    }
-    const establishWatchdog = () => {
-      if (watchdogEstablished || agentController.signal.aborted) return
-      watchdogEstablished = true
-      clearTimeout(watchdogTimer)
-      watchdogTimer = null
-    }
-    const resumeWatchdog = () => {
-      watchdogPaused = false
-      watchdogLastProgressAt = Date.now()
-      armWatchdog()
-    }
-    watchdogPromise = new Promise((_, reject) => {
-      watchdogReject = reject
+    // Automatic discussions must make progress between rounds even when an
+    // Agent keeps emitting heartbeat events without ever returning a result,
+    // so they get the strict startup and no-progress limits.
+    const watchdog = createInvocationWatchdog({
+      timeoutMs: this.runAgentTimeoutMs,
+      toolTimeoutMs: this.runAgentToolTimeoutMs,
+      strict: mode === 'auto',
+      isStopped: () => parentAbortObserved || Boolean(signal?.aborted)
+        || agentController.signal.aborted,
+      onTimeout: () => agentController.abort(),
     })
-    watchdogPromise.catch(() => {})
-    armWatchdog()
+    const closeAgentCallbacks = () => {
+      agentCallbacksClosed = true
+      watchdog.close()
+    }
     const waitForHumanGate = async (operation) => {
-      pauseWatchdog()
+      watchdog.pause()
       try {
         return invocation.lease?.suspend
           ? await invocation.lease.suspend(operation, context.v4 === true
             && context.parallelGraph === true ? { pauseTask: true } : undefined)
           : await operation()
       } finally {
-        if (!agentController.signal.aborted) resumeWatchdog()
+        if (!agentController.signal.aborted) watchdog.resume()
       }
     }
     const onProgress = (step) => {
       if (agentCallbacksClosed || agentController.signal.aborted
           || !activeRun || this.activeRuns.get(group.id) !== activeRun) return
-      establishWatchdog()
-      noteWatchdogProgress()
+      watchdog.establish()
+      watchdog.progress()
       const next = [...attemptProgress]
       const progressId = typeof step?.id === 'string' && /^[A-Za-z0-9._:-]{1,100}$/.test(step.id)
         ? step.id
@@ -1160,13 +795,9 @@ class LocalWorkspaceAgentInvocation {
       if (activeRun.currentKind === kind) activeRun.progress = attemptProgress
       this.armAgentSilence(activeRun, kind, round, harnessRun?.agentRunId)
     }
-    let autoDeltaBuffer = ''
-    let v4DeltaBuffer = ''
-    let v4ReceiptStarted = false
-    const consensusMarkers = [
-      '[[MELDWORK_CONSENSUS:agree]]',
-      '[[MELDWORK_CONSENSUS:continue]]',
-    ]
+    const answerFilter = createAnswerMarkerFilter({
+      mode: context.v4 === true ? 'receipt' : (mode === 'auto' ? 'auto' : 'plain'),
+    })
     const emitHarnessEvent = (rawEvent) => {
       if (agentCallbacksClosed || agentController.signal.aborted
           || this.activeRuns.get(group.id) !== activeRun
@@ -1175,18 +806,16 @@ class LocalWorkspaceAgentInvocation {
       if (!event) return
       // Once a connector has produced a real runtime event, the process is
       // demonstrably alive. Active tools use a longer shared inactivity window.
-      establishWatchdog()
+      watchdog.establish()
       const eventType = String(event.type || '').toLowerCase()
       const eventStatus = String(event.status || '').toLowerCase()
       if (['tool_start', 'tool_update'].includes(eventType)
           && ['queued', 'running', 'waiting', 'in_progress', 'streaming'].includes(eventStatus)) {
-        watchdogToolActive = true
-        noteWatchdogProgress()
+        watchdog.toolStarted()
       } else if (eventType === 'tool_result_summary'
           || (eventType === 'status' && ['completed', 'failed', 'stopped', 'timeout', 'interrupted']
             .includes(eventStatus))) {
-        watchdogToolActive = false
-        noteWatchdogProgress()
+        watchdog.toolFinished()
       }
       this.emitRunEvent(event)
       this.armAgentSilence(activeRun, kind, round, harnessRun.agentRunId)
@@ -1195,85 +824,20 @@ class LocalWorkspaceAgentInvocation {
         this.emitChanged()
       }
     }
-    const emitV4AnswerDelta = (rawEvent) => {
-      if (v4ReceiptStarted) return
-      v4DeltaBuffer += String(rawEvent.delta || '')
-      const hiddenMarkers = [
-        ...consensusMarkers.map(marker => marker.toUpperCase()),
-        V4_RECEIPT_MARKER_PREFIX,
-      ]
-      let visible = ''
-      while (v4DeltaBuffer && !v4ReceiptStarted) {
-        const uppercaseBuffer = v4DeltaBuffer.toUpperCase()
-        const next = hiddenMarkers.reduce((candidate, marker) => {
-          const index = uppercaseBuffer.indexOf(marker)
-          return index >= 0 && (!candidate || index < candidate.index)
-            ? { index, marker }
-            : candidate
-        }, null)
-        if (next) {
-          visible += v4DeltaBuffer.slice(0, next.index)
-          v4DeltaBuffer = v4DeltaBuffer.slice(next.index + next.marker.length)
-          if (next.marker === V4_RECEIPT_MARKER_PREFIX) v4ReceiptStarted = true
-          continue
-        }
-        let hold = 0
-        for (const marker of hiddenMarkers) {
-          for (let size = 1; size < marker.length; size += 1) {
-            if (uppercaseBuffer.endsWith(marker.slice(0, size))) hold = Math.max(hold, size)
-          }
-        }
-        visible += hold ? v4DeltaBuffer.slice(0, -hold) : v4DeltaBuffer
-        v4DeltaBuffer = hold ? v4DeltaBuffer.slice(-hold) : ''
-        break
-      }
-      if (visible) emitHarnessEvent({ ...rawEvent, delta: visible })
-    }
     const emitRuntimeEvent = (rawEvent) => {
       if (agentCallbacksClosed || agentController.signal.aborted) return
-      noteWatchdogProgress()
-      if (!rawEvent || rawEvent.type !== 'answer_delta') {
+      watchdog.progress()
+      if (!rawEvent || rawEvent.type !== 'answer_delta'
+          || (context.v4 !== true && mode !== 'auto')) {
         emitHarnessEvent(rawEvent)
         return
       }
-      if (context.v4 === true) {
-        emitV4AnswerDelta(rawEvent)
-        return
-      }
-      if (mode !== 'auto') {
-        emitHarnessEvent(rawEvent)
-        return
-      }
-      autoDeltaBuffer += String(rawEvent.delta || '')
-      for (const marker of consensusMarkers) {
-        autoDeltaBuffer = autoDeltaBuffer.split(marker).join('')
-      }
-      let hold = 0
-      for (const marker of consensusMarkers) {
-        for (let size = 1; size < marker.length; size += 1) {
-          if (autoDeltaBuffer.endsWith(marker.slice(0, size))) hold = Math.max(hold, size)
-        }
-      }
-      const safe = hold ? autoDeltaBuffer.slice(0, -hold) : autoDeltaBuffer
-      autoDeltaBuffer = hold ? autoDeltaBuffer.slice(-hold) : ''
-      if (safe) emitHarnessEvent({ ...rawEvent, delta: safe })
+      const visible = answerFilter.push(rawEvent.delta)
+      if (visible) emitHarnessEvent({ ...rawEvent, delta: visible })
     }
     const flushRuntimeEvent = (finalText = '') => {
-      if (context.v4 === true) {
-        const suffix = v4DeltaBuffer
-        v4DeltaBuffer = ''
-        if (!v4ReceiptStarted && suffix && String(finalText).endsWith(suffix)) {
-          emitHarnessEvent({ type: 'answer_delta', status: 'running', delta: suffix })
-        }
-        return
-      }
-      if (!autoDeltaBuffer) return
-      const safe = consensusMarkers.reduce(
-        (value, marker) => value.split(marker).join(''),
-        autoDeltaBuffer,
-      )
-      autoDeltaBuffer = ''
-      if (safe) emitHarnessEvent({ type: 'answer_delta', status: 'running', delta: safe })
+      const rest = answerFilter.flush(finalText)
+      if (rest) emitHarnessEvent({ type: 'answer_delta', status: 'running', delta: rest })
     }
     let outputBaseline = null
     let artifactOutputBaseline = null
@@ -1318,7 +882,7 @@ class LocalWorkspaceAgentInvocation {
     const finishHarness = (status, finalText = '', runtimeContext = {}) => {
       if (!harness || !harnessRun || harnessFinished) return null
       flushRuntimeEvent(finalText)
-      agentCallbacksClosed = true
+      closeAgentCallbacks()
       this.clearAgentSilence(activeRun, kind, round, harnessRun.agentRunId)
       const finished = harness.finishAgent(kind, round, status, finalText, {
         ...deliveredContext.context,
@@ -1444,7 +1008,7 @@ class LocalWorkspaceAgentInvocation {
           ].filter(Boolean).join('\n')
       let prompt = buildPrompt(transcriptAfterKind, packedContext)
       const recordOutboundPayload = (outbound = {}) => {
-        noteWatchdogProgress()
+        watchdog.progress()
         if (activeRun?.budget) {
           const bytes = outboundWirePayloadBytes(outbound)
           activeRun.budget.addUsageBatch([
@@ -1584,7 +1148,7 @@ class LocalWorkspaceAgentInvocation {
           : {}),
         onSessionRef: (nextSessionRef, metadata = {}) => {
           if (agentCallbacksClosed || agentController.signal.aborted) return
-          noteWatchdogProgress()
+          watchdog.progress()
           if (reviewOnly || isolated) return
           const transport = ['legacy', 'acp'].includes(metadata?.transport)
             ? metadata.transport
@@ -1609,10 +1173,10 @@ class LocalWorkspaceAgentInvocation {
           // is working. Its activity callback is therefore the first proof
           // that the run has started and must release the initial deadline.
           if (agent.cloud === true) {
-            establishWatchdog()
-            noteWatchdogProgress()
+            watchdog.establish()
+            watchdog.progress()
           } else {
-            noteWatchdogLiveness()
+            watchdog.liveness()
           }
         },
         onProgress,
@@ -1624,23 +1188,8 @@ class LocalWorkspaceAgentInvocation {
           // `yolo: false`; sandbox and workspace authorization remain enforced
           // before this callback is reached.
           if ((context.yolo ?? this.defaultYolo) !== false) {
-            const options = Array.isArray(request?.options) ? request.options : []
-            // A read-only turn must stay read-only even when the Agent asks:
-            // only side-effect-free tools are approved automatically, and
-            // edits, deletes, moves, commands and mode switches are refused.
-            if (!allowWrite && !READ_ONLY_SAFE_TOOL_KINDS.has(request?.toolCall?.kind)) {
-              const rejection = options.find(candidate => candidate?.kind === 'reject_once')
-                || options.find(candidate => candidate?.kind === 'reject_always')
-              return Promise.resolve(rejection?.optionId
-                ? { status: 'rejected', optionId: rejection.optionId }
-                : null)
-            }
-            const option = options.find(candidate => candidate?.kind === 'allow_once')
-              || options.find(candidate => candidate?.kind === 'allow_always')
-              || options[0]
-            if (option?.optionId) {
-              return Promise.resolve({ status: 'approved', optionId: option.optionId })
-            }
+            const automatic = automaticPermissionResponse(request, { allowWrite })
+            if (automatic !== undefined) return Promise.resolve(automatic)
           }
           const pending = Promise.resolve().then(async () => {
             if (resumedPermission && !resumedPermissionUsed) {
@@ -1718,14 +1267,14 @@ class LocalWorkspaceAgentInvocation {
           agentRunId: harnessRun.agentRunId,
           onActivity: () => {
             if (agent.cloud === true) {
-              establishWatchdog()
-              noteWatchdogProgress()
+              watchdog.establish()
+              watchdog.progress()
             } else {
-              noteWatchdogLiveness()
+              watchdog.liveness()
             }
           },
           onConnectorState: (nextContext) => {
-            noteWatchdogProgress()
+            watchdog.progress()
             connectorContext = nextContext
             const liveHarnessRun = harness.current(kind, round, harnessRun.agentRunId)
             if (liveHarnessRun) {
@@ -1799,7 +1348,7 @@ class LocalWorkspaceAgentInvocation {
       const raceCurrentSession = async () => {
         runPromise = Promise.resolve().then(executeCurrentSession)
         runPromise.catch(() => {})
-        const pending = [runPromise, watchdogPromise]
+        const pending = [runPromise, watchdog.promise]
         if (parentAbortPromise) pending.push(parentAbortPromise)
         return Promise.race(pending)
       }
@@ -2091,8 +1640,8 @@ class LocalWorkspaceAgentInvocation {
       const parentStopped = Boolean(signal?.aborted || parentAbortObserved)
       const parentInterrupted = parentStopped && activeRun?.stopReason === 'shutdown'
       const agentCancelled = agentController.signal.aborted
-        && !parentStopped && !watchdogTimedOut
-      if (parentStopped || watchdogTimedOut || agentCancelled) {
+        && !parentStopped && !watchdog.timedOut
+      if (parentStopped || watchdog.timedOut || agentCancelled) {
         const cleanupPromises = [
           capturePromise,
           artifactCapturePromise,
@@ -2110,8 +1659,8 @@ class LocalWorkspaceAgentInvocation {
           ? (caughtError?.message === 'LOCAL_AGENT_EXECUTION_STOPPED'
               ? caughtError
               : agentStoppedError())
-          : watchdogTimedOut
-            ? (watchdogError || new Error('LOCAL_AGENT_TIMEOUT'))
+          : watchdog.timedOut
+            ? (watchdog.error || new Error('LOCAL_AGENT_TIMEOUT'))
             : agentCancelled
               ? agentStoppedError()
               : caughtError
@@ -2127,7 +1676,7 @@ class LocalWorkspaceAgentInvocation {
           ? 'interrupted'
           : parentStopped
             ? 'stopped'
-            : watchdogTimedOut
+            : watchdog.timedOut
               ? 'timeout'
               : agentCancelled
                 ? 'stopped'
@@ -2157,9 +1706,7 @@ class LocalWorkspaceAgentInvocation {
         idempotencyMode,
       })
     } finally {
-      agentCallbacksClosed = true
-      clearTimeout(watchdogTimer)
-      watchdogTimer = null
+      closeAgentCallbacks()
       if (signal && parentAbortHandler) {
         signal.removeEventListener('abort', parentAbortHandler)
       }
@@ -2211,4 +1758,4 @@ class LocalWorkspaceAgentInvocation {
   }
 }
 
-module.exports = { LocalWorkspaceAgentInvocation, parseV4CollaborationReceipt }
+module.exports = { LocalWorkspaceAgentInvocation }

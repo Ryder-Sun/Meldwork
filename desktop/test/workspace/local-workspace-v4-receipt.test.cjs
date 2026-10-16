@@ -5,7 +5,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const { runAgent: runCliAgent } = require('../../src/agents/cli/cli-adapters.cjs')
 const { LocalWorkspace } = require('../../src/workspace/local-workspace.cjs')
-const { parseV4CollaborationReceipt } = require('../../src/workspace/local-workspace-agent-invocation.cjs')
+const { parseV4CollaborationReceipt } = require('../../src/collaboration/collaboration-receipt.cjs')
 const { v4Prompt } = require('../../src/workspace/local-workspace-context.cjs')
 const {
   createLegacyOutboundPayload,
