@@ -40,8 +40,9 @@ const ACP_VOLATILE_ENV_KEYS = new Set([
   'FNM_MULTISHELL_PATH', 'FNM_DIR', 'FNM_VERSION_FILE_STRATEGY', 'FNM_LOGLEVEL',
   'FNM_NODE_DIST_MIRROR', 'FNM_ARCH', 'FNM_COREPACK_ENABLED', 'FNM_RESOLVE_ENGINES',
 ])
-const ACP_MAX_LINE_BYTES = 1024 * 1024
+const ACP_MAX_LINE_BYTES = 4 * 1024 * 1024
 const ACP_MAX_INPUT_BYTES = 16 * 1024 * 1024
+const ACP_UNKNOWN_METHOD_NAME_LIMIT = 120
 const ACP_MAX_REPLY_BYTES = 10 * 1024 * 1024
 const ACP_PERSISTENT_RUNTIME_LIMIT = 16
 const ACP_PERMISSION_OPTION_LIMIT = 16
@@ -105,6 +106,10 @@ function acpTransportError(diagnostic) {
   return agentExecutionError('LOCAL_AGENT_PROCESS_FAILED', diagnostic)
 }
 
+// Returns the message to deliver, or null for traffic that is safe to ignore.
+// A newer Agent can send updates and notifications this client does not know;
+// failing the whole turn over them would break Meldwork on every Agent upgrade,
+// so only messages that decide what is executed or approved stay strict.
 function validateAcpInboundMessage(message, validators, replyState, protocolLabel) {
   if (!message || typeof message !== 'object' || Array.isArray(message)
       || message.jsonrpc !== '2.0') {
@@ -116,7 +121,8 @@ function validateAcpInboundMessage(message, validators, replyState, protocolLabe
     if (message.method === 'session/update' && !hasId) {
       const parsed = validators.zSessionNotification.safeParse(message.params)
       if (!parsed.success) {
-        throw acpTransportError(`${protocolLabel} returned invalid session update parameters.`)
+        replyState.ignoredMessages = (replyState.ignoredMessages || 0) + 1
+        return null
       }
       const update = parsed.data.update
       if (replyState.collecting !== false
@@ -136,7 +142,23 @@ function validateAcpInboundMessage(message, validators, replyState, protocolLabe
       }
       return message
     }
-    throw acpTransportError(`${protocolLabel} requested an unsupported client method.`)
+    // An unknown request still gets the connection's "method not found"
+    // answer, so the Agent is not left waiting. The SDK logs every request it
+    // rejects together with its parameters, so only the method name is
+    // forwarded. An unknown notification needs no answer and is dropped
+    // before it can reach the SDK's logging.
+    const validId = typeof message.id === 'string'
+      || (Number.isInteger(message.id) && message.id >= 0)
+    if (hasId && validId) {
+      return {
+        jsonrpc: '2.0',
+        id: message.id,
+        method: message.method.slice(0, ACP_UNKNOWN_METHOD_NAME_LIMIT),
+        params: {},
+      }
+    }
+    replyState.ignoredMessages = (replyState.ignoredMessages || 0) + 1
+    return null
   }
 
   if (!Number.isInteger(message.id) || message.id < 0) {
@@ -232,6 +254,12 @@ function boundedAcpStream(
       const parseLine = (line) => {
         const text = line.toString('utf8').trim()
         if (!text) return
+        // Some CLIs print banners or warnings on stdout next to the protocol.
+        // Anything that is not an object is not protocol traffic.
+        if (!text.startsWith('{')) {
+          replyState.ignoredMessages = (replyState.ignoredMessages || 0) + 1
+          return
+        }
         let message
         try {
           message = JSON.parse(text)
@@ -241,6 +269,7 @@ function boundedAcpStream(
         const validated = validateAcpInboundMessage(
           message, validators, replyState, protocolLabel,
         )
+        if (!validated) return
         if (message.method === 'session/request_permission') {
           replyState.pendingPermissionRequestIds.add(message.id)
         } else if (message.method === 'session/update' && message.params?.update) {

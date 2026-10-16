@@ -859,7 +859,7 @@ input.on('line', (line) => {
   )
 })
 
-test('Kimi ACP rejects unsafe protocol input without logging secret-bearing messages', async (t) => {
+test('Kimi ACP fails closed on malformed JSON and ignores unknown traffic without logging secret-bearing messages', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-kimi-acp-invalid-'))
   const secret = 'private-kimi-transport-secret'
   const cli = executable(directory, 'kimi-acp-invalid.cjs', `
@@ -878,10 +878,23 @@ input.on('line', (line) => {
     if (process.env.MELDWORK_TEST_CASE === 'malformed') {
       process.stdout.write('{"secret":"' + process.env.MELDWORK_TEST_SECRET + '"\\n')
     } else {
+      // Traffic this client does not know: a banner, a notification and a
+      // request, each carrying the secret. None of it may fail the turn or
+      // reach a log.
+      process.stdout.write('banner ' + process.env.MELDWORK_TEST_SECRET + '\\n')
       send({
         jsonrpc: '2.0', method: 'unsupported/client_method',
         params: { secret: process.env.MELDWORK_TEST_SECRET },
       })
+      send({
+        jsonrpc: '2.0', id: 77, method: 'unsupported/client_request',
+        params: { secret: process.env.MELDWORK_TEST_SECRET },
+      })
+      send({ jsonrpc: '2.0', method: 'session/update', params: {
+        sessionId: 'kimi-invalid-session',
+        update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'carried on' } },
+      } })
+      setTimeout(() => send({ jsonrpc: '2.0', id: message.id, result: { stopReason: 'end_turn' } }), 30)
     }
   }
 })
@@ -889,27 +902,34 @@ input.on('line', (line) => {
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
   const logged = []
   const originalConsoleError = console.error
-  console.error = (...args) => logged.push(args.map(String).join(' '))
+  console.error = (...args) => logged.push(args.map(arg => (
+    typeof arg === 'string' ? arg : JSON.stringify(arg)
+  )).join(' '))
   t.after(() => { console.error = originalConsoleError })
 
-  for (const testCase of ['malformed', 'unsupported']) {
-    await assert.rejects(
-      runAgent(
-        { kind: 'kimi', executable: cli, name: 'Kimi' },
-        'validate transport',
-        directory,
-        { env: { MELDWORK_TEST_CASE: testCase, MELDWORK_TEST_SECRET: secret } },
-      ),
-      (error) => {
-        assert.equal(error.message, 'LOCAL_AGENT_PROCESS_FAILED')
-        assert.equal(error.diagnostic.includes(secret), false)
-        assert.equal(Object.prototype.propertyIsEnumerable.call(error, 'diagnostic'), false)
-        return true
-      },
-    )
-  }
+  await assert.rejects(
+    runAgent(
+      { kind: 'kimi', executable: cli, name: 'Kimi' },
+      'validate transport',
+      directory,
+      { env: { MELDWORK_TEST_CASE: 'malformed', MELDWORK_TEST_SECRET: secret } },
+    ),
+    (error) => {
+      assert.equal(error.message, 'LOCAL_AGENT_PROCESS_FAILED')
+      assert.equal(error.diagnostic.includes(secret), false)
+      assert.equal(Object.prototype.propertyIsEnumerable.call(error, 'diagnostic'), false)
+      return true
+    },
+  )
 
-  assert.deepEqual(logged, [])
+  const survived = await runAgent(
+    { kind: 'kimi', executable: cli, name: 'Kimi' },
+    'validate transport',
+    directory,
+    { env: { MELDWORK_TEST_CASE: 'unknown', MELDWORK_TEST_SECRET: secret } },
+  )
+  assert.equal(survived.text, 'carried on')
+  assert.equal(logged.some(entry => entry.includes(secret)), false)
 })
 
 test('Kimi ACP bounds unframed input, cumulative reply text, and total protocol traffic', async (t) => {
@@ -929,7 +949,7 @@ input.on('line', (line) => {
   } else if (message.method === 'session/prompt') {
     const testCase = process.env.MELDWORK_TEST_CASE
     if (testCase === 'line') {
-      process.stdout.write('x'.repeat(1024 * 1024 + 1))
+      process.stdout.write('x'.repeat(4 * 1024 * 1024 + 1))
       return
     }
     const update = testCase === 'reply' ? 'agent_message_chunk' : 'agent_thought_chunk'
