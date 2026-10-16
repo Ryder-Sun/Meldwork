@@ -1172,3 +1172,57 @@ input.on('line', (line) => {
     error => error?.message === 'LOCAL_AGENT_EXECUTION_STOPPED',
   )
 })
+
+test('switching between read-only and write keeps one ACP process when only the session mode differs', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-acp-mode-switch-'))
+  const spawnCountFile = path.join(directory, 'spawn-count.txt')
+  const modesFile = path.join(directory, 'modes.jsonl')
+  t.after(async () => {
+    await adapters.shutdownAcpSessionRuntime?.()
+    fs.rmSync(directory, { recursive: true, force: true })
+  })
+  const cli = executable(directory, 'mimo-mode-switch.cjs', `
+const fs = require('node:fs')
+const readline = require('node:readline')
+if (process.argv[2] !== 'acp') process.exit(2)
+const countFile = process.env.MELDWORK_TEST_SPAWN_COUNT_FILE
+fs.writeFileSync(countFile, String((fs.existsSync(countFile) ? Number(fs.readFileSync(countFile, 'utf8')) : 0) + 1))
+const input = readline.createInterface({ input: process.stdin })
+const send = value => process.stdout.write(JSON.stringify(value) + '\\n')
+input.on('line', (line) => {
+  const message = JSON.parse(line)
+  const sessionId = message.params?.sessionId || 'mimo-mode-session'
+  if (message.method === 'initialize') send({ jsonrpc: '2.0', id: message.id, result: { protocolVersion: 1 } })
+  else if (message.method === 'session/new') send({ jsonrpc: '2.0', id: message.id, result: { sessionId } })
+  else if (message.method === 'session/set_mode') {
+    fs.appendFileSync(process.env.MELDWORK_TEST_MODES_FILE, message.params.modeId + '\\n')
+    send({ jsonrpc: '2.0', id: message.id, result: {} })
+  } else if (message.method === 'session/prompt') {
+    send({ jsonrpc: '2.0', method: 'session/update', params: { sessionId, update: {
+      sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'mimo reply' },
+    } } })
+    send({ jsonrpc: '2.0', id: message.id, result: { stopReason: 'end_turn' } })
+  }
+})
+`)
+  const agent = { kind: 'mimo', executable: cli, name: 'MiMo' }
+  const env = { MELDWORK_TEST_SPAWN_COUNT_FILE: spawnCountFile, MELDWORK_TEST_MODES_FILE: modesFile }
+  const sessionRefs = []
+  const turn = (sandbox, sessionRef) => within(adapters.runAgent(agent, `turn in ${sandbox}`, directory, {
+    acpPersistenceKey: 'workspace:mimo:mode-switch',
+    sandbox,
+    sessionRef,
+    sessionTransport: sessionRef ? 'acp' : '',
+    env,
+    onSessionRef: ref => sessionRefs.push(ref),
+  }), 10000)
+
+  const proposal = await turn('read-only', '')
+  const discussion = await turn('workspace-write', sessionRefs.at(-1))
+  const review = await turn('read-only', sessionRefs.at(-1))
+
+  assert.equal([proposal, discussion, review].every(result => result.text === 'mimo reply'), true)
+  assert.equal(fs.readFileSync(spawnCountFile, 'utf8'), '1', 'one process served all three turns')
+  assert.deepEqual(fs.readFileSync(modesFile, 'utf8').trim().split('\n'), ['plan', 'build', 'plan'])
+  assert.equal(new Set(sessionRefs).size, 1, 'the native session was kept')
+})

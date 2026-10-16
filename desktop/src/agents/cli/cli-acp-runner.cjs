@@ -621,7 +621,10 @@ function runtimeSignature(agent, workdir, spec, profile, childEnv) {
     workdir,
     command: spec.command,
     args: spec.args,
-    acpMode: spec.acpMode || '',
+    // The session mode (read-only plan versus write) is applied on every turn
+    // with session/set_mode, so it does not identify a process. Anything that
+    // really needs a separate process (a permission policy in the environment)
+    // is already part of the environment below.
     profileId: profile.profileId,
     environment,
   })).digest('hex')
