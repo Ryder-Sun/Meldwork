@@ -1,6 +1,7 @@
 function normalizedSection(section) {
   if (section === 'cloud-agents') return 'cloud-agents'
   if (section === 'knowledge-bases') return 'knowledge-bases'
+  if (section === 'general') return 'general'
   return 'agents'
 }
 

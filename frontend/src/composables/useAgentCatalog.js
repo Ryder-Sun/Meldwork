@@ -156,6 +156,33 @@ export function useAgentCatalog({
     return { label: t('agent.unverified'), tone: 'neutral', icon: WarningOutline }
   }
 
+  // One plain sentence on why an installed Agent cannot be used and what to do
+  // next. Empty when there is nothing to explain (ready, or not installed).
+  function agentStateNote(agent) {
+    if (!agent || agent.ready || agent.custom || !agent.installed) return ''
+    const version = agent.resolvedVersion || agent.version || ''
+    const params = { version: version || t('agent.versionUnknown') }
+    const verified = agent.supportedVersionRange
+      ? ` ${t('agent.note.verifiedRange', { range: agent.supportedVersionRange })}`
+      : ''
+    if (agent.incompatibilityReason === 'LOCAL_AGENT_CAPABILITY_PROBE_TIMEOUT') {
+      return t('agent.note.probeTimeout')
+    }
+    if (agent.compatibilityState === 'incompatible') {
+      const key = ({
+        LOCAL_AGENT_VERSION_UNSUPPORTED: 'agent.note.versionUnsupported',
+        LOCAL_AGENT_REQUIRED_CAPABILITY_MISSING: 'agent.note.cannotStart',
+        LOCAL_AGENT_PROTOCOL_UNAVAILABLE: 'agent.note.protocolUnavailable',
+      })[agent.incompatibilityReason] || 'agent.note.versionUnsupported'
+      return `${t(key, params)}${verified}`
+    }
+    if (agent.credentialState === 'missing') {
+      // A cloud Agent runs on the connected server, so that is where it signs in.
+      return t(agent.cloud ? 'agent.note.needsLoginCloud' : 'agent.note.needsLogin')
+    }
+    return ''
+  }
+
   return {
     activeDirectAgent,
     agentCatalogGroups,
@@ -163,6 +190,7 @@ export function useAgentCatalog({
     agentImageLabel,
     agentSoul,
     agentState,
+    agentStateNote,
     installedCount,
     mergedCatalog,
     readyAgentKinds,

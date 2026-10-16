@@ -39,6 +39,16 @@
           <LibraryOutline />
           {{ t('systemSettings.knowledgeBases') }}
         </button>
+        <button
+          type="button"
+          role="tab"
+          :aria-selected="systemSettingsSection === 'general'"
+          :class="{ active: systemSettingsSection === 'general' }"
+          @click="selectSystemSettingsSection('general')"
+        >
+          <OptionsOutline />
+          {{ t('systemSettings.general') }}
+        </button>
       </nav>
 
       <AgentSettingsPanel
@@ -48,6 +58,7 @@
         :agent-image-label="agentImageLabel"
         :agent-skill-label="agentSkillLabel"
         :agent-state="agentState"
+        :agent-state-note="agentStateNote"
         :focused-agent-kind="focusedAgentKind"
         :install-confirm-kind="installConfirmKind"
         :installed-count="installedCount"
@@ -85,14 +96,21 @@
         @primary-action="runKnowledgeBasePrimaryAction"
         @refresh="loadKnowledgeBaseStatuses"
       />
+
+      <GeneralSettingsPanel
+        v-else-if="systemSettingsSection === 'general'"
+        :set-theme-preference="setThemePreference"
+        :theme-preference="themePreference"
+      />
     </div>
   </section>
 </template>
 
 <script setup>
-import { CloudOutline, LibraryOutline, TerminalOutline } from '@vicons/ionicons5'
+import { CloudOutline, LibraryOutline, OptionsOutline, TerminalOutline } from '@vicons/ionicons5'
 import AgentSettingsPanel from './AgentSettingsPanel.vue'
 import CloudAgentBridgePanel from './CloudAgentBridgePanel.vue'
+import GeneralSettingsPanel from './GeneralSettingsPanel.vue'
 import KnowledgeBaseSettingsPanel from './KnowledgeBaseSettingsPanel.vue'
 
 const props = defineProps({
@@ -105,6 +123,7 @@ const {
   agentImageLabel,
   agentSkillLabel,
   agentState,
+  agentStateNote,
   cancelInstall,
   cloudAgentBridges,
   focusedAgentKind,
@@ -134,7 +153,9 @@ const {
   requestInstall,
   runKnowledgeBasePrimaryAction,
   selectSystemSettingsSection,
+  setThemePreference,
   systemSettingsSection,
   t,
+  themePreference,
 } = props.controller
 </script>

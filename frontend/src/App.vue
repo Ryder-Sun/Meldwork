@@ -12,7 +12,7 @@
     <section v-if="booting" class="boot-state" aria-live="polite">
       <img class="boot-logo" :src="productAppIcon" alt="Meldwork" />
       <p>{{ t('app.loading') }}</p>
-      <WavePhysicsLoader :theme="theme" />
+      <span class="boot-progress" aria-hidden="true"><span /></span>
     </section>
 
     <section v-else-if="bridgeMissing" class="bridge-state">
@@ -26,33 +26,6 @@
         :t="t" :theme="theme" :active-view="activeView" :blocked="contentInteractionBlocked"
         :open-system-settings="openSystemSettings" :toggle-locale="toggleLocale" :toggle-theme="toggleTheme"
         :shortcut-definitions="shortcutDefinitions" />
-      <transition name="agent-discovery" appear>
-        <section
-          v-if="agentDiscoveryPending"
-          class="agent-discovery-overlay"
-          role="status"
-          aria-live="polite"
-          :aria-label="t('agentDiscovery.title')"
-        >
-          <PixelBlast :theme="theme" />
-          <div class="agent-discovery-content">
-            <img class="agent-discovery-mark" :src="productMark" alt="" />
-            <div class="agent-discovery-copy">
-              <p class="agent-discovery-kicker">{{ t('agentDiscovery.kicker') }}</p>
-              <h1>{{ t('agentDiscovery.title') }}</h1>
-              <p>{{ t('agentDiscovery.body') }}</p>
-              <div class="agent-discovery-progress" aria-hidden="true">
-                <span />
-              </div>
-              <div class="agent-discovery-status">
-                <span class="agent-discovery-status-dot" aria-hidden="true" />
-                <span>{{ t('agentDiscovery.status') }}</span>
-              </div>
-            </div>
-          </div>
-        </section>
-      </transition>
-
       <WorkspaceSidebar :controller="workspaceSidebarController" />
 
       <section
@@ -68,9 +41,12 @@
         <HomeDashboard
           v-else-if="activeView === 'home'"
           :agent-description="agentDescription"
+          :awaiting-decision-gates="awaitingDecisionGates"
+          :discovering="agentDiscoveryPending"
           :group-name="groupName"
           :groups="snapshot.groups"
           :installed-count="installedCount"
+          :is-group-awaiting-decision="isGroupAwaitingDecision"
           :is-group-running="isGroupRunning"
           :onboarding-completed="onboardingCompleted"
           :ready-agents="readyAgents"
@@ -157,8 +133,19 @@
       </transition>
 
       <transition name="toast">
-        <div v-if="toastMessage" class="toast-message" role="status" aria-live="polite">
-          <WarningOutline />
+        <div
+          v-if="toastMessage"
+          class="toast-message"
+          :data-tone="toastTone"
+          :role="toastTone === 'error' ? 'alert' : 'status'"
+          :aria-live="toastTone === 'error' ? 'assertive' : 'polite'"
+          @mouseenter="pauseToast"
+          @mouseleave="resumeToast"
+          @focusin="pauseToast"
+          @focusout="resumeToast"
+        >
+          <AlertCircleOutline v-if="toastTone === 'error'" />
+          <WarningOutline v-else />
           <span>{{ toastMessage }}</span>
           <button
             class="toast-dismiss-button"
@@ -184,6 +171,7 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import {
+  AlertCircleOutline,
   CheckmarkCircleOutline,
   CloseOutline,
   WarningOutline,
@@ -194,8 +182,6 @@ import ConversationHeader from './components/ConversationHeader.vue'
 import ConversationTimelineView from './components/ConversationTimelineView.vue'
 import HomeDashboard from './components/HomeDashboard.vue'
 import OnboardingDialog from './components/OnboardingDialog.vue'
-import PixelBlast from './components/PixelBlast.vue'
-import WavePhysicsLoader from './components/WavePhysicsLoader.vue'
 import RunTracePanel from './components/RunTracePanel.vue'
 import SystemSettingsView from './components/SystemSettingsView.vue'
 import WorkspaceModalContent from './components/WorkspaceModalContent.vue'
@@ -281,9 +267,12 @@ const {
   copyToastMessage,
   dismissToast,
   notify,
+  pauseToast,
+  resumeToast,
   showCopyToast,
   showError,
   toastMessage,
+  toastTone,
 } = useAppNotifications()
 const collapsedGroupMenuController = useCollapsedGroupMenu({ sidebarCollapsed, shortcutMenuOpen })
 const {
@@ -340,7 +329,9 @@ const {
   productAppIcon,
   productMark,
   productWordmark,
+  setThemePreference,
   theme,
+  themePreference,
   toggleLocale,
   toggleTheme,
 } = useAppPreferences()
@@ -507,6 +498,16 @@ const {
 const pendingHumanGates = computed(() => (
   snapshot.value.humanGates.filter(gate => gate.status === 'pending')
 ))
+// Conversations whose run is paused on a decision only the user can make.
+const awaitingDecisionGates = computed(() => pendingHumanGates.value.map((gate) => {
+  const groupId = snapshot.value.runs.find(run => run.runId === gate.runId)?.groupId || ''
+  const group = snapshot.value.groups.find(item => item.id === groupId)
+  return group ? { ...gate, groupId, groupName: groupName(group) } : null
+}).filter(Boolean))
+const awaitingDecisionGroupIds = computed(() => new Set(awaitingDecisionGates.value.map(gate => gate.groupId)))
+function isGroupAwaitingDecision(id) {
+  return awaitingDecisionGroupIds.value.has(id)
+}
 const activeRunHumanGates = computed(() => (
   activeRun.value
     ? pendingHumanGates.value.filter(gate => gate.runId === activeRun.value.runId)
@@ -584,8 +585,10 @@ const {
   snapshot,
 })
 const { messageDeleteArmedId } = messageActions
+// Agent discovery no longer blocks the window: history is local and usable at
+// once, and the sidebar, home and composer each show that detection is running.
 const contentInteractionBlocked = computed(() => (
-  blockingOverlayOpen.value || traceDrawerBlocking.value || agentDiscoveryPending.value
+  blockingOverlayOpen.value || traceDrawerBlocking.value
 ))
 const composerContext = useComposerContext({
   activeGroup,
@@ -625,11 +628,14 @@ const {
   discussionMode,
   disposeComposerContext,
   draft,
+  pruneComposerDrafts,
   resetComposerContext,
   restoreComposerContext,
+  restoreComposerDraft,
   scheduleComposerResize,
   serializeComposerContext,
   skillMenuOpen,
+  stashComposerDraft,
 } = composerContext
 const composerTargetsReady = computed(() => (
   composerTargetKinds.value.length > 0
@@ -851,6 +857,7 @@ const {
     confirmUnlimitedRounds,
     contentInteractionBlocked,
     customAgentDeleteArmed,
+    discoveringAgents: agentDiscoveryPending,
     focusedAgentKind,
     formError,
     goHome,
@@ -858,6 +865,7 @@ const {
     handleSidebarAgentMain,
     installConfirmKind,
     installerState,
+    isGroupAwaitingDecision,
     isGroupRunning,
     modal,
     openAgentManager,
@@ -868,6 +876,7 @@ const {
     selectGroup,
     selectedGroupId,
     selectSystemSettingsSection,
+    setThemePreference,
     sidebarAgentsCollapsed,
     sidebarGroupsCollapsed,
     sidebarCollapsed,
@@ -876,6 +885,7 @@ const {
     systemSettingsSection,
     t,
     theme,
+    themePreference,
     toggleLocale,
     toggleTheme,
   },
@@ -1056,9 +1066,16 @@ watch(activeGroupMemberSignature, (value, previous) => {
   messageDeleteArmedId.value = ''
   clearActiveTurn()
   roundSettingsOpen.value = false
+  stashComposerDraft(previousGroupId)
   resetComposerContext(group)
+  restoreComposerDraft(currentGroupId)
+  pruneComposerDrafts(snapshot.value.groups.map(item => item.id))
   composerAttachments.value = []
   void discardAttachments(abandonedAttachments)
+})
+// A deleted conversation takes its unsent text with it.
+watch(() => snapshot.value.groups.map(group => group.id).join('\u0000'), () => {
+  pruneComposerDrafts(snapshot.value.groups.map(group => group.id))
 })
 watch(activeRun, (value) => {
   if (!value) return

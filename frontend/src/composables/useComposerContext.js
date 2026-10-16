@@ -248,6 +248,29 @@ export function useComposerContext({
     automaticTeamFormation.value = context?.automaticTeamFormation === true
   }
 
+  // Unsent text is kept per conversation while the app is open, so a quick look
+  // at another conversation (or saving this one's settings) does not cost what
+  // was typed. Attachments and mentions are still reset: they are tied to the
+  // conversation's members and to files staged for it.
+  const draftsByGroupId = new Map()
+
+  function stashComposerDraft(groupId) {
+    const id = String(groupId || '')
+    if (!id) return
+    if (draft.value.trim()) draftsByGroupId.set(id, draft.value)
+    else draftsByGroupId.delete(id)
+  }
+
+  function restoreComposerDraft(groupId) {
+    const text = draftsByGroupId.get(String(groupId || ''))
+    if (text) draft.value = text
+  }
+
+  function pruneComposerDrafts(groupIds) {
+    const live = new Set((Array.isArray(groupIds) ? groupIds : []).map(String))
+    for (const id of draftsByGroupId.keys()) if (!live.has(id)) draftsByGroupId.delete(id)
+  }
+
   function resetComposerContext(group) {
     discussionMode.value = group?.conversationType === 'direct' ? 'manual' : 'auto'
     automaticTeamFormation.value = false
@@ -308,11 +331,13 @@ export function useComposerContext({
     isComposerTargetSelected,
     manualModeLabel,
     openSkillMenu,
+    pruneComposerDrafts,
     removeAgentMention,
     removeKnowledgeBase,
     removeSkill,
     resetComposerContext,
     restoreComposerContext,
+    restoreComposerDraft,
     scheduleComposerResize,
     selectComposerMenuOption,
     selectedAgentKinds,
@@ -323,6 +348,7 @@ export function useComposerContext({
     skillActiveIndex,
     skillMenuOpen,
     skillsLoading,
+    stashComposerDraft,
     targetKinds,
     toggleTarget,
     toggleAutomaticTeamFormation,

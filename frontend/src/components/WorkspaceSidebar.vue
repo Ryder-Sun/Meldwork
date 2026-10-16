@@ -50,11 +50,21 @@
           @click="sidebarAgentsCollapsed = !sidebarAgentsCollapsed"
         >
           <span>{{ t('nav.sidebarAgents') }}</span>
+          <small v-if="sidebarAgentsCollapsed" class="nav-heading-count">{{ sidebarAgentCount }}</small>
         </button>
         <div v-if="!sidebarAgentsCollapsed" id="sidebar-agent-list">
+          <div v-if="discoveringAgents && !sidebarAgentGroups.length" class="sidebar-discovery" role="status">
+            <span v-for="index in 3" :key="index" class="sidebar-discovery-row" aria-hidden="true"><i /><b /></span>
+            <p>{{ t('onboarding.detecting') }}</p>
+          </div>
           <div v-for="agentGroup in sidebarAgentGroups" :key="agentGroup.id" class="sidebar-agent-location-group">
             <p class="sidebar-agent-location-heading">{{ t(agentGroup.titleKey) }}</p>
-            <article v-for="agent in agentGroup.agents" :key="agent.kind" class="sidebar-agent">
+            <article
+              v-for="agent in agentGroup.agents"
+              :key="agent.kind"
+              class="sidebar-agent"
+              :class="{ unavailable: !agent.ready }"
+            >
             <header class="sidebar-agent-header">
               <button
                 class="sidebar-agent-main"
@@ -68,10 +78,15 @@
                 <span class="agent-logo-cloud" :class="{ cloud: agent.cloud }">
                   <img :src="agent.logo" :alt="agent.label" />
                   <CloudOutline v-if="agent.cloud" aria-hidden="true" />
+                  <span
+                    v-if="agentAwaitingDecision(agent.kind)"
+                    class="attention-dot agent-attention-dot"
+                    :title="t('humanGate.waiting')"
+                  />
                 </span>
                 <span>
                   <strong>{{ agent.label }}</strong>
-                  <small>
+                  <small :data-tone="agent.ready ? undefined : agentState(agent).tone">
                     {{ !agent.ready ? agentState(agent).label : directGroupsFor(agent.kind).length
                       ? t('nav.agentSessions', { count: directGroupsFor(agent.kind).length })
                       : t('nav.noAgentSessions') }}
@@ -110,7 +125,16 @@
                   <span>{{ groupName(group) }}</span>
                 </button>
                 <span
-                  v-if="isGroupRunning(group.id) && !isSelectedConversation(group)"
+                  v-if="isGroupAwaitingDecision(group.id) && !isSelectedConversation(group)"
+                  class="attention-mark"
+                  role="img"
+                  :title="t('humanGate.waiting')"
+                  :aria-label="t('humanGate.waiting')"
+                >
+                  <span class="attention-dot" />
+                </span>
+                <span
+                  v-else-if="isGroupRunning(group.id) && !isSelectedConversation(group)"
                   class="run-mark"
                   :title="t('conversation.runningGeneric')"
                 >
@@ -169,7 +193,7 @@
             </article>
           </div>
         </div>
-        <p v-if="!sidebarAgentGroups.length && !sidebarAgentsCollapsed" class="nav-empty">{{ t('nav.noSidebarAgents') }}</p>
+        <p v-if="!sidebarAgentGroups.length && !sidebarAgentsCollapsed && !discoveringAgents" class="nav-empty">{{ t('nav.noSidebarAgents') }}</p>
       </section>
 
       <section class="nav-section group-nav-section">
@@ -182,6 +206,7 @@
           @click="sidebarGroupsCollapsed = !sidebarGroupsCollapsed"
         >
           <span>{{ t('nav.groups') }}</span>
+          <small v-if="sidebarGroupsCollapsed" class="nav-heading-count">{{ groupGroups.length }}</small>
         </button>
         <div v-if="!sidebarGroupsCollapsed" id="sidebar-group-list">
           <div v-if="groupGroups.length" class="group-conversation-list">
@@ -203,11 +228,29 @@
                 </span>
                 <span>{{ groupName(group) }}</span>
                 <span
-                  v-if="isGroupRunning(group.id) && !isSelectedConversation(group)"
+                  v-if="isGroupAwaitingDecision(group.id) && !isSelectedConversation(group)"
+                  class="attention-mark"
+                  role="img"
+                  :title="t('humanGate.waiting')"
+                  :aria-label="t('humanGate.waiting')"
+                >
+                  <span class="attention-dot" />
+                </span>
+                <span
+                  v-else-if="isGroupRunning(group.id) && !isSelectedConversation(group)"
                   class="run-mark"
                   :title="t('conversation.runningGeneric')"
                 >
                   <span class="run-agent-bars" aria-hidden="true"><i /><i /><i /></span>
+                </span>
+                <span
+                  v-else-if="hasFinishedDirectRun(group.id) && !isSelectedConversation(group)"
+                  class="run-finished-mark"
+                  role="img"
+                  :title="t('nav.runFinished')"
+                  :aria-label="t('nav.runFinished')"
+                >
+                  <CheckmarkCircleOutline aria-hidden="true" />
                 </span>
               </button>
               <span v-if="!isGroupRunning(group.id) || isSelectedConversation(group)" class="group-conversation-actions">
@@ -270,9 +313,11 @@
         @click="toggleCollapsedGroupMenu"
       >
         <ChatbubblesOutline />
-        <span v-if="groupGroups.length" class="collapsed-group-count" aria-hidden="true">
-          {{ groupGroups.length > 99 ? '99+' : groupGroups.length }}
-        </span>
+        <span
+          v-if="groupGroups.some(group => isGroupAwaitingDecision(group.id))"
+          class="attention-dot collapsed-group-attention"
+          aria-hidden="true"
+        />
       </button>
     </div>
 
@@ -316,11 +361,29 @@
           </span>
           <span class="collapsed-group-option-state">
             <span
-              v-if="isGroupRunning(group.id) && !isSelectedConversation(group)"
+              v-if="isGroupAwaitingDecision(group.id) && !isSelectedConversation(group)"
+              class="attention-mark"
+              role="img"
+              :title="t('humanGate.waiting')"
+              :aria-label="t('humanGate.waiting')"
+            >
+              <span class="attention-dot" />
+            </span>
+            <span
+              v-else-if="isGroupRunning(group.id) && !isSelectedConversation(group)"
               class="run-mark"
               :title="t('conversation.runningGeneric')"
             >
               <span class="run-agent-bars" aria-hidden="true"><i /><i /><i /></span>
+            </span>
+            <span
+              v-else-if="hasFinishedDirectRun(group.id) && !isSelectedConversation(group)"
+              class="run-finished-mark"
+              role="img"
+              :title="t('nav.runFinished')"
+              :aria-label="t('nav.runFinished')"
+            >
+              <CheckmarkCircleOutline aria-hidden="true" />
             </span>
             <CheckmarkCircleOutline v-else-if="isSelectedConversation(group)" aria-hidden="true" />
             <time v-else>{{ formatNavTime(group.updatedAt || group.createdAt) }}</time>
@@ -355,7 +418,7 @@
 </template>
 
 <script setup>
-import { unref } from 'vue'
+import { computed, unref } from 'vue'
 import {
   AddOutline,
   ChatbubblesOutline,
@@ -384,6 +447,7 @@ const {
   createDirectSession,
   deleteSidebarConversation,
   directGroupsFor,
+  discoveringAgents,
   dismissSidebarDeleteConfirmation,
   formatNavTime,
   goHome,
@@ -397,6 +461,7 @@ const {
   hasMoreGroupGroups,
   isDirectCreationPending,
   isDirectSessionListExpanded,
+  isGroupAwaitingDecision,
   isGroupRunning,
   isSidebarAgentExpanded,
   openConversationRename,
@@ -426,5 +491,13 @@ const {
 
 function isSelectedConversation(group) {
   return unref(activeView) === 'conversation' && unref(selectedGroupId) === group.id
+}
+
+const sidebarAgentCount = computed(() => (
+  unref(sidebarAgentGroups).reduce((total, group) => total + group.agents.length, 0)
+))
+
+function agentAwaitingDecision(kind) {
+  return directGroupsFor(kind).some(group => isGroupAwaitingDecision(group.id))
 }
 </script>

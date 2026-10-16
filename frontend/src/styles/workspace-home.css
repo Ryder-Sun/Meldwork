@@ -42,7 +42,7 @@
 }
 
 .home-dashboard-header h1 {
-  font-size: 28px;
+  font-size: var(--text-3xl);
   line-height: 1.2;
 }
 
@@ -60,20 +60,131 @@
   gap: 7px;
   padding-bottom: 2px;
   color: var(--muted);
-  font-size: 11px;
-  font-weight: 650;
+  font-size: var(--text-xs);
+  font-weight: 600;
   white-space: nowrap;
 }
 
 .home-workspace-state svg {
   width: 15px;
   height: 15px;
-  color: var(--accent);
+  color: var(--success);
 }
 
 .home-workspace-state.attention,
 .home-workspace-state.attention svg {
-  color: var(--danger);
+  color: var(--warning);
+}
+
+.home-attention {
+  width: min(1080px, 100%);
+  margin: 0 auto;
+  padding: 4px 12px 10px;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--warning-soft) 70%, var(--workspace-surface));
+}
+
+.home-attention-header {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 4px;
+}
+
+.home-attention-header h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.home-attention-header small {
+  min-width: 20px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--warning);
+  color: var(--workspace-surface);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.home-attention-list {
+  display: grid;
+  gap: 2px;
+}
+
+.home-attention-item {
+  width: 100%;
+  min-width: 0;
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-soft);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-standard);
+}
+
+.home-attention-item:hover,
+.home-attention-item:focus-visible {
+  background: color-mix(in srgb, var(--surface-raised) 72%, transparent);
+  color: var(--text);
+}
+
+.home-attention-item > img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+
+.home-attention-copy {
+  min-width: 0;
+}
+
+.home-attention-copy strong,
+.home-attention-copy small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-attention-copy strong {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.home-attention-copy small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.home-attention-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--warning);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.home-attention-action svg {
+  width: 14px;
+  height: 14px;
 }
 
 .home-recovery-notice {
@@ -85,13 +196,13 @@
   margin: 0 auto;
   padding: 12px 14px;
   border-radius: var(--radius);
-  background: color-mix(in srgb, var(--danger-soft) 58%, var(--bg));
+  background: color-mix(in srgb, var(--warning-soft) 70%, var(--workspace-surface));
 }
 
 .home-recovery-notice > svg {
   width: 19px;
   height: 19px;
-  color: var(--danger);
+  color: var(--warning);
 }
 
 .home-recovery-notice h2,
@@ -101,13 +212,13 @@
 
 .home-recovery-notice h2 {
   color: var(--text-soft);
-  font-size: 13px;
+  font-size: var(--text-md);
 }
 
 .home-recovery-notice p {
   margin-top: 3px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-sm);
   line-height: 1.45;
 }
 
@@ -145,13 +256,13 @@
 }
 
 .home-panel-header h2 {
-  font-size: 15px;
+  font-size: var(--text-lg);
 }
 
 .home-panel-header p {
   margin-top: 4px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-sm);
   line-height: 1.45;
 }
 
@@ -225,14 +336,14 @@
 
 .home-recent-copy strong,
 .home-agent-item strong {
-  font-size: 12px;
+  font-size: var(--text-md);
 }
 
 .home-recent-copy small,
 .home-agent-item small {
   margin-top: 3px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 
 .home-recent-item > svg {
@@ -283,7 +394,7 @@
 .home-panel-empty p {
   max-width: 300px;
   margin: 0;
-  font-size: 12px;
+  font-size: var(--text-sm);
   line-height: 1.5;
 }
 

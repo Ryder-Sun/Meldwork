@@ -21,6 +21,7 @@ export function createWorkspaceControllers({
     createDirectSession: conversationActions.createDirectSession,
     deleteSidebarConversation: conversationActions.deleteSidebarConversation,
     directGroupsFor: conversationNavigation.directGroupsFor,
+    discoveringAgents: app.discoveringAgents,
     dismissSidebarDeleteConfirmation: conversationActions.dismissSidebarDeleteConfirmation,
     formatNavTime: conversationNavigation.formatNavTime,
     goHome: app.goHome,
@@ -34,6 +35,7 @@ export function createWorkspaceControllers({
     hasMoreGroupGroups: conversationNavigation.hasMoreGroupGroups,
     isDirectCreationPending: conversationNavigation.isDirectCreationPending,
     isDirectSessionListExpanded: conversationNavigation.isDirectSessionListExpanded,
+    isGroupAwaitingDecision: app.isGroupAwaitingDecision,
     isGroupRunning: app.isGroupRunning,
     isSidebarAgentExpanded: conversationNavigation.isSidebarAgentExpanded,
     openConversationRename: conversationActions.openConversationRename,
@@ -67,6 +69,7 @@ export function createWorkspaceControllers({
     agentImageLabel: agentCatalog.agentImageLabel,
     agentSkillLabel: agentSkills.agentSkillLabel,
     agentState: agentCatalog.agentState,
+    agentStateNote: agentCatalog.agentStateNote,
     cancelInstall: agentManagement.cancelInstall,
     cloudAgentBridges: app.cloudAgentBridges,
     focusedAgentKind: app.focusedAgentKind,
@@ -96,8 +99,10 @@ export function createWorkspaceControllers({
     requestInstall: agentManagement.requestInstall,
     runKnowledgeBasePrimaryAction: knowledgeBase.runKnowledgeBasePrimaryAction,
     selectSystemSettingsSection: app.selectSystemSettingsSection,
+    setThemePreference: app.setThemePreference,
     systemSettingsSection: app.systemSettingsSection,
     t: app.t,
+    themePreference: app.themePreference,
   }
 
   const workspaceModalController = {

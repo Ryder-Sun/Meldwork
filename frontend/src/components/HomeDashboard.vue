@@ -5,12 +5,48 @@
         <h1>{{ t('home.dashboardTitle') }}</h1>
         <p>{{ t('home.dashboardSubtitle') }}</p>
       </div>
-      <div class="home-workspace-state" :class="{ attention: homeNeedsAttention }" role="status">
-        <WarningOutline v-if="homeNeedsAttention" />
+      <div
+        class="home-workspace-state"
+        :class="{ attention: homeNeedsAttention, discovering }"
+        role="status"
+      >
+        <RefreshOutline v-if="discovering" class="spinning" />
+        <WarningOutline v-else-if="homeNeedsAttention" />
         <CheckmarkCircleOutline v-else />
         <span>{{ homeWorkspaceSummary }}</span>
       </div>
     </header>
+
+    <section
+      v-if="awaitingDecisionGates.length"
+      class="home-attention"
+      aria-labelledby="home-attention-title"
+    >
+      <header class="home-attention-header">
+        <span class="attention-dot" aria-hidden="true" />
+        <h2 id="home-attention-title">{{ t('home.attentionTitle') }}</h2>
+        <small>{{ awaitingDecisionGates.length }}</small>
+      </header>
+      <div class="home-attention-list">
+        <button
+          v-for="gate in awaitingDecisionGates"
+          :key="gate.gateId"
+          class="home-attention-item"
+          type="button"
+          @click="$emit('select-group', gate.groupId)"
+        >
+          <img :src="agentLogo(gate.agentKind, theme)" alt="" />
+          <span class="home-attention-copy">
+            <strong>{{ t('home.attentionItem', { agent: agentLabel(gate.agentKind), type: t(`humanGate.type.${gate.type}`) }) }}</strong>
+            <small>{{ gate.groupName }}</small>
+          </span>
+          <span class="home-attention-action">
+            {{ t('home.attentionOpen') }}
+            <ChevronForwardOutline aria-hidden="true" />
+          </span>
+        </button>
+      </div>
+    </section>
 
     <section v-if="showRecoveryGuide" class="home-recovery-notice" aria-live="polite">
       <WarningOutline />
@@ -48,8 +84,17 @@
               <strong>{{ groupName(group) }}</strong>
               <small>{{ recentGroupMeta(group) }}</small>
             </span>
-            <span v-if="isGroupRunning(group.id)" class="run-mark" :title="t('conversation.runningGeneric')">
-              <span class="run-pulse" />
+            <span
+              v-if="isGroupAwaitingDecision(group.id)"
+              class="attention-mark"
+              role="img"
+              :title="t('humanGate.waiting')"
+              :aria-label="t('humanGate.waiting')"
+            >
+              <span class="attention-dot" />
+            </span>
+            <span v-else-if="isGroupRunning(group.id)" class="run-mark" :title="t('conversation.runningGeneric')">
+              <span class="run-agent-bars" aria-hidden="true"><i /><i /><i /></span>
             </span>
             <ChevronForwardOutline />
           </button>
@@ -61,7 +106,8 @@
             v-if="homeMode === 'first-task'"
             class="primary-button compact"
             type="button"
-            :disabled="readyCount < 2"
+            :disabled="readyCount < 1"
+            :title="readyCount < 1 ? t('home.noReadyAgents') : undefined"
             @click="$emit('open-new-group')"
           >
             <AddOutline />
@@ -80,7 +126,8 @@
             v-if="homeMode !== 'first-task'"
             class="secondary-button compact home-new-group-button"
             type="button"
-            :disabled="readyCount < 2"
+            :disabled="readyCount < 1"
+            :title="readyCount < 1 ? t('home.noReadyAgents') : undefined"
             @click="$emit('open-new-group')"
           >
             <AddOutline />
@@ -104,8 +151,9 @@
           </button>
         </div>
         <div v-else class="home-panel-empty">
-          <TerminalOutline />
-          <p>{{ t('home.noReadyAgents') }}</p>
+          <RefreshOutline v-if="discovering" class="spinning" />
+          <TerminalOutline v-else />
+          <p>{{ discovering ? t('onboarding.detecting') : t('home.noReadyAgents') }}</p>
         </div>
       </section>
     </div>
@@ -161,14 +209,17 @@ import {
   TerminalOutline,
   WarningOutline,
 } from '@vicons/ionicons5'
-import { agentLogo } from '../catalog.js'
+import { agentLabel, agentLogo } from '../catalog.js'
 import { t } from '../i18n.js'
 
 const props = defineProps({
   agentDescription: { type: Function, required: true },
+  awaitingDecisionGates: { type: Array, default: () => [] },
+  discovering: { type: Boolean, default: false },
   groupName: { type: Function, required: true },
   groups: { type: Array, required: true },
   installedCount: { type: Number, required: true },
+  isGroupAwaitingDecision: { type: Function, default: () => false },
   isGroupRunning: { type: Function, required: true },
   onboardingCompleted: { type: Boolean, required: true },
   readyAgents: { type: Array, required: true },
@@ -195,13 +246,19 @@ const homeMode = computed(() => {
   if (props.groups.length) return 'workspace'
   return readyCount.value > 0 ? 'first-task' : 'setup'
 })
-const homeNeedsAttention = computed(() => readyCount.value === 0)
-const showSetupGuide = computed(() => props.onboardingCompleted && homeMode.value === 'setup')
+// While the first detection runs there is no Agent data yet; that is not a
+// setup problem, so no warning or setup guide until it finishes.
+const homeNeedsAttention = computed(() => !props.discovering && readyCount.value === 0)
+const showSetupGuide = computed(() => (
+  props.onboardingCompleted && homeMode.value === 'setup' && !props.discovering
+))
 const showRecoveryGuide = computed(() => (
   props.onboardingCompleted && homeMode.value === 'workspace' && homeNeedsAttention.value
 ))
 const homeWorkspaceSummary = computed(() => (
-  homeNeedsAttention.value
+  props.discovering
+    ? t('onboarding.detecting')
+    : homeNeedsAttention.value
     ? t('home.setupNeeded')
     : t('home.workspaceSummary', {
         agents: readyCount.value,

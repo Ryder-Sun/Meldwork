@@ -8,7 +8,11 @@
           <span class="preference-icon-frame"><LanguageOutline /></span>
         </button>
         <button class="icon-button" type="button" :title="theme === 'dark' ? t('common.themeLight') : t('common.themeDark')" :aria-label="theme === 'dark' ? t('common.themeLight') : t('common.themeDark')" @click="toggleTheme">
-          <span class="preference-icon-frame"><SunnyOutline v-if="theme === 'dark'" /><MoonOutline v-else /></span>
+          <span class="preference-icon-frame">
+            <Transition name="preference-icon">
+              <span :key="theme" class="preference-icon"><SunnyOutline v-if="theme === 'dark'" /><MoonOutline v-else /></span>
+            </Transition>
+          </span>
         </button>
         </div>
       <div

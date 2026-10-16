@@ -86,7 +86,6 @@ export function useRunFinishedNotifications({
       pendingEvents.delete(key)
     }
     clearFinishedRun(normalizedEvent)
-    if (group.conversationType !== 'direct') return
     if (normalizedEvent.status !== 'completed') {
       if (hasFinishedDirectRun(groupId)) setFinishedDirectRun(groupId, false)
       return

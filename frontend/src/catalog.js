@@ -23,7 +23,12 @@ export const AGENTS = Object.freeze([
   { kind: 'qwen', label: 'Qwen Code', logo: publicAsset('agent-logos/qwen.svg'), imageLimit: 0, attachmentTypes: ['file'] },
 ])
 
-const BY_KIND = new Map(AGENTS.map(agent => [agent.kind, agent]))
+// Detected and runnable, but not in AGENTS: listing it there would show a "Not installed" card to everyone.
+const DETECTED_ONLY_AGENTS = Object.freeze([
+  { kind: 'gemini', label: 'Gemini CLI', logo: publicAsset('agent-logos/gemini.svg') },
+])
+
+const BY_KIND = new Map([...AGENTS, ...DETECTED_ONLY_AGENTS].map(agent => [agent.kind, agent]))
 const CUSTOM_BY_KIND = new Map()
 const CLOUD_BY_KIND = new Map()
 const CUSTOM_AGENT_KIND = /^custom-[a-f0-9]{16}$/
