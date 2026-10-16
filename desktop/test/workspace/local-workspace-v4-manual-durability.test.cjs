@@ -550,13 +550,13 @@ test('Manual V4 recovery safely invokes a queued writer that never acquired a le
     const slot = crashRecord.orchestration.slots.find(item => item.agentKind === call.kind)
     assert.equal(call.operationId, slot.operationId)
     assert.equal(call.sandbox, call.kind === writerKind ? 'workspace-write' : 'read-only')
-    assert.match(call.prompt, /structured receipt marker\.\nReceipt JSON shape:/)
-    if (call.kind === writerKind) {
-      assert.match(call.prompt, /only Agent in this batch with workspace-write permission/)
-      assert.doesNotMatch(call.prompt, /Do not modify shared workspace state during proposal/)
-    } else {
-      assert.match(call.prompt, /Do not modify shared workspace state during proposal/)
-    }
+    assert.match(call.prompt, /Recover a writer that crashed while still queued\./)
+    assert.match(
+      call.prompt,
+      call.kind === writerKind ? /may change files for this message/ : /This reply is read-only/,
+    )
+    // Only the writer is told it may change files; every peer stays read-only.
+    assert.equal(/This reply is read-only/.test(call.prompt), call.kind !== writerKind)
   }
   assert.deepEqual(final.orchestration.commitState.committedKinds, [
     'codex', 'workbuddy', 'hermes',

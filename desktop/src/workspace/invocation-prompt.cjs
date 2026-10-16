@@ -21,7 +21,11 @@ function assembleInvocationPrompt({
   group, kind, mode, threadRootId, context, activeRun, isolated, frozen,
   v4Prompt, promptMode, afterKind, packed, session, stagedInputs, promptFor, agentLabel,
 }) {
-  if (isolated || frozen) return v4Prompt
+  // Frozen and isolated prompts are fixed text. Staged attachments are the
+  // only thing added to a frozen one, so the Agent can open the user's files.
+  if (isolated || frozen) {
+    return [v4Prompt, stagedAgentInputPrompt(stagedInputs)].filter(Boolean).join('\n\n')
+  }
   const runtimeInstruction = cleanText(context.runtimeInstruction, 3000)
   const regenerationInstruction = cleanText(context.regenerationInstruction, 3000)
   const additions = [

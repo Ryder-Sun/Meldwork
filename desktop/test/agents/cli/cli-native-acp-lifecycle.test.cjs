@@ -239,7 +239,7 @@ input.on('line', (line) => {
   const message = JSON.parse(line)
   const sessionId = message.params?.sessionId || 'hermes-resilient-session'
   if (message.method === 'initialize') {
-    if (process.env.MELDWORK_TEST_HANG_FIRST_INIT === '1' && spawnCount === 1) return
+    if (process.env.MELDWORK_TEST_HANG_INIT === '1') return
     send({ jsonrpc: '2.0', id: message.id, result: { protocolVersion: 1 } })
   } else if (message.method === 'session/new') {
     send({ jsonrpc: '2.0', id: message.id, result: { sessionId } })
@@ -274,18 +274,22 @@ test('a hanging ACP initialize times out and releases the conversation lock', as
     fs.rmSync(directory, { recursive: true, force: true })
   })
   const agent = { kind: 'hermes', executable: resilientHermes(directory), name: 'Hermes' }
-  const env = { MELDWORK_TEST_SPAWN_COUNT_FILE: spawnCountFile, MELDWORK_TEST_HANG_FIRST_INIT: '1' }
+  const env = { MELDWORK_TEST_SPAWN_COUNT_FILE: spawnCountFile }
   const first = await within(adapters.runAgent(agent, 'first prompt', directory, {
-    acpPersistenceKey: 'workspace:hermes:init-timeout', acpInitializeTimeoutMs: 300, env,
+    acpPersistenceKey: 'workspace:hermes:init-timeout',
+    acpInitializeTimeoutMs: 300,
+    env: { ...env, MELDWORK_TEST_HANG_INIT: '1' },
   }), 5000)
   // The stuck initialize no longer blocks: the turn falls back instead of hanging.
   assert.equal(first.text, 'legacy fallback')
-  // Only the first process hangs; the next turn on the same conversation key
-  // is not blocked by a lock left behind and gets a healthy ACP process.
+  // Only that process hangs (the flag is per call, not per spawn count: under
+  // load the 300 ms timeout can kill it before it records anything); the next
+  // turn on the same conversation key is not blocked by a lock left behind
+  // and gets a healthy ACP process.
   const second = await within(adapters.runAgent(agent, 'second prompt', directory, {
     acpPersistenceKey: 'workspace:hermes:init-timeout', env,
   }), 10000)
-  assert.equal(second.text, 'acp answer 2')
+  assert.match(second.text, /^acp answer \d+$/)
 })
 
 test('a stopped ACP turn keeps the persistent process and its session when cancel is honoured', async (t) => {

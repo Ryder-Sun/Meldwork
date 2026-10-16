@@ -771,7 +771,10 @@ class LocalWorkspaceAgentInvocation {
         0,
         Math.floor(Number(this.attachmentSupport(kind)?.image) || 0),
       )
-      stagedInputs = isolated || frozen
+      // Frozen prompts are fixed text, but the user's attachments still have
+      // to reach the Agent; only isolated invocations see nothing but their
+      // approved prompt.
+      stagedInputs = isolated
         ? null
         : stageAgentInputs(group.workdir, context.attachmentSnapshots || [], nativeImageLimit)
       const buildPrompt = (afterKind, contextPackage) => assembleInvocationPrompt({
@@ -806,9 +809,9 @@ class LocalWorkspaceAgentInvocation {
           mode: group.conversationType === 'direct' ? 'direct' : mode,
           kind,
           packedContext: deliveredContext,
-          attachments: isolated || frozen ? [] : (context.attachmentSnapshots || []),
+          attachments: isolated ? [] : (context.attachmentSnapshots || []),
           skillHints: isolated || frozen ? [] : (context.skillHints || []),
-          knowledgeBaseHints: isolated || frozen ? [] : (context.knowledgeBaseHints || []),
+          knowledgeBaseHints: isolated ? [] : (context.knowledgeBaseHints || []),
           // The prompt is context-budgeted, so delivery verification must use
           // the exact prompt scheduled for this Agent rather than the raw turn.
           // Verify against the prompt actually reported by the transport. This
@@ -989,7 +992,7 @@ class LocalWorkspaceAgentInvocation {
         ...(kind === 'workbuddy' && Number.isInteger(context.maxInternalTurns)
           ? { maxTurns: context.maxInternalTurns }
           : {}),
-        attachments: isolated || frozen ? [] : (stagedInputs?.nativeImagePaths || []),
+        attachments: isolated ? [] : (stagedInputs?.nativeImagePaths || []),
         // ACP runtimes are shared by the stable group/task session key. OpenClaw
         // is excluded because its gateway wrapper owns the process lifetime and
         // is intentionally torn down after each invocation.

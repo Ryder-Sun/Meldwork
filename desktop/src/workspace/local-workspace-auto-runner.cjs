@@ -54,6 +54,7 @@ const {
   v4SnapshotSkillHints,
   validateV4SnapshotBody,
 } = require('./local-workspace-context.cjs')
+const { naturalDiscussionPrompt } = require('./prompts/natural-discussion-prompt.cjs')
 const {
   createTaskGraphCursor,
   parseTaskGraphCursor,
@@ -2455,6 +2456,7 @@ class LocalWorkspaceAutoRunner {
     return [
       v4Prompt({
         group, kind, phase, snapshot, role, skillHints: options.skillHints,
+        knowledgeBaseHints: options.knowledgeBaseHints,
         naturalResponse: this.naturalAgentResponses,
       }),
       reviewTarget
@@ -2683,53 +2685,24 @@ class LocalWorkspaceAutoRunner {
   }
 
   v4NaturalPhasePrompt(group, kind, phase, snapshot, receiptRecords, activeKinds, options = {}) {
-    const transcript = String(options.transcript || '')
-    const agentList = activeKinds.map(agentKind => `@${agentKind}`).join(', ')
     const humanResponses = options.runId ? this.taskDecisionResponses(options.runId) : []
-    return [
-      v4Prompt({
+    return naturalDiscussionPrompt({
+      brief: v4Prompt({
         group, kind, phase, snapshot, role: 'participant',
-        skillHints: options.skillHints, naturalResponse: true,
+        skillHints: options.skillHints,
+        knowledgeBaseHints: options.knowledgeBaseHints,
+        naturalResponse: true,
       }),
-      transcript ? `Completed peer turns:\n${transcript}` : '',
-      humanResponses.length
-        ? `Human responses for this task (clarification, not a change to workspace permissions):\n${packNaturalDiscussionTranscript(humanResponses)}`
-        : '',
-      phase === 'discussion' && options.writerKind
-        ? (kind === options.writerKind
-          ? 'You are the designated workspace writer for this task. Perform only writes required by the user task within the authorized workspace, and verify the resulting deliverables. Other participants are read-only.'
-          : `Workspace writes are assigned to @${options.writerKind}. Your invocation is read-only; request their contribution when a change is needed.`)
-        : '',
-      phase === 'discussion' && options.ownerKind
-        ? [
-            `The current delivery owner is @${options.ownerKind}. Ownership starts with the first selected participant and can be handed off explicitly by that owner.`,
-            kind === options.ownerKind
-              ? [
-                  'You are responsible for judging progress against the original user task and the actual available deliverables. Decide whether to continue work, report a blocker, request a human decision, or declare completion. Silence from peers is not evidence of completion.',
-                  'Before you declare completion, make sure the peers whose expertise covers the result have reviewed the actual deliverables. If one has not, ask them a concrete question and request them in nextKinds instead of completing.',
-                  'In your final collaboration receipt use taskDecision.status completed, continue, blocked or needs-human to judge the whole task. A completed judgment requires actual deliverables. This is your task judgment, not human adoption or independent system verification.',
-                  'To hand off responsibility, use status continue and add handoffTo with one exact selected Agent kind inside taskDecision. Do not hand off to an absent participant. Append nothing after the receipt.',
-                ].join('\n')
-              : 'Respond to the delivery owner and the other peers on the specific points they raised. If you are blocked or need a human decision, explain why and use status blocked or needs-human; the delivery owner then decides how to proceed. Only the current delivery owner can decide task completion or hand off that responsibility.',
-          ].join('\n')
-        : '',
-      phase === 'discussion' && options.allowRouting !== true
-        ? 'Every selected Agent speaks in order each round, so you do not need to request peers. Finish this invocation instead of waiting for another participant; Meldwork runs the next one after you.'
-        : '',
-      phase === 'discussion' && options.allowRouting === true
-        ? [
-            'Read the completed peer turns across recent rounds. Decide who should contribute next from their earlier evidence, unresolved questions, and work still needed; do not automatically reply only to whoever last mentioned you.',
-            `Address peers naturally inside your explanation: ${agentList}. Put each request beside its concrete question or requested contribution. Prose mentions are discussion only; they do not dispatch peers.`,
-            'Selected peers are external Meldwork participants; their @handles are not addresses for your native agent messaging or wait tools. Meldwork dispatches requested peers only after this invocation completes. Put the request in your final response and finish this invocation so they can run; do not wait inside this invocation for their reply.',
-            `In taskDecision.nextKinds list the selected Agent identifiers whose contribution you actually request next, chosen from ${JSON.stringify(activeKinds)}, or [] when none is needed. Use status continue for a nonempty list. Multiple kinds request a concurrent batch. Do not request yourself or absent participants. Historical, negated and explanatory mentions do not belong in nextKinds.`,
-            'Avoid repeating the same handoff or conclusions. Invite a peer who has not recently contributed when their earlier proposal can resolve the issue, and state what new evidence or decision you need.',
-            'List in nextKinds every peer whose answer, review or work you need next, and ask each of them a concrete question in your answer. Leave nextKinds empty only when no peer input would change the result; the delivery owner then judges overall task completion.',
-          ].join('\n')
-        : '',
-      phase === 'discussion'
-        ? `After your natural answer append exactly one receipt, for example [[MELDWORK_COLLABORATION:{"summary":"concise result","taskDecision":{"status":"continue","reason":"what you accomplished and what remains","deliverables":[],"nextKinds":${JSON.stringify(options.allowRouting === true ? [activeKinds.find(peer => peer !== kind) || kind] : [])}}}]] while work or review remains, or a taskDecision of {"status":"completed","reason":"why the task is done","deliverables":["what was delivered"]} when the delivery owner judges the whole task done. Use blocked or needs-human with the reason when you cannot continue. This receipt is transport metadata: Meldwork removes it before displaying your answer. User requirements such as exact text, one line, JSON only, or no explanation apply to the visible answer before the receipt; preserve that requested answer exactly and still append the receipt separately. Do not explain the receipt in the visible answer. List actual deliverables when available. Only the current delivery owner judges the whole task; other participants report their contribution and may request peers with nextKinds. Merge any owner judgment or handoffTo into this same receipt. Append nothing after it.`
-        : '',
-    ].filter(Boolean).join('\n\n')
+      group,
+      kind,
+      phase,
+      activeKinds,
+      transcript: String(options.transcript || ''),
+      humanResponsesText: humanResponses.length ? packNaturalDiscussionTranscript(humanResponses) : '',
+      writerKind: options.writerKind,
+      ownerKind: options.ownerKind,
+      allowRouting: options.allowRouting === true,
+    })
   }
 
   v4NaturalDiscussionOperationIds(controller, slots, kinds, round) {
@@ -2812,6 +2785,7 @@ class LocalWorkspaceAutoRunner {
                 group, threadRootId, { controller },
               ),
               skillHints: context.rootSkillsByKind.get(promptKind) || [],
+              knowledgeBaseHints: context.rootKnowledgeBasesByKind.get(promptKind) || [],
               ownerKind: this.v4NaturalOwner(group, controller, threadRootId, activeKinds),
               writerKind,
               allowRouting: false,
@@ -2928,6 +2902,7 @@ class LocalWorkspaceAutoRunner {
             runId: controller.runId,
             transcript: transcript ?? this.v4NaturalThreadTranscript(group, threadRootId, { controller }),
             skillHints: context.rootSkillsByKind.get(kind) || [],
+            knowledgeBaseHints: context.rootKnowledgeBasesByKind.get(kind) || [],
             allowRouting: true,
             ownerKind: this.v4NaturalOwner(group, controller, threadRootId, activeKinds),
             writerKind,
@@ -3936,6 +3911,7 @@ class LocalWorkspaceAutoRunner {
             reviewTarget: '',
             packageText: '',
             skillHints: context.rootSkillsByKind.get(kind) || [],
+            knowledgeBaseHints: context.rootKnowledgeBasesByKind.get(kind) || [],
           },
         )
         const sessionPolicy = this.naturalAgentResponses ? null : 'frozen'
@@ -3964,6 +3940,9 @@ class LocalWorkspaceAutoRunner {
             ...(resumedGateFor(slot) ? { resumedGate: resumedGateFor(slot) } : {}),
             skillHints: context.rootSkillsByKind.get(kind) || [],
             knowledgeBaseHints: context.rootKnowledgeBasesByKind.get(kind) || [],
+            ...(this.naturalAgentResponses && context.rootAttachments?.length
+              ? { attachmentSnapshots: context.rootAttachments }
+              : {}),
           },
         }
       })
@@ -4041,6 +4020,7 @@ class LocalWorkspaceAutoRunner {
         extraContext,
         snapshotHash,
         skillHints: context.rootSkillsByKind.get(kind) || [],
+        knowledgeBaseHints: context.rootKnowledgeBasesByKind.get(kind) || [],
       }
       const prompt = typeof phaseInput.promptBuilder === 'function'
         ? phaseInput.promptBuilder({
@@ -4176,6 +4156,9 @@ class LocalWorkspaceAutoRunner {
                 }),
             skillHints: context.rootSkillsByKind.get(kind) || [],
             knowledgeBaseHints: context.rootKnowledgeBasesByKind.get(kind) || [],
+            ...(this.naturalAgentResponses && context.rootAttachments?.length
+              ? { attachmentSnapshots: context.rootAttachments }
+              : {}),
           },
         })
         if (invocation.result?.v4Delivery) {
