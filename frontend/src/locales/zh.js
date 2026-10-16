@@ -421,6 +421,7 @@ export default {
     'composer.autoTarget': '{agent} 参与自动讨论',
     'composer.autoNeedsMessage': '请先发送讨论主题，再开始自动讨论。',
     'composer.selectTarget': '请至少选择一个 Agent。',
+    'composer.skippedUnavailable': '已发送。当前不可用的 Agent 已被跳过：{agents}。',
     'composer.messageRequired': '请输入消息。',
     'composer.skills': '技能',
     'composer.mentions': 'Agent、技能与知识库',

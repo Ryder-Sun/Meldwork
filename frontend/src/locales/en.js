@@ -421,6 +421,7 @@ export default {
     'composer.autoTarget': '{agent} participates in automatic discussion',
     'composer.autoNeedsMessage': 'Send a topic before starting an automatic discussion.',
     'composer.selectTarget': 'Select at least one Agent.',
+    'composer.skippedUnavailable': 'Sent. Skipped Agents that are currently unavailable: {agents}.',
     'composer.messageRequired': 'Enter a message.',
     'composer.skills': 'Skills',
     'composer.mentions': 'Agents, skills, and knowledge bases',
