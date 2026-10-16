@@ -559,21 +559,3 @@ test('legacy suspension still dispatches older queued same-task work while waiti
   assert.equal(dispatchedWhileWaiting, true)
   assert.equal(scheduler.snapshot().active.global, 0)
 })
-
-test('queued requests report waiting and granting; immediate grants stay silent', async () => {
-  const scheduler = new RunScheduler()
-  const events = []
-  const first = await scheduler.acquire({
-    taskId: 'task-1', workspaceKey: 'folder', permissionMode: 'workspace-write',
-    onQueued: () => events.push('first-queued'), onGranted: () => events.push('first-granted'),
-  })
-  const second = scheduler.acquire({
-    taskId: 'task-2', workspaceKey: 'folder', permissionMode: 'workspace-write',
-    onQueued: () => events.push('second-queued'), onGranted: () => events.push('second-granted'),
-  })
-  assert.deepEqual(events, ['second-queued'])
-  first.release()
-  const lease = await second
-  assert.deepEqual(events, ['second-queued', 'second-granted'])
-  lease.release()
-})

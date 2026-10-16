@@ -89,9 +89,6 @@ class RunScheduler {
     this.changeCount(this.activeWorkspaces, entry.workspaceKey, 1)
     if (entry.permissionMode === 'workspace-write') this.activeWorkspaceWriters.add(entry.workspaceKey)
     entry.signal?.removeEventListener('abort', entry.abortHandler)
-    if (entry.waited) {
-      try { entry.onGranted?.() } catch { /* queue notices are best effort */ }
-    }
     let released = false
     const lease = Object.freeze({
       leaseId: entry.requestId,
@@ -164,8 +161,6 @@ class RunScheduler {
         cancelled: false,
         abortHandler: null,
         pauseToken,
-        waited: false,
-        onGranted: typeof input.onGranted === 'function' ? input.onGranted : null,
       }
       entry.abortHandler = () => {
         if (entry.cancelled) return
@@ -178,13 +173,6 @@ class RunScheduler {
       signal?.addEventListener('abort', entry.abortHandler, { once: true })
       this.queue.push(entry)
       this.drain()
-      // Tell the caller when it has to wait for another holder (for example
-      // the single writer of a folder), so the UI can say so instead of
-      // showing an Agent that looks stuck.
-      if (!entry.cancelled && this.queue.includes(entry)) {
-        entry.waited = true
-        try { input.onQueued?.() } catch { /* queue notices are best effort */ }
-      }
     })
   }
 

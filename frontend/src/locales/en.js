@@ -201,7 +201,6 @@ export default {
     'run.roundProgressUnlimited': 'Round {current} / No round limit',
     'run.retainedEvents': '{count} retained events',
     'run.openDetails': 'Open run details',
-    'run.waitingForWorkspace': '{agents} is waiting for another Agent that is writing in the same folder.',
     'run.status.pending': 'Pending',
     'run.status.queued': 'Queued',
     'run.status.preparing': 'Preparing',

@@ -726,11 +726,6 @@
                 <span v-if="runRoundProgress" class="run-round-progress">
                   {{ t(runRoundProgress.unlimited ? 'run.roundProgressUnlimited' : 'run.roundProgress', runRoundProgress) }}
                 </span>
-                <span v-if="activeRun?.waitingForWorkspaceKinds?.length" class="run-workspace-wait">
-                  {{ t('run.waitingForWorkspace', {
-                    agents: activeRun.waitingForWorkspaceKinds.map(kind => agentLabel(kind)).join(', '),
-                  }) }}
-                </span>
               </div>
               <div
                 v-if="isDisplayedCoordinatedRun && displayedRunPhaseLabel"

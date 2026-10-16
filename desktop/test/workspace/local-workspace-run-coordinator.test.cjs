@@ -240,7 +240,7 @@ test('workspace snapshots keep a safe controllable run shell for an unknown V4 o
     'agentRuns', 'budget', 'completedKinds', 'currentKind', 'currentRound', 'failedKinds',
     'groupId', 'maxRounds', 'mode', 'orchestration', 'phase', 'progress',
     'responseVersionRootId', 'runId', 'startedAt', 'targetKinds', 'threadRootId',
-    'unlimitedRounds', 'waitingForWorkspaceKinds', 'waitingGateIds',
+    'unlimitedRounds', 'waitingGateIds',
   ])
 })
 

@@ -1,6 +1,4 @@
 const { createHash, randomUUID } = require('node:crypto')
-const fs = require('node:fs')
-const path = require('node:path')
 const {
   assertResumedPermissionBinding,
   automaticPermissionResponse,
@@ -241,13 +239,13 @@ class LocalWorkspaceAgentInvocation {
     const activeRun = this.activeRuns.get(group.id)
     const taskId = cleanText(activeRun?.taskId || context.taskId || threadRootId, 120)
     if (!taskId) throw new Error('LOCAL_RUN_TASK_INVALID')
-    let workspacePath = group.workdir ? path.resolve(group.workdir) : group.id
-    try { workspacePath = fs.realpathSync(workspacePath) } catch { /* runtime validates unavailable directories */ }
-    // One writer per real folder, across group and direct chats, so two Agents
-    // never edit the same files at once. A waiting writer is reported to the
-    // UI (see onQueued below) instead of looking stuck.
+    // Every conversation, group or direct, is its own execution surface. The
+    // writer lease is scoped to the conversation, so a writable chat never
+    // makes an Agent in another conversation wait, including when both use the
+    // same folder (most chats keep the default one). Writers inside one
+    // conversation still take turns.
     const workspaceKey = createHash('sha256')
-      .update(String(workspacePath))
+      .update(`conversation\u0000${group.id}`)
       .digest('hex')
     const writerKind = cleanText(context.singleWriterKind || context.writerKind, 80)
     const permissionMode = group.allowWrite === true
@@ -267,24 +265,11 @@ class LocalWorkspaceAgentInvocation {
       else signal.addEventListener('abort', queuedAbortHandler, { once: true })
     }
     try {
-      const waiting = () => {
-        if (!activeRun) return null
-        if (!(activeRun.waitingForWorkspace instanceof Set)) activeRun.waitingForWorkspace = new Set()
-        return activeRun.waitingForWorkspace
-      }
       return await this.runScheduler.withLease({
         taskId,
         workspaceKey,
         permissionMode,
         signal: agentController.signal,
-        onQueued: () => {
-          waiting()?.add(kind)
-          this.emitChanged?.()
-        },
-        onGranted: () => {
-          waiting()?.delete(kind)
-          this.emitChanged?.()
-        },
       }, (lease) => {
         if (signal && queuedAbortHandler) {
           signal.removeEventListener('abort', queuedAbortHandler)
@@ -301,11 +286,6 @@ class LocalWorkspaceAgentInvocation {
         )
       })
     } finally {
-      // A stopped or failed wait must not leave the Agent marked as queued.
-      if (activeRun?.waitingForWorkspace instanceof Set
-          && activeRun.waitingForWorkspace.delete(kind)) {
-        this.emitChanged?.()
-      }
       if (signal && queuedAbortHandler) {
         signal.removeEventListener('abort', queuedAbortHandler)
       }

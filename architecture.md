@@ -19,7 +19,7 @@ The supported product surface is the packaged Electron application. The frontend
 | Context Pack and delivery stores | Capture immutable, content-addressed Task inputs, attempt-specific approved prompts, exact outbound fingerprints, source hashes, target scope, and native Session provenance | `desktop/src/collaboration/context-pack-store.cjs`, `desktop/src/workspace/local-workspace-context-packs.cjs` |
 | Outcome store | Persists typed Artifacts, Evidence, Findings, and Adoption records separately from diagnostic reasoning and tool summaries | `desktop/src/collaboration/outcome-store.cjs`, `desktop/src/collaboration/outcome-records.cjs` |
 | Human Gate store | Persists permission, budget, and decision requests and their terminal user/system decisions without exposing raw request payloads to the renderer | `desktop/src/gates/human-gate-store.cjs`, `desktop/src/gates/human-gate-coordinator.cjs` |
-| Scheduling and failure policy | Enforces run budgets, per-Agent controls, and one writer per folder; classifies failures (sign-in, rate limit, network, provider, context overflow) and decides retries with `Retry-After`; stops a silent Agent through the invocation watchdog | `desktop/src/runs/run-scheduler.cjs`, `desktop/src/runs/failure-policy.cjs`, `desktop/src/runs/failure-signals.cjs`, `desktop/src/runs/invocation-watchdog.cjs` |
+| Scheduling and failure policy | Enforces run budgets, per-Agent controls, and one writer at a time within a conversation (conversations never wait for each other); classifies failures (sign-in, rate limit, network, provider, context overflow) and decides retries with `Retry-After`; stops a silent Agent through the invocation watchdog | `desktop/src/runs/run-scheduler.cjs`, `desktop/src/runs/failure-policy.cjs`, `desktop/src/runs/failure-signals.cjs`, `desktop/src/runs/invocation-watchdog.cjs` |
 | Agent Connector registry/runtime | Validates approved manifests and instances, separates CredentialRefs, records Connector/upstream versions, and reduces versioned idempotent Run Events | `desktop/src/agents/connectors/agent-connector-manifest.cjs`, `desktop/src/agents/connectors/agent-connector-registry.cjs`, `desktop/src/agents/connectors/agent-connector-runtime.cjs` |
 | Attachment store | Imports validated local images, media, documents, code/configuration files, Office files, and archives into private app-owned storage, verifies metadata/checksums on read, and removes unreferenced entries | `desktop/src/attachments/attachment-store.cjs`, `desktop/src/attachments/image-dimensions.cjs` |
 | Local Skill catalog | Scans bounded known roots per Agent and returns sanitized Skill coordinates without exposing paths or contents | `desktop/src/skills/local-skill-catalog.cjs` |
@@ -68,6 +68,7 @@ Splitting by file did not change any method; the class still shares one `this`. 
 
 ## Reliability Rules
 
+- Conversations are independent. A running chat, direct or group, never makes an Agent in another conversation wait, even when both use the same folder and the same Agent. The writer lease is scoped to the conversation; inside one conversation writers still take turns.
 - A failure pauses an Agent for the current run only. Group membership is never rewritten because an Agent failed; a group whose members were all removed by an older build is rebuilt from the Agents that replied in it.
 - Only a definitive sign-in failure marks credentials missing. A refusal that could be a proxy or a tool's own output is retried once and reported as a provider failure.
 - An Agent that was available stays available through an inconclusive readiness probe for ten minutes. A definitive answer applies immediately.
@@ -127,6 +128,7 @@ There is no Meldwork-hosted remote data store or application account namespace. 
 
 ## Known Risks And Assumptions
 
+- Writable conversations that share a folder are not coordinated. Two Agents in different conversations can edit the same files at the same time, as two terminals in one directory can. Output capture compares `.meldwork-output/` before and after a run, so when two conversations produce deliverables in the same folder at the same time, one may attach or record a file the other wrote.
 - Installer recipes use mutable upstream packages or scripts and currently do not verify a pinned digest or signature (`desktop/src/agents/installer/agent-installer.cjs`).
 - Conversation history is local but not application-encrypted (`desktop/src/workspace/local-workspace.cjs`).
 - Sanitized Run Ledger checkpoints are local and private but not application-encrypted. The store assumes one Electron main-process writer and recovers only the last persisted bounded checkpoint, not every in-memory event (`desktop/src/runs/run-ledger.cjs`).
