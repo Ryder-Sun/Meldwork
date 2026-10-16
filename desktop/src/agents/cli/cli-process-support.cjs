@@ -1,5 +1,5 @@
 const path = require('node:path')
-const { searchPath, systemChildEnvironment } = require('./cli-discovery.cjs')
+const { launchEnvironment, searchPath, systemChildEnvironment } = require('./cli-discovery.cjs')
 const { NETWORK_ENV_KEYS, networkEnvironment } = require('./cli-network-environment.cjs')
 const { redactChildSecrets } = require('./cli-runtime-events.cjs')
 const {
@@ -125,6 +125,7 @@ function childEnvironment(agent, workdir, options, platform) {
     ...controlled,
     ...hermesSafetyEnv,
     ...openCodeSafetyEnv,
+    ...launchEnvironment(agent.kind, agent.executable, { platform }),
     PATH: searchPath({ platform, env: source }),
   }
 }

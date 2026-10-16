@@ -209,6 +209,23 @@ function agentCommands(kind, options = {}) {
   return commands
 }
 
+// The WorkBuddy app ships its CLI with only the lite bundle, which the
+// launcher loads solely when this variable is set. Without it every headless
+// call, `--help` included, exits with MODULE_NOT_FOUND. Installs that carry a
+// regular bundle launch exactly as before.
+function launchEnvironment(kind, executable, options = {}) {
+  if (kind !== 'workbuddy' || !executable) return {}
+  const { pathApi } = runtimeOptions(options)
+  try {
+    const dist = pathApi.join(pathApi.dirname(fs.realpathSync(executable)), '..', 'dist')
+    const shipped = name => fs.existsSync(pathApi.join(dist, name))
+    if (shipped('codebuddy-lite-wb.mjs') && !shipped('codebuddy-headless.js') && !shipped('codebuddy.js')) {
+      return { CODEBUDDY_FORCE_LITE_WB_BUNDLE: '1' }
+    }
+  } catch { /* an unreadable layout keeps the default launch */ }
+  return {}
+}
+
 function executableExtensions(options = {}) {
   const { platform, env } = runtimeOptions(options)
   if (platform !== 'win32') return ['']
@@ -333,9 +350,12 @@ async function probeAgentCapabilities(kind, executable, options = {}) {
   const runtime = runtimeOptions(options)
   const { env, execFileFn, platform } = runtime
   const prepareCommandFn = options.prepareCommandFn || prepareCommand
-  const childEnv = options.childEnv || {
-    ...systemChildEnvironment(env, platform),
-    PATH: searchPath(options),
+  const childEnv = {
+    ...(options.childEnv || {
+      ...systemChildEnvironment(env, platform),
+      PATH: searchPath(options),
+    }),
+    ...launchEnvironment(kind, executable, options),
   }
   let identity = ''
   try {
@@ -513,6 +533,7 @@ module.exports = {
   AGENT_PROFILES,
   ALLOWED_KINDS,
   detectAgents,
+  launchEnvironment,
   prepareCommand,
   probeAgentCapabilities,
   resolveExecutable,

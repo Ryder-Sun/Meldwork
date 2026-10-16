@@ -5,7 +5,7 @@ const os = require('node:os')
 const path = require('node:path')
 const { EventEmitter } = require('node:events')
 const { PassThrough } = require('node:stream')
-const { probeAgentCapabilities } = require('../../../src/agents/cli/cli-discovery.cjs')
+const { launchEnvironment, probeAgentCapabilities } = require('../../../src/agents/cli/cli-discovery.cjs')
 const {
   detectAgents,
   imageAttachmentLimit,
@@ -30,12 +30,52 @@ const {
   readWhenReady,
   waitForExit,
   within,
+  workBuddyInstall,
 } = require('../../support/cli-adapters-test-helpers.cjs')
 
 test('search path includes common user CLI locations', () => {
   assert.match(searchPath(), /\.local\/bin/)
   assert.match(searchPath(), /\.kimi-code\/bin/)
   assert.match(searchPath(), /\.mimocode\/bin/)
+})
+
+test('a WorkBuddy build that ships only the lite bundle is probed through it', async (t) => {
+  const help = '--print --output-format --permission-mode --max-turns --resume json plan acceptEdits'
+  const probe = async (kind, launcher) => {
+    let probeEnv
+    const result = await probeAgentCapabilities(kind, launcher, {
+      env: {},
+      execFileFn: async (_command, _args, options) => {
+        probeEnv = options.env
+        return { stdout: help }
+      },
+    })
+    return { probeEnv, result }
+  }
+  const liteOnly = workBuddyInstall(t, ['codebuddy-lite-wb.mjs'])
+  const withHeadless = workBuddyInstall(t, ['codebuddy-lite-wb.mjs', 'codebuddy-headless.js', 'codebuddy.js'])
+
+  const lite = await probe('workbuddy', liteOnly)
+  assert.equal(lite.probeEnv.CODEBUDDY_FORCE_LITE_WB_BUNDLE, '1')
+  assert.equal(lite.result.compatibilityState, 'compatible')
+  assert.equal(
+    Object.hasOwn((await probe('workbuddy', withHeadless)).probeEnv, 'CODEBUDDY_FORCE_LITE_WB_BUNDLE'),
+    false,
+  )
+  assert.equal(
+    Object.hasOwn((await probe('claude', liteOnly)).probeEnv, 'CODEBUDDY_FORCE_LITE_WB_BUNDLE'),
+    false,
+  )
+  assert.deepEqual(launchEnvironment('workbuddy', path.join(os.tmpdir(), 'meldwork-no-such-cli')), {})
+  assert.deepEqual(launchEnvironment('workbuddy', ''), {})
+
+  if (process.platform !== 'win32') {
+    const linkDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-workbuddy-link-'))
+    t.after(() => fs.rmSync(linkDirectory, { recursive: true, force: true }))
+    const link = path.join(linkDirectory, 'codebuddy')
+    fs.symlinkSync(liteOnly, link)
+    assert.deepEqual(launchEnvironment('workbuddy', link), { CODEBUDDY_FORCE_LITE_WB_BUNDLE: '1' })
+  }
 })
 
 test('capability timeouts retry once and remain inconclusive when both attempts time out', async () => {
