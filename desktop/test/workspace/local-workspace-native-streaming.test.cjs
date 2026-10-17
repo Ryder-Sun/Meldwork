@@ -66,6 +66,32 @@ test('direct Pi conversations reuse the native JSON session across messages', as
   assert.deepEqual(calls.map(call => call.runOptions.sessionTransport), ['', ''])
 })
 
+test('direct conversations do not rotate their session after the default turn budget', async (t) => {
+  const { directory, calls, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  options.detectAgents = async () => [{
+    kind: 'pi', name: 'Pi Agent', executable: '/tmp/pi', version: '0.84.2',
+  }]
+  options.runAgent = async (_agent, prompt, _workdir, runOptions) => {
+    calls.push({ prompt, runOptions })
+    const sessionRef = runOptions.sessionRef || 'pi-long-session'
+    await runOptions.onSessionRef(sessionRef)
+    return { text: 'reply', sessionRef, outcome: 'completed' }
+  }
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({
+    name: 'Long direct', agentKinds: ['pi'], directAgentKind: 'pi',
+    conversationType: 'direct', workdir: directory,
+  })
+  for (let index = 0; index < 20; index += 1) {
+    await workspace.sendMessage({ groupId: group.id, text: `message-${index}` })
+  }
+  assert.equal(calls.length, 20)
+  assert.equal(calls.filter(call => call.runOptions.sessionRef === '').length, 1)
+  assert.equal(calls.slice(1).every(call => call.runOptions.sessionRef === 'pi-long-session'), true)
+})
+
 test('group conversations dispatch Pi alongside other available Agents', async (t) => {
   const { directory, calls, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

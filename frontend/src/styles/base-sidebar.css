@@ -18,8 +18,38 @@
 }
 
 .brand-button,
-.sidebar-toggle {
+.sidebar-toggle,
+.titlebar-actions {
   -webkit-app-region: no-drag;
+}
+
+.titlebar-actions {
+  display: inline-flex;
+  position: fixed;
+  top: 6px;
+  right: 12px;
+  z-index: 20;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+  padding: 2px 5px;
+  border-radius: 9px;
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-actions .icon-button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+
+.titlebar-actions .icon-button:hover {
+  border-color: var(--border);
+  background: var(--surface-hover);
+  color: var(--text);
 }
 
 .brand-button {
@@ -51,18 +81,18 @@
 
 .brand-button strong {
   color: var(--text-soft);
-  font-size: 15px;
+  font-size: var(--text-md);
   line-height: 1.2;
 }
 
 .brand-button.active strong {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .brand-button small {
   overflow: hidden;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-xs);
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -192,22 +222,10 @@
   color: var(--text);
 }
 
-.collapsed-group-count {
-  min-width: 15px;
-  height: 15px;
+.collapsed-group-attention {
   position: absolute;
-  top: -2px;
-  right: -3px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 3px;
-  border-radius: 999px;
-  background: var(--accent);
-  color: var(--accent-contrast);
-  font-size: 8px;
-  font-weight: 800;
-  line-height: 1;
+  top: 5px;
+  right: 5px;
 }
 
 .icon-button:hover {
@@ -230,28 +248,38 @@
   justify-content: center;
   gap: 8px;
   margin: 2px 12px 12px;
-  border: 1px solid var(--accent);
+  border: 1px solid var(--accent-strong);
   border-radius: var(--radius);
-  background: var(--accent);
+  background: var(--accent-strong);
   color: var(--accent-contrast);
-  font-weight: 650;
+  font-weight: 600;
   cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease-standard),
+    border-color var(--dur-fast) var(--ease-standard),
+    transform var(--dur-press) var(--ease-standard);
 }
 
 .new-group-button:hover,
-.primary-button:hover,
-.send-button:hover {
-  border-color: var(--accent-hover);
-  background: var(--accent-hover);
+.primary-button:hover:not(:disabled),
+.send-button:hover:not(:disabled) {
+  border-color: var(--accent-strong-hover);
+  background: var(--accent-strong-hover);
 }
 
+/* Pressing scales slightly instead of shifting, so nothing next to the
+   button moves with it. The composer's send and stop buttons keep their
+   original one-pixel press. */
 .new-group-button:active,
-.primary-button:active,
-.secondary-button:active,
-.send-button:active,
-.stop-button:active,
-.danger-button:active,
+.primary-button:active:not(:disabled),
+.secondary-button:active:not(:disabled),
+.danger-button:active:not(:disabled),
 .sidebar-more-button:active {
+  transform: scale(0.97);
+}
+
+.send-button:active,
+.stop-button:active {
   transform: translateY(1px);
 }
 
@@ -271,14 +299,33 @@
   height: 28px;
   display: flex;
   align-items: center;
+  gap: 6px;
   border: 0;
+  border-radius: var(--radius-sm);
   padding: 0 8px;
   background: transparent;
   color: var(--muted);
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--text-xs);
+  font-weight: 600;
   text-align: left;
   cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-standard);
+}
+
+/* A collapsed section shows how much it hides. */
+.nav-heading-count {
+  min-width: 18px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--surface-active);
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .nav-heading:hover,
@@ -296,9 +343,9 @@
 
 .sidebar-agent-location-heading {
   margin: 6px 8px 3px;
-  color: var(--faint);
-  font-size: 10px;
-  font-weight: 650;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
   line-height: 1.4;
 }
 
@@ -360,6 +407,22 @@
   display: block;
 }
 
+.agent-attention-dot {
+  position: absolute;
+  top: -2px;
+  right: -3px;
+  z-index: 2;
+}
+
+.sidebar-agent.unavailable .sidebar-agent-main img {
+  filter: grayscale(1);
+  opacity: 0.55;
+}
+
+.sidebar-agent-main small[data-tone="warning"] {
+  color: var(--warning);
+}
+
 .agent-logo-cloud > svg {
   position: absolute;
   right: -4px;
@@ -388,12 +451,12 @@
 
 .sidebar-agent-main strong {
   color: var(--text-soft);
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 
 .sidebar-agent-main small {
-  color: var(--faint);
-  font-size: 10px;
+  color: var(--muted);
+  font-size: var(--text-xs);
 }
 
 .sidebar-agent-new,
@@ -517,6 +580,7 @@
   border: 0;
   background: transparent;
   color: var(--text-soft);
+  font-size: var(--text-sm);
   text-align: left;
   cursor: pointer;
 }
@@ -582,7 +646,8 @@
 }
 
 .direct-session-row > .run-mark,
-.direct-session-row > .run-finished-mark {
+.direct-session-row > .run-finished-mark,
+.direct-session-row > .attention-mark {
   grid-column: 4;
   grid-row: 1;
   width: 18px;
@@ -598,7 +663,7 @@
   min-width: 0;
   height: 40px;
   display: grid;
-  grid-template-columns: 26px minmax(0, 1fr) 58px;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
   align-items: center;
   gap: 9px;
   padding: 0 9px;
@@ -606,16 +671,24 @@
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-soft);
+  font-size: var(--text-sm);
   cursor: pointer;
   text-align: left;
 }
 
 .group-conversation-row {
+  --row-background: var(--bg);
   position: relative;
   border-radius: var(--radius-sm);
 }
 
+.group-conversation-row:hover,
+.group-conversation-row:focus-within {
+  --row-background: var(--surface-hover);
+}
+
 .group-conversation-row.active {
+  --row-background: var(--surface-active);
   background: var(--surface-active);
 }
 
@@ -624,17 +697,24 @@
   font-weight: 600;
 }
 
+/* Row actions float over the end of the name with a short fade, so the name
+   can use the full row width when they are hidden. */
 .group-conversation-actions {
   position: absolute;
   top: 50%;
-  right: 6px;
+  right: 4px;
   display: inline-flex;
   align-items: center;
   gap: 2px;
+  padding-left: 18px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg, transparent, var(--row-background) 16px);
   opacity: 0;
   pointer-events: none;
   transform: translateY(-50%) translateX(4px);
-  transition: opacity 0.14s ease, transform 0.16s ease;
+  transition:
+    opacity var(--dur-fast) var(--ease-standard),
+    transform var(--dur-base) var(--ease-out);
 }
 
 .group-conversation-row.active .group-conversation-actions,
@@ -645,15 +725,13 @@
   transform: translateY(-50%) translateX(0);
 }
 
-.group-conversation-row.active .conversation-link > .run-mark,
-.group-conversation-row:hover .conversation-link > .run-mark,
-.group-conversation-row:focus-within .conversation-link > .run-mark {
-  opacity: 0;
+.conversation-link:hover {
+  color: var(--text);
 }
 
-.conversation-link:hover {
+.group-conversation-row:hover:not(.active),
+.group-conversation-row:focus-within:not(.active) {
   background: var(--surface-hover);
-  color: var(--text);
 }
 
 .sidebar-more-button {
@@ -669,8 +747,8 @@
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--muted);
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--text-xs);
+  font-weight: 600;
   cursor: pointer;
   text-align: left;
   transition: background 0.14s ease, color 0.14s ease, transform 0.14s ease;
@@ -721,3 +799,33 @@
 .group-avatar.stack img:nth-child(1) { top: 0; left: 0; }
 .group-avatar.stack img:nth-child(2) { right: 0; bottom: 0; }
 .group-avatar.stack img:nth-child(3) { left: 0; bottom: 0; }
+
+.titlebar-preferences { display: flex; gap: 2px; }
+.app-shell:not([data-platform="darwin"]) { --desktop-titlebar-height: 32px; }
+.titlebar-actions .shortcut-menu { top: calc(100% + 8px); right: 0; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .sidebar:not(.collapsed) .brand-button span,
+  .sidebar:not(.collapsed) .new-group-button span,
+  .sidebar:not(.collapsed) .nav-heading,
+  .sidebar:not(.collapsed) .sidebar-agent-location-heading,
+  .sidebar:not(.collapsed) .sidebar-agent-main > span,
+  .sidebar:not(.collapsed) .sidebar-agent-new,
+  .sidebar:not(.collapsed) .direct-session-list,
+  .sidebar:not(.collapsed) .group-nav-section {
+    transition: opacity var(--dur-base) var(--ease-standard) 80ms;
+  }
+
+  @starting-style {
+    .sidebar:not(.collapsed) .brand-button span,
+    .sidebar:not(.collapsed) .new-group-button span,
+    .sidebar:not(.collapsed) .nav-heading,
+    .sidebar:not(.collapsed) .sidebar-agent-location-heading,
+    .sidebar:not(.collapsed) .sidebar-agent-main > span,
+    .sidebar:not(.collapsed) .sidebar-agent-new,
+    .sidebar:not(.collapsed) .direct-session-list,
+    .sidebar:not(.collapsed) .group-nav-section {
+      opacity: 0;
+    }
+  }
+}

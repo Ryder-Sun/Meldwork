@@ -44,8 +44,6 @@ describe('Meldwork i18n', () => {
   it('localizes Human Gates, Agent controls, and budget metadata', () => {
     setLocale('en')
     expect(t('humanGate.waiting')).toBe('Waiting for your decision')
-    expect(t('humanGate.waitingWordOne')).toBe('Waiting')
-    expect(t('humanGate.waitingWordFour')).toBe('Reviewing')
     expect(t('humanGate.option.allowOnce')).toBe('Allow once')
     expect(t('humanGate.summary.decision')).toBe('This run requires your decision.')
     expect(t('humanGate.summary.retry')).toContain('may already have changed')
@@ -68,13 +66,12 @@ describe('Meldwork i18n', () => {
     expect(t('run.phase.reconcile')).toBe('Reconciling results')
     expect(t('run.phase.commit')).toBe('Committing delivery')
     expect(t('run.phase.failed')).toBe('Failed')
-    expect(t('run.status.circuitBreaker')).toBe('Circuit breaker stopped')
-    expect(t('system.agentBudgetExhausted', { agent: 'Codex' })).toContain('hard run budget')
+    // Status text says what happened instead of naming the mechanism.
+    expect(t('run.status.circuitBreaker')).toBe('Stopped after repeated failures')
+    expect(t('system.agentBudgetExhausted', { agent: 'Codex' })).toContain('usage limit')
 
     setLocale('zh')
     expect(t('humanGate.waiting')).toBe('等待你的决定')
-    expect(t('humanGate.waitingWordOne')).toBe('等待中')
-    expect(t('humanGate.waitingWordFour')).toBe('整理中')
     expect(t('humanGate.option.allowOnce')).toBe('允许一次')
     expect(t('humanGate.summary.decision')).toBe('该运行需要你做出决定。')
     expect(t('humanGate.summary.retry')).toContain('可能已经修改')
@@ -97,8 +94,9 @@ describe('Meldwork i18n', () => {
     expect(t('run.phase.dispatch')).toBe('分发 Agent')
     expect(t('run.phase.running')).toBe('运行中')
     expect(t('run.phase.failed')).toBe('失败')
-    expect(t('run.status.circuitBreaker')).toBe('已触发熔断器')
-    expect(t('system.agentBudgetExhausted', { agent: 'Codex' })).toContain('硬预算上限')
+    // User-facing status avoids engineering terms like 熔断器 and 硬预算.
+    expect(t('run.status.circuitBreaker')).toBe('失败过多，已自动停止')
+    expect(t('system.agentBudgetExhausted', { agent: 'Codex' })).toContain('用量上限')
   })
 
   it('maps every stable desktop error code from direct and wrapped errors', () => {
@@ -191,14 +189,14 @@ describe('Meldwork i18n', () => {
 
     setLocale('en')
     expect(translateSystemMessage(roundLimit))
-      .toBe('Automatic discussion reached the 3-round limit without reaching consensus.')
+      .toBe('Automatic discussion reached its 3-round limit. The latest replies above are the current result; raise the round limit or send a follow-up to continue.')
     expect(translateSystemMessage(timeout))
       .toBe('Automatic discussion stopped after a runtime timeout before consensus.')
     expect(translateSystemMessage(timeout)).not.toContain('30')
     expect(translateSystemMessage(unknown)).toBe(unknown.content)
 
     setLocale('zh')
-    expect(translateSystemMessage(roundLimit)).toBe('自动讨论已达到 3 轮上限，尚未达成共识。')
+    expect(translateSystemMessage(roundLimit)).toBe('自动讨论已达到 3 轮上限，以上最新回复即为当前结果；如需继续，可调高轮数上限或追加消息。')
     expect(translateSystemMessage(timeout)).toBe('自动讨论在达成共识前因运行超时而停止。')
     expect(translateSystemMessage(timeout)).not.toContain('30')
     expect(translateSystemMessage(unknown)).toBe(unknown.content)

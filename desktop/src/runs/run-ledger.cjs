@@ -311,7 +311,7 @@ class RunLedger {
   persist(runs = this.runs) {
     atomicWritePrivateFile(
       this.storagePath,
-      `${JSON.stringify({ version: STORE_VERSION, runs }, null, 2)}\n`,
+      `${JSON.stringify({ version: STORE_VERSION, runs })}\n`,
     )
   }
 

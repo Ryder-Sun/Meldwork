@@ -58,13 +58,23 @@
           </p>
           <small v-if="!bridge.available && bridge.lastError">{{ translateError(bridge.lastError) }}</small>
         </div>
+        <div v-if="confirmingBridgeId === bridge.bridgeId" class="cloud-agent-bridge-confirm" role="group" :aria-label="t('cloudAgents.deletePrompt')">
+          <span>{{ t('cloudAgents.deletePrompt') }}</span>
+          <button class="secondary-button compact" type="button" :disabled="saving" @click="confirmingBridgeId = ''">
+            {{ t('common.cancel') }}
+          </button>
+          <button class="danger-button compact" type="button" :disabled="saving" @click="confirmRemove(bridge.bridgeId)">
+            {{ t('cloudAgents.delete') }}
+          </button>
+        </div>
         <button
+          v-else
           class="icon-button"
           type="button"
           :title="t('cloudAgents.delete')"
           :aria-label="t('cloudAgents.delete')"
           :disabled="saving"
-          @click="remove(bridge.bridgeId)"
+          @click="confirmingBridgeId = bridge.bridgeId"
         >
           <TrashOutline />
         </button>
@@ -75,6 +85,7 @@
 </template>
 
 <script setup>
+import { ref } from 'vue'
 import { CloudOutline, RefreshOutline, TrashOutline } from '@vicons/ionicons5'
 import { t, translateError } from '../i18n.js'
 
@@ -93,6 +104,13 @@ const {
   remove,
   saving,
 } = props.controller
+
+const confirmingBridgeId = ref('')
+
+async function confirmRemove(bridgeId) {
+  confirmingBridgeId.value = ''
+  await remove(bridgeId)
+}
 
 function transportLabel(transport) {
   return t(`cloudAgents.transport.${transport || 'bridge'}`)

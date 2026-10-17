@@ -1,4 +1,5 @@
 const fs = require('node:fs')
+const { atomicWritePrivateFile } = require('../security/private-file.cjs')
 const path = require('node:path')
 const { RUN_STATUSES } = require('../runs/run-ledger-records.cjs')
 const { normalizeSessionMeta } = require('../runs/run-harness.cjs')
@@ -184,8 +185,17 @@ function loadWorkspaceState(storagePath) {
   }
 
   try {
+    const repliedAgentKinds = new Map()
+    for (const message of Array.isArray(parsed.messages) ? parsed.messages : []) {
+      if (message?.role !== 'agent' || typeof message.groupId !== 'string') continue
+      const kinds = repliedAgentKinds.get(message.groupId) || []
+      if (!kinds.includes(message.agentKind)) kinds.push(message.agentKind)
+      repliedAgentKinds.set(message.groupId, kinds)
+    }
     const groups = parsed.groups
-      .map(normalizeLoadedGroup)
+      .map(group => normalizeLoadedGroup(group, {
+        recoveredAgentKinds: repliedAgentKinds.get(group?.id) || [],
+      }))
       .filter(Boolean)
     const groupIds = new Set(groups.map(group => group.id))
     const messages = parsed.messages
@@ -238,11 +248,12 @@ function loadWorkspaceState(storagePath) {
   }
 }
 
+// The whole workspace is rewritten on every save, synchronously on the main
+// process. Compact JSON cuts the bytes written (and the time the UI is
+// blocked) for long histories, and the private atomic writer fsyncs before
+// the rename so a crash cannot leave a truncated file behind.
 function saveWorkspaceState(storagePath, state) {
-  fs.mkdirSync(path.dirname(storagePath), { recursive: true })
-  const tempPath = `${storagePath}.tmp`
-  fs.writeFileSync(tempPath, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600 })
-  fs.renameSync(tempPath, storagePath)
+  atomicWritePrivateFile(storagePath, `${JSON.stringify(state)}\n`)
 }
 
 function durableWaitingRunSnapshots({ state, records, pendingGates, liveRunIds, liveGroupIds }) {

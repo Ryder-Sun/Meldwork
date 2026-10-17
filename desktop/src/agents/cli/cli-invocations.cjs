@@ -73,9 +73,10 @@ function invocation(kind, executable, workdir, sessionRef = '', options = {}) {
     }
   }
   if (kind === 'hermes') {
-    const legacySessionRef = options.sessionTransport === 'acp' ? '' : sessionRef
+    // Hermes uses the same native conversation identifier across its ACP and
+    // legacy transports. Keep it when an attachment requires the legacy path.
+    const legacySessionRef = sessionRef
     const useAcp = options.invocationTransport !== 'legacy'
-      && !attachments.length
       && options.hermesAcpAvailable !== false
       && (!sessionRef || options.sessionTransport === 'acp')
     if (useAcp) {
@@ -86,6 +87,9 @@ function invocation(kind, executable, workdir, sessionRef = '', options = {}) {
         eventTransport: 'acp',
         fallbackTransport: 'legacy',
         fallbackSessionPolicy: 'invalidate',
+        // Hermes ACP advertises image prompts; send images as content blocks
+        // instead of silently dropping them from a text-only prompt.
+        ...(attachments.length ? { imageAttachments: attachments } : {}),
       }
     }
     return {
@@ -141,6 +145,9 @@ function invocation(kind, executable, workdir, sessionRef = '', options = {}) {
         '--print',
         '--output-format', 'stream-json',
         '--include-partial-messages',
+        // Workspace write access means accepting file edits in the working
+        // directory. Skipping every permission check would also let the CLI
+        // run any command anywhere on the machine without confirmation.
         '--permission-mode', options.sandbox === 'workspace-write' ? 'acceptEdits' : 'plan',
         ...(maxTurns ? ['--max-turns', String(maxTurns)] : []),
         ...(sessionRef ? ['--resume', sessionRef] : []),
@@ -185,7 +192,7 @@ function invocation(kind, executable, workdir, sessionRef = '', options = {}) {
     }
   }
   if (kind === 'mimo') {
-    if (options.invocationTransport !== 'json') {
+    if (!attachments.length && options.invocationTransport !== 'json') {
       return {
         command: executable,
         args: ['acp', '--pure', '--cwd', workdir],

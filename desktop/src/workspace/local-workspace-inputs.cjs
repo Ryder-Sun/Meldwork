@@ -40,7 +40,6 @@ module.exports = {
   cleanProgressSteps: runtimeContracts.cleanProgressSteps,
   cleanRunMaxRounds: runtimeContracts.cleanRunMaxRounds,
   cleanText: contracts.cleanText,
-  credentialFailure: contracts.credentialFailure,
   defaultAgentLabel: contracts.defaultAgentLabel,
   emptyState: messageRecords.emptyState,
   isTracedAgentTerminalMessage: runtimeContracts.isTracedAgentTerminalMessage,

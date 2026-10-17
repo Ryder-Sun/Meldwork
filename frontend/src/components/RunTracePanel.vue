@@ -148,7 +148,10 @@
               <span>{{ roundLabel(selectedItem) }}</span>
             </div>
             <span class="trace-summary-statuses">
-              <TextMorph v-if="waiting" class="trace-waiting-state" :words="waitingWords" />
+              <span v-if="waiting" class="trace-waiting-state">
+                <span class="attention-dot" aria-hidden="true" />
+                {{ t('humanGate.waiting') }}
+              </span>
               <span class="trace-status" :data-status="statusTone(selectedItem.status)">
                 {{ statusLabel(selectedItem.status) }}
               </span>
@@ -186,9 +189,12 @@
               </li>
             </ul>
           </section>
-          <div v-if="selectedItem.context && hasTraceContext(selectedItem.context)" class="trace-context-disclosure">
-            <div class="trace-context-stats" data-context-section="attempt">
+          <details v-if="selectedItem.context && hasTraceContext(selectedItem.context)" class="trace-context-disclosure">
+            <summary>
               <span>{{ t('trace.attemptInjection') }}</span>
+              <ChevronDownOutline aria-hidden="true" />
+            </summary>
+            <div class="trace-context-stats" data-context-section="attempt">
               <span>{{ t('trace.contextIncluded', { count: selectedItem.context.includedCount }) }}</span>
               <span>{{ t('trace.contextOmitted', { count: selectedItem.context.omittedCount }) }}</span>
               <span>{{ t('trace.contextChars', { count: selectedItem.context.charCount }) }}</span>
@@ -273,7 +279,7 @@
                 </span>
               </template>
             </p>
-          </div>
+          </details>
           <p v-if="hasOnlyBareEvents(selectedItem)" class="trace-detail-unavailable">
             {{ t('trace.detailUnavailable') }}
           </p>
@@ -415,7 +421,6 @@ import {
   CloseOutline,
 } from '@vicons/ionicons5'
 import { agentLabel, agentLogo } from '../catalog.js'
-import TextMorph from './TextMorph.vue'
 import { retainedTraceEvents } from '../conversationTimelineModel.js'
 import { orchestrationPhase, orchestrationSlotCompleted } from '../desktop-normalization.js'
 import { locale, t } from '../i18n.js'
@@ -445,12 +450,6 @@ const roundSelectTrigger = ref(null)
 const openSelector = ref('')
 const humanGateResponses = reactive({})
 const selectedItem = computed(() => props.items.find(item => item.agentRunId === props.selectedAgentRunId) || props.items.at(-1) || null)
-const waitingWords = computed(() => [
-  t('humanGate.waitingWordOne'),
-  t('humanGate.waitingWordTwo'),
-  t('humanGate.waitingWordThree'),
-  t('humanGate.waitingWordFour'),
-])
 const agentGroups = computed(() => {
   const groups = new Map()
   for (const item of props.items) {
@@ -641,8 +640,9 @@ function handleDocumentPointerDown(event) {
 onMounted(() => document.addEventListener('pointerdown', handleDocumentPointerDown))
 onBeforeUnmount(() => document.removeEventListener('pointerdown', handleDocumentPointerDown))
 
+// "Always allow" grants a lasting permission, so it is never the default-looking button.
 function optionApprovesHumanGate(option) {
-  return ['allow_once', 'allow_always', 'accept', 'respond'].includes(option?.kind)
+  return ['allow_once', 'accept', 'respond'].includes(option?.kind)
 }
 
 function humanGateResponse(gateId) {
@@ -880,6 +880,42 @@ defineExpose({ focus })
 .trace-context-disclosure {
   display: grid;
   gap: 6px;
+  border-radius: var(--radius-sm);
+}
+
+.trace-context-disclosure > summary {
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  list-style: none;
+  cursor: pointer;
+}
+
+.trace-context-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.trace-context-disclosure > summary:hover {
+  color: var(--text);
+}
+
+.trace-context-disclosure > summary svg {
+  width: 13px;
+  height: 13px;
+  transition: transform var(--dur-fast) var(--ease-standard);
+}
+
+.trace-context-disclosure[open] > summary svg {
+  transform: rotate(180deg);
+}
+
+.trace-context-disclosure code {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
 }
 
 .trace-context-record code {
@@ -916,8 +952,8 @@ defineExpose({ focus })
 }
 
 .trace-phase-current strong {
-  color: var(--accent-hover);
-  font-size: 11px;
+  color: var(--accent-text);
+  font-size: var(--text-xs);
 }
 
 .trace-phase-slot-list {
@@ -936,7 +972,7 @@ defineExpose({ focus })
   justify-content: space-between;
   gap: 8px;
   color: var(--text-soft);
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 
 .trace-phase-slot-list li > span {
@@ -950,7 +986,7 @@ defineExpose({ focus })
   min-width: 0;
   flex: 1 1 142px;
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--text-xs);
   line-height: 1.35;
   text-align: right;
   white-space: normal;
@@ -958,9 +994,12 @@ defineExpose({ focus })
 }
 
 .trace-waiting-state {
-  color: var(--accent-hover);
-  font-size: 10px;
-  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--warning);
+  font-size: var(--text-xs);
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -973,10 +1012,10 @@ defineExpose({ focus })
 .trace-human-gate-card {
   display: grid;
   gap: 9px;
-  padding: 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-raised);
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--warning) 34%, var(--border));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--warning-soft) 50%, var(--surface-raised));
 }
 
 .trace-human-gate-card header {
@@ -997,21 +1036,21 @@ defineExpose({ focus })
 
 .trace-human-gate-card header strong {
   overflow: hidden;
-  font-size: 11px;
+  font-size: var(--text-sm);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .trace-human-gate-card header small {
-  color: var(--accent-hover);
-  font-size: 9px;
-  font-weight: 700;
+  color: var(--warning);
+  font-size: var(--text-2xs);
+  font-weight: 600;
 }
 
 .trace-human-gate-card p {
   margin: 0;
   color: var(--text-soft);
-  font-size: 11px;
+  font-size: var(--text-sm);
   line-height: 1.5;
 }
 

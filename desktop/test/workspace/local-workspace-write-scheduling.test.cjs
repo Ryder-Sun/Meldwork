@@ -6,13 +6,13 @@ const { LocalWorkspace } = require('../../src/workspace/local-workspace.cjs')
 const { RunScheduler } = require('../../src/runs/run-scheduler.cjs')
 const { deferred, fixture } = require('../support/local-workspace-test-helpers.cjs')
 
-test('workspace invocations serialize writes across groups and symlink aliases', { timeout: 10000 }, async (t) => {
+test('group chats sharing a folder, even through a symlink alias, run side by side', { timeout: 10000 }, async (t) => {
   const { directory, options } = fixture()
   const workdir = path.join(directory, 'work')
   const alias = path.join(directory, 'alias')
   fs.mkdirSync(workdir)
   fs.symlinkSync(workdir, alias, process.platform === 'win32' ? 'junction' : 'dir')
-  const started = deferred()
+  const bothStarted = deferred()
   const release = deferred()
   t.after(() => {
     release.resolve()
@@ -23,10 +23,8 @@ test('workspace invocations serialize writes across groups and symlink aliases',
   const calls = []
   options.runAgent = async (agent, _prompt, cwd, runOptions) => {
     calls.push({ kind: agent.kind, sandbox: runOptions.sandbox })
-    if (calls.length === 1) {
-      started.resolve()
-      await release.promise
-    }
+    if (calls.length === 2) bothStarted.resolve()
+    await release.promise
     fs.appendFileSync(path.join(cwd, 'result.txt'), `${agent.kind}\n`)
     return { text: `Written by ${agent.kind}.`, sessionRef: `${agent.kind}-session` }
   }
@@ -39,19 +37,52 @@ test('workspace invocations serialize writes across groups and symlink aliases',
     name: 'second writer', agentKinds: ['hermes'], workdir: alias, allowWrite: true,
   })
   const firstRun = workspace.sendMessage({ groupId: first.id, text: 'Write the requested result.' })
-  await started.promise
   const secondRun = workspace.sendMessage({ groupId: second.id, text: 'Append the requested result.' })
-  await new Promise(resolve => setImmediate(resolve))
-  assert.equal(calls.length, 1)
-  assert.equal(scheduler.snapshot().queued.length, 1)
-  release.resolve()
-  await Promise.all([firstRun, secondRun])
+  // The second group must not wait for the first: both Agents are running
+  // while neither has finished.
+  await bothStarted.promise
   assert.deepEqual(calls, [
     { kind: 'codex', sandbox: 'workspace-write' },
     { kind: 'hermes', sandbox: 'workspace-write' },
   ])
-  assert.equal(fs.readFileSync(path.join(workdir, 'result.txt'), 'utf8'), 'codex\nhermes\n')
+  assert.equal(scheduler.snapshot().queued.length, 0)
+  assert.equal(scheduler.snapshot().active.workspaces.length, 2)
+  release.resolve()
+  await Promise.all([firstRun, secondRun])
+  assert.deepEqual(
+    fs.readFileSync(path.join(workdir, 'result.txt'), 'utf8').trim().split('\n').sort(),
+    ['codex', 'hermes'],
+  )
   assert.equal(scheduler.snapshot().active.global, 0)
+})
+
+test('the writer lease belongs to the conversation, not to the folder', { timeout: 10000 }, async (t) => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const scheduler = new RunScheduler()
+  const leases = []
+  options.runScheduler = {
+    withLease: (input, operation) => {
+      leases.push({ key: input.workspaceKey, permissionMode: input.permissionMode })
+      return scheduler.withLease(input, operation)
+    },
+    snapshot: () => scheduler.snapshot(),
+  }
+  options.runAgent = async agent => ({ text: `${agent.kind} done.` })
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const [one, two] = ['one', 'two'].map(name => workspace.createGroup({
+    name, agentKinds: ['codex'], workdir: directory, allowWrite: true,
+  }))
+
+  await workspace.sendMessage({ groupId: one.id, text: 'First turn.' })
+  await workspace.sendMessage({ groupId: one.id, text: 'Second turn.' })
+  await workspace.sendMessage({ groupId: two.id, text: 'Other conversation.' })
+
+  assert.equal(leases.length, 3)
+  assert.equal(leases.every(lease => lease.permissionMode === 'workspace-write'), true)
+  assert.equal(leases[0].key, leases[1].key, 'turns of one conversation share a lease scope')
+  assert.notEqual(leases[0].key, leases[2].key, 'another conversation in the same folder does not')
 })
 
 test('read-only group invocations retain parallel execution in the same directory', { timeout: 10000 }, async (t) => {
@@ -80,6 +111,117 @@ test('read-only group invocations retain parallel execution in the same director
   assert.deepEqual(permissions, ['read-only', 'read-only'])
   release.resolve()
   await Promise.all(runs)
+})
+
+test('writable direct chats do not block another Agent in the same directory', { timeout: 10000 }, async (t) => {
+  const { directory, options } = fixture()
+  const release = deferred()
+  const bothStarted = deferred()
+  t.after(() => {
+    release.resolve()
+    fs.rmSync(directory, { recursive: true, force: true })
+  })
+  options.runScheduler = new RunScheduler()
+  const calls = []
+  options.runAgent = async (agent, _prompt, _cwd, runOptions) => {
+    calls.push({ kind: agent.kind, sandbox: runOptions.sandbox })
+    if (calls.length === 2) bothStarted.resolve()
+    await release.promise
+    return { text: `${agent.kind} completed.` }
+  }
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const groups = ['codex', 'hermes'].map(kind => workspace.createGroup({
+    name: `${kind} direct`, agentKinds: [kind], directAgentKind: kind,
+    conversationType: 'direct', workdir: directory, allowWrite: true,
+  }))
+  const runs = groups.map(group => workspace.sendMessage({ groupId: group.id, text: 'Run independently.' }))
+  await bothStarted.promise
+  assert.deepEqual(calls.map(call => call.sandbox), ['workspace-write', 'workspace-write'])
+  release.resolve()
+  await Promise.all(runs)
+})
+
+test('the same Agent answers in two conversations at once', { timeout: 10000 }, async (t) => {
+  const { directory, options } = fixture()
+  const release = deferred()
+  const allStarted = deferred()
+  t.after(() => {
+    release.resolve()
+    fs.rmSync(directory, { recursive: true, force: true })
+  })
+  const scheduler = new RunScheduler()
+  options.runScheduler = scheduler
+  const calls = []
+  options.runAgent = async (agent, _prompt, _cwd, runOptions) => {
+    calls.push({ kind: agent.kind, sandbox: runOptions.sandbox })
+    if (calls.length === 3) allStarted.resolve()
+    await release.promise
+    return { text: `${agent.kind} completed.` }
+  }
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const direct = [1, 2].map(number => workspace.createGroup({
+    name: `Hermes chat ${number}`, agentKinds: ['hermes'], directAgentKind: 'hermes',
+    conversationType: 'direct', workdir: directory, allowWrite: true,
+  }))
+  const group = workspace.createGroup({
+    name: 'Team', agentKinds: ['hermes', 'codex'], workdir: directory, allowWrite: true,
+  })
+
+  const runs = [
+    workspace.sendMessage({ groupId: direct[0].id, text: 'First chat.' }),
+    workspace.sendMessage({ groupId: direct[1].id, text: 'Second chat.' }),
+    workspace.sendMessage({ groupId: group.id, text: 'Ask the group.', targetKinds: ['hermes'] }),
+  ]
+  // Hermes is busy in three conversations and none of them waits for another.
+  await allStarted.promise
+  assert.deepEqual(calls.map(call => call.kind), ['hermes', 'hermes', 'hermes'])
+  assert.equal(scheduler.snapshot().queued.length, 0)
+  for (const run of workspace.snapshot().runs) {
+    assert.equal('waitingForWorkspaceKinds' in run, false)
+  }
+  release.resolve()
+  await Promise.all(runs)
+  assert.equal(scheduler.snapshot().active.global, 0)
+})
+
+test('a conversation stuck on an Agent does not stop another conversation from using it', { timeout: 10000 }, async (t) => {
+  const { directory, options } = fixture()
+  const stuck = deferred()
+  t.after(() => {
+    stuck.resolve()
+    fs.rmSync(directory, { recursive: true, force: true })
+  })
+  options.runScheduler = new RunScheduler()
+  options.runAgent = async (agent, prompt) => {
+    // The first conversation's turn never finishes by itself.
+    if (prompt.includes('stay busy')) await stuck.promise
+    return { text: `${agent.kind} answered: ${prompt.includes('quick') ? 'quick' : 'other'}` }
+  }
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const [busy, free] = [1, 2].map(number => workspace.createGroup({
+    name: `Hermes chat ${number}`, agentKinds: ['hermes'], directAgentKind: 'hermes',
+    conversationType: 'direct', workdir: directory, allowWrite: true,
+  }))
+
+  const first = workspace.sendMessage({ groupId: busy.id, text: 'stay busy' })
+  await new Promise(resolve => setTimeout(resolve, 20))
+  assert.equal(workspace.snapshot().runningGroupIds.includes(busy.id), true)
+
+  // The second conversation answers while the first is still running.
+  await workspace.sendMessage({ groupId: free.id, text: 'a quick question' })
+  const answers = workspace.snapshot().messages.filter(message => (
+    message.groupId === free.id && message.role === 'agent'
+  ))
+  assert.equal(answers.length, 1)
+  assert.match(answers[0].content, /quick/)
+  assert.equal(workspace.snapshot().runningGroupIds.includes(busy.id), true, 'the first is still running')
+  assert.equal(workspace.snapshot().runningGroupIds.includes(free.id), false)
+
+  stuck.resolve()
+  await first
 })
 
 test('Manual V4 retains parallel readers alongside its single writer and stable message order', { timeout: 10000 }, async (t) => {

@@ -121,13 +121,27 @@ test('uses injectable jitter while keeping backoff and Retry-After bounded', () 
     response: { headers: { 'Retry-After': '3' } },
   }, { now: () => fakeNow })
   assert.equal(limited.category, 'rate_limit')
+  // Provider throttling honors Retry-After beyond the generic process-retry
+  // cap, bounded by the rate-limit cap (60 s by default).
   assert.equal(retryDecision(limited, {
     attempt: 1,
     maxAttempts: 4,
     baseDelayMs: 250,
     maxDelayMs: 2000,
     jitter: raw => raw / 2,
-  }).delayMs, 2000)
+  }).delayMs, 3000)
+  const slow = normalizeFailure({
+    status: 429,
+    response: { headers: { 'Retry-After': '120' } },
+  }, { now: () => fakeNow })
+  assert.equal(retryDecision(slow, { attempt: 1, maxDelayMs: 2000 }).delayMs, 60000)
+  assert.equal(retryDecision(slow, {
+    attempt: 1, maxDelayMs: 2000, rateLimitMaxDelayMs: 5000,
+  }).delayMs, 5000)
+  const unhinted = normalizeFailure({ status: 429 }, { now: () => fakeNow })
+  assert.equal(retryDecision(unhinted, {
+    attempt: 1, baseDelayMs: 250, maxDelayMs: 2000, rateLimitMinDelayMs: 1500,
+  }).delayMs, 1500)
 })
 
 test('retries only transient categories and stops at the total attempt bound', () => {

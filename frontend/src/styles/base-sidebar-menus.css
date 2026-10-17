@@ -2,7 +2,7 @@
   width: min(300px, calc(100vw - 96px));
   max-height: min(420px, calc(100vh - 32px));
   position: fixed;
-  z-index: 90;
+  z-index: var(--z-overlay);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   padding: 8px;
@@ -29,13 +29,13 @@
 
 .collapsed-group-menu-header strong {
   color: var(--text-soft);
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 
 .collapsed-group-menu-header small {
   margin-top: 2px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 
 .collapsed-group-menu-icon {
@@ -104,13 +104,13 @@
 }
 
 .collapsed-group-option-main strong {
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 
 .collapsed-group-option-main small {
   margin-top: 2px;
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 
 .collapsed-group-option-state {
@@ -129,7 +129,7 @@
 
 .collapsed-group-option-state time {
   overflow: hidden;
-  font-size: 9px;
+  font-size: var(--text-xs);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -138,7 +138,7 @@
   margin: 0;
   padding: 14px 8px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 
 .conversation-link > span:nth-child(2) {
@@ -160,13 +160,38 @@
   height: 15px;
 }
 
-.run-pulse {
+/* "Needs your decision": an amber dot with a soft halo. */
+.attention-mark {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.attention-dot {
+  position: relative;
   width: 8px;
   height: 8px;
-  display: block;
+  flex: 0 0 auto;
+  display: inline-block;
   border-radius: 50%;
-  background: var(--accent);
-  animation: run-pulse 1.2s ease-in-out infinite;
+  background: var(--warning);
+}
+
+.attention-dot::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: var(--warning);
+  opacity: 0.22;
+  animation: attention-halo 1.8s var(--ease-standard) infinite;
+}
+
+@keyframes attention-halo {
+  0% { opacity: 0.4; transform: scale(0.7); }
+  70%, 100% { opacity: 0; transform: scale(1.7); }
 }
 
 .run-finished-mark {
@@ -175,17 +200,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--accent);
+  color: var(--success);
   animation: run-finished-in 0.22s ease-out both;
 }
 
 .run-finished-mark svg {
   width: 15px;
   height: 15px;
-}
-
-@keyframes run-pulse {
-  50% { opacity: 0.42; transform: scale(0.78); }
 }
 
 @keyframes run-finished-in {
@@ -195,7 +216,7 @@
 .nav-empty {
   margin: 2px 8px 0;
   color: var(--faint);
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 
 .sidebar-footer {
@@ -303,5 +324,5 @@
 
 .footer-count {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-xs);
 }

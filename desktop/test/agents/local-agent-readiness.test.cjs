@@ -45,6 +45,57 @@ test('explicit refresh replaces cached native shell settings and subsequent call
   assert.strictEqual(await resolveNativeShellEnvironment(options), refreshed)
 })
 
+test('a login shell that stops answering keeps the last environment it produced instead of the bare app environment', {
+  skip: process.platform === 'win32',
+}, async (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-shell-last-good-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const shell = path.join(home, 'sh')
+  fs.writeFileSync(
+    shell,
+    '#!/bin/sh\n[ -f "$HOME/broken" ] && exit 3\n. "$HOME/native-env"\nexec /bin/sh "$@"\n',
+    { mode: 0o700 },
+  )
+  fs.writeFileSync(path.join(home, 'native-env'), [
+    'export ANTHROPIC_BASE_URL=https://gateway.example',
+    'export PATH="/opt/user/bin:$PATH"',
+    '',
+  ].join('\n'), { mode: 0o600 })
+  const options = { home, shell, platform: 'linux', env: { PATH: '/usr/bin:/bin' } }
+
+  const good = await resolveNativeShellEnvironment(options)
+  assert.equal(good.source, 'native-shell')
+  assert.equal(good.env.ANTHROPIC_BASE_URL, 'https://gateway.example')
+
+  fs.writeFileSync(path.join(home, 'broken'), '')
+  const afterFailure = await resolveNativeShellEnvironment({ ...options, refresh: true })
+  assert.equal(afterFailure.source, 'native-shell')
+  assert.equal(afterFailure.env.ANTHROPIC_BASE_URL, 'https://gateway.example')
+  assert.ok(afterFailure.env.PATH.split(':').includes('/opt/user/bin'))
+  assert.deepEqual(Object.keys(afterFailure).sort(), ['env', 'source'])
+
+  // The failure is not remembered: once the shell works again the new
+  // settings are picked up on the next explicit refresh.
+  fs.rmSync(path.join(home, 'broken'))
+  fs.writeFileSync(path.join(home, 'native-env'), 'export ANTHROPIC_BASE_URL=https://other.example\n', { mode: 0o600 })
+  const recovered = await resolveNativeShellEnvironment({ ...options, refresh: true })
+  assert.equal(recovered.env.ANTHROPIC_BASE_URL, 'https://other.example')
+})
+
+test('without any earlier success a failed login shell still falls back to the process environment', {
+  skip: process.platform === 'win32',
+}, async (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-shell-first-failure-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const shell = path.join(home, 'sh')
+  fs.writeFileSync(shell, '#!/bin/sh\nexit 3\n', { mode: 0o700 })
+  const result = await resolveNativeShellEnvironment({
+    home, shell, platform: 'linux', env: { PATH: '/usr/bin:/bin', OPENAI_API_KEY: 'from-process' },
+  })
+  assert.equal(result.source, 'process')
+  assert.equal(result.env.OPENAI_API_KEY, 'from-process')
+})
+
 function openClawModelsCatalog(apiKey, baseUrl = 'https://provider.example/v1') {
   return JSON.stringify({
     providers: {

@@ -141,7 +141,50 @@ test('Natural routing retains a request beyond the stored message excerpt', asyn
   assert.deepEqual(turns, ['codex', 'hermes', 'hermes', 'codex'])
 })
 
-test('Natural discussion does not complete when a peer reports an explicit blocker', async t => {
+test('Natural discussion accepts a fenced, loosely written owner receipt instead of failing the turn', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const ledger = new RunLedger({ storagePath: path.join(directory, 'run-ledger.json') })
+  const workspace = new LocalWorkspace({
+    ...options, runLedger: ledger, naturalAgentResponses: true,
+    runAgent: async (_agent, prompt) => ({ outcome: 'completed', text: naturalPhase(prompt) === 'proposal'
+      ? 'Initial answer.'
+      : 'The final answer is 42.\n\n```\n[[MELDWORK_COLLABORATION:{"summary":"Answered","taskDecision":{"status":"Done","reason":"Answered the question.","extra":true},}]]\n```' }),
+  })
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Loose receipt', agentKinds: ['codex'], workdir: directory, allowWrite: false })
+  const controller = await runDiscussion(workspace, group, { discussionStyle: 'agent-led', maxRounds: 4 })
+  assert.equal(ledger.get(controller.runId).status, 'completed')
+  const reply = workspace.snapshot().messages.filter(message => message.role === 'agent').at(-1)
+  assert.match(reply.content, /The final answer is 42\./)
+  assert.doesNotMatch(reply.content, /MELDWORK_COLLABORATION/)
+  assert.equal(ledger.get(controller.runId).agentRuns.at(-1).context.taskDecision.status, 'completed')
+})
+
+test('Natural discussion shows peers workspace files as relative paths', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const prompts = []
+  const workspace = new LocalWorkspace({
+    ...options, naturalAgentResponses: true,
+    runAgent: async (agent, prompt) => {
+      prompts.push({ kind: agent.kind, phase: naturalPhase(prompt), prompt })
+      if (naturalPhase(prompt) === 'proposal') {
+        return { outcome: 'completed', text: `${agent.kind} would change ${path.join(directory, 'src', 'app.ts')} and the /api/users route.` }
+      }
+      return { outcome: 'completed', text: decisionReply(`${agent.kind} reviewed the change.`) }
+    },
+  })
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Paths', agentKinds: ['codex', 'hermes'], workdir: directory, allowWrite: false })
+  await runDiscussion(workspace, group, { discussionStyle: 'agent-led', maxRounds: 3 })
+  const discussion = prompts.find(item => item.phase === 'discussion' && item.kind === 'hermes')
+  assert.ok(discussion)
+  assert.match(discussion.prompt, /codex would change src\/app\.ts and the \/api\/users route\./)
+  assert.doesNotMatch(discussion.prompt, /would change \[path\]/)
+})
+
+test('Natural discussion hands a peer blocker to the delivery owner instead of ending', async t => {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
   const ledger = new RunLedger({ storagePath: path.join(directory, 'run-ledger.json') })
@@ -163,9 +206,12 @@ test('Natural discussion does not complete when a peer reports an explicit block
     name: 'Peer blocker', agentKinds: ['codex', 'hermes'], workdir: directory, allowWrite: false,
   })
   const controller = await runDiscussion(workspace, group, { discussionStyle: 'agent-led', maxRounds: 4 })
-  assert.equal(ledger.get(controller.runId).status, 'partial')
+  // The owner reviews the blocker before judging the task; its judgment is
+  // the outcome instead of the run ending as soon as a peer is blocked.
+  assert.equal(codexDiscussionTurns, 2)
+  assert.equal(ledger.get(controller.runId).status, 'completed')
   assert.equal(workspace.snapshot().messages.some(message => (
-    message.system?.key === 'system.autoTaskBlocked'
+    message.system?.key === 'system.autoPeerBlockerForwarded'
     && message.threadRootId === controller.threadRootId
   )), true)
 })
@@ -246,11 +292,14 @@ for (const handoffTo of [undefined, 'hermes', 'ghost']) {
     const group = workspace.createGroup({ name: 'Owner continuation', agentKinds: ['codex', 'hermes'], workdir: directory, allowWrite: false })
     await runDiscussion(workspace, group, { discussionStyle: 'agent-led', maxRounds: 5 })
     const record = ledger.list(group.id)[0]
-    assert.equal(record.status, handoffTo === 'ghost' ? 'partial' : 'completed', record.reason)
-    assert.deepEqual(turns, handoffTo === 'ghost'
-      ? ['codex', 'hermes']
-      : handoffTo === 'hermes' ? ['codex', 'hermes', 'hermes']
-        : ['codex', 'hermes', 'codex'])
+    // A handoff to an absent Agent is ignored with a notice; the owner keeps
+    // working instead of the discussion ending as partial.
+    assert.equal(record.status, 'completed', record.reason)
+    assert.deepEqual(turns, handoffTo === 'hermes' ? ['codex', 'hermes', 'hermes']
+      : ['codex', 'hermes', 'codex'])
+    assert.equal(workspace.snapshot().messages.some(message => (
+      message.system?.key === 'system.autoHandoffIgnored'
+    )), handoffTo === 'ghost')
   })
 }
 
@@ -513,15 +562,17 @@ test('Natural routing uses explicit canonical recipients independently of displa
     const activeKinds = ['codex', 'hermes', 'workbuddy']
     const decision = { status: 'continue', reason: 'Request a contribution.', deliverables: [] }
     const route = nextKinds => workspace.autoRunner.v4NaturalRouteDecision({ ...decision, nextKinds }, activeKinds)
-    assert.deepEqual(route(['workbuddy', 'hermes']), { status: 'valid', kinds: ['hermes', 'workbuddy'] })
-    assert.deepEqual(route([]), { status: 'none', kinds: [] })
-    assert.deepEqual(route(['hermes', 'ghost']), { status: 'invalid', kinds: [] })
-    assert.deepEqual(route(['HERMES']), { status: 'valid', kinds: ['hermes'] })
-    assert.deepEqual(route(['hermes', 'hermes']), { status: 'invalid', kinds: [] })
-    assert.deepEqual(workspace.autoRunner.v4NaturalRouteDecision(undefined, activeKinds), { status: 'none', kinds: [] })
-    assert.deepEqual(workspace.autoRunner.v4NaturalRouteDecision(decision, activeKinds), { status: 'none', kinds: [] })
+    assert.deepEqual(route(['workbuddy', 'hermes']), { status: 'valid', kinds: ['hermes', 'workbuddy'], dropped: [] })
+    assert.deepEqual(route([]), { status: 'none', kinds: [], dropped: [] })
+    // Absent recipients are dropped on their own instead of voiding the route.
+    assert.deepEqual(route(['hermes', 'ghost']), { status: 'valid', kinds: ['hermes'], dropped: ['ghost'] })
+    assert.deepEqual(route(['ghost']), { status: 'none', kinds: [], dropped: ['ghost'] })
+    assert.deepEqual(route(['HERMES']), { status: 'valid', kinds: ['hermes'], dropped: [] })
+    assert.deepEqual(route(['@hermes', 'hermes']), { status: 'valid', kinds: ['hermes'], dropped: [] })
+    assert.deepEqual(workspace.autoRunner.v4NaturalRouteDecision(undefined, activeKinds), { status: 'none', kinds: [], dropped: [] })
+    assert.deepEqual(workspace.autoRunner.v4NaturalRouteDecision(decision, activeKinds), { status: 'none', kinds: [], dropped: [] })
     workspace.autoRunner.agentLabel = () => 'Identical display name'
-    assert.deepEqual(route(['hermes']), { status: 'valid', kinds: ['hermes'] })
+    assert.deepEqual(route(['hermes']), { status: 'valid', kinds: ['hermes'], dropped: [] })
   } finally {
     fs.rmSync(directory, { recursive: true, force: true })
   }
@@ -1367,10 +1418,13 @@ test('Natural Agent-led V4 does not treat concurrent self-routes as peer confirm
     maxRounds: 6,
   })
 
+  // The owner's undecided reply gets one request for a judgment before the
+  // discussion stops; peers' self-mentions still do not count as review.
   assert.deepEqual(calls, [
     'proposal:codex', 'proposal:hermes', 'proposal:workbuddy',
     'discussion:codex', 'discussion:hermes', 'discussion:workbuddy',
     'discussion:hermes', 'discussion:workbuddy',
+    'discussion:codex',
     'discussion:codex',
   ])
   const messages = workspace.snapshot().messages.filter(message => (
@@ -1381,10 +1435,14 @@ test('Natural Agent-led V4 does not treat concurrent self-routes as peer confirm
     '2:codex', '2:hermes', '2:workbuddy',
     '3:hermes', '3:workbuddy',
     '4:codex',
+    '5:codex',
   ])
+  assert.equal(workspace.snapshot().messages.some(message => (
+    message.system?.key === 'system.autoTaskDecisionRequested'
+  )), true)
 })
 
-test('Natural Agent-led V4 does not treat an invalid route as acceptance', async (t) => {
+test('Natural Agent-led V4 drops an absent recipient without treating the route as acceptance', async (t) => {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
   options.runScheduler = new RunScheduler({ taskLimit: 8, workspaceLimit: 8, globalLimit: 8 })
@@ -1419,13 +1477,18 @@ test('Natural Agent-led V4 does not treat an invalid route as acceptance', async
     maxRounds: 6,
   })
 
+  // The absent recipient is dropped with a notice and the valid request still
+  // runs. The owner then gets a review turn; two undecided owner turns in a
+  // row end the run with the missing-decision notice.
   assert.deepEqual(calls, [
     'proposal:codex', 'proposal:hermes',
     'discussion:codex', 'discussion:hermes',
+    'discussion:codex', 'discussion:hermes',
+    'discussion:codex',
   ])
-  assert.equal(workspace.snapshot().messages.some(message => (
-    message.system?.key === 'system.autoTaskDecisionMissing'
-  )), true)
+  const keys = workspace.snapshot().messages.map(message => message.system?.key)
+  assert.equal(keys.includes('system.autoRouteIgnored'), true)
+  assert.equal(keys.includes('system.autoTaskDecisionMissing'), true)
 })
 
 test('Natural Agent-led V4 recovers a completed proposal harness run before message commit', async (t) => {

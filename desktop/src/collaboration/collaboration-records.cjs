@@ -533,6 +533,37 @@ function publicCollaborationText(value, limit = MAX_TEXT_CHARS) {
     .slice(0, limit)
 }
 
+const PRIVATE_FILESYSTEM_ROOT = /^\/(?:Users|home|private|var|tmp|etc|opt|Volumes|root|usr|System|Library|Applications|mnt|srv)(?:\/|$)/
+
+function peerPathText(candidate, workspaceRoot) {
+  const trailing = candidate.match(/[.,;:!?]+$/)?.[0] || ''
+  const clean = trailing ? candidate.slice(0, -trailing.length) : candidate
+  if (workspaceRoot && (clean === workspaceRoot || clean.startsWith(`${workspaceRoot}/`))) {
+    return `${clean === workspaceRoot ? '.' : clean.slice(workspaceRoot.length + 1)}${trailing}`
+  }
+  if (PRIVATE_FILESYSTEM_ROOT.test(clean)) return `[path]${trailing}`
+  // Routes and commands such as /api/users or /login are not local files.
+  return candidate
+}
+
+// Peer-visible text for natural discussion transcripts. Unlike
+// publicCollaborationText, files inside the shared workspace stay readable as
+// workspace-relative paths and non-filesystem tokens (API routes, slash
+// commands) are kept; other absolute local paths and secrets stay redacted.
+function peerCollaborationText(value, options = {}) {
+  const workspaceRoot = typeof options.workspaceRoot === 'string'
+    ? options.workspaceRoot.replace(/\/+$/, '')
+    : ''
+  return redactSecrets(String(value || ''))
+    .replace(/\bfile:\/\/(\/[^\s"'`<>]+)/giu, (_match, filePath) => peerPathText(filePath, workspaceRoot))
+    .replace(/(^|[\s("'`])(\/(?!\/)[^\s"'`<>)]*)/gmu, (_match, lead, candidate) => (
+      `${lead}${peerPathText(candidate, workspaceRoot)}`
+    ))
+    .replace(/\b[A-Za-z]:\\(?:[^\s"'`<>]+\\)*[^\s"'`<>]*/gu, '[path]')
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '')
+    .trim()
+}
+
 function collaborationPackageText(handoff, entries) {
   const lines = [
     'MELDWORK_COLLABORATION_PACKAGE_V1',
@@ -557,6 +588,7 @@ function collaborationPackageText(handoff, entries) {
 }
 
 module.exports = {
+  peerCollaborationText,
   BLACKBOARD_ENTRY_VERSION,
   COLLABORATION_STATE_VERSION,
   HANDOFF_VERSION,

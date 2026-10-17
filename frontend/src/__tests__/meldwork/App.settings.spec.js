@@ -85,7 +85,7 @@ describe('Meldwork workbench', () => {
 
     expect(wrapper.get('.onboarding-slide img').attributes('src')).toContain('agent-collaboration.png')
     expect(wrapper.get('.onboarding-primary').attributes()).not.toHaveProperty('disabled')
-    expect(wrapper.get('.onboarding-primary').text()).toContain('Start using')
+    expect(wrapper.get('.onboarding-primary').text()).toContain('Get started')
 
     await vi.advanceTimersByTimeAsync(3_200)
     await flushPromises()

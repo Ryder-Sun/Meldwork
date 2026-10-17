@@ -61,3 +61,29 @@ test('distinguishes missing, corrupt, unreadable, unsupported, and valid workspa
   assert.equal(loadWorkspaceState(storagePath).status, 'ready')
   assert.equal(loadWorkspaceState(storagePath).trusted, true)
 })
+
+test('a group emptied by an earlier build is recovered from its replies instead of dropped', (t) => {
+  const storagePath = fixture(t)
+  fs.writeFileSync(storagePath, JSON.stringify({
+    version: 3,
+    groups: [
+      { id: 'emptied', name: 'Emptied', agentKinds: [], workdir: '/tmp' },
+      { id: 'silent', name: 'Never replied', agentKinds: [], workdir: '/tmp' },
+    ],
+    messages: [
+      { id: 'u1', groupId: 'emptied', role: 'user', content: 'Plan it' },
+      { id: 'a1', groupId: 'emptied', role: 'agent', agentKind: 'hermes', content: 'Hermes reply' },
+      { id: 'a2', groupId: 'emptied', role: 'agent', agentKind: 'codex', content: 'Codex reply' },
+      { id: 'a3', groupId: 'emptied', role: 'agent', agentKind: 'hermes', content: 'Hermes again' },
+      { id: 'u2', groupId: 'silent', role: 'user', content: 'Nobody answered' },
+    ],
+    sessions: {},
+  }))
+
+  const { state, trusted } = loadWorkspaceState(storagePath)
+  assert.equal(trusted, true)
+  assert.deepEqual(state.groups.map(group => [group.id, group.agentKinds]), [
+    ['emptied', ['hermes', 'codex']],
+  ])
+  assert.deepEqual(state.messages.map(message => message.id), ['u1', 'a1', 'a2', 'a3'])
+})

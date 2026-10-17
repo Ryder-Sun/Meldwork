@@ -167,3 +167,51 @@ describe('composer context', () => {
     }, group, catalog)).toEqual(['codex'])
   })
 })
+
+describe('composer targets with an unavailable member', () => {
+  function groupComposer(catalog) {
+    const created = createComposer({ mergedCatalog: ref(catalog) })
+    created.activeGroup.value = {
+      id: 'group-with-offline-member',
+      conversationType: 'group',
+      agentKinds: ['codex', 'hermes', 'kimi'],
+    }
+    created.composer.resetComposerContext(created.activeGroup.value)
+    return created
+  }
+  const catalog = [
+    { kind: 'codex', label: 'Codex', ready: true },
+    { kind: 'hermes', label: 'Hermes', ready: false },
+    { kind: 'kimi', label: 'Kimi', ready: true },
+  ]
+
+  it('skips a member that is not ready when everyone is the implicit recipient', () => {
+    const { composer, scope } = groupComposer(catalog)
+    composer.discussionMode.value = 'manual'
+
+    expect(composer.composerTargetKinds.value).toEqual(['codex', 'kimi'])
+    expect(composer.composerSkippedKinds.value).toEqual(['hermes'])
+    composer.discussionMode.value = 'auto'
+    expect(composer.composerTargetKinds.value).toEqual(['codex', 'kimi'])
+    scope.stop()
+  })
+
+  it('keeps an Agent the user picked explicitly so the send can report it', () => {
+    const { composer, scope } = groupComposer(catalog)
+    composer.discussionMode.value = 'manual'
+    composer.targetKinds.value = ['hermes', 'kimi']
+
+    expect(composer.composerTargetKinds.value).toEqual(['hermes', 'kimi'])
+    expect(composer.composerSkippedKinds.value).toEqual([])
+    scope.stop()
+  })
+
+  it('does not hide the problem when nobody in the group is ready', () => {
+    const { composer, scope } = groupComposer(catalog.map(agent => ({ ...agent, ready: false })))
+    composer.discussionMode.value = 'manual'
+
+    expect(composer.composerTargetKinds.value).toEqual(['codex', 'hermes', 'kimi'])
+    expect(composer.composerSkippedKinds.value).toEqual([])
+    scope.stop()
+  })
+})

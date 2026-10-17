@@ -1,3 +1,4 @@
+const { authFailureCertainty } = require('../runs/failure-signals.cjs')
 const AGENT_OUTCOMES = Object.freeze([
   'accepted',
   'running',
@@ -219,19 +220,25 @@ function terminalAuthenticationDiagnostic(value) {
     : ''
 }
 
+// True only for explicit sign-in or API-key statements. Ambiguous refusals
+// (HTTP 403, proxy or region blocks, "provider rejected") are classified as
+// LOCAL_AGENT_ACCESS_DENIED so they are retried instead of signing the Agent out.
 function authConfigurationFailure(detail) {
-  return String(detail || '').split(/\r?\n/).some((line) => {
-    const text = line.trim().replace(/^(?:error|fatal)\s*:\s*/i, '')
-    return Boolean(terminalAuthenticationDiagnostic(text))
-      || /^(?:(?:invalid|expired|missing|incorrect)\s+(?:api[ _-]?key|(?:access|refresh|auth)[ _-]?token|credentials?)\b|(?:authentication|authorization)\s+(?:failed|required)\b|(?:please\s+)?(?:log|sign)\s+in\b|not\s+logged\s+in\b|select an auth type\b|provider rejected\b)/i.test(text)
-      || /^(?:认证|鉴权|登录)(?:失败|过期)|^(?:令牌|凭据|密钥)(?:无效|缺失|已过期)|^请(?:先|重新)登录/.test(text)
-  })
+  return authFailureCertainty(detail) === 'definitive'
+}
+
+function authFailureCode(detail) {
+  const certainty = authFailureCertainty(detail)
+  if (certainty === 'definitive') return 'LOCAL_AGENT_AUTH_REQUIRED'
+  if (certainty === 'ambiguous') return 'LOCAL_AGENT_ACCESS_DENIED'
+  return ''
 }
 
 function failureCategory(code) {
   const value = String(code || '')
   if (value === 'LOCAL_AGENT_SESSION_INVALID') return 'session'
   if (value === 'LOCAL_AGENT_AUTH_REQUIRED') return 'authentication'
+  if (value === 'LOCAL_AGENT_ACCESS_DENIED') return 'provider'
   if (value === 'LOCAL_AGENT_TIMEOUT') return 'timeout'
   if (value === 'LOCAL_AGENT_EXECUTION_STOPPED') return 'cancellation'
   if (value === 'LOCAL_AGENT_REFUSED') return 'refusal'
@@ -317,6 +324,9 @@ function requireTerminalAgentResult(result) {
     // error, so the catalog can mark the Agent as needing a fresh login.
     if (failure.category !== 'authentication' && authConfigurationFailure(diagnostic)) {
       failure = agentRuntimeFailure('LOCAL_AGENT_AUTH_REQUIRED')
+    } else if (failure.code === 'LOCAL_AGENT_PROCESS_FAILED'
+        && authFailureCertainty(normalized.diagnostic) === 'ambiguous') {
+      failure = agentRuntimeFailure('LOCAL_AGENT_ACCESS_DENIED')
     }
     throw agentRuntimeError(
       failure.code,
@@ -326,7 +336,10 @@ function requireTerminalAgentResult(result) {
   }
   const authenticationDiagnostic = terminalAuthenticationDiagnostic(normalized.text)
   if (authenticationDiagnostic) {
-    throw agentRuntimeError('LOCAL_AGENT_AUTH_REQUIRED', authenticationDiagnostic)
+    throw agentRuntimeError(
+      authFailureCode(authenticationDiagnostic) || 'LOCAL_AGENT_ACCESS_DENIED',
+      authenticationDiagnostic,
+    )
   }
   return normalized
 }
@@ -355,6 +368,7 @@ module.exports = {
   agentRuntimeError,
   agentRuntimeFailure,
   authConfigurationFailure,
+  authFailureCode,
   isCodeReviewAgentKind,
   isReviewOnlyAgentKind,
   normalizeAgentResult,

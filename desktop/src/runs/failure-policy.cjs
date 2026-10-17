@@ -1,3 +1,11 @@
+const {
+  authFailureCertainty,
+  isNetworkFailure,
+  isProviderUnavailable,
+  isRateLimited,
+  retryAfterFromText,
+} = require('./failure-signals.cjs')
+
 const FAILURE_CATEGORIES = Object.freeze([
   'authentication',
   'compatibility',
@@ -121,23 +129,47 @@ function retryAfterMs(error, now) {
     const parsed = parseRetryAfter(headerValue(headers, 'retry-after'), now)
     if (parsed != null) return parsed
   }
-  return null
+  // Local CLIs surface provider throttling as text ("retry after 20s").
+  return retryAfterFromText(error?.diagnostic || error?.message)
+}
+
+// A local CLI process failure carries a code-derived category (usually
+// protocol). Its diagnostic often proves a transient provider condition, so
+// refine it before deciding whether to retry and how long to wait.
+function transientCategoryFromText(detail) {
+  if (!detail) return ''
+  if (isRateLimited(detail)) return 'rate_limit'
+  if (isNetworkFailure(detail)) return 'network'
+  if (isProviderUnavailable(detail)) return 'provider'
+  return ''
 }
 
 function classifiedCategory(error, code, status) {
   const explicit = String(error?.failure?.category || '')
-  if (FAILURE_CATEGORY_SET.has(explicit)) return explicit
   const detail = String(error?.diagnostic || error?.message || '')
+  if (FAILURE_CATEGORY_SET.has(explicit)) {
+    if (['protocol', 'execution'].includes(explicit)) {
+      const refined = transientCategoryFromText(error?.diagnostic || '')
+      if (refined) return refined
+    }
+    return explicit
+  }
   if (code === 'LOCAL_BUDGET_EXHAUSTED') return 'budget'
   if (/PERMISSION/.test(code)) return 'permission'
   if (code === 'LOCAL_AGENT_EXECUTION_STOPPED' || /CANCEL|ABORT/.test(code)) {
     return 'cancellation'
   }
   if (code === 'LOCAL_AGENT_SESSION_INVALID') return 'session'
-  if (status === 401 || status === 403 || code === 'LOCAL_AGENT_AUTH_REQUIRED'
-      || /unauthori[sz]ed|forbidden|invalid token/i.test(detail)) return 'authentication'
+  // Only explicit sign-in statements prove that credentials are gone. A 403,
+  // a proxy refusal, or "unauthorized" inside unrelated output is retried as
+  // a provider-side refusal instead of stopping the Agent for the run.
+  const authCertainty = authFailureCertainty(detail)
+  if (status === 401 || code === 'LOCAL_AGENT_AUTH_REQUIRED'
+      || authCertainty === 'definitive') return 'authentication'
+  if (status === 403 || code === 'LOCAL_AGENT_ACCESS_DENIED'
+      || authCertainty === 'ambiguous') return 'provider'
   if (status === 429 || /RATE_LIMIT|TOO_MANY_REQUESTS/.test(code)
-      || /rate limit|too many requests/i.test(detail)) return 'rate_limit'
+      || isRateLimited(detail)) return 'rate_limit'
   if (NETWORK_CODES.has(code) || /NETWORK|CONNECTION/.test(code)
       || /socket hang up|temporary failure|network error/i.test(detail)) return 'network'
   if (status != null && status >= 500) return 'provider'
@@ -244,18 +276,30 @@ function retryDecision(input, options = {}) {
   if (safety?.sideEffectsPossible === true && safety.idempotencyMode !== 'durable') {
     return Object.freeze({ ...base, action: 'human_gate', exhausted: false })
   }
-  const maxDelayMs = Math.max(1, boundedInteger(
+  const configuredMaxDelayMs = Math.max(1, boundedInteger(
     options.maxDelayMs, 10 * 1000, 24 * 60 * 60 * 1000,
   ))
+  // Provider throttling needs a longer and server-directed wait than a crashed
+  // process. Honor Retry-After up to the rate-limit cap instead of hammering
+  // the provider with the generic sub-second backoff.
+  const rateLimited = failure.category === 'rate_limit'
+  const maxDelayMs = rateLimited
+    ? Math.max(configuredMaxDelayMs, boundedInteger(
+      options.rateLimitMaxDelayMs, 60 * 1000, 24 * 60 * 60 * 1000,
+    ))
+    : configuredMaxDelayMs
   const backoff = boundedBackoffDelay(attempt, { ...options, maxDelayMs })
   const requestedDelay = failure.retryAfterMs == null
     ? 0
     : Math.min(maxDelayMs, boundedInteger(failure.retryAfterMs, 0, maxDelayMs))
+  const minimumDelay = rateLimited && failure.retryAfterMs == null
+    ? Math.min(maxDelayMs, boundedInteger(options.rateLimitMinDelayMs, 0, maxDelayMs))
+    : 0
   return Object.freeze({
     ...base,
     action: 'retry',
     exhausted: false,
-    delayMs: Math.max(backoff, requestedDelay),
+    delayMs: Math.max(backoff, requestedDelay, minimumDelay),
   })
 }
 

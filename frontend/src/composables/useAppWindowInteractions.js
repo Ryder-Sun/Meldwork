@@ -8,7 +8,7 @@ export function useAppWindowInteractions({
   collapsedGroupMenuButton,
   collapsedGroupMenuOpen,
   completeOnboarding,
-  conversationHeader,
+  windowTitlebar,
   customAgentDeleteArmed,
   deleteArmed,
   messageDeleteArmedId,
@@ -139,7 +139,7 @@ export function useAppWindowInteractions({
     if (roundSettingsOpen.value && !roundSettingsControl.value?.contains(target)) {
       roundSettingsOpen.value = false
     }
-    if (shortcutMenuOpen.value && !conversationHeader.value?.containsShortcutTarget(target)) {
+    if (shortcutMenuOpen.value && !windowTitlebar.value?.containsShortcutTarget(target)) {
       shortcutMenuOpen.value = false
     }
     if (

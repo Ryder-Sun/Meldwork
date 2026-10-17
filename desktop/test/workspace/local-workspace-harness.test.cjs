@@ -1909,6 +1909,51 @@ test('an unmatched tool start cannot keep an automatic discussion running foreve
   assert.equal(failure?.trace?.status, 'timeout')
 })
 
+test('automatic discussion keeps a live but slow-starting Agent past the startup deadline', async (t) => {
+  const { directory, calls, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  options.runAgentTimeoutMs = 20
+  options.runAbortGraceMs = 20
+  options.runSilenceWarningMs = 1000
+  options.retrySleep = async () => {}
+  options.runAgent = async (agent, prompt, workdir, runOptions) => {
+    calls.push({ agent, prompt, workdir, runOptions })
+    if (agent.kind === 'codex') {
+      // Thinking for longer than the startup deadline while the process keeps
+      // producing output must not be treated as a dead Agent.
+      for (let tick = 0; tick < 8; tick += 1) {
+        await new Promise(resolve => setTimeout(resolve, 5))
+        runOptions.onActivity()
+      }
+    }
+    return {
+      text: `${agent.kind} answered\n[[MELDWORK_CONSENSUS:agree]]`,
+      sessionRef: runOptions.sessionRef || `${agent.kind}-session`,
+    }
+  }
+  const finished = []
+  const workspace = new LocalWorkspace(options)
+  workspace.on('run-finished', result => finished.push(result))
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({
+    name: 'Slow starting Agent', agentKinds: ['codex', 'hermes'], workdir: directory,
+    allowWrite: false,
+  })
+  workspace.addMessage(group.id, 'user', 'Think before answering')
+
+  workspace.startAuto({ groupId: group.id, maxRounds: 1 })
+  await workspace.activeRuns.get(group.id).promise
+
+  assert.equal(workspace.snapshot().messages.some(message => (
+    message.agentKind === 'codex' && message.role === 'agent'
+      && message.content.startsWith('codex answered')
+  )), true)
+  assert.equal(workspace.snapshot().messages.some(message => (
+    message.system?.params?.reason === 'LOCAL_AGENT_TIMEOUT'
+  )), false)
+  assert.equal(finished[0].status, 'completed')
+})
+
 test('automatic discussion hard-stops a heartbeat-only Agent and continues later rounds', async (t) => {
   const { directory, calls, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

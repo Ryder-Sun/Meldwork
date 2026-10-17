@@ -1,4 +1,5 @@
 const fs = require('node:fs')
+const os = require('node:os')
 const path = require('node:path')
 
 function executable(directory, name, source) {
@@ -6,6 +7,16 @@ function executable(directory, name, source) {
   fs.writeFileSync(filename, `#!/usr/bin/env node\n${source}`)
   fs.chmodSync(filename, 0o755)
   return filename
+}
+
+function workBuddyInstall(t, bundles) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-workbuddy-layout-'))
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+  fs.mkdirSync(path.join(root, 'bin'))
+  fs.mkdirSync(path.join(root, 'dist'))
+  const launcher = executable(path.join(root, 'bin'), 'codebuddy', '')
+  for (const name of bundles) fs.writeFileSync(path.join(root, 'dist', name), '')
+  return launcher
 }
 
 async function readWhenReady(filename, timeoutMs = 5000) {
@@ -68,4 +79,5 @@ module.exports = {
   readWhenReady,
   waitForExit,
   within,
+  workBuddyInstall,
 }

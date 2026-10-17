@@ -1,4 +1,5 @@
 import { computed } from 'vue'
+import { compareTraceItems } from '../conversationOrdering.js'
 import { agentLabel } from '../catalog.js'
 import { normalizeOrchestration } from '../desktop-normalization.js'
 import {
@@ -69,6 +70,7 @@ export function useConversationTraceRuns({
         threadRootId: activeRun.value?.threadRootId || '',
         createdAt: agent.startedAt,
         startedAt: agent.startedAt,
+        turnSeq: agent.turnSeq,
         live: true,
       })
     }
@@ -94,6 +96,7 @@ export function useConversationTraceRuns({
         messageId: message.id,
         threadRootId: messageThreadRootId(message),
         createdAt: message.createdAt,
+        turnSeq: message.turnSeq,
         live: false,
       }
       const live = byRunAgentId.get(key)
@@ -112,17 +115,13 @@ export function useConversationTraceRuns({
         threadRootId: live.threadRootId || durable.threadRootId,
         createdAt: live.createdAt || durable.createdAt,
         startedAt: live.startedAt || durable.startedAt,
+        turnSeq: durable.turnSeq || live.turnSeq,
         live: true,
       } : durable)
     }
     const targetOrder = new Map((activeRun.value?.targetKinds
       || activeGroup.value?.agentKinds || []).map((kind, index) => [kind, index]))
-    return [...byRunAgentId.values()].sort((left, right) => (
-      (Number(left.round) || 0) - (Number(right.round) || 0)
-      || (targetOrder.get(left.agentKind) ?? 99) - (targetOrder.get(right.agentKind) ?? 99)
-      || (Date.parse(left.createdAt || left.startedAt || '') || 0)
-        - (Date.parse(right.createdAt || right.startedAt || '') || 0)
-    ))
+    return [...byRunAgentId.values()].sort((left, right) => compareTraceItems(left, right, targetOrder))
   })
 
   const historicalGroupRun = computed(() => {

@@ -56,6 +56,25 @@ export function useComposerContext({
     const addressed = new Set([...selectedAgentKinds.value, ...natural])
     return group.agentKinds.filter(kind => addressed.has(kind))
   })
+  // Everyone in the group is a recipient unless the user addressed or picked
+  // specific Agents.
+  const implicitTargetKinds = computed(() => {
+    const group = activeGroup.value
+    if (!group || group.conversationType === 'direct') return []
+    if (automaticTeamFormation.value || addressedAgentKinds.value.length) return []
+    if (discussionMode.value !== 'auto' && targetKinds.value.length) return []
+    return [...group.agentKinds]
+  })
+  // A member that is not ready is left out of an implicit send, so one broken
+  // CLI does not stop the whole group from being used. When nobody is ready
+  // the full list is kept and the send reports the Agent as unavailable.
+  const composerSkippedKinds = computed(() => {
+    const ready = new Set(mergedCatalog.value.filter(agent => agent.ready).map(agent => agent.kind))
+    const implicit = implicitTargetKinds.value
+    return implicit.some(kind => ready.has(kind))
+      ? implicit.filter(kind => !ready.has(kind))
+      : []
+  })
   const composerTargetKinds = computed(() => {
     const group = activeGroup.value
     if (!group) return []
@@ -66,8 +85,11 @@ export function useComposerContext({
     if (group.conversationType !== 'direct' && addressedAgentKinds.value.length) {
       return [...addressedAgentKinds.value]
     }
-    if (group.conversationType === 'direct' || discussionMode.value === 'auto') return [...group.agentKinds]
-    return targetKinds.value.length ? [...targetKinds.value] : [...group.agentKinds]
+    if (group.conversationType === 'direct') return [...group.agentKinds]
+    if (implicitTargetKinds.value.length) {
+      return implicitTargetKinds.value.filter(kind => !composerSkippedKinds.value.includes(kind))
+    }
+    return [...targetKinds.value]
   })
   const composerMode = computed(() => {
     if (activeGroup.value?.conversationType === 'direct') return 'manual'
@@ -226,6 +248,29 @@ export function useComposerContext({
     automaticTeamFormation.value = context?.automaticTeamFormation === true
   }
 
+  // Unsent text is kept per conversation while the app is open, so a quick look
+  // at another conversation (or saving this one's settings) does not cost what
+  // was typed. Attachments and mentions are still reset: they are tied to the
+  // conversation's members and to files staged for it.
+  const draftsByGroupId = new Map()
+
+  function stashComposerDraft(groupId) {
+    const id = String(groupId || '')
+    if (!id) return
+    if (draft.value.trim()) draftsByGroupId.set(id, draft.value)
+    else draftsByGroupId.delete(id)
+  }
+
+  function restoreComposerDraft(groupId) {
+    const text = draftsByGroupId.get(String(groupId || ''))
+    if (text) draft.value = text
+  }
+
+  function pruneComposerDrafts(groupIds) {
+    const live = new Set((Array.isArray(groupIds) ? groupIds : []).map(String))
+    for (const id of draftsByGroupId.keys()) if (!live.has(id)) draftsByGroupId.delete(id)
+  }
+
   function resetComposerContext(group) {
     discussionMode.value = group?.conversationType === 'direct' ? 'manual' : 'auto'
     automaticTeamFormation.value = false
@@ -276,6 +321,7 @@ export function useComposerContext({
     composerMenuOptions,
     composerMenuOptionTitle,
     composerMode,
+    composerSkippedKinds,
     composerTargetKinds,
     discussionMode,
     disposeComposerContext,
@@ -285,11 +331,13 @@ export function useComposerContext({
     isComposerTargetSelected,
     manualModeLabel,
     openSkillMenu,
+    pruneComposerDrafts,
     removeAgentMention,
     removeKnowledgeBase,
     removeSkill,
     resetComposerContext,
     restoreComposerContext,
+    restoreComposerDraft,
     scheduleComposerResize,
     selectComposerMenuOption,
     selectedAgentKinds,
@@ -300,6 +348,7 @@ export function useComposerContext({
     skillActiveIndex,
     skillMenuOpen,
     skillsLoading,
+    stashComposerDraft,
     targetKinds,
     toggleTarget,
     toggleAutomaticTeamFormation,

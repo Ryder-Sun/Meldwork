@@ -14,12 +14,12 @@ The supported product surface is the packaged Electron application. The frontend
 | Electron preload | Exposes narrow workspace, Human Gate, Cloud control, installer/Skill, attachment, and knowledge-source methods through `window.meldworkDesktop` only to a local `file:` document; Channel ingress has no renderer API | `desktop/src/preload.cjs` |
 | Electron main | Trust boundary for IPC authorization and shutdown gating, persistence, attachment import/preview, Connector registration, Skill and knowledge-source validation, local/Cloud execution, Channel receivers, navigation, sanitized run events, operating-system notifications, and installer control | `desktop/src/main.cjs` |
 | Local workspace | Persists Meldwork conversations, final replies, compact evidence capsules, safe message metadata, task-scoped group Sessions, conversation-scoped direct Sessions, legacy Session migration, Agent-specific transcript deltas, Agent preferences/runtime evidence, and active run coordination | `desktop/src/workspace/local-workspace.cjs` |
-| V4 orchestration | Validates frozen snapshots, phase-aware slots, typed collaboration receipts, negotiated responsibility graphs, work receipts, synthesis recovery, verification, and idempotent commits | `desktop/src/collaboration/orchestration-v4-records.cjs`, `desktop/src/workspace/local-workspace-message-submission.cjs`, `desktop/src/workspace/local-workspace-auto-runner.cjs` |
+| V4 orchestration | Validates frozen snapshots, phase-aware slots, typed collaboration receipts, negotiated responsibility graphs, work receipts, synthesis recovery, verification, and idempotent commits | `desktop/src/collaboration/orchestration-v4-records.cjs`, `desktop/src/workspace/local-workspace-message-submission.cjs`, `desktop/src/workspace/local-workspace-auto-runner.cjs` and its `local-workspace-auto-runner-*.cjs` parts (see Code Map) |
 | Run Ledger | Atomically checkpoints bounded, sanitized per-run and per-Agent state for stop/crash recovery, marks nonterminal runs and Agent attempts interrupted after restart, supports idempotent reconciliation of missing terminal Agent messages, and purges records with their conversation | `desktop/src/runs/run-ledger.cjs` |
 | Context Pack and delivery stores | Capture immutable, content-addressed Task inputs, attempt-specific approved prompts, exact outbound fingerprints, source hashes, target scope, and native Session provenance | `desktop/src/collaboration/context-pack-store.cjs`, `desktop/src/workspace/local-workspace-context-packs.cjs` |
 | Outcome store | Persists typed Artifacts, Evidence, Findings, and Adoption records separately from diagnostic reasoning and tool summaries | `desktop/src/collaboration/outcome-store.cjs`, `desktop/src/collaboration/outcome-records.cjs` |
 | Human Gate store | Persists permission, budget, and decision requests and their terminal user/system decisions without exposing raw request payloads to the renderer | `desktop/src/gates/human-gate-store.cjs`, `desktop/src/gates/human-gate-coordinator.cjs` |
-| Scheduling and failure policy | Enforces run budgets, retry policy, per-Agent controls, and global/workspace scheduling | `desktop/src/runs/run-scheduler.cjs`, `desktop/src/runs/failure-policy.cjs` |
+| Scheduling and failure policy | Enforces run budgets, per-Agent controls, and one writer at a time within a conversation (conversations never wait for each other); classifies failures (sign-in, rate limit, network, provider, context overflow) and decides retries with `Retry-After`; stops a silent Agent through the invocation watchdog | `desktop/src/runs/run-scheduler.cjs`, `desktop/src/runs/failure-policy.cjs`, `desktop/src/runs/failure-signals.cjs`, `desktop/src/runs/invocation-watchdog.cjs` |
 | Agent Connector registry/runtime | Validates approved manifests and instances, separates CredentialRefs, records Connector/upstream versions, and reduces versioned idempotent Run Events | `desktop/src/agents/connectors/agent-connector-manifest.cjs`, `desktop/src/agents/connectors/agent-connector-registry.cjs`, `desktop/src/agents/connectors/agent-connector-runtime.cjs` |
 | Attachment store | Imports validated local images, media, documents, code/configuration files, Office files, and archives into private app-owned storage, verifies metadata/checksums on read, and removes unreferenced entries | `desktop/src/attachments/attachment-store.cjs`, `desktop/src/attachments/image-dimensions.cjs` |
 | Local Skill catalog | Scans bounded known roots per Agent and returns sanitized Skill coordinates without exposing paths or contents | `desktop/src/skills/local-skill-catalog.cjs` |
@@ -31,6 +31,51 @@ The supported product surface is the packaged Electron application. The frontend
 | CLI adapters | Detect and invoke supported local Agent executables with per-Agent arguments and constrained child environments | `desktop/src/agents/cli/cli-adapters.cjs` |
 | Agent installer | Detects Agents and runs allowlisted npm packages or official installer scripts after user confirmation | `desktop/src/agents/installer/agent-installer.cjs` |
 | Managed OpenClaw runtime | Creates isolated local configuration and a restricted tool policy for OpenClaw | `desktop/src/agents/cli/openclaw-runtime.cjs` |
+
+## Code Map
+
+The workspace is composed of small modules around a thin coordinator. A module either owns one piece of state or is a pure function of its inputs; each has a test file with the same name under `desktop/test/`.
+
+**One Agent invocation** (`desktop/src/workspace/local-workspace-agent-invocation.cjs`) is the run lifecycle: lease, run, race against stop and timeout, record the result. It delegates to:
+
+| Module | Owns |
+| --- | --- |
+| `invocation-session.cjs` | The native Agent session of one invocation: resume, adopt a new id, discard and rebuild, record the turn |
+| `invocation-outputs.cjs` | Workspace snapshot before a writable turn, media import and artifact descriptors after it |
+| `invocation-prompt.cjs` | The prompt one Agent receives (frozen, direct chat, group) |
+| `invocation-budget.cjs` | Usage recorded against the run budget |
+| `invocation-failure.cjs` | Why an invocation ended (stopped, timed out, interrupted, cancelled, failed) and the hidden error metadata |
+| `desktop/src/runs/invocation-watchdog.cjs` | Startup, inactivity and stall windows; liveness versus substantive progress |
+| `desktop/src/agents/agent-permission-policy.cjs` | Automatic answers to permission requests; a read-only turn only approves side-effect-free tools |
+| `desktop/src/collaboration/collaboration-receipt.cjs` | Parsing and normalising the control receipt at the end of a turn (lenient for natural discussion, strict for phased V4) |
+| `desktop/src/collaboration/answer-marker-filter.cjs` | Hides control markers while an answer streams |
+
+**Prompts** live in `desktop/src/workspace/prompts/`: `natural-discussion-prompt.cjs` (named sections: brief, writer, owner, routing, receipt), `manual-reply-prompt.cjs` (concurrent replies in a group), and `prompt-contracts.cjs` (the language and deliverable contracts shared by all of them). Direct chats are built by `directPromptFor` in `local-workspace-context.cjs`.
+
+**The automatic run** is `LocalWorkspaceAutoRunner`; its methods are grouped into files by what they do and assembled with `Object.assign` onto the class prototype:
+
+| File | Responsibility |
+| --- | --- |
+| `local-workspace-auto-runner.cjs` | Constructor, `start` and `resume`, run-level helpers |
+| `…-natural-discussion.cjs`, `…-natural-decisions.cjs` | The production path: transcript, prompts, the sequential and agent-led loops, and what happens after each round (owner takeover, ignored routes, peer blockers, missing decisions) |
+| `…-v4-discussion.cjs`, `…-v4-phase.cjs`, `…-v4-results.cjs` | The phased V4 run, one phase, and turning results into receipts and commits |
+| `…-v4-context.cjs`, `…-v4-delivery.cjs`, `…-v4-synthesis.cjs`, `…-v4-outcomes.cjs` | What a run freezes and shares, how context reaches each Agent, synthesis recovery, and the receipts, review issues, convergence and acceptance checks |
+| `…-recovery.cjs` | Retries, pausing a failed Agent for the run, unauthorized-session recovery |
+| `…-collaboration.cjs` | Collaboration records written as a run progresses |
+| `…-task-graph.cjs`, `…-rounds.cjs` | V3 task-graph and V2 round runs, kept only to resume older runs |
+
+Splitting by file did not change any method; the class still shares one `this`. New behaviour should go into a small module with its own tests and be called from the group that owns the topic, not appended to a large method.
+
+## Reliability Rules
+
+- Conversations are independent. A running chat, direct or group, never makes an Agent in another conversation wait, even when both use the same folder and the same Agent. The writer lease is scoped to the conversation; inside one conversation writers still take turns.
+- A failure pauses an Agent for the current run only. Group membership is never rewritten because an Agent failed; a group whose members were all removed by an older build is rebuilt from the Agents that replied in it.
+- Only a definitive sign-in failure marks credentials missing. A refusal that could be a proxy or a tool's own output is retried once and reported as a provider failure.
+- An Agent that was available stays available through an inconclusive readiness probe for ten minutes. A definitive answer applies immediately.
+- A stopped or failed turn keeps a healthy long-lived ACP process and its native session. The process is replaced only when it ignores cancellation or the protocol breaks.
+- Unknown ACP traffic (banners, new update kinds, unknown notifications) is ignored; unknown requests are answered with "method not found". Malformed JSON, invalid responses and invalid permission requests still fail closed.
+- Messages in a group topic carry a dispatch number (`turnSeq`) assigned before the Agent starts, so live and saved replies share one order. Failure and stop notices take the turn's number.
+- A discussion does not end on a malformed receipt, an absent recipient, a peer reporting a blocker or an owner who forgot the decision: those are discarded, handed to the owner, or asked for once.
 
 ## Concurrent Collaboration V4
 
@@ -83,6 +128,7 @@ There is no Meldwork-hosted remote data store or application account namespace. 
 
 ## Known Risks And Assumptions
 
+- Writable conversations that share a folder are not coordinated. Two Agents in different conversations can edit the same files at the same time, as two terminals in one directory can. Output capture compares `.meldwork-output/` before and after a run, so when two conversations produce deliverables in the same folder at the same time, one may attach or record a file the other wrote.
 - Installer recipes use mutable upstream packages or scripts and currently do not verify a pinned digest or signature (`desktop/src/agents/installer/agent-installer.cjs`).
 - Conversation history is local but not application-encrypted (`desktop/src/workspace/local-workspace.cjs`).
 - Sanitized Run Ledger checkpoints are local and private but not application-encrypted. The store assumes one Electron main-process writer and recovers only the last persisted bounded checkpoint, not every in-memory event (`desktop/src/runs/run-ledger.cjs`).
@@ -104,10 +150,7 @@ There is no Meldwork-hosted remote data store or application account namespace. 
 
 ## Related Documents
 
-- [Flows](docs/flows.md)
-- [Permissions](docs/permissions.md)
-- [Variables And Secrets](docs/variables.md)
-- [Test Coverage](docs/tests.md)
-- [Automation](docs/automation.md)
-- [Public MVP Release Checklist](docs/public-mvp-release.md)
-- [macOS Signing And Notarization](docs/macos-signing.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security Policy](SECURITY.md)
+- [Repository Guidelines For Agents](AGENTS.md)
+- [Changelog](CHANGELOG.md)

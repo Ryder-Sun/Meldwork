@@ -7,6 +7,8 @@
       aria-modal="true"
       aria-labelledby="onboarding-title"
       tabindex="-1"
+      @keydown.left="selectOnboardingSlide(onboardingIndex - 1)"
+      @keydown.right="selectOnboardingSlide(onboardingIndex + 1)"
     >
       <div class="onboarding-slide-viewport">
         <transition name="onboarding-slide">
@@ -32,6 +34,10 @@
             @click="selectOnboardingSlide(index)"
           />
         </div>
+        <div class="onboarding-actions">
+        <button class="onboarding-skip" type="button" @click="completeOnboarding">
+          {{ t('onboarding.skip') }}
+        </button>
         <button
           class="primary-button onboarding-primary"
           type="button"
@@ -43,6 +49,7 @@
           <CheckmarkCircleOutline v-else />
           {{ onboardingReady ? t('onboarding.start') : onboardingLoadingLabel }}
         </button>
+        </div>
       </footer>
     </section>
   </div>

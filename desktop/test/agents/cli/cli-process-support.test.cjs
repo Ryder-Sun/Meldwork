@@ -6,6 +6,7 @@ const path = require('node:path')
 
 const { childEnvironment, failedAgentProcessError } = require('../../../src/agents/cli/cli-process-support.cjs')
 const { nativeOpenClawOptions } = require('../../../src/agents/cli/openclaw-runtime.cjs')
+const { workBuddyInstall } = require('../../support/cli-adapters-test-helpers.cjs')
 
 function openClawChildEnvRuntime(directory, workdir) {
   return nativeOpenClawOptions({
@@ -42,6 +43,18 @@ test('local Agent child environments keep supported runtime settings but reject 
   assert.equal(Object.hasOwn(env, 'GITHUB_TOKEN'), false)
   assert.equal(Object.hasOwn(env, 'NODE_OPTIONS'), false)
   assert.equal(Object.hasOwn(env, 'DYLD_INSERT_LIBRARIES'), false)
+})
+
+test('WorkBuddy runs load the lite bundle only when that is all the install ships', (t) => {
+  const liteOnly = workBuddyInstall(t, ['codebuddy-lite-wb.mjs'])
+  const withHeadless = workBuddyInstall(t, ['codebuddy-lite-wb.mjs', 'codebuddy-headless.js'])
+  const environmentFor = (kind, executable) => childEnvironment(
+    { kind, executable }, '/tmp/workspace', { env: {} }, process.platform,
+  )
+
+  assert.equal(environmentFor('workbuddy', liteOnly).CODEBUDDY_FORCE_LITE_WB_BUNDLE, '1')
+  assert.equal(Object.hasOwn(environmentFor('workbuddy', withHeadless), 'CODEBUDDY_FORCE_LITE_WB_BUNDLE'), false)
+  assert.equal(Object.hasOwn(environmentFor('claude', liteOnly), 'CODEBUDDY_FORCE_LITE_WB_BUNDLE'), false)
 })
 
 test('process diagnostics require explicit authentication failure evidence', () => {

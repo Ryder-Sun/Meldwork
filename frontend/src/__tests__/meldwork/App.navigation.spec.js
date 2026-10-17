@@ -315,7 +315,9 @@ describe('Meldwork workbench', () => {
 
     await wrapper.get('[aria-label="Attach files"]').trigger('click')
     await flushPromises()
-    expect(wrapper.get('.toast-message').attributes('role')).toBe('status')
+    // A failure is announced assertively; plain notices stay polite.
+    expect(wrapper.get('.toast-message').attributes('role')).toBe('alert')
+    expect(wrapper.get('.toast-message').attributes('data-tone')).toBe('error')
     expect(wrapper.get('.toast-dismiss-button').attributes('aria-label')).toBe('Dismiss')
     await wrapper.get('.toast-dismiss-button').trigger('click')
     expect(wrapper.find('.toast-message').exists()).toBe(false)

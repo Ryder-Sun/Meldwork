@@ -1,5 +1,7 @@
 const { spawn } = require('node:child_process')
 const { createHash } = require('node:crypto')
+const fs = require('node:fs')
+const path = require('node:path')
 const { PassThrough, Readable, Writable } = require('node:stream')
 const { AGENT_PROFILES, prepareCommand } = require('./cli-discovery.cjs')
 const {
@@ -23,8 +25,24 @@ const { createAcpOutboundPayload } = require('../../collaboration/outbound-paylo
 const { redactSecrets } = require('../../security/secret-redaction.cjs')
 
 const ACP_CANCEL_GRACE_MS = 250
-const ACP_MAX_LINE_BYTES = 1024 * 1024
+// After a stop or timeout the Agent gets this long to answer the cancelled
+// prompt. A clean cancellation keeps the long-lived process and its native
+// session; only an Agent that ignores cancel is torn down.
+const ACP_CANCEL_SETTLE_MS = 3000
+const ACP_INITIALIZE_TIMEOUT_MS = 60 * 1000
+const ACP_STDERR_TAIL_BYTES = 64 * 1024
+// Process identity must not change when only volatile shell values change.
+// Version managers such as fnm put a per-shell directory on PATH, so a fresh
+// login-shell capture used to restart the ACP process and drop its session.
+const ACP_VOLATILE_ENV_KEYS = new Set([
+  'PATH', 'Path', 'TERM', 'TERM_PROGRAM', 'TERM_PROGRAM_VERSION', 'TERM_SESSION_ID',
+  'SHLVL', 'PWD', 'OLDPWD', '_', 'TMPDIR', 'COLUMNS', 'LINES', 'SHELL',
+  'FNM_MULTISHELL_PATH', 'FNM_DIR', 'FNM_VERSION_FILE_STRATEGY', 'FNM_LOGLEVEL',
+  'FNM_NODE_DIST_MIRROR', 'FNM_ARCH', 'FNM_COREPACK_ENABLED', 'FNM_RESOLVE_ENGINES',
+])
+const ACP_MAX_LINE_BYTES = 4 * 1024 * 1024
 const ACP_MAX_INPUT_BYTES = 16 * 1024 * 1024
+const ACP_UNKNOWN_METHOD_NAME_LIMIT = 120
 const ACP_MAX_REPLY_BYTES = 10 * 1024 * 1024
 const ACP_PERSISTENT_RUNTIME_LIMIT = 16
 const ACP_PERMISSION_OPTION_LIMIT = 16
@@ -88,6 +106,10 @@ function acpTransportError(diagnostic) {
   return agentExecutionError('LOCAL_AGENT_PROCESS_FAILED', diagnostic)
 }
 
+// Returns the message to deliver, or null for traffic that is safe to ignore.
+// A newer Agent can send updates and notifications this client does not know;
+// failing the whole turn over them would break Meldwork on every Agent upgrade,
+// so only messages that decide what is executed or approved stay strict.
 function validateAcpInboundMessage(message, validators, replyState, protocolLabel) {
   if (!message || typeof message !== 'object' || Array.isArray(message)
       || message.jsonrpc !== '2.0') {
@@ -99,7 +121,8 @@ function validateAcpInboundMessage(message, validators, replyState, protocolLabe
     if (message.method === 'session/update' && !hasId) {
       const parsed = validators.zSessionNotification.safeParse(message.params)
       if (!parsed.success) {
-        throw acpTransportError(`${protocolLabel} returned invalid session update parameters.`)
+        replyState.ignoredMessages = (replyState.ignoredMessages || 0) + 1
+        return null
       }
       const update = parsed.data.update
       if (replyState.collecting !== false
@@ -119,7 +142,23 @@ function validateAcpInboundMessage(message, validators, replyState, protocolLabe
       }
       return message
     }
-    throw acpTransportError(`${protocolLabel} requested an unsupported client method.`)
+    // An unknown request still gets the connection's "method not found"
+    // answer, so the Agent is not left waiting. The SDK logs every request it
+    // rejects together with its parameters, so only the method name is
+    // forwarded. An unknown notification needs no answer and is dropped
+    // before it can reach the SDK's logging.
+    const validId = typeof message.id === 'string'
+      || (Number.isInteger(message.id) && message.id >= 0)
+    if (hasId && validId) {
+      return {
+        jsonrpc: '2.0',
+        id: message.id,
+        method: message.method.slice(0, ACP_UNKNOWN_METHOD_NAME_LIMIT),
+        params: {},
+      }
+    }
+    replyState.ignoredMessages = (replyState.ignoredMessages || 0) + 1
+    return null
   }
 
   if (!Number.isInteger(message.id) || message.id < 0) {
@@ -215,6 +254,12 @@ function boundedAcpStream(
       const parseLine = (line) => {
         const text = line.toString('utf8').trim()
         if (!text) return
+        // Some CLIs print banners or warnings on stdout next to the protocol.
+        // Anything that is not an object is not protocol traffic.
+        if (!text.startsWith('{')) {
+          replyState.ignoredMessages = (replyState.ignoredMessages || 0) + 1
+          return
+        }
         let message
         try {
           message = JSON.parse(text)
@@ -224,6 +269,7 @@ function boundedAcpStream(
         const validated = validateAcpInboundMessage(
           message, validators, replyState, protocolLabel,
         )
+        if (!validated) return
         if (message.method === 'session/request_permission') {
           replyState.pendingPermissionRequestIds.add(message.id)
         } else if (message.method === 'session/update' && message.params?.update) {
@@ -529,6 +575,32 @@ function persistenceKey(agent, options) {
   return `${agent.kind}:${value}`
 }
 
+const ACP_IMAGE_MIME_TYPES = new Map([
+  ['.png', 'image/png'], ['.jpg', 'image/jpeg'], ['.jpeg', 'image/jpeg'],
+  ['.gif', 'image/gif'], ['.webp', 'image/webp'],
+])
+const ACP_MAX_IMAGE_BYTES = 10 * 1024 * 1024
+
+// Images travel as ACP content blocks only when the Agent advertises image
+// prompts during initialize. Otherwise the turn fails before prompting so the
+// adapter can fall back to a transport that accepts image arguments.
+function acpImageBlocks(runtime, imageAttachments) {
+  const images = Array.isArray(imageAttachments) ? imageAttachments : []
+  if (!images.length) return []
+  if (runtime.agentCapabilities?.promptCapabilities?.image !== true) {
+    throw allowAcpSetupFallback(agentExecutionError('LOCAL_AGENT_IMAGE_UNSUPPORTED'))
+  }
+  return images.map((filename) => {
+    const mimeType = ACP_IMAGE_MIME_TYPES.get(path.extname(filename).toLowerCase())
+    if (!mimeType) throw agentExecutionError('LOCAL_AGENT_IMAGE_UNSUPPORTED')
+    const stat = fs.statSync(filename)
+    if (!stat.isFile() || stat.size > ACP_MAX_IMAGE_BYTES) {
+      throw agentExecutionError('LOCAL_AGENT_IMAGE_LIMIT')
+    }
+    return { type: 'image', mimeType, data: fs.readFileSync(filename).toString('base64') }
+  })
+}
+
 function withAcpRuntimeLock(key, callback) {
   const previous = acpRuntimeLocks.get(key) || Promise.resolve()
   const current = previous.catch(() => {}).then(callback)
@@ -540,14 +612,19 @@ function withAcpRuntimeLock(key, callback) {
 }
 
 function runtimeSignature(agent, workdir, spec, profile, childEnv) {
-  const environment = Object.keys(childEnv).sort().map(key => [key, childEnv[key]])
+  const environment = Object.keys(childEnv).sort()
+    .filter(key => !ACP_VOLATILE_ENV_KEYS.has(key))
+    .map(key => [key, childEnv[key]])
   return createHash('sha256').update(JSON.stringify({
     kind: agent.kind,
     executable: agent.executable,
     workdir,
     command: spec.command,
     args: spec.args,
-    acpMode: spec.acpMode || '',
+    // The session mode (read-only plan versus write) is applied on every turn
+    // with session/set_mode, so it does not identify a process. Anything that
+    // really needs a separate process (a permission policy in the environment)
+    // is already part of the environment below.
     profileId: profile.profileId,
     environment,
   })).digest('hex')
@@ -653,8 +730,14 @@ async function createAcpRuntime(input) {
   })
   child.stderr.on('data', (chunk) => {
     try { runtime.activeTurn?.noteActivity?.() } catch { /* activity is best-effort */ }
+    // Keep only recent stderr. A long-lived process used to keep the first
+    // megabyte of its whole lifetime, so a new failure was classified from
+    // stale early lines (for example an old auth warning).
+    runtime.stderr.push(chunk)
     runtime.stderrBytes += chunk.length
-    if (runtime.stderrBytes <= 1024 * 1024) runtime.stderr.push(chunk)
+    while (runtime.stderrBytes > ACP_STDERR_TAIL_BYTES && runtime.stderr.length > 1) {
+      runtime.stderrBytes -= runtime.stderr.shift().length
+    }
   })
   runtime.observedStdout = createObservedAcpInput(
     child.stdout, runtime.replyState, protocolLabel,
@@ -713,15 +796,42 @@ async function createAcpRuntime(input) {
   )
   runtime.connection = new ClientSideConnection(() => client, stream)
   acpInitializingRuntimes.add(runtime)
+  const abortSignal = input.options?.signal
+  const initializeTimeoutMs = Number.isFinite(input.options?.acpInitializeTimeoutMs)
+    && input.options.acpInitializeTimeoutMs > 0
+    ? input.options.acpInitializeTimeoutMs
+    : ACP_INITIALIZE_TIMEOUT_MS
+  let initializeTimer = null
+  let abortListener = null
   try {
-    await Promise.race([
+    // initialize used to wait forever while holding the per-conversation
+    // lock, leaving the Agent unusable in that conversation until restart.
+    const initialized = await Promise.race([
       runtime.connection.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {} }),
       runtime.failurePromise,
+      new Promise((_, reject) => {
+        initializeTimer = setTimeout(() => reject(agentExecutionError(
+          'LOCAL_AGENT_PROTOCOL_UNAVAILABLE',
+          `${protocolLabel} did not answer the ACP initialize request.`,
+        )), initializeTimeoutMs)
+      }),
+      new Promise((_, reject) => {
+        abortListener = () => reject(agentExecutionError('LOCAL_AGENT_EXECUTION_STOPPED'))
+        if (abortSignal?.aborted) abortListener()
+        else abortSignal?.addEventListener('abort', abortListener, { once: true })
+      }),
     ])
+    runtime.agentCapabilities = initialized?.agentCapabilities
+      && typeof initialized.agentCapabilities === 'object'
+      ? initialized.agentCapabilities
+      : {}
   } catch (error) {
     await closeAcpRuntime(runtime)
+    if (abortSignal?.aborted) throw agentExecutionError('LOCAL_AGENT_EXECUTION_STOPPED')
     throw allowAcpSetupFallback(acpProtocolError(error, childEnv))
   } finally {
+    clearTimeout(initializeTimer)
+    if (abortListener) abortSignal?.removeEventListener('abort', abortListener)
     acpInitializingRuntimes.delete(runtime)
   }
   return runtime
@@ -769,6 +879,8 @@ async function runAcpTurn(runtime, prompt, options, spec, profile) {
     pendingPermissionCallbacks: new Set(),
   }
   runtime.activeTurn = turn
+  runtime.stderr = []
+  runtime.stderrBytes = 0
   runtime.replyState.bytes = 0
   runtime.replyState.inputBytes = 0
   runtime.replyState.observedInputBytes = 0
@@ -785,6 +897,8 @@ async function runAcpTurn(runtime, prompt, options, spec, profile) {
     runtime.publicSessionRef = visibleSessionRef
   }
   let promptStarted = false
+  let promptRequest = null
+  let caughtError = null
   let abortRequested = false
   let timeoutRequested = false
   let cancelPromise = Promise.resolve()
@@ -844,14 +958,17 @@ async function runAcpTurn(runtime, prompt, options, spec, profile) {
     if (visibleSessionRef && typeof options.onSessionRef === 'function') {
       await operation(options.onSessionRef(visibleSessionRef, { transport: 'acp' }))
     }
+    const imageBlocks = acpImageBlocks(runtime, spec.imageAttachments)
     runtime.replyState.collecting = true
     let promptResult
     try {
       promptStarted = true
-      promptResult = await operation(runtime.connection.prompt({
+      promptRequest = Promise.resolve(runtime.connection.prompt({
         sessionId: protocolSessionRef,
-        prompt: [{ type: 'text', text: prompt }],
+        prompt: [{ type: 'text', text: prompt }, ...imageBlocks],
       }))
+      promptRequest.catch(() => {})
+      promptResult = await operation(promptRequest)
     } finally {
       runtime.replyState.collecting = false
     }
@@ -894,6 +1011,7 @@ async function runAcpTurn(runtime, prompt, options, spec, profile) {
     if (!promptStarted && normalized.message !== 'LOCAL_AGENT_SESSION_INVALID') {
       allowAcpSetupFallback(normalized)
     }
+    caughtError = normalized
     throw normalized
   } finally {
     clearTimeout(timeout)
@@ -906,7 +1024,25 @@ async function runAcpTurn(runtime, prompt, options, spec, profile) {
     turn.pendingPermissionCallbacks.clear()
     runtime.activeTurn = null
     runtime.lastUsedAt = Date.now()
-    if (abortRequested) await settleWithin(cancelPromise, ACP_CANCEL_GRACE_MS)
+    if (abortRequested) {
+      await settleWithin(cancelPromise, ACP_CANCEL_GRACE_MS)
+      // A user stop or watchdog timeout used to destroy the process and its
+      // native session. Keep both when the Agent honours the cancellation.
+      let promptSettled = false
+      // Disposable runtimes are always closed after the turn; only a
+      // persistent runtime is worth waiting for.
+      if (promptRequest && !acpDisposableRuntimes.has(runtime)) {
+        await settleWithin(
+          promptRequest.then(() => { promptSettled = true }, () => { promptSettled = true }),
+          ACP_CANCEL_SETTLE_MS,
+        )
+      }
+      if (caughtError && promptSettled && !runtime.closed && !runtime.failureError) {
+        Object.defineProperty(caughtError, 'acpRuntimeReusable', {
+          value: true, enumerable: false, configurable: true,
+        })
+      }
+    }
   }
 }
 
@@ -970,8 +1106,10 @@ async function runPersistentAcpAgent(agent, prompt, workdir, options, spec, prof
     try {
       return await runAcpTurn(runtime, prompt, options, spec, profile)
     } catch (error) {
-      acpSessionRuntimes.delete(key)
-      await closeAcpRuntime(runtime)
+      if (error?.acpRuntimeReusable !== true) {
+        acpSessionRuntimes.delete(key)
+        await closeAcpRuntime(runtime)
+      }
       throw error
     } finally {
       runtime.active = false

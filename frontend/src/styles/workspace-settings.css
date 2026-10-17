@@ -18,7 +18,7 @@
 
 .system-settings-header h1 {
   margin: 0;
-  font-size: 28px;
+  font-size: var(--text-2xl);
   line-height: 1.2;
 }
 
@@ -53,7 +53,7 @@
   border-bottom: 2px solid transparent;
   background: transparent;
   color: var(--muted);
-  font-weight: 650;
+  font-weight: 600;
   cursor: pointer;
 }
 
@@ -88,13 +88,13 @@
 
 .cloud-agent-bridge-panel h2 {
   color: var(--text);
-  font-size: 18px;
+  font-size: var(--text-lg);
 }
 
 .cloud-agent-bridge-panel .manager-toolbar p {
   margin-top: 5px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-sm);
   line-height: 1.5;
 }
 
@@ -110,7 +110,7 @@
   display: grid;
   gap: 5px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 
 .cloud-agent-connect-form input {
@@ -130,8 +130,8 @@
 
 .cloud-agent-bridge-error {
   margin: 8px 0;
-  color: var(--danger, #b34d4d);
-  font-size: 12px;
+  color: var(--danger);
+  font-size: var(--text-sm);
 }
 
 .cloud-agent-bridge-list {
@@ -160,7 +160,7 @@
 
 .cloud-agent-bridge-item-main > strong {
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--text-md);
 }
 
 .cloud-agent-bridge-agent-list {
@@ -168,7 +168,7 @@
   margin: -1px 0 0;
   overflow: hidden;
   color: var(--text-soft) !important;
-  font-size: 11px !important;
+  font-size: var(--text-xs) !important;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -176,13 +176,109 @@
 .cloud-agent-bridge-item-main > span,
 .cloud-agent-bridge-item-main > small {
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 
-.bridge-online { color: var(--success, #4f7564) !important; }
-.bridge-offline { color: var(--danger, #b34d4d) !important; }
+.bridge-online { color: var(--success) !important; }
+.bridge-offline { color: var(--danger) !important; }
 
 .cloud-agent-bridge-empty {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-sm);
+}
+
+.general-settings-panel {
+  display: grid;
+  align-content: start;
+  gap: 0;
+  max-width: 760px;
+}
+
+.general-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.general-settings-row:first-child {
+  padding-top: 6px;
+}
+
+.general-settings-copy {
+  min-width: 0;
+}
+
+.general-settings-copy h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.general-settings-copy p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+/* Shared segmented choice: one selected option, same look in every mode. */
+.choice-segmented {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius);
+  background: var(--surface-hover);
+}
+
+.choice-segmented button {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: calc(var(--radius) - 3px);
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-fast) var(--ease-standard);
+}
+
+.choice-segmented button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.choice-segmented button:hover:not(.active) {
+  color: var(--text);
+}
+
+.choice-segmented button.active {
+  background: var(--surface-raised);
+  box-shadow: var(--elev-1);
+  color: var(--text);
+}
+
+.cloud-agent-bridge-confirm {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-soft);
+  font-size: var(--text-sm);
+}
+
+.cloud-agent-bridge-confirm span {
+  margin-right: 4px;
 }

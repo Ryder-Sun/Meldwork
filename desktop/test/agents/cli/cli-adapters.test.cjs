@@ -1139,7 +1139,11 @@ input.on('line', (line) => {
       (answer, event) => event.replace === true ? event.delta : answer + event.delta,
       '',
     ), 'current answer')
-  assert.deepEqual(events.slice(0, 3).map(event => [event.type, event.status]), [
+  assert.equal(events.some(event => (
+    event.type === 'reasoning_summary' && event.status === 'running' && !event.summary
+  )), true)
+  assert.deepEqual(events.filter(event => event.type !== 'reasoning_summary')
+    .slice(0, 3).map(event => [event.type, event.status]), [
     ['plan', 'running'],
     ['tool_start', 'running'],
     ['tool_result_summary', 'completed'],
@@ -1649,14 +1653,30 @@ test('Pi uses non-interactive JSON flags and keeps provider settings out of argu
   assert.equal(typeof parsePiOutput, 'function')
 })
 
+test('WorkBuddy write mode accepts edits without skipping every permission check', () => {
+  const writable = invocation('workbuddy', '/tmp/codebuddy', '/tmp', '', { sandbox: 'workspace-write' })
+  assert.equal(writable.args[writable.args.indexOf('--permission-mode') + 1], 'acceptEdits')
+  assert.equal(writable.args.includes('--dangerously-skip-permissions'), false)
+  const readOnly = invocation('workbuddy', '/tmp/codebuddy', '/tmp', '', { sandbox: 'read-only' })
+  assert.equal(readOnly.args[readOnly.args.indexOf('--permission-mode') + 1], 'plan')
+})
+
 test('Hermes forwards one image and rejects additional images instead of dropping them', () => {
   const first = path.resolve('diagram-one.png')
   const second = path.resolve('diagram-two.png')
+  // ACP Hermes keeps its session and receives the image as a content block.
   const spec = invocation('hermes', '/tmp/hermes', '/tmp', '', {
     attachments: [first],
   })
-  assert.deepEqual(spec.args, [
-    'chat', '--quiet', '--image', first, '--query',
+  assert.deepEqual(spec.args, ['acp'])
+  assert.deepEqual(spec.imageAttachments, [first])
+  // A conversation already on the legacy transport passes the image argument.
+  const legacy = invocation('hermes', '/tmp/hermes', '/tmp', 'hermes-legacy-session', {
+    attachments: [first],
+    sessionTransport: 'legacy',
+  })
+  assert.deepEqual(legacy.args, [
+    'chat', '--quiet', '--resume', 'hermes-legacy-session', '--image', first, '--query',
   ])
   assert.throws(
     () => invocation('hermes', '/tmp/hermes', '/tmp', '', {
@@ -2128,4 +2148,73 @@ process.stdout.write(JSON.stringify({
     '--timeout', '5000',
     '--json',
   ])
+})
+
+test('MiMo and OpenCode keep running after a step that ended in tool calls', async (t) => {
+  for (const kind of ['mimo', 'opencode']) {
+    await t.test(kind, async (t) => {
+      const directory = fs.mkdtempSync(path.join(os.tmpdir(), `meldwork-${kind}-multistep-`))
+      const cli = executable(directory, `${kind}-multistep.cjs`, `
+const send = value => process.stdout.write(JSON.stringify(value) + '\\n')
+send({ type: 'step_start', sessionID: '${kind}-multistep-session', part: { type: 'step-start' } })
+send({ type: 'text', sessionID: '${kind}-multistep-session', part: { type: 'text', text: 'Reading the files first. ' } })
+// The model asked for tools: this step is over, the run is not.
+send({ type: 'step_finish', sessionID: '${kind}-multistep-session', part: { type: 'step-finish', reason: 'tool-calls' } })
+setTimeout(() => {
+  send({ type: 'step_start', sessionID: '${kind}-multistep-session', part: { type: 'step-start' } })
+  send({ type: 'text', sessionID: '${kind}-multistep-session', part: { type: 'text', text: 'Final answer after the tools.' } })
+  send({ type: 'step_finish', sessionID: '${kind}-multistep-session', part: { type: 'step-finish', reason: 'stop' } })
+}, 900)
+`)
+      t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+
+      const result = await within(runAgent(
+        { kind, executable: cli, name: kind },
+        'inspect and answer',
+        directory,
+        { loadAcpSdkFn: async () => { throw new Error('ACP SDK unavailable') } },
+      ), 15000)
+
+      assert.match(result.text, /Reading the files first\./)
+      assert.match(result.text, /Final answer after the tools\./)
+      assert.equal(result.outcome, 'completed')
+    })
+  }
+})
+
+test('a CLI that exits before reading its prompt reports its own error, not a broken pipe', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-codex-early-exit-'))
+  // Codex reads the prompt from stdin. A CLI that rejects the run at startup
+  // exits at once; a prompt larger than the pipe buffer then hits EPIPE.
+  const cli = executable(directory, 'codex-early-exit.cjs', `
+process.stderr.write('Not logged in. Please run codex login.\\n')
+process.exit(1)
+`)
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const prompt = `Review this document.\n${'lorem ipsum '.repeat(300000)}`
+
+  await assert.rejects(
+    within(runAgent({ kind: 'codex', executable: cli, name: 'Codex' }, prompt, directory, {}), 15000),
+    (error) => {
+      assert.equal(error.code, 'LOCAL_AGENT_AUTH_REQUIRED')
+      assert.notEqual(error.message, 'LOCAL_AGENT_SEND_FAILED')
+      return true
+    },
+  )
+})
+
+test('a CLI that stays alive without reading its prompt still fails as a send failure', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-codex-no-reader-'))
+  const cli = executable(directory, 'codex-no-reader.cjs', `
+// Closes its input without reading it, then idles.
+require('node:fs').closeSync(0)
+setInterval(() => {}, 1000)
+`)
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const prompt = `Review this document.\n${'lorem ipsum '.repeat(300000)}`
+
+  await assert.rejects(
+    within(runAgent({ kind: 'codex', executable: cli, name: 'Codex' }, prompt, directory, {}), 20000),
+    error => error.message === 'LOCAL_AGENT_SEND_FAILED',
+  )
 })

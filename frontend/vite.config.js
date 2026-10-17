@@ -13,7 +13,6 @@ export default defineConfig(() => ({
       output: {
         codeSplitting: {
           groups: [
-            { name: 'pixel-blast', test: /node_modules[\\/]three[\\/]/ },
             { name: 'vendor', test: /node_modules[\\/]/ },
           ],
         },

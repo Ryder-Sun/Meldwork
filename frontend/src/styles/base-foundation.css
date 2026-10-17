@@ -3,6 +3,21 @@
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   color-scheme: light;
+  /* Type scale. Nothing that has to be read goes below --text-xs; --text-2xs
+     is only for badges, tags and keyboard hints. */
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  --text-2xs: 11px;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 18px;
+  --text-2xl: 22px;
+  --text-3xl: 28px;
+  /* PingFang SC stops at Semibold, so anything above 600 renders the same in
+     Chinese. Hierarchy comes from size and color, not from heavier weights. */
+  --weight-medium: 500;
+  --weight-semibold: 600;
   --bg: #f3f6f8;
   --sidebar: #e9eef1;
   --surface: #f9fbfc;
@@ -13,20 +28,55 @@
   --border-strong: #b9c8cf;
   --text: #26343c;
   --text-soft: #50616a;
-  --muted: #788b94;
-  --faint: #9aaab1;
+  /* ≥4.5:1 on every light surface; small secondary text must stay readable. */
+  --muted: #5a6b75;
+  /* ≈3.3:1. Placeholders, disabled text and decorative icons only. */
+  --faint: #7d8d95;
   --accent: #d45f52;
   --accent-hover: #b94e45;
   --accent-soft: #f7e3df;
   --accent-contrast: #fffaf8;
-  --danger: #b74743;
-  --danger-soft: #fbe8e6;
+  /* Accent as text (≥4.5:1, also on --accent-soft) and as a filled button behind light text (≈4.6:1). */
+  --accent-text: #ad4840;
+  --accent-strong: #bd5047;
+  --accent-strong-hover: #a9463e;
+  --focus-ring: color-mix(in srgb, var(--accent) 72%, var(--surface-raised));
+  --scrollbar-thumb: rgb(38 52 60 / 0.22);
+  /* Status colors. The accent is for actions, selection and brand moments;
+     it never means "ready" or "done". */
+  --success: #2a7353;
+  --success-soft: #e6f4ec;
+  --warning: #9a5d08;
+  --warning-soft: #fdf1dc;
+  --danger: #b42318;
+  --danger-soft: #fdeceb;
+  --info: #2f6db3;
+  --info-soft: #e8f0fb;
   --shadow: 0 12px 32px rgb(41 62 73 / 0.12);
+  --elev-1: 0 1px 2px rgb(32 48 58 / 0.06), 0 1px 1px rgb(32 48 58 / 0.04);
+  --elev-2: 0 4px 14px rgb(32 48 58 / 0.1), 0 1px 3px rgb(32 48 58 / 0.06);
+  --elev-3: 0 12px 30px rgb(32 48 58 / 0.14), 0 2px 6px rgb(32 48 58 / 0.06);
+  --radius-xs: 4px;
+  --radius-lg: 14px;
+  /* Layers, lowest to highest. */
+  --z-dropdown: 50;
+  --z-drawer: 60;
+  --z-overlay: 90;
+  --z-modal: 100;
+  --z-onboarding: 110;
+  --z-toast: 120;
+  --z-popover: 140;
+  --z-lightbox: 1000;
+  /* Motion. Enter with --ease-out, leave faster with --ease-in. */
+  --dur-press: 80ms;
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --dur-slow: 240ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
   --shell-gradient: linear-gradient(145deg, #f1f8f7 0%, #e2efef 48%, #c9dde0 100%);
   --onboarding-frame-gradient: linear-gradient(145deg, #dcefeb 0%, #9fc2ca 48%, #ddb5aa 100%);
-  --pixel-blast-primary: #d92f24;
-  --pixel-blast-secondary: #007d91;
-  --pixel-blast-tertiary: #ed512f;
   --workspace-surface: #fbfcfd;
   --workspace-shadow: 0 1px 2px rgb(41 62 73 / 0.08), 0 10px 28px rgb(41 62 73 / 0.08);
   --radius-sm: 5px;
@@ -41,32 +91,44 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #121516;
-  --sidebar: #191c1e;
-  --surface: #1b1f21;
-  --surface-raised: #24292c;
-  --surface-hover: #292e31;
-  --surface-active: #30363a;
+  --bg: #111618;
+  --sidebar: #161c1e;
+  --surface: #1f2427;
+  --surface-raised: #262c2f;
+  --surface-hover: #2b3134;
+  --surface-active: #32393c;
   --border: #3a4246;
   --border-strong: #515b60;
   --text: #e6ebed;
   --text-soft: #c3cdd1;
-  --muted: #93a0a5;
-  --faint: #707b80;
+  --muted: #9aa6ab;
+  --faint: #808b90;
   --accent: #d98568;
   --accent-hover: #efa080;
   --accent-soft: #3b2a24;
   --accent-contrast: #1b110d;
-  --danger: #ee817c;
+  --accent-text: #e2906f;
+  --accent-strong: #d98568;
+  --accent-strong-hover: #efa080;
+  --scrollbar-thumb: rgb(230 235 237 / 0.2);
+  --success: #6cc3a0;
+  --success-soft: #17302a;
+  --warning: #e0a54a;
+  --warning-soft: #35290f;
+  --danger: #f97066;
   --danger-soft: #402326;
+  --info: #7fb0ea;
+  --info-soft: #172a40;
   --shadow: 0 16px 42px rgb(0 0 0 / 0.42);
-  --shell-gradient: linear-gradient(145deg, #2d3a3b 0%, #222e32 48%, #172226 100%);
+  --elev-1: 0 1px 2px rgb(0 0 0 / 0.3);
+  --elev-2: 0 6px 18px rgb(0 0 0 / 0.32), 0 1px 3px rgb(0 0 0 / 0.24);
+  --elev-3: 0 14px 34px rgb(0 0 0 / 0.4), 0 2px 6px rgb(0 0 0 / 0.24);
+  /* The backdrop stays darker than the workspace card so the card reads as
+     raised, the same way it does in the light theme. */
+  --shell-gradient: linear-gradient(145deg, #1f292b 0%, #182124 48%, #111a1d 100%);
   --onboarding-frame-gradient: linear-gradient(145deg, #4a696b 0%, #2e4751 52%, #775047 100%);
-  --pixel-blast-primary: #ff836d;
-  --pixel-blast-secondary: #54f5ff;
-  --pixel-blast-tertiary: #ffa36f;
-  --workspace-surface: #181c1e;
-  --workspace-shadow: 0 1px 2px rgb(0 0 0 / 0.42), 0 14px 34px rgb(0 0 0 / 0.24);
+  --workspace-surface: #1c2124;
+  --workspace-shadow: 0 0 0 1px rgb(255 255 255 / 0.05), 0 14px 34px rgb(0 0 0 / 0.32);
 }
 
 * {
@@ -97,7 +159,7 @@ body {
   overflow: hidden;
   background: var(--bg);
   color: var(--text);
-  font-size: 14px;
+  font-size: var(--text-md);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -124,7 +186,7 @@ button:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -139,6 +201,18 @@ select:disabled {
 * {
   scrollbar-width: none;
   -ms-overflow-style: none;
+}
+
+.conversation-nav,
+.trace-panel-scroll,
+.settings-panel,
+.agent-home,
+.collapsed-group-menu-list,
+.trace-select-menu,
+.onboarding-slide > div,
+.trace-event-body pre {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
 button svg {
@@ -295,5 +369,5 @@ button svg {
 
 .bridge-state h1 {
   margin: 4px 0 0;
-  font-size: 24px;
+  font-size: var(--text-2xl);
 }

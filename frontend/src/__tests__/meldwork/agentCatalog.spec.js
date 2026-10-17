@@ -91,6 +91,55 @@ describe('Agent compatibility state', () => {
     expect(agentLogo('cloud-0123456789abcdef01234567')).toContain('agent-logos/codex.svg')
   })
 
+  it('gives Gemini its own logo and name instead of the generic custom-Agent icon', () => {
+    setLocale('en')
+    const cloudAgent = {
+      kind: 'cloud-fedcba987654321012345678',
+      sourceKind: 'gemini',
+      label: 'Gemini @ Server',
+      custom: false,
+      connector: true,
+      cloud: true,
+      installed: true,
+      available: true,
+      credentialState: 'ready',
+      showInSidebar: true,
+    }
+    const catalog = useAgentCatalog({
+      activeGroup: ref(null),
+      directGroupsFor: () => [],
+      installCatalog: ref({ agents: [{ kind: 'gemini', name: 'Gemini CLI', installed: true }, cloudAgent] }),
+      snapshot: ref({ agents: [
+        { kind: 'gemini', name: 'Gemini CLI', installed: true, available: true, credentialState: 'ready' },
+        cloudAgent,
+      ] }),
+      t,
+      theme: ref('light'),
+    })
+
+    const gemini = catalog.mergedCatalog.value.find(agent => agent.kind === 'gemini')
+    expect(gemini.label).toBe('Gemini CLI')
+    expect(gemini.logo).toContain('agent-logos/gemini.svg')
+    expect(catalog.agentCatalogGroups.value.find(group => group.id === 'official').agents.map(agent => agent.kind))
+      .toContain('gemini')
+    expect(catalog.mergedCatalog.value.find(agent => agent.kind === cloudAgent.kind).logo)
+      .toContain('agent-logos/gemini.svg')
+    setCloudAgentProfiles([cloudAgent])
+    expect(agentLogo(cloudAgent.kind)).toContain('agent-logos/gemini.svg')
+    expect(agentLogo('gemini', 'dark')).toContain('agent-logos/gemini.svg')
+    setCloudAgentProfiles([])
+
+    const withoutGemini = useAgentCatalog({
+      activeGroup: ref(null),
+      directGroupsFor: () => [],
+      installCatalog: ref({ agents: [] }),
+      snapshot: ref({ agents: [] }),
+      t,
+      theme: ref('light'),
+    })
+    expect(withoutGemini.mergedCatalog.value.map(agent => agent.kind)).toEqual(AGENTS.map(agent => agent.kind))
+  })
+
   it('keeps an installed cloud Agent that needs login in management but out of chat choices', () => {
     setLocale('en')
     const cloudAgent = {
@@ -166,5 +215,66 @@ describe('Agent compatibility state', () => {
       compatibilityState: 'unknown', incompatibilityReason: 'LOCAL_AGENT_CAPABILITY_PROBE_TIMEOUT',
     })
     expect(state.label).toBe('Detection timed out; retry')
+  })
+
+  describe('explaining why an installed Agent is unavailable', () => {
+    function noteFor(agent) {
+      setLocale('en')
+      const catalog = useAgentCatalog({
+        activeGroup: ref(null),
+        directGroupsFor: () => [],
+        installCatalog: ref({ agents: [] }),
+        snapshot: ref({ agents: [agent] }),
+        t,
+        theme: ref('light'),
+      })
+      return catalog.agentStateNote(catalog.mergedCatalog.value.find(item => item.kind === agent.kind))
+    }
+
+    it('names the installed version, the verified range, and why the CLI failed its startup check', () => {
+      const note = noteFor({
+        kind: 'workbuddy', installed: true, available: false,
+        resolvedVersion: '2.161.0', supportedVersionRange: '2.115.0..2.132.0',
+        compatibilityState: 'incompatible', incompatibilityReason: 'LOCAL_AGENT_REQUIRED_CAPABILITY_MISSING',
+      })
+      expect(note).toContain('2.161.0')
+      expect(note).toContain('did not pass the startup check')
+      expect(note).toContain('Verified versions: 2.115.0..2.132.0.')
+    })
+
+    it('distinguishes an unsupported version, a missing sign-in, and a detection timeout', () => {
+      expect(noteFor({
+        kind: 'codex', installed: true, available: false, resolvedVersion: '9.0.0',
+        supportedVersionRange: '0.137.0..0.146.0',
+        compatibilityState: 'incompatible', incompatibilityReason: 'LOCAL_AGENT_VERSION_UNSUPPORTED',
+      })).toContain('outside the range Meldwork has verified')
+      expect(noteFor({
+        kind: 'codex', installed: true, available: false, credentialState: 'missing',
+      })).toContain('finish signing in')
+      expect(noteFor({
+        kind: 'codex', installed: true, available: false,
+        incompatibilityReason: 'LOCAL_AGENT_CAPABILITY_PROBE_TIMEOUT',
+      })).toContain('Detection timed out')
+    })
+
+    it('sends a cloud Agent to its server to sign in, not to a local terminal', () => {
+      const note = noteFor({
+        kind: 'cloud-0123456789abcdef01234567', sourceKind: 'claude', cloud: true,
+        installed: true, available: false, credentialState: 'missing',
+      })
+      expect(note).toContain('cloud Agent')
+      expect(note).toContain('on its server')
+      expect(note).not.toContain('terminal')
+    })
+
+    it('stays silent when there is nothing to explain', () => {
+      expect(noteFor({ kind: 'codex', installed: true, available: true })).toBe('')
+      expect(noteFor({ kind: 'codex', installed: false, available: false })).toBe('')
+      // Without a verified range it still explains, just without the range sentence.
+      expect(noteFor({
+        kind: 'codex', installed: true, available: false,
+        compatibilityState: 'incompatible', incompatibilityReason: 'LOCAL_AGENT_VERSION_UNSUPPORTED',
+      })).not.toContain('Verified versions')
+    })
   })
 })

@@ -125,8 +125,6 @@ export function createConversationControllers({
     saveInlineTitle: conversationActions.saveInlineTitle,
     saving: app.saving,
     sending: app.sending,
-    shortcutDefinitions: app.shortcutDefinitions,
-    shortcutMenuOpen: app.shortcutMenuOpen,
     t: app.t,
     theme: app.theme,
   }

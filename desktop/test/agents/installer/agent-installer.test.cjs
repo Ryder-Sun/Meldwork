@@ -42,6 +42,20 @@ test('catalog preserves an inconclusive timeout without hiding the installed CLI
   assert.equal(agent.incompatibilityProbe, 'codex-exec')
 })
 
+test('catalog exposes install versus update action and permits updating an older CLI', async () => {
+  const service = installer({
+    detectAgents: async () => [{ kind: 'pi', version: '0.80.0', compatibilityState: 'compatible' }],
+    runProcess: async () => {},
+  })
+  const pi = (await service.catalog()).agents.find(agent => agent.kind === 'pi')
+  assert.equal(pi.installed, true)
+  assert.equal(pi.installAction, 'update')
+  assert.equal(pi.targetVersion, '0.84.2')
+  await service.start('pi')
+  await service.waitForIdle()
+  assert.equal(service.state().errorCode, 'INSTALL_AGENT_VERIFY_FAILED')
+})
+
 async function readWhenReady(filename, timeoutMs = 2000) {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
@@ -1090,4 +1104,15 @@ setInterval(() => {}, 1000)
     canCancel: false,
     errorCode: '',
   })
+})
+
+test('installed versions compare as releases instead of substrings', () => {
+  const { installedVersionCurrent } = require('../../../src/agents/installer/agent-installer-contract.cjs')
+  assert.equal(installedVersionCurrent('codex-cli 0.146.0', '0.146.0'), true)
+  assert.equal(installedVersionCurrent('0.150.1', '0.146.0'), true)
+  assert.equal(installedVersionCurrent('0.84.2', '0.84.20'), false)
+  assert.equal(installedVersionCurrent('11.2.3', '1.2.3'), true)
+  assert.equal(installedVersionCurrent('1.2.3', '11.2.3'), false)
+  assert.equal(installedVersionCurrent('openclaw 2026.7.1-2', '2026.7.1-2'), true)
+  assert.equal(installedVersionCurrent('', '0.20.0'), false)
 })

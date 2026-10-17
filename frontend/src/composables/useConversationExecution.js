@@ -1,4 +1,5 @@
 import { computed } from 'vue'
+import { agentLabel } from '../catalog.js'
 import { MAX_ATTACHMENTS } from './useComposerAttachments.js'
 
 export function useConversationExecution({
@@ -10,6 +11,7 @@ export function useConversationExecution({
   composerAttachments,
   composerContextVersion,
   composerMode,
+  composerSkippedKinds,
   composerTargetKinds,
   composerTargetsReady,
   discardAttachments,
@@ -68,6 +70,7 @@ export function useConversationExecution({
       return
     }
     const targets = [...composerTargetKinds.value]
+    const skipped = [...composerSkippedKinds.value]
     if (!targets.length) {
       notify(t('composer.selectTarget'))
       return
@@ -107,6 +110,9 @@ export function useConversationExecution({
         ...(backendMode === 'auto' && unlimitedRounds.value ? { unlimitedRounds: true } : {}),
       })
       snapshot.value = normalizeSnapshot(await workspace.value.get())
+      if (skipped.length) {
+        notify(t('composer.skippedUnavailable', { agents: skipped.map(agentLabel).join(', ') }))
+      }
     } catch (error) {
       if (contextVersion === composerContextVersion.value && groupId === activeGroup.value?.id) {
         restoreComposerContext(previousComposerContext)

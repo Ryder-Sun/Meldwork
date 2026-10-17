@@ -45,26 +45,35 @@ afterEach(() => {
 })
 
 describe('Meldwork workbench', () => {
-  it('shows a calm full-screen Agent discovery state until the first refresh completes', async () => {
+  it('keeps the workspace usable while the first Agent detection runs', async () => {
     const fixture = createBridge()
     const pendingRefresh = deferred()
+    fixture.state.agents = []
     fixture.bridge.localWorkspace.refreshAgents.mockReturnValueOnce(pendingRefresh.promise)
     window.meldworkDesktop = fixture.bridge
 
     const wrapper = mount(App, { attachTo: document.body })
     await flushPromises()
 
-    expect(wrapper.find('.agent-discovery-overlay').exists()).toBe(true)
-    expect(wrapper.get('.agent-discovery-overlay').attributes('role')).toBe('status')
-    expect(wrapper.find('.pixel-blast-container').exists()).toBe(true)
-    expect(wrapper.find('.pixel-blast-container canvas').exists()).toBe(true)
-    expect(wrapper.find('.agent-discovery-orbit').exists()).toBe(false)
-    expect(wrapper.get('.agent-discovery-copy h1').text()).toBe('Finding your local Agents')
+    // No blocking overlay: local history stays reachable and nothing is inert.
+    expect(wrapper.find('.agent-discovery-overlay').exists()).toBe(false)
+    expect(wrapper.get('.workspace-pane').attributes()).not.toHaveProperty('inert')
+    expect(wrapper.get('.sidebar').attributes()).not.toHaveProperty('inert')
+    expect(wrapper.get('.sidebar-discovery').attributes('role')).toBe('status')
+    expect(wrapper.get('.sidebar-discovery').text()).toContain('Detecting local Agents')
+    // An empty Agent list is not a setup problem yet.
+    expect(wrapper.get('.home-workspace-state').text()).toBe('Detecting local Agents')
+    expect(wrapper.get('.home-workspace-state').classes()).not.toContain('attention')
+    expect(wrapper.find('.setup-guide').exists()).toBe(false)
 
-    pendingRefresh.resolve(structuredClone(fixture.state))
+    pendingRefresh.resolve(structuredClone({
+      ...fixture.state,
+      agents: [{ kind: 'codex', installed: true, available: true, credentialState: 'ready', version: '1.0.0' }],
+    }))
     await flushPromises()
 
-    expect(wrapper.find('.agent-discovery-overlay').exists()).toBe(false)
+    expect(wrapper.find('.sidebar-discovery').exists()).toBe(false)
+    expect(wrapper.get('.home-workspace-state').text()).not.toBe('Detecting local Agents')
     wrapper.unmount()
   })
 
@@ -92,7 +101,7 @@ describe('Meldwork workbench', () => {
     expect(wrapper.get('.sidebar-settings-entry').attributes('aria-current')).toBe('page')
     expect(wrapper.get('.brand-button').attributes()).not.toHaveProperty('aria-current')
 
-    const controls = wrapper.findAll('.sidebar-footer-actions button')
+    const controls = wrapper.findAll('.titlebar-preferences button')
     await controls[0].trigger('click')
     expect(wrapper.get('.system-settings-header h1').text()).toBe('设置')
     expect(wrapper.get('.system-settings-header p').text()).toContain('知识库')
@@ -304,7 +313,7 @@ describe('Meldwork workbench', () => {
     await flushPromises()
     expect(wrapper.get('.conversation-empty-copy').text()).toContain('再把 Agent 们叫到一起')
 
-    await wrapper.findAll('.sidebar-footer-actions button')[1].trigger('click')
+    await wrapper.findAll('.titlebar-preferences button')[1].trigger('click')
     expect(wrapper.get('.conversation-empty-wordmark').attributes('src')).toBe('./logos/meldwork-wordmark-v3-dark.svg')
 
     await wrapper.get('.conversation-link').trigger('click')
@@ -475,8 +484,8 @@ describe('Meldwork workbench', () => {
     const { wrapper } = await mountApp()
 
     expect(wrapper.find('.brand-actions').exists()).toBe(false)
-    expect(wrapper.findAll('.sidebar-footer-actions button')).toHaveLength(2)
-    expect(wrapper.findAll('.sidebar-footer-actions .preference-icon-frame')).toHaveLength(2)
+    expect(wrapper.findAll('.titlebar-preferences button')).toHaveLength(2)
+    expect(wrapper.findAll('.titlebar-preferences .preference-icon-frame')).toHaveLength(2)
     expect(wrapper.findAll('.nav-heading svg')).toHaveLength(0)
     expect(wrapper.findAll('.sidebar-agent-main img')).toHaveLength(AGENTS.length)
     const [agentsToggle, groupsToggle] = wrapper.findAll('.nav-heading')
@@ -522,7 +531,9 @@ describe('Meldwork workbench', () => {
     await wrapper.get('.sidebar-toggle').trigger('click')
     const switcher = wrapper.get('.collapsed-group-switcher-button')
     expect(switcher.attributes('aria-label')).toBe('Switch group chat')
-    expect(switcher.text()).toContain('10')
+    // A total count read as "10 unread"; the switcher only shows a dot when a group needs the user.
+    expect(switcher.text()).toBe('')
+    expect(switcher.find('.attention-dot').exists()).toBe(false)
 
     await switcher.trigger('click')
     await flushPromises()
@@ -733,7 +744,7 @@ describe('Meldwork workbench', () => {
     wrapper.unmount()
   })
 
-  it('lists core shortcuts beside conversation settings and handles sidebar toggle', async () => {
+  it('lists core shortcuts in the global titlebar and handles sidebar toggle', async () => {
     const { wrapper } = await mountApp(({ state }) => {
       state.groups.push({
         id: 'group-shortcuts',
@@ -749,7 +760,11 @@ describe('Meldwork workbench', () => {
     })
 
     await wrapper.get('.conversation-link').trigger('click')
-    const shortcutButton = wrapper.get('[aria-label="Keyboard shortcuts"]')
+    expect(wrapper.find('.sidebar .titlebar-actions').exists()).toBe(false)
+    expect(wrapper.find('.conversation-header .shortcut-menu-anchor').exists()).toBe(false)
+    expect(wrapper.findAll('.titlebar-actions button')).toHaveLength(4)
+    expect(wrapper.get('[aria-label="Conversation settings"] svg').html()).not.toBe(wrapper.get('.titlebar-actions .sidebar-settings-entry svg').html())
+    const shortcutButton = wrapper.get('.titlebar-actions [aria-label="Keyboard shortcuts"]')
     expect(shortcutButton.find('.keyboard-shortcut-icon').exists()).toBe(true)
     await wrapper.get('.shortcut-menu-anchor').trigger('mouseenter')
     expect(wrapper.get('#keyboard-shortcut-menu').attributes('role')).toBe('tooltip')
@@ -806,7 +821,8 @@ describe('Meldwork workbench', () => {
     expect(appSource).toContain(':data-platform="desktopPlatform"')
     expect(appSource).toContain("const desktopPlatform = computed(() => api.value?.platform || installCatalog.value.platform || '')")
     expect(source).toMatch(/--shell-gradient:\s*linear-gradient\(145deg,\s*#f1f8f7 0%,\s*#e2efef 48%,\s*#c9dde0 100%\);/)
-    expect(source).toMatch(/:root\[data-theme="dark"\]\s*\{[^}]*--shell-gradient:\s*linear-gradient\(145deg,\s*#2d3a3b 0%,\s*#222e32 48%,\s*#172226 100%\);/s)
+    // The dark backdrop stays darker than the workspace card so the card reads as raised.
+    expect(source).toMatch(/:root\[data-theme="dark"\]\s*\{[^}]*--shell-gradient:\s*linear-gradient\(145deg,\s*#1f292b 0%,\s*#182124 48%,\s*#111a1d 100%\);[^}]*--workspace-surface:\s*#1c2124;/s)
     expect(source).toMatch(/--onboarding-frame-gradient:\s*linear-gradient\(145deg,\s*#dcefeb 0%,\s*#9fc2ca 48%,\s*#ddb5aa 100%\);/)
     expect(source).toMatch(/:root\[data-theme="dark"\]\s*\{[^}]*--onboarding-frame-gradient:\s*linear-gradient\(145deg,\s*#4a696b 0%,\s*#2e4751 52%,\s*#775047 100%\);/s)
     expect(source).toMatch(/\.onboarding-dialog\s*\{[^}]*border:\s*1px solid transparent;[^}]*background:\s*linear-gradient\(var\(--surface\), var\(--surface\)\) padding-box,\s*var\(--onboarding-frame-gradient\) border-box;/s)
@@ -820,38 +836,24 @@ describe('Meldwork workbench', () => {
     expect(source).toMatch(/\.composer-zone\s*\{[^}]*background:\s*transparent;/s)
   })
 
-  it('uses compact gradient transitions for discovery and first-run onboarding', () => {
+  it('keeps the first-run onboarding transition and loads no WebGL at startup', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/styles.css'), 'utf8')
     const appSource = readFileSync(resolve(process.cwd(), 'src/App.vue'), 'utf8')
-    const pixelBlastSource = readFileSync(resolve(process.cwd(), 'src/components/PixelBlast.vue'), 'utf8')
+    const packageSource = readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')
 
     expect(appSource).toContain('<transition name="onboarding" appear>')
-    expect(appSource).toContain('<PixelBlast :theme="theme" />')
-    expect(source).toContain('--pixel-blast-primary: #d92f24;')
-    expect(source).toContain('--pixel-blast-secondary: #007d91;')
-    expect(source).toContain('--pixel-blast-tertiary: #ed512f;')
-    expect(source).toContain('--pixel-blast-primary: #ff836d;')
-    expect(source).toContain('--pixel-blast-secondary: #54f5ff;')
-    expect(source).toContain('--pixel-blast-tertiary: #ffa36f;')
-    expect(pixelBlastSource).toContain('uPixelSize: { value: 3.7 * renderer.getPixelRatio() }')
-    expect(pixelBlastSource).toContain('vec2 pixelId = floor(fragCoord / uPixelSize);')
-    expect(pixelBlastSource).toContain('float cellPixelSize = 8.0 * uPixelSize;')
-    expect(pixelBlastSource).toContain('float bayer = Bayer8(fragCoord / uPixelSize) - 0.5;')
-    expect(pixelBlastSource).toContain('float motionTime = uTime * (1.0 + 0.12 * sin(uTime * 0.17));')
-    expect(pixelBlastSource).toContain('vec2 drift = vec2(sin(uTime * 0.41), cos(uTime * 0.33)) * 0.045;')
-    expect(pixelBlastSource).toContain('uDensity: { value: 1.26 }')
-    expect(pixelBlastSource).toContain('uPixelJitter: { value: 0.32 }')
-    expect(pixelBlastSource).toContain('uOpacity: { value: 0.42 }')
-    expect(pixelBlastSource).toContain('Math.min(32, now - previousFrame) * 0.00036')
-    expect(pixelBlastSource).not.toContain('forceContextLoss()')
-    expect(source).toMatch(/\.agent-discovery-leave-active\s*\{[^}]*transition:\s*opacity 0\.28s ease;/s)
+    // Startup used to stack a physics loader and a full-screen WebGL field; it is one small bar now.
+    expect(appSource).not.toContain('PixelBlast')
+    expect(appSource).not.toContain('WavePhysicsLoader')
+    expect(appSource).not.toContain('agent-discovery-overlay')
+    expect(appSource).toContain('<span class="boot-progress" aria-hidden="true"><span /></span>')
+    expect(packageSource).not.toContain('"three"')
+    expect(source).not.toContain('--pixel-blast-')
+    expect(source).toMatch(/@keyframes boot-progress\s*\{[^}]*transform:\s*translateX/s)
     expect(source).toMatch(/\.onboarding-leave-active\s*\{[^}]*transition:\s*opacity 0\.42s ease;/s)
     expect(source).toMatch(/\.onboarding-leave-active \.onboarding-backdrop\s*\{[^}]*transition:\s*background-color 0\.42s ease;/s)
     expect(source).toMatch(/\.onboarding-leave-to\s*\{[^}]*opacity:\s*0;/s)
     expect(source).toMatch(/\.onboarding-leave-to \.onboarding-dialog\s*\{[^}]*opacity:\s*0;[^}]*transform:\s*translateY\(14px\) scale\(0\.975\);/s)
-    expect(source).not.toContain('@keyframes agent-discovery-spin')
-    expect(source).not.toContain('.agent-discovery-orbit-ring')
-    expect(source).not.toContain('.agent-discovery-pixel-field')
   })
 
   it('uses one settings entry and a borderless Agent mention menu', () => {
@@ -877,17 +879,20 @@ describe('Meldwork workbench', () => {
     expect(source).toMatch(/\.direct-session-open\s*\{[^}]*grid-column:\s*1;/s)
     expect(source).toMatch(/\.direct-session-action\s*\{[^}]*opacity:\s*0;[^}]*pointer-events:\s*none;/s)
     expect(source).toMatch(/\.direct-session-row:hover \.direct-session-action,[^{]+\.direct-session-row:focus-within \.direct-session-action\s*\{[^}]*opacity:\s*0\.62;[^}]*pointer-events:\s*auto;/s)
-    expect(source).toMatch(/\.direct-session-row > \.run-mark,[^{]+\.direct-session-row > \.run-finished-mark\s*\{[^}]*grid-column:\s*4;[^}]*grid-row:\s*1;[^}]*justify-self:\s*end;/s)
+    expect(source).toMatch(/\.direct-session-row > \.run-mark,[^{]+\.direct-session-row > \.run-finished-mark,[^{]+\.direct-session-row > \.attention-mark\s*\{[^}]*grid-column:\s*4;[^}]*grid-row:\s*1;[^}]*justify-self:\s*end;/s)
     expect(source).toMatch(/\.run-agent-row\s*\{[^}]*grid-template-columns:\s*32px 20px;[^}]*grid-template-areas:\s*"avatar state"/s)
     expect(source).toMatch(/\.run-agent-state\s*\{[^}]*justify-content:\s*flex-end;/s)
   })
 
-  it('hides all visible scrollbars while preserving scroll behavior', () => {
+  it('hides scrollbars on the shell, chat page and dialogs but shows thin ones on long lists and panels', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/styles.css'), 'utf8')
 
     expect(source).toMatch(/html,\s*body,\s*#app\s*\{[^}]*scrollbar-width:\s*none;[^}]*-ms-overflow-style:\s*none;/s)
     expect(source).toMatch(/html::-webkit-scrollbar,[^}]+body::-webkit-scrollbar,[^}]+#app::-webkit-scrollbar,[^}]+\*::\-webkit-scrollbar\s*\{[^}]*width:\s*0;[^}]*height:\s*0;/s)
-    expect(source).not.toMatch(/scrollbar-width:\s*thin;/)
+    // Long sidebar lists, run details and settings show where you are; the chat page and dialogs stay clean.
+    expect(source).toMatch(/\.conversation-nav,[^{]*\.trace-panel-scroll,[^{]*\.settings-panel,[^{]*\{[^}]*scrollbar-width:\s*thin;[^}]*scrollbar-color:\s*var\(--scrollbar-thumb\) transparent;/s)
+    expect(source).not.toMatch(/\.message-scroll,[^{]*\{[^}]*scrollbar-width:\s*thin;/s)
+    expect(source).not.toMatch(/\.modal-body,[^{]*\{[^}]*scrollbar-width:\s*thin;/s)
   })
 
   it('uses a distinct Meldwork palette and separates composer controls', () => {
@@ -913,7 +918,9 @@ describe('Meldwork workbench', () => {
     expect(source).toMatch(/\.message-row\.agent \.message-body:hover \.message-meta-actions > button,[^{]+\.message-row\.agent \.message-body:hover \.message-footer-actions > button/s)
     expect(source).toMatch(/\.message-meta-actions > button::after,[^{]+\.message-footer-actions > button::after,[^{]+\.code-copy-button::after\s*\{[^}]*bottom:\s*calc\(100% \+ 6px\);[^}]*background:\s*var\(--surface-raised\);/s)
     expect(source).toMatch(/\.message-footer-actions > button::after\s*\{[^}]*top:\s*calc\(100% \+ 6px\);[^}]*bottom:\s*auto;/s)
-    expect(source).toMatch(/\.conversation-link\s*\{[^}]*grid-template-columns:\s*26px minmax\(0, 1fr\) 58px;/s)
+    // Group names use the full row; row actions float over the end with a fade instead of reserving a column.
+    expect(source).toMatch(/\.conversation-link\s*\{[^}]*grid-template-columns:\s*26px minmax\(0, 1fr\) auto;/s)
+    expect(source).toMatch(/\.group-conversation-actions\s*\{[^}]*position:\s*absolute;[^}]*background:\s*linear-gradient/s)
     expect(source).toMatch(/\.conversation-empty-wordmark\s*\{[^}]*width:\s*min\(276px, 60vw\);/s)
     expect(source).toMatch(/\.conversation-empty-copy\s*\{[^}]*width:\s*min\(920px, 100%\);[^}]*min-height:\s*60px;/s)
     expect(source).not.toContain('img[src$="/hermes.svg"],\n:root[data-theme="dark"] img[src$="/opencode.svg"]')
@@ -1297,7 +1304,7 @@ describe('Meldwork workbench', () => {
     expect(wrapper.get('.system-message .markdown-body').text()).toBe('Recovered conclusion before timeout.')
     expect(wrapper.get('.system-message').text()).not.toContain('Hermes failed: LOCAL_AGENT_TIMEOUT')
 
-    await wrapper.findAll('.sidebar-footer-actions button')[0].trigger('click')
+    await wrapper.findAll('.titlebar-preferences button')[0].trigger('click')
     expect(wrapper.get('.conversation-link').text()).toContain('Agent 群聊')
     expect(wrapper.get('.system-message').text()).toContain('Hermes 调用失败：该 Agent 响应超时')
     expect(wrapper.get('.system-message .markdown-body').text()).toBe('Recovered conclusion before timeout.')

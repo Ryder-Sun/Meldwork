@@ -519,6 +519,11 @@
 
 .composer-box {
   position: relative;
+  /* The member chips below use z-index to overlap each other. Keep that
+     ordering inside the box. Without this it only stayed contained while the
+     box was focused (its translateY creates a stacking context), and an
+     unfocused box let chips with a higher z-index draw over the menus. */
+  isolation: isolate;
   width: 100%;
   overflow: visible;
   border: 0;

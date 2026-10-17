@@ -289,6 +289,7 @@ function normalizeMessage(value) {
   const trace = normalizeMessageTrace(input.trace)
   if (trace) message.trace = trace
   else delete message.trace
+  if (!Number.isSafeInteger(input.turnSeq) || input.turnSeq <= 0) delete message.turnSeq
   return message
 }
 

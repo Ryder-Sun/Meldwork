@@ -1,11 +1,3 @@
-<!-- <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="frontend/public/logos/meldwork-wordmark-v3-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="frontend/public/logos/meldwork-wordmark-v3.svg">
-    <img src="frontend/public/logos/meldwork-wordmark-v3.svg" alt="Meldwork" width="360">
-  </picture>
-</p> -->
-
 <p align="center">
   <img src="frontend/public/logos/meldwork-readme-banner-cn.png" alt="Meldwork README banner" width="100%">
 </p>
@@ -14,80 +6,63 @@
   <a href="README.md">English</a> · <strong>简体中文</strong>
 </p>
 
-# Meldwork 为 AI Agent 构建组织层
+# Meldwork：本地优先的 General Agent 工作空间
 
-**多数工具是在帮人类管更多 Agent；Meldwork 解决的是另一件事：让多 Agent 协作变得可见、可追责、可复用。**
+**把多个 General Agent 组织成一个可复核的工作小组。Meldwork 为每个任务建立共享上下文，让选定的 Agent 独立调查或分轮讨论，并在采用结果前保留完整的证据和人工决策。**
 
-当前预览版是一个面向已支持本地 Agent CLI 的本地工作单元。它把参与者、上下文、协作边界、运行状态和人类复核放在同一个工作空间里。已选 Agent 现在可以并发回复，也可以围绕同一目标先独立提案，再根据讨论互相指定下一位参与者，最后协作完成工作并进行复核。
+Meldwork 是一个本地优先的 Electron 工作空间，用来连接你已经在电脑上使用的 Agent 工具。它支持直接会话、独立并发回复，以及包含提案、质询、职责协商、分工执行、整合和复核的 Auto Discussion V4。Agent 可以处理文字、文件、图片、音视频、Skill 和选定的知识源，因此同一个工作空间可以覆盖研究、分析、写作、规划、评审和实施。
+
+产品围绕一条可持续复核的记录组织工作：**Case → Finding → Evidence → Decision → Disposition**。Meldwork 将任务快照、Agent 贡献、运行状态、产物、人工审批门和采用决定保存在同一个本地工作单元中。工作区写入默认受控，并由用户明确授权。
 
 <p align="center">
-  <a href="https://github.com/Ryder-MHumble/Meldwork/releases/download/Meldwork-V1.0.4/Meldwork-0.1.4-arm64.dmg"><strong>下载 Meldwork V1.0.4 Apple 芯片 macOS 版</strong></a>
+  <a href="https://github.com/Ryder-MHumble/Meldwork/releases/download/Meldwork-V1.0.5/Meldwork-0.1.5-arm64.dmg"><strong>下载 Meldwork V1.0.5 Apple 芯片 macOS 版</strong></a>
   · <a href="architecture.md">架构</a>
   · <a href="LICENSE">许可证</a>
 </p>
 
-## 适合谁
+## Meldwork 适合什么工作
 
-当你有以下需求时，Meldwork 更适合：
+当一个决定需要多个视角，并且需要留下清晰的采用依据时，Meldwork 更适合：
 
-- 已经安装多个本地 Agent CLI，希望让同一任务跨 Agent 协作；
-- 需要在代码评审、研究或产品分析中获得独立判断，再选择方案；
-- 需要在写入工作区前检查可追溯的运行轨迹、证据并保留人工复核。
+- 研究与信息综合：结合本地 Agent 工具和明确选择的知识源；
+- 产品、市场、运营和技术分析；
+- 写作、规划、评审和结构化文档工作；
+- 处理本地文档、图片、音频、视频、PDF、代码和配置文件的多模态工作；
+- 需要保留发现、证据、权限、运行轨迹和最终采用决定的实施工作。
 
-## 工作流程
+## 一个任务如何在 Meldwork 中推进
 
-1. **选择**本地 Agent 和参与者。
-2. **限定**目标、工作目录、上下文和权限。
+1. **选择**本 Case 的 Agent 和参与者。
+2. **限定**目标、工作目录、上下文、附件、Skill、知识源和权限。
 3. **运行**直接会话、并发回复或 Auto Discussion V4。
-4. **复核并采用**结果、证据和待处理的人工审批门（Human Gate），再写入工作区。
+4. **复核**发现、证据、产物、运行轨迹和人工审批门。
+5. **采用**批准的结果，或保留为待解决状态继续处理。
 
 ## 协作模式
 
 | 模式 | 运行方式 | 适合场景 |
 | --- | --- | --- |
-| **直接会话** | 一个已选 Agent 在适配器支持时保持对话和原生会话。 | 使用单个 Agent 完成聚焦工作。 |
-| **并发回复** | 已选 Agent 收到同一份冻结任务快照，并按稳定顺序返回独立回复。 | 在选择方案前比较不同路径。 |
-| **Auto Discussion V4** | 首轮并发提案。后续轮次由 Agent 根据讨论结果通过最后一行的 `@Agent` 决定下一位参与者；@ 一个 Agent 时单独运行，@ 多个 Agent 时并发运行。每个 Agent 在同一任务中持续使用原生会话。 | 需要讨论、灵活分工和复核的多轮工作。 |
+| **直接会话** | 一个已选 Agent 在适配器支持时保持对话和原生会话。 | 聚焦研究、写作、分析或执行。 |
+| **并发回复** | 已选 Agent 收到同一份冻结任务快照，并按稳定顺序返回独立回复。 | 在选择方案前比较不同视角。 |
+| **Auto Discussion V4** | Agent 先提出方案，再进行质询、职责协商、分工执行、候选结果整合和独立复核；支持时会在多轮中保持原生会话。 | 需要讨论、分工和复核的多步骤工作。 |
 
-参与者始终由用户选择。从更大候选池自动选人不属于当前预览版。
+参与者始终由用户选择。从更大候选池自动选人组队不属于当前预览版。
 
-## Meldwork 与相邻产品的区别
+## 复核记录
 
-Meldwork 是面向多 Agent 评审与决策可追溯性的本地优先 AI Agent 工作空间，不是终端、云端 Agent Fleet、通信网络或可编程编排框架。它把你已经在使用的本地 Agent 工具连接到可形成决定的评审流程，并在一个本地工作单元中保留独立发现、证据、责任和人工采用决定。
+Meldwork 将协作组织成一套决策过程，而不是一串聊天消息：
 
-| 项目 | 类别 | 主要解决什么 | Meldwork 的区别 |
-| --- | --- | --- | --- |
-| [Buzz](https://github.com/block/buzz) | Agent 通信网络 | 身份、频道、事件和持续协作。 | 面向单个 Case 的独立判断，以及有证据支持的 Decision 和 Disposition。 |
-| [Pragma](https://github.com/pqpo/pragma) | 方法与工作流运行时 | 可复用的 Expert、Flow、Memory、Evaluation 和 DSL 资产。 | 在流程固定前保留分歧、复验和采用记录。 |
-| [Munder Difflin](https://github.com/chaitanyagiri/munder-difflin) | 可视化 Agent 公司 | Boss -> Manager -> Workers，以及任务和活动状态。 | 追踪 Finding -> Evidence -> Decision -> Disposition，不让中心经理隐藏分歧。 |
-| [Superset](https://github.com/superset-sh/superset) / [Conductor](https://www.conductor.build/) / [Vibe Kanban](https://github.com/BloopAI/vibe-kanban) | 并行编码工作台 | 并行 Coding Agent、隔离工作区、Diff 和 Merge。 | 面向异构 CLI 的本地优先评审，不以终端数量、Worktree 吞吐量或云 Sandbox 竞争。 |
-| [cmux](https://github.com/manaflow-ai/cmux) | Agent 原生终端 | 低摩擦终端、通知和多任务处理。 | 增加冻结上下文、独立结果和人工采用门。 |
-| [Nimbalyst](https://github.com/nimbalyst/nimbalyst) | Agent 与 Artifact 工作空间 | 并行 Agent，以及 Markdown、Mockup 和 Diagram。 | 在 Artifact 旁边保留证据和可追责的决定。 |
-| [Paperclip](https://github.com/paperclipai/paperclip) | Agent 组织管理 | 公司、岗位、预算、审批和组织图。 | 将责任落在真实 Finding 和结果上，而不是虚拟公司。 |
-| [MCP Agent Mail](https://github.com/Dicklesworthstone/mcp_agent_mail) | Agent 通信基础设施 | 身份、收件箱、Thread 和 advisory file lease。 | 在传输层之上保留 Case 和评审语义。 |
-| LangGraph / CrewAI / AutoGen / OpenAI Agents SDK / Google ADK | 可编程多 Agent 框架 | 面向开发者的 Graph、角色、路由、工具和审批。 | 团队无需编写编排框架代码即可获得桌面评审流程。 |
-| Warp Oz / Devin / Factory / OpenHands Cloud | 云端 Agent 控制面 | 托管 Sandbox、远程执行和 Agent Fleet。 | 在本地 Electron 工作单元中使用现有 CLI，并保持本地数据边界。 |
+- **Case**：定义问题、范围、上下文和权限；
+- **Finding**：记录 Agent 的判断、观察或行动建议；
+- **Evidence**：将 Finding 连接到回复、产物、文件、知识结果或其他受约束的依据；
+- **Decision**：记录证据支持的结论、未决问题和选定路径；
+- **Disposition**：记录结果已接受、修订、拒绝、被替代或仍未解决。
 
-## 运行示例
+Run Ledger 会保留阶段、参与者、尝试、回执、产物、恢复状态和人工审批门。诊断工具输出与敏感运行信息留在 Electron 主进程边界内。
 
-<table>
-  <tr>
-    <th>本地 Agent 检测</th>
-    <th>多 Agent 评审</th>
-    <th>直接会话中的多模态工作</th>
-  </tr>
-  <tr>
-    <td align="center"><a href="assets/meldwork-agent-discovery.png"><img src="assets/meldwork-agent-discovery.png" alt="Meldwork 本地优先多 Agent 工作空间检测 Agent CLI" width="320" height="205"></a></td>
-    <td align="center"><a href="assets/meldwork-multi-agent-review.png"><img src="assets/meldwork-multi-agent-review.png" alt="Meldwork 多 Agent 协作、证据与人工复核" width="320" height="205"></a></td>
-    <td align="center"><a href="assets/meldwork-direct-multimodal.png"><img src="assets/meldwork-direct-multimodal.png" alt="Meldwork 直接 Agent 工作空间处理本地文件和媒体" width="320" height="205"></a></td>
-  </tr>
-</table>
+## General Agent 目录
 
-示例：把同一份变更评审上下文交给 Codex、Claude Code 和 Gemini CLI，比较各自的独立发现，再只采用你批准且有证据支持的结果。
-
-## 支持的本地 Agent CLI
-
-当适配器和 CLI 版本兼容时，Meldwork 会检测并调用已安装的命令：
+当适配器和 CLI 版本兼容时，Meldwork 会检测并调用已安装的 Agent 命令。当前目录包括：
 
 <table>
   <tr>
@@ -108,15 +83,21 @@ Meldwork 是面向多 Agent 评审与决策可追溯性的本地优先 AI Agent 
   </tr>
 </table>
 
-已批准的 Agent Connector 可通过 [Agent Connector SDK](docs/agent-connector-sdk.md) 接入；自定义可执行 Agent 使用桌面端的自定义 Agent 入口。完整适配器和能力矩阵见[桌面端指南](desktop/README.md)。
+已批准的 Agent Connector 和自定义可执行 Agent 使用桌面端的连接器入口。完整的适配器、安装、Provider 和能力矩阵见[桌面端指南](desktop/README.md)。
 
-## 快速开始
+## 上下文与本地边界
 
-### Apple 芯片 macOS 预览版
+Meldwork 作为本地 Electron 应用运行。对话、群组配置、运行记录和应用管理的附件保存在本地用户数据目录。渲染进程只通过受约束的 preload API 获取校验后的状态；可执行路径、凭据、原生会话引用、Skill 路径和任意 Shell 权限都留在主进程中。
 
-从[官方 V1.0.4 预发布页](https://github.com/Ryder-MHumble/Meldwork/releases/tag/Meldwork-V1.0.4)下载 [`Meldwork-0.1.4-arm64.dmg`](https://github.com/Ryder-MHumble/Meldwork/releases/download/Meldwork-V1.0.4/Meldwork-0.1.4-arm64.dmg)，将 Meldwork 移入“应用程序”，并至少安装一个受支持的本地 Agent CLI。该预发布版使用 ad-hoc 临时签名且未公证；首次启动时，macOS 可能要求你在“系统设置 -> 隐私与安全性”中选择“仍要打开 / Open Anyway”。
+选定的 Agent 仍可能把 Prompt、附件或 Skill 发送到其自身 CLI 凭据对应的模型服务商。知识访问必须明确选择并受边界约束：当前实现支持本地 Obsidian 检索，以及由本地 CLI 管理的飞书或钉钉访问模式。Local-first 描述的是 Meldwork 的数据和协作位置，不代表 Agent 使用的模型服务商一定离线。
 
-### 从源码运行
+## 下载 V1.0.5
+
+Apple 芯片 macOS 用户请前往 [Meldwork V1.0.5 预发布页](https://github.com/Ryder-MHumble/Meldwork/releases/tag/Meldwork-V1.0.5)，下载 [`Meldwork-0.1.5-arm64.dmg`](https://github.com/Ryder-MHumble/Meldwork/releases/download/Meldwork-V1.0.5/Meldwork-0.1.5-arm64.dmg)。发布页同时提供 ZIP 压缩包和 SHA-256 校验文件。启动应用前，请至少安装一个受支持的本地 Agent CLI。
+
+该预览版安装包使用 ad-hoc 临时签名，未使用 Apple Developer ID 签名，也未进行公证。macOS 首次启动时可能需要在“系统设置 → 隐私与安全性”中选择“仍要打开 / Open Anyway”。
+
+## 从源码运行
 
 前置条件：Node.js `22.12+` 和 npm。
 
@@ -135,16 +116,16 @@ npm --prefix frontend run build:desktop
 npm --prefix desktop test
 ```
 
-## 当前边界
+## V1.0.5
 
-Meldwork 是本地 Electron 应用，不是托管式 Agent Fleet，也不是通用 Agent 框架。当前预览版不提供远程、云端或频道 Agent 执行，不提供自动选人组队、企业 SSO/RBAC/治理或 Outcome Network。Local-first 不等于完全离线：选定的 Agent 仍可能把 Prompt、附件或 Skill（技能）发送到其自身 CLI 凭据对应的模型服务商。工作区写入是可选的工作流控制，不是操作系统级沙箱。
+V1.0.5 改进了本地 Agent 的就绪检测与恢复，在单个 Agent 失败时保留健康参与者，重启后继续显示已完成和已停止的工作，并加强了群组执行与结果导入。同时更新了工作区偏好、侧栏和标题栏细节，以及 Pi 能力探测契约。
+
+本预览版已完成 343/343 前端测试、1,562/1,562 桌面端测试、6 个确定性评估场景共 18 条结果验证，并通过 Web 与桌面构建、打包、ZIP 完整性、深度代码签名校验，以及 Apple 芯片 macOS 上的群组执行、取消和重启恢复验收。安装包仍为 ad-hoc 临时签名且未公证；实际运行结果仍取决于本机 Agent CLI 版本、鉴权、Provider 和能力。
 
 ## 文档
 
 - [架构与产品边界](architecture.md)
 - [桌面端设置与 Agent 矩阵](desktop/README.md)
-- [Agent Connector SDK](docs/agent-connector-sdk.md)
-- [AI 可发现性索引](docs/ai-discoverability.md)
 - [贡献指南](CONTRIBUTING.md)
 - [安全策略](SECURITY.md)
 

@@ -303,7 +303,8 @@ describe('Meldwork workbench', () => {
     await wrapper.get('.run-agent-row').trigger('click')
     await flushPromises()
 
-    expect(wrapper.get('.trace-waiting-state').text()).toBe('Waiting')
+    // The system is waiting on the user, so the state says so instead of rotating "thinking" words.
+    expect(wrapper.get('.trace-waiting-state').text()).toBe('Waiting for your decision')
     expect(wrapper.get('.trace-human-gate-section').text())
       .toContain('workspace-write synthesis attempt may have produced side effects')
     expect(wrapper.find('.trace-budget-section').exists()).toBe(false)

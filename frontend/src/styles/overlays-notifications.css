@@ -2,25 +2,30 @@
   position: fixed;
   right: 22px;
   bottom: 22px;
-  z-index: 120;
+  z-index: var(--z-toast);
   max-width: min(420px, calc(100vw - 44px));
   display: flex;
   align-items: flex-start;
-  gap: 9px;
-  padding: 11px 13px;
-  border: 1px solid var(--border-strong);
+  gap: 10px;
+  padding: 12px 12px 12px 14px;
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface-raised);
-  box-shadow: var(--shadow);
-  color: var(--text-soft);
-  line-height: 1.45;
+  box-shadow: var(--elev-3);
+  color: var(--text);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.toast-message[data-tone="error"] {
+  border-color: color-mix(in srgb, var(--danger) 30%, var(--border));
 }
 
 .copy-toast-message {
   position: fixed;
   top: calc(var(--desktop-titlebar-height) + 14px);
   left: 50%;
-  z-index: 130;
+  z-index: var(--z-toast);
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -29,14 +34,14 @@
   background: color-mix(in srgb, var(--surface-raised) 92%, var(--accent-soft));
   box-shadow: 0 6px 18px rgb(23 35 40 / 0.16);
   color: var(--text-soft);
-  font-size: 12px;
+  font-size: var(--text-sm);
   transform: translateX(-50%);
 }
 
 .copy-toast-message svg {
   width: 15px;
   height: 15px;
-  color: var(--accent);
+  color: var(--success);
 }
 
 .toast-message > span {
@@ -47,8 +52,12 @@
 .toast-message svg {
   width: 17px;
   height: 17px;
-  margin-top: 1px;
-  color: var(--accent);
+  margin-top: 2px;
+  color: var(--warning);
+}
+
+.toast-message[data-tone="error"] > svg {
+  color: var(--danger);
 }
 
 .toast-message .toast-dismiss-button svg {
@@ -58,15 +67,18 @@
   color: currentColor;
 }
 
-.toast-enter-active,
+.toast-enter-active {
+  transition: opacity var(--dur-base) var(--ease-out), transform var(--dur-slow) var(--ease-out);
+}
+
 .toast-leave-active {
-  transition: opacity 0.16s ease, transform 0.16s ease;
+  transition: opacity var(--dur-fast) var(--ease-in), transform var(--dur-fast) var(--ease-in);
 }
 
 .toast-enter-from,
 .toast-leave-to {
   opacity: 0;
-  transform: translateY(8px);
+  transform: translateY(12px) scale(0.98);
 }
 
 .copy-toast-enter-active,
@@ -132,19 +144,13 @@
   border-radius: var(--radius);
   background: var(--surface-raised);
   box-shadow: var(--shadow);
-  animation: shortcut-menu-in 0.12s ease-out;
-}
-
-@keyframes shortcut-menu-in {
-  from { opacity: 0; transform: translateY(-3px); }
-  to { opacity: 1; transform: translateY(0); }
 }
 
 .shortcut-menu header {
   padding: 2px 4px 8px;
   color: var(--text-soft);
-  font-size: 12px;
-  font-weight: 650;
+  font-size: var(--text-sm);
+  font-weight: 600;
 }
 
 .shortcut-menu ul {
@@ -163,7 +169,7 @@
   gap: 12px;
   padding: 0 4px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 
 .shortcut-menu kbd {
@@ -171,7 +177,7 @@
   border-radius: 4px;
   background: var(--surface-hover);
   color: var(--text-soft);
-  font: 10px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font: var(--text-2xs)/1.2 var(--font-mono);
   white-space: nowrap;
 }
 
@@ -181,4 +187,21 @@
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* Shared entrance for menus outside the chat page. Menus that open upward
+   grow from their bottom edge. */
+.collapsed-group-menu {
+  transform-origin: bottom left;
+  animation: popover-in var(--dur-base) var(--ease-out) both;
+}
+
+.trace-select-menu,
+.shortcut-menu {
+  transform-origin: top center;
+  animation: popover-in var(--dur-base) var(--ease-out) both;
+}
+
+@keyframes popover-in {
+  from { opacity: 0; transform: scale(0.96); }
 }

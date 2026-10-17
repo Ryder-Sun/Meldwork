@@ -57,6 +57,12 @@
           <div v-if="installerState.kind === agent.kind && installerState.phase !== 'idle'" class="install-progress">
             <span>{{ installerPhaseLabel }}</span>
           </div>
+          <p v-if="agentStateNote(agent)" class="agent-card-note" :data-tone="agentState(agent).tone">
+            <span>{{ agentStateNote(agent) }}</span>
+            <button type="button" :disabled="refreshing" @click.stop="$emit('refresh-agents')">
+              {{ t('home.refresh') }}
+            </button>
+          </p>
           <div class="agent-card-meta-row">
             <span
               v-if="agent.version"
@@ -125,6 +131,7 @@ defineProps({
   agentImageLabel: { type: Function, required: true },
   agentSkillLabel: { type: Function, required: true },
   agentState: { type: Function, required: true },
+  agentStateNote: { type: Function, default: () => '' },
   focusedAgentKind: { type: String, required: true },
   installConfirmKind: { type: String, required: true },
   installedCount: { type: Number, required: true },

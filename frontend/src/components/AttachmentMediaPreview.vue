@@ -7,6 +7,7 @@
       @click.self="close"
     >
       <section
+        ref="dialog"
         class="attachment-media-preview-dialog"
         role="dialog"
         aria-modal="true"
@@ -20,7 +21,7 @@
           :title="closeLabel"
           @click="close"
         >
-          <span aria-hidden="true">×</span>
+          <CloseOutline aria-hidden="true" />
         </button>
         <img
           v-if="type === 'image'"
@@ -36,6 +37,7 @@
           playsinline
           preload="auto"
         />
+        <p class="attachment-media-preview-caption" :title="attachment.name">{{ attachment.name }}</p>
       </section>
     </div>
   </Teleport>
@@ -43,6 +45,7 @@
 
 <script setup>
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { CloseOutline } from '@vicons/ionicons5'
 
 const props = defineProps({
   attachment: { type: Object, required: true },
@@ -54,6 +57,7 @@ const emit = defineEmits(['close'])
 
 const backdrop = ref(null)
 const closeButton = ref(null)
+const dialog = ref(null)
 let returnFocus = null
 
 function close() {
@@ -67,8 +71,15 @@ function handleKeydown(event) {
     return
   }
   if (event.key !== 'Tab') return
+  // Keep focus inside the preview, but let it reach the video controls.
+  const focusable = [...(dialog.value?.querySelectorAll('button, video[controls]') || [])]
+  if (!focusable.length) return
+  const index = focusable.indexOf(document.activeElement)
+  const next = event.shiftKey
+    ? focusable[(index - 1 + focusable.length) % focusable.length]
+    : focusable[(index + 1) % focusable.length]
   event.preventDefault()
-  closeButton.value?.focus()
+  next.focus()
 }
 
 onMounted(() => {
@@ -95,12 +106,25 @@ body.media-preview-open {
 
 .attachment-media-preview-backdrop {
   position: fixed;
-  z-index: 1000;
+  z-index: var(--z-lightbox);
   inset: 0;
   display: grid;
   place-items: center;
   padding: 24px;
   background: rgb(10 14 20 / 78%);
+  animation: media-preview-fade var(--dur-base) var(--ease-out) both;
+}
+
+.attachment-media-preview-dialog {
+  animation: media-preview-zoom var(--dur-slow) var(--ease-out) both;
+}
+
+@keyframes media-preview-fade {
+  from { opacity: 0; }
+}
+
+@keyframes media-preview-zoom {
+  from { opacity: 0; transform: scale(0.96); }
 }
 
 .attachment-media-preview-dialog {
@@ -115,7 +139,8 @@ body.media-preview-open {
 .attachment-media-preview-dialog video {
   display: block;
   max-width: 100%;
-  max-height: calc(100vh - 48px);
+  max-height: calc(100vh - 88px);
+  border-radius: var(--radius-sm);
   background: #080b10;
   object-fit: contain;
 }
@@ -136,13 +161,30 @@ body.media-preview-open {
   right: 10px;
   width: 34px;
   height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
   border: 0;
   border-radius: 50%;
   background: rgb(0 0 0 / 62%);
   color: #fff;
   cursor: pointer;
-  font-size: 28px;
-  line-height: 28px;
+}
+
+.attachment-media-preview-close svg {
+  width: 18px;
+  height: 18px;
+}
+
+.attachment-media-preview-caption {
+  max-width: 100%;
+  margin: 10px 0 0;
+  overflow: hidden;
+  color: rgb(255 255 255 / 82%);
+  font-size: var(--text-sm);
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .attachment-media-preview-close:hover,

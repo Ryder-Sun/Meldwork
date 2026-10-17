@@ -171,12 +171,17 @@ function knowledgeBaseHintsPrompt(hints) {
   ].join('\n')
 }
 
-function normalizeLoadedGroup(input) {
+function normalizeLoadedGroup(input, options = {}) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return null
   const id = cleanText(input.id, 100)
-  const agentKinds = [...new Set((Array.isArray(input.agentKinds) ? input.agentKinds : [])
+  const normalizeKinds = values => [...new Set((Array.isArray(values) ? values : [])
     .map(kind => cleanInline(kind, 40))
     .filter(isSupportedAgentKind))]
+  let agentKinds = normalizeKinds(input.agentKinds)
+  // Earlier builds could persistently remove every member of a group after
+  // repeated failures. Dropping such a group would also drop its messages,
+  // so rebuild the membership from the Agents that replied in it instead.
+  if (!agentKinds.length) agentKinds = normalizeKinds(options.recoveredAgentKinds)
   if (!id || !agentKinds.length) return null
 
   const group = {
@@ -210,8 +215,10 @@ function normalizeLoadedMessage(input) {
   const agentKind = isSupportedAgentKind(requestedAgentKind) ? requestedAgentKind : ''
   if (!id || !groupId || !role || (role === 'agent' && !agentKind)) return null
   const systemKey = role === 'system' ? cleanInline(input.system?.key, 100) : ''
+  const turnSeq = Number(input.turnSeq)
 
   const message = {
+    ...(Number.isSafeInteger(turnSeq) && turnSeq > 0 ? { turnSeq } : {}),
     id,
     groupId,
     role,

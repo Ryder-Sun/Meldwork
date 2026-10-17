@@ -45,7 +45,6 @@ const EXPECTED_EXPORTS = [
   'cleanProgressSteps',
   'cleanRunMaxRounds',
   'cleanText',
-  'credentialFailure',
   'defaultAgentLabel',
   'emptyState',
   'isTracedAgentTerminalMessage',

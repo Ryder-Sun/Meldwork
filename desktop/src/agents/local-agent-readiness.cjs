@@ -29,6 +29,12 @@ const OPENCLAW_MODEL_INPUTS = new Set(['text', 'image', 'audio', 'video'])
 const MAX_CREDENTIAL_FILE_BYTES = 2 * 1024 * 1024
 const MAX_SHELL_ENV_BYTES = 256 * 1024
 const SHELL_ENV_CACHE_TTL_MS = 30000
+// A login shell that loads nvm/conda/compinit can take several seconds,
+// especially right after boot or under load.
+const SHELL_ENV_TIMEOUT_MS = 10000
+// When the shell does not answer and nothing better is known, retry soon
+// instead of pinning the bare app environment for the whole cache window.
+const SHELL_ENV_FAILURE_TTL_MS = 5000
 const SHELL_ENV_MARKER = '__MELDWORK_NATIVE_ENV_V1__'
 const VERTEX_MODEL_REGION_KEY = /^VERTEX_REGION_[A-Z0-9_]{1,120}$/
 const CREDENTIAL_ENV_KEYS = Object.freeze({
@@ -257,7 +263,7 @@ async function queryNativeShellEnvironment(options = {}) {
       shell,
       [shellName === 'sh' ? '-lc' : '-lic', nativeShellCommand(shellName)],
       {
-        timeout: 5000,
+        timeout: SHELL_ENV_TIMEOUT_MS,
         maxBuffer: MAX_SHELL_ENV_BYTES,
         windowsHide: true,
         env: childEnv,
@@ -269,13 +275,19 @@ async function queryNativeShellEnvironment(options = {}) {
       source: Object.keys(loaded).some(key => key !== 'PATH') ? 'native-shell' : 'process',
     }
   } catch {
-    return { env: fallback, source: 'process' }
+    return { env: fallback, source: 'process', failed: true }
   }
 }
 
+function publicShellEnvironment({ env, source }) {
+  return { env, source }
+}
+
+let lastGoodShellEnvironment = null
+
 function resolveNativeShellEnvironment(options = {}) {
   const useCache = options.cache !== false && !options.execFileFn
-  if (!useCache) return queryNativeShellEnvironment(options)
+  if (!useCache) return queryNativeShellEnvironment(options).then(publicShellEnvironment)
   const source = options.env || process.env
   const platform = options.platform || process.platform
   const home = options.home || os.homedir()
@@ -288,9 +300,27 @@ function resolveNativeShellEnvironment(options = {}) {
       && shellEnvironmentCache.expiresAt > now) {
     return shellEnvironmentCache.promise
   }
-  const promise = queryNativeShellEnvironment(options)
-  shellEnvironmentCache = { key, expiresAt: now + SHELL_ENV_CACHE_TTL_MS, promise }
-  return promise
+  // The window is measured from when the capture finishes, so a capture that
+  // used up its whole timeout is not already stale when it returns.
+  const entry = { key, promise: null, expiresAt: now + SHELL_ENV_CACHE_TTL_MS }
+  entry.promise = queryNativeShellEnvironment(options).then((result) => {
+    entry.expiresAt = Date.now() + SHELL_ENV_CACHE_TTL_MS
+    if (!result.failed) {
+      if (result.source === 'native-shell') lastGoodShellEnvironment = { key, result }
+      return publicShellEnvironment(result)
+    }
+    // The login shell did not answer (slow rc file, timeout, startup error).
+    // The bare app environment has none of the user's PATH entries or API
+    // keys, so an Agent started with it fails with misleading sign-in errors.
+    // Keep using what the shell last produced for this account instead.
+    if (lastGoodShellEnvironment?.key === key) {
+      return publicShellEnvironment(lastGoodShellEnvironment.result)
+    }
+    entry.expiresAt = Date.now() + SHELL_ENV_FAILURE_TTL_MS
+    return publicShellEnvironment(result)
+  })
+  shellEnvironmentCache = entry
+  return entry.promise
 }
 
 function nativeCredentialState(kind, options = {}) {

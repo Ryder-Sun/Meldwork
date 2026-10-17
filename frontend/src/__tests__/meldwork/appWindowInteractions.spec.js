@@ -23,7 +23,7 @@ function mountInteractions(overrides = {}) {
     collapsedGroupMenuButton: ref(null),
     collapsedGroupMenuOpen,
     completeOnboarding: vi.fn(() => { onboardingVisible.value = false }),
-    conversationHeader: ref({ containsShortcutTarget: () => false }),
+    windowTitlebar: ref({ containsShortcutTarget: () => false }),
     customAgentDeleteArmed: ref(false),
     deleteArmed: ref(false),
     messageDeleteArmedId: ref(''),
@@ -176,7 +176,7 @@ describe('App window interactions', () => {
 
     const { deps } = mountInteractions()
     deps.collapsedGroupMenu.value = collapsedMenu
-    deps.conversationHeader.value = { containsShortcutTarget: target => target === inside }
+    deps.windowTitlebar.value = { containsShortcutTarget: target => target === inside }
     deps.roundSettingsControl.value = roundControl
     deps.messageDeleteArmedId.value = 'message-1'
     deps.sidebarDeleteGroupId.value = 'group-1'

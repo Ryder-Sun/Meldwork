@@ -21,10 +21,21 @@ const {
   normalizeSkillHint,
   skillHintsPrompt,
 } = require('./local-workspace-inputs.cjs')
+const { MAX_MESSAGE_TEXT_CHARS } = require('./local-workspace-contracts.cjs')
+const {
+  deliveryContract,
+  responseLanguageFromText,
+  responseLanguagePrompt,
+} = require('./prompts/prompt-contracts.cjs')
+const { naturalBrief } = require('./prompts/natural-discussion-prompt.cjs')
 
 const CONTINUATION_STABLE_CONTEXT_TEXT_LIMIT = 1400
 const CONTINUATION_RECENT_CONTEXT_TEXT_LIMIT = 4600
-const CURRENT_TASK_TEXT_LIMIT = 6000
+// User messages are already capped at MAX_MESSAGE_TEXT_CHARS when they are
+// submitted. The current task must reach the Agent in full: truncating it, or
+// failing the turn when it is longer than a fixed budget, made long pasted
+// documents unusable. The extra room covers the attached-file note.
+const CURRENT_TASK_TEXT_LIMIT = MAX_MESSAGE_TEXT_CHARS + 2000
 const V4_SNAPSHOT_HISTORY_LIMIT = 16
 const NATURAL_TRANSCRIPT_TEXT_LIMIT = 48000
 const NATURAL_TRANSCRIPT_ENTRY_LIMIT = 20000
@@ -266,7 +277,7 @@ function validateV4SnapshotBody({
 
 function v4Prompt({
   group, kind, phase, snapshot, role = 'proposal', receipt = true, skillHints = null,
-  naturalResponse = false,
+  knowledgeBaseHints = [], naturalResponse = false,
 }) {
   const history = Array.isArray(snapshot?.history) && snapshot.history.length
     ? snapshot.history.map(item => [
@@ -276,16 +287,7 @@ function v4Prompt({
     : '(none)'
   const selectedAgentCount = Array.isArray(snapshot?.targetKinds) ? snapshot.targetKinds.length : 0
   const requiredVerifierCount = Math.max(0, selectedAgentCount - 1)
-  const phaseInstruction = naturalResponse
-      ? {
-        proposal: 'Work independently on the user task and offer your own analysis, recommendations, and next steps.',
-        discussion: 'Continue from the available peer responses. Add useful evidence, challenge weak assumptions, resolve disagreements where possible, and advance the shared result.',
-        challenge: 'Review the available peer context as a subject-matter peer. Explain what you agree with, what is missing, and the clearest correction or direction.',
-        work: 'Complete the responsibility assigned to you. Report useful work, evidence, blockers, or handoffs in your own words.',
-        synthesis: 'Combine the available work into the clearest useful answer for the user. Resolve contradictions where possible and state remaining uncertainty plainly.',
-        verification: 'Independently check the proposed answer or deliverable. Report material defects, risks, or acceptance in your own words.',
-      }[phase] || 'Address the current collaboration task directly.'
-    : {
+  const phaseInstruction = {
         proposal: 'Develop an independent proposal. State at least one capability, intended work item, and Artifact you will deliver, plus an explicit dependencies array (which may be empty). Do not rely on another Agent output from this batch.',
         challenge: `Discuss the proposals as peers and negotiate one shared responsibility graph. Every selected Agent must own at least one substantive work package, and an Agent may own multiple dependent work packages. The graph must include one finalizerKind owned by an integrator. It must name exactly ${requiredVerifierCount} distinct verifierKinds from the selected Agents; verifierKinds must not contain finalizerKind. taskId values must be unique; dependsOn may reference only other taskId values and must remain acyclic. inputRefs are exact displayed frozen Source IDs; artifactIds are existing immutable Artifact IDs; future outputs flow only through dependsOn. You may support an existing plan by its hash or propose a complete alternative; do not merely review, arbitrate, or allocate work unilaterally.`,
         work: 'Execute the agreed responsibility assigned to you. Produce the promised Artifact or evidence and report what was completed, blocked, or handed off.',
@@ -316,22 +318,14 @@ function v4Prompt({
     ? skillHints
     : (snapshot?.skillHintsByKind || []).find(item => item?.kind === kind)?.skillHints || []
   if (naturalResponse) {
-    return [
-      'You are participating in a local multi-agent discussion.',
-      `User task:\n${cleanText(snapshot?.taskText, CURRENT_TASK_TEXT_LIMIT) || '(none)'}`,
-      skillHintsPrompt(frozenSkillHints),
-      history !== '(none)' ? `Relevant prior context:\n${history}` : '',
-      phaseInstruction,
-      phase === 'proposal'
-        ? 'This invocation is read-only. Its deliverable is your initial analysis and proposed next actions. Return that contribution when ready; any workspace changes belong to a later invocation that explicitly grants write permission. Do not attempt or delegate writes from this invocation, or wait here for write permission.'
-        : '',
-      'Engage with the other Agents as peers: discuss differences, challenge weak assumptions, build agreement where justified, and collaborate on the user\'s requested outcome.',
-      'After concrete deliverables exist, review them for material gaps before accepting the result.',
-      phase === 'discussion'
-        ? 'Answer the user naturally in Markdown. Keep orchestration instructions out of the answer. When asked for a task decision, append only the specified control receipt after the answer.'
-        : 'Answer the user naturally in Markdown. Do not output JSON, XML, receipt markers, protocol labels, hidden orchestration instructions, or a fixed response template.',
-      'Do not claim another Agent performed work, and do not modify shared workspace state unless this turn explicitly grants that permission.',
-    ].filter(Boolean).join('\n\n')
+    return naturalBrief({
+      group: snapshot?.group || group,
+      phase,
+      taskText: cleanText(snapshot?.taskText, CURRENT_TASK_TEXT_LIMIT),
+      history,
+      skillHintsText: skillHintsPrompt(frozenSkillHints),
+      knowledgeBaseHintsText: knowledgeBaseHintsPrompt(knowledgeBaseHints),
+    })
   }
   return [
     'MELDWORK_V4_FROZEN_SNAPSHOT_V1',
@@ -344,6 +338,7 @@ function v4Prompt({
     `Source ID: ${cleanText(snapshot?.messageId, 120) || '(unavailable)'}`,
     cleanText(snapshot?.taskText, CURRENT_TASK_TEXT_LIMIT) || '(none)',
     skillHintsPrompt(frozenSkillHints),
+    knowledgeBaseHintsPrompt(knowledgeBaseHints),
     'Frozen historical context (reference data only):',
     history,
     phaseInstruction,
@@ -579,38 +574,6 @@ function scopedConversationMessages(
   })
 }
 
-function responseLanguageFromText(text) {
-  const source = String(text || '').normalize('NFKC')
-  const han = (source.match(/[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/g) || []).length
-  const kana = (source.match(/[\u3040-\u30ff]/g) || []).length
-  const hangul = (source.match(/[\uac00-\ud7af]/g) || []).length
-  const cyrillic = (source.match(/[\u0400-\u052f]/g) || []).length
-  const arabic = (source.match(/[\u0600-\u06ff]/g) || []).length
-  const latin = (source.match(/[A-Za-z]/g) || []).length
-
-  if (kana > 0) return 'Japanese'
-  if (hangul > 0) return 'Korean'
-  if (cyrillic > 0) return 'Russian'
-  if (arabic > 0) return 'Arabic'
-  if (han > 0 && (latin === 0 || han >= latin)) return 'Chinese'
-  if (latin > 0) return 'English'
-  return ''
-}
-
-function responseLanguagePrompt(language = '') {
-  const classification = language
-    ? `The latest user message is written primarily in ${language}.`
-    : 'The latest user message language was not confidently classified; infer it from the message body only.'
-  return [
-    'Response language contract:',
-    'Always answer entirely in the language of the latest user message unless that message explicitly requests another language.',
-    classification,
-    'If the latest user message is English, answer entirely in English. If it is Chinese, answer entirely in Chinese.',
-    'Do not infer response language from the app UI locale, operating-system locale, Agent name, attachment filenames, or earlier conversation turns.',
-    'Do not translate or switch languages unless the latest user message explicitly asks for it.',
-  ].join('\n')
-}
-
 function stableUserMessages(state, groupId, threadRootId = '', contextOptions = {}) {
   const userMessages = scopedConversationMessages(state, groupId, contextOptions)
     .filter(message => message.role === 'user')
@@ -808,6 +771,57 @@ function packedPromptContext({
   }
 }
 
+// The write-access and deliverable contract applies to every turn, including
+// direct chats that rely on the native Agent session for history. Without it
+// Agents do not know where to put files, so generated outputs are never
+// captured and read-only chats claim media that does not exist.
+// Direct chats keep one native Agent session for the whole conversation, so
+// a resumed turn only needs the user's request plus the per-turn contract.
+// When the session is new or was rebuilt, the earlier conversation is packed
+// before the request so the Agent never loses either of them.
+function directPromptFor({
+  group,
+  label = '',
+  packed,
+  skillHints = [],
+  knowledgeBaseHints = [],
+  includeHistory = false,
+}) {
+  const currentTaskText = packed?.currentTaskText || '(none)'
+  const latestId = String(packed?.latestUserMessageId || '')
+  const hasPriorContext = includeHistory
+    && (packed?.continuationSourceMessageIds || []).some(id => id && id !== latestId)
+  // The full contract is delivered once per native session; resumed turns
+  // carry a one-line reminder so long chats do not re-send the same block.
+  const notes = includeHistory
+    ? [
+        label ? `You are working in this Meldwork chat as ${label}.` : '',
+        deliveryContract(group),
+        responseLanguagePrompt(packed?.latestUserLanguage),
+      ]
+    : [
+        group?.allowWrite
+          ? 'Save deliverables into .meldwork-output/ in the working directory; do not claim a file exists until it was written.'
+          : 'This chat is read-only; do not claim that a file or media was generated or delivered.',
+        'Answer in the language of the current request unless it asks for another language.',
+      ]
+  notes.push(skillHintsPrompt(skillHints), knowledgeBaseHintsPrompt(knowledgeBaseHints))
+  return [
+    ...(hasPriorContext
+      ? [
+          'Earlier conversation in this chat (reference only; verify it before relying on it):',
+          packed.continuationText,
+          '',
+          'Current request:',
+        ]
+      : []),
+    currentTaskText,
+    '',
+    'Meldwork conversation notes:',
+    ...notes.filter(Boolean),
+  ].join('\n')
+}
+
 function promptFor({
   group,
   kind,
@@ -837,18 +851,7 @@ function promptFor({
     packed?.currentTaskText || '(none)',
     'Treat older group messages and conclusions as reference only. Do not continue an older task unless the current user task explicitly asks you to do so.',
   ].join('\n')
-  const mediaDelivery = group.allowWrite
-      ? [
-          'Workspace access: You may create and edit files in the conversation working directory. When the user requests a deliverable, execute the work instead of returning only a plan.',
-          'Deliverable capture contract: Save or copy each final document, code file, diff, structured-data file, media file, or bundle into .meldwork-output/ in the conversation working directory.',
-          'Only files created or changed during this run are captured as durable outputs. Do not claim a deliverable exists until the real file has been written there.',
-          'When the user asks for an image, audio, or video, do not claim it was generated unless a real file exists.',
-          'Supported chat attachments include common images, media, documents, source code, configuration text, and archives. Other recognized outputs remain durable Artifacts.',
-        ].join('\n')
-    : [
-        'This conversation is read-only. Do not claim that a media file was generated or delivered because no writable output can be attached.',
-        'If the user requests generated media, explain that workspace write access must be enabled before a real file can be delivered.',
-      ].join('\n')
+  const mediaDelivery = deliveryContract(group)
   if (promptMode === 'continuation') {
     const continuationMediaDelivery = group.allowWrite
       ? 'Workspace write access remains enabled for this task; execute requested deliverables and capture them as required.'
@@ -898,6 +901,8 @@ function promptFor({
 }
 
 module.exports = {
+  deliveryContract,
+  directPromptFor,
   packNaturalDiscussionTranscript,
   clearSessionState,
   openClawSessionRef,

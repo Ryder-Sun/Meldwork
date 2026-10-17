@@ -162,6 +162,194 @@ input.on('line', (line) => {
     && error.failure?.category === 'authentication')
 })
 
+test('Hermes ACP receives image attachments as content blocks or falls back when unsupported', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-acp-image-'))
+  const image = path.join(directory, 'diagram.png')
+  fs.writeFileSync(image, Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+    'base64',
+  ))
+  const fakeHermes = supportsImages => executable(directory, `hermes-image-${supportsImages}.cjs`, `
+const readline = require('node:readline')
+if (process.argv[2] !== 'acp') {
+  process.stdout.write('legacy ' + process.argv.slice(2).filter(arg => arg !== '--query').join(' ').replace(${JSON.stringify(directory)}, '<dir>'))
+  process.exit(0)
+}
+const input = readline.createInterface({ input: process.stdin })
+const send = value => process.stdout.write(JSON.stringify(value) + '\\n')
+input.on('line', (line) => {
+  const message = JSON.parse(line)
+  const sessionId = message.params?.sessionId || 'hermes-image-session'
+  if (message.method === 'initialize') {
+    send({ jsonrpc: '2.0', id: message.id, result: {
+      protocolVersion: 1,
+      agentCapabilities: { promptCapabilities: { image: ${supportsImages} } },
+    } })
+  } else if (message.method === 'session/new') {
+    send({ jsonrpc: '2.0', id: message.id, result: { sessionId } })
+  } else if (message.method === 'session/set_mode') {
+    send({ jsonrpc: '2.0', id: message.id, result: {} })
+  } else if (message.method === 'session/prompt') {
+    const blocks = message.params?.prompt || []
+    const summary = blocks.map(block => block.type === 'image'
+      ? 'image:' + block.mimeType + ':' + (block.data.length > 20)
+      : block.type).join(',')
+    send({ jsonrpc: '2.0', method: 'session/update', params: { sessionId, update: {
+      sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: summary },
+    } } })
+    send({ jsonrpc: '2.0', id: message.id, result: { stopReason: 'end_turn' } })
+  }
+})
+`)
+  t.after(async () => {
+    await adapters.shutdownAcpSessionRuntime?.()
+    fs.rmSync(directory, { recursive: true, force: true })
+  })
+
+  const capable = await adapters.runAgent(
+    { kind: 'hermes', executable: fakeHermes(true), name: 'Hermes' },
+    'describe the diagram', directory,
+    { acpPersistenceKey: 'workspace:hermes:image', attachments: [image] },
+  )
+  assert.equal(capable.text, 'text,image:image/png:true')
+
+  const fallback = await adapters.runAgent(
+    { kind: 'hermes', executable: fakeHermes(false), name: 'Hermes' },
+    'describe the diagram', directory,
+    { acpPersistenceKey: 'workspace:hermes:image-fallback', attachments: [image] },
+  )
+  assert.match(fallback.text, /^legacy chat --quiet --image <dir>\/diagram\.png/)
+})
+
+function resilientHermes(directory) {
+  return executable(directory, 'hermes-resilient-acp.cjs', `
+const fs = require('node:fs')
+const readline = require('node:readline')
+if (process.argv[2] !== 'acp') {
+  process.stdout.write('legacy fallback')
+  process.exit(0)
+}
+const countFile = process.env.MELDWORK_TEST_SPAWN_COUNT_FILE
+const spawnCount = (fs.existsSync(countFile) ? Number(fs.readFileSync(countFile, 'utf8')) : 0) + 1
+fs.writeFileSync(countFile, String(spawnCount))
+const input = readline.createInterface({ input: process.stdin })
+const send = value => process.stdout.write(JSON.stringify(value) + '\\n')
+let pendingSlowPrompt = null
+input.on('line', (line) => {
+  const message = JSON.parse(line)
+  const sessionId = message.params?.sessionId || 'hermes-resilient-session'
+  if (message.method === 'initialize') {
+    if (process.env.MELDWORK_TEST_HANG_INIT === '1') return
+    send({ jsonrpc: '2.0', id: message.id, result: { protocolVersion: 1 } })
+  } else if (message.method === 'session/new') {
+    send({ jsonrpc: '2.0', id: message.id, result: { sessionId } })
+  } else if (message.method === 'session/set_mode') {
+    send({ jsonrpc: '2.0', id: message.id, result: {} })
+  } else if (message.method === 'session/cancel') {
+    if (pendingSlowPrompt) {
+      send({ jsonrpc: '2.0', id: pendingSlowPrompt, result: { stopReason: 'cancelled' } })
+      pendingSlowPrompt = null
+    }
+  } else if (message.method === 'session/prompt') {
+    const text = message.params?.prompt?.[0]?.text || ''
+    if (text === 'slow prompt') {
+      pendingSlowPrompt = message.id
+      fs.writeFileSync(process.env.MELDWORK_TEST_PROMPT_FILE, 'received')
+      return
+    }
+    send({ jsonrpc: '2.0', method: 'session/update', params: { sessionId, update: {
+      sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'acp answer ' + spawnCount },
+    } } })
+    send({ jsonrpc: '2.0', id: message.id, result: { stopReason: 'end_turn' } })
+  }
+})
+`)
+}
+
+test('a hanging ACP initialize times out and releases the conversation lock', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-acp-init-timeout-'))
+  const spawnCountFile = path.join(directory, 'spawn-count.txt')
+  t.after(async () => {
+    await adapters.shutdownAcpSessionRuntime?.()
+    fs.rmSync(directory, { recursive: true, force: true })
+  })
+  const agent = { kind: 'hermes', executable: resilientHermes(directory), name: 'Hermes' }
+  const env = { MELDWORK_TEST_SPAWN_COUNT_FILE: spawnCountFile }
+  const first = await within(adapters.runAgent(agent, 'first prompt', directory, {
+    acpPersistenceKey: 'workspace:hermes:init-timeout',
+    acpInitializeTimeoutMs: 300,
+    env: { ...env, MELDWORK_TEST_HANG_INIT: '1' },
+  }), 5000)
+  // The stuck initialize no longer blocks: the turn falls back instead of hanging.
+  assert.equal(first.text, 'legacy fallback')
+  // Only that process hangs (the flag is per call, not per spawn count: under
+  // load the 300 ms timeout can kill it before it records anything); the next
+  // turn on the same conversation key is not blocked by a lock left behind
+  // and gets a healthy ACP process.
+  const second = await within(adapters.runAgent(agent, 'second prompt', directory, {
+    acpPersistenceKey: 'workspace:hermes:init-timeout', env,
+  }), 10000)
+  assert.match(second.text, /^acp answer \d+$/)
+})
+
+test('a stopped ACP turn keeps the persistent process and its session when cancel is honoured', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-acp-cancel-keep-'))
+  const spawnCountFile = path.join(directory, 'spawn-count.txt')
+  const promptFile = path.join(directory, 'prompt.txt')
+  t.after(async () => {
+    await adapters.shutdownAcpSessionRuntime?.()
+    fs.rmSync(directory, { recursive: true, force: true })
+  })
+  const agent = { kind: 'hermes', executable: resilientHermes(directory), name: 'Hermes' }
+  const env = { MELDWORK_TEST_SPAWN_COUNT_FILE: spawnCountFile, MELDWORK_TEST_PROMPT_FILE: promptFile }
+  const sessionRefs = []
+  const controller = new AbortController()
+  const stopped = adapters.runAgent(agent, 'slow prompt', directory, {
+    acpPersistenceKey: 'workspace:hermes:cancel-keep',
+    env,
+    signal: controller.signal,
+    onSessionRef: sessionRef => sessionRefs.push(sessionRef),
+  }).then(() => null, error => error)
+  await within(readWhenReady(promptFile), 5000)
+  controller.abort()
+  const error = await within(stopped, 5000)
+  assert.equal(error?.message, 'LOCAL_AGENT_EXECUTION_STOPPED')
+
+  const next = await within(adapters.runAgent(agent, 'next prompt', directory, {
+    acpPersistenceKey: 'workspace:hermes:cancel-keep',
+    sessionRef: sessionRefs.at(-1),
+    sessionTransport: 'acp',
+    env,
+  }), 5000)
+  assert.equal(next.text, 'acp answer 1')
+  assert.equal(next.sessionRef, sessionRefs.at(-1))
+  assert.equal(fs.readFileSync(spawnCountFile, 'utf8'), '1')
+})
+
+test('a changed PATH between turns keeps the persistent ACP process and session', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-acp-path-churn-'))
+  const spawnCountFile = path.join(directory, 'spawn-count.txt')
+  t.after(async () => {
+    await adapters.shutdownAcpSessionRuntime?.()
+    fs.rmSync(directory, { recursive: true, force: true })
+  })
+  const agent = { kind: 'hermes', executable: resilientHermes(directory), name: 'Hermes' }
+  const shellPath = shell => [`/tmp/fnm_multishells/${shell}/bin`, '/usr/bin', '/bin'].join(path.delimiter)
+  const first = await adapters.runAgent(agent, 'first prompt', directory, {
+    acpPersistenceKey: 'workspace:hermes:path-churn',
+    env: { MELDWORK_TEST_SPAWN_COUNT_FILE: spawnCountFile, PATH: shellPath('1001_1') },
+  })
+  const second = await adapters.runAgent(agent, 'second prompt', directory, {
+    acpPersistenceKey: 'workspace:hermes:path-churn',
+    sessionRef: first.sessionRef,
+    sessionTransport: 'acp',
+    env: { MELDWORK_TEST_SPAWN_COUNT_FILE: spawnCountFile, PATH: shellPath('1002_2') },
+  })
+  assert.equal(second.sessionRef, first.sessionRef)
+  assert.equal(second.text, 'acp answer 1')
+  assert.equal(fs.readFileSync(spawnCountFile, 'utf8'), '1')
+})
+
 test('ACP closes a start-only tool with the partial terminal outcome', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-acp-start-only-tool-'))
   const cli = executable(directory, 'acp-start-only-tool.cjs', `
@@ -983,4 +1171,58 @@ input.on('line', (line) => {
     () => within(resultPromise),
     error => error?.message === 'LOCAL_AGENT_EXECUTION_STOPPED',
   )
+})
+
+test('switching between read-only and write keeps one ACP process when only the session mode differs', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-acp-mode-switch-'))
+  const spawnCountFile = path.join(directory, 'spawn-count.txt')
+  const modesFile = path.join(directory, 'modes.jsonl')
+  t.after(async () => {
+    await adapters.shutdownAcpSessionRuntime?.()
+    fs.rmSync(directory, { recursive: true, force: true })
+  })
+  const cli = executable(directory, 'mimo-mode-switch.cjs', `
+const fs = require('node:fs')
+const readline = require('node:readline')
+if (process.argv[2] !== 'acp') process.exit(2)
+const countFile = process.env.MELDWORK_TEST_SPAWN_COUNT_FILE
+fs.writeFileSync(countFile, String((fs.existsSync(countFile) ? Number(fs.readFileSync(countFile, 'utf8')) : 0) + 1))
+const input = readline.createInterface({ input: process.stdin })
+const send = value => process.stdout.write(JSON.stringify(value) + '\\n')
+input.on('line', (line) => {
+  const message = JSON.parse(line)
+  const sessionId = message.params?.sessionId || 'mimo-mode-session'
+  if (message.method === 'initialize') send({ jsonrpc: '2.0', id: message.id, result: { protocolVersion: 1 } })
+  else if (message.method === 'session/new') send({ jsonrpc: '2.0', id: message.id, result: { sessionId } })
+  else if (message.method === 'session/set_mode') {
+    fs.appendFileSync(process.env.MELDWORK_TEST_MODES_FILE, message.params.modeId + '\\n')
+    send({ jsonrpc: '2.0', id: message.id, result: {} })
+  } else if (message.method === 'session/prompt') {
+    send({ jsonrpc: '2.0', method: 'session/update', params: { sessionId, update: {
+      sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'mimo reply' },
+    } } })
+    send({ jsonrpc: '2.0', id: message.id, result: { stopReason: 'end_turn' } })
+  }
+})
+`)
+  const agent = { kind: 'mimo', executable: cli, name: 'MiMo' }
+  const env = { MELDWORK_TEST_SPAWN_COUNT_FILE: spawnCountFile, MELDWORK_TEST_MODES_FILE: modesFile }
+  const sessionRefs = []
+  const turn = (sandbox, sessionRef) => within(adapters.runAgent(agent, `turn in ${sandbox}`, directory, {
+    acpPersistenceKey: 'workspace:mimo:mode-switch',
+    sandbox,
+    sessionRef,
+    sessionTransport: sessionRef ? 'acp' : '',
+    env,
+    onSessionRef: ref => sessionRefs.push(ref),
+  }), 10000)
+
+  const proposal = await turn('read-only', '')
+  const discussion = await turn('workspace-write', sessionRefs.at(-1))
+  const review = await turn('read-only', sessionRefs.at(-1))
+
+  assert.equal([proposal, discussion, review].every(result => result.text === 'mimo reply'), true)
+  assert.equal(fs.readFileSync(spawnCountFile, 'utf8'), '1', 'one process served all three turns')
+  assert.deepEqual(fs.readFileSync(modesFile, 'utf8').trim().split('\n'), ['plan', 'build', 'plan'])
+  assert.equal(new Set(sessionRefs).size, 1, 'the native session was kept')
 })

@@ -1,5 +1,47 @@
 # Changelog
 
+## 0.1.6 - 2026-10-17 (Meldwork-V1.0.6 prerelease)
+
+### Agent Reliability
+
+- Tier authentication failures instead of treating any authentication-looking diagnostic as a sign-in problem, and retry transient provider errors.
+- Keep long-lived ACP Agents (Hermes, Kimi, MiMo, OpenCode) usable across stops, restarts, and hangs, including when a group alternates between read-only and write turns.
+- Stop the watchdog from killing Agents that are still thinking or building, and keep an ACP turn alive through traffic this client does not recognise.
+- Keep an Agent available through an inconclusive readiness probe and preserve its shell environment.
+- Let MiMo and OpenCode turns that call tools finish instead of returning a partial answer, and report a CLI's own error instead of EPIPE.
+- Launch WorkBuddy's app-bundled CLI again (it now ships only the lite bundle) and stop skipping every WorkBuddy permission check in write mode.
+- Refuse unsafe ACP permission requests during read-only turns.
+- Give direct chats the current request and the delivery contract again after a native session is rebuilt.
+- Compare installed Agent CLI versions as releases, so a newer installed CLI is not offered a downgrade.
+- Write workspace state compactly and durably, and record unhandled main-process faults in the diagnostics log.
+- Internal: split the auto-runner and the Agent invocation into modules grouped by purpose.
+
+### Group Conversations
+
+- Show group replies in the order Agents were dispatched.
+- Keep natural discussions going instead of ending on one slip, ask Agents to engage with each other, and let peers see workspace file paths.
+- Keep group members after an Agent failure, so one proxy 403 or an expired sign-in no longer removes an Agent from later turns, and recover groups that were emptied.
+- A member that is not ready no longer blocks a message to the whole group; skipped members are named.
+- Deliver attachments and knowledge bases to group Agents, and send Hermes image attachments over ACP.
+- Conversations no longer wait for each other, even in the same folder; writers inside one conversation still take turns.
+- Import only files an Agent wrote, including paths with spaces.
+- Explain run failures in Chinese and English instead of showing raw codes.
+
+### Interface
+
+- Start without waiting for Agent detection: the sidebar, home page, and composer show that detection is running.
+- Mark conversations that wait for your decision in the sidebar and list them on the home page; mark group runs that finished while you were in another conversation.
+- Add a General settings tab with language and a System, Light, or Dark appearance; System follows the operating system until you choose.
+- Explain on each Agent card why an installed Agent is unavailable: its installed version, the verified range, and the failed check.
+- Use a shared type scale and semantic status colors, keep secondary text within contrast guidelines, and keep long notices on screen long enough to read.
+- Keep unsent text per conversation, add Skip and arrow-key navigation to first-run onboarding, ask before deleting a cloud server connection, and show Gemini CLI's own logo.
+
+### Verification And Distribution
+
+- Frontend 357/357, desktop 1603/1603, and deterministic evaluation 6 cases / 18 results passed on a clean checkout.
+- DMG and ZIP are ad-hoc signed, without Apple Developer ID signing or notarization. No installed user application is replaced automatically.
+- Live coverage is limited to observed CLI versions and configurations; this release did not repeat the live Agent acceptance run.
+
 ## 0.1.5 - 2026-09-09 (Meldwork-V1.0.5 prerelease)
 
 ### Local Agent Reliability

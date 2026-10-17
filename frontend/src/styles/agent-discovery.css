@@ -1,151 +1,89 @@
-.agent-discovery-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 90;
+/* Agent discovery runs in the background: the sidebar shows skeleton rows
+   until the first detection returns. Only transform and opacity animate. */
+.sidebar-discovery {
   display: grid;
-  place-items: center;
-  overflow: hidden;
-  isolation: isolate;
-  padding: 32px;
-  background: var(--bg);
-  color: var(--text);
-  cursor: progress;
+  gap: 4px;
+  padding: 4px 3px 6px;
 }
 
-.agent-discovery-content {
-  position: relative;
-  z-index: 1;
-  width: min(430px, 100%);
+.sidebar-discovery-row {
+  height: 38px;
   display: grid;
-  justify-items: center;
-  gap: 0;
-  padding: 12px 20px;
-  text-align: center;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 0 6px;
 }
 
-.agent-discovery-mark {
-  position: relative;
+.sidebar-discovery-row i,
+.sidebar-discovery-row b {
   display: block;
-  width: 52px;
-  height: 52px;
-  margin-bottom: 28px;
-  object-fit: contain;
-  filter: drop-shadow(0 9px 20px color-mix(in srgb, var(--accent) 18%, transparent));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-active) 80%, transparent);
+  animation: discovery-shimmer 1.4s var(--ease-standard) infinite;
 }
 
-.agent-discovery-copy {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  justify-items: center;
-  text-shadow: 0 1px 14px color-mix(in srgb, var(--bg) 72%, transparent);
+.sidebar-discovery-row i {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
 }
 
-.agent-discovery-kicker {
-  margin: 0 0 9px;
-  color: var(--accent);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+.sidebar-discovery-row b {
+  width: 62%;
+  height: 10px;
 }
 
-.agent-discovery-copy h1 {
-  margin: 0;
-  font-size: 30px;
-  line-height: 1.2;
-}
+.sidebar-discovery-row:nth-child(2) b { width: 48%; animation-delay: 0.12s; }
+.sidebar-discovery-row:nth-child(3) b { width: 56%; animation-delay: 0.24s; }
 
-.agent-discovery-copy > p:not(.agent-discovery-kicker) {
-  max-width: 360px;
-  margin: 10px 0 0;
+.sidebar-discovery p {
+  margin: 4px 8px 0;
   color: var(--muted);
-  line-height: 1.55;
+  font-size: var(--text-xs);
 }
 
-.agent-discovery-progress {
-  width: min(260px, 100%);
+@keyframes discovery-shimmer {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+.home-workspace-state.discovering,
+.home-workspace-state.discovering svg {
+  color: var(--muted);
+}
+
+.boot-progress {
+  width: 140px;
   height: 3px;
-  margin-top: 26px;
   overflow: hidden;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--border) 68%, transparent);
+  background: color-mix(in srgb, var(--border) 70%, transparent);
 }
 
-.agent-discovery-progress span {
+.boot-progress span {
   display: block;
-  width: 46%;
+  width: 40%;
   height: 100%;
   border-radius: inherit;
-  background: var(--onboarding-frame-gradient);
-  box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 34%, transparent);
-  animation: agent-discovery-progress 1.35s ease-in-out infinite;
-}
-
-.agent-discovery-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  margin-top: 13px;
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.agent-discovery-status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
   background: var(--accent);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 12%, transparent);
-  animation: agent-discovery-dot 1.25s ease-in-out infinite;
+  animation: boot-progress 1.2s var(--ease-standard) infinite;
 }
 
-.agent-discovery-enter-active,
-.agent-discovery-leave-active {
-  transition: opacity 0.28s ease;
-}
-
-.agent-discovery-enter-active .agent-discovery-content,
-.agent-discovery-leave-active .agent-discovery-content {
-  transition: opacity 0.28s ease, transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.agent-discovery-enter-from,
-.agent-discovery-leave-to {
-  opacity: 0;
-}
-
-.agent-discovery-enter-from .agent-discovery-content,
-.agent-discovery-leave-to .agent-discovery-content {
-  opacity: 0;
-  transform: translateY(8px) scale(0.985);
-}
-
-@keyframes agent-discovery-progress {
-  0% { transform: translateX(-125%); opacity: 0.4; }
-  55% { opacity: 1; }
-  100% { transform: translateX(300%); opacity: 0.4; }
-}
-
-@keyframes agent-discovery-dot {
-  0%, 100% { opacity: 0.42; transform: scale(0.86); }
-  50% { opacity: 1; transform: scale(1); }
+@keyframes boot-progress {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(260%); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .agent-discovery-progress span,
-  .agent-discovery-status-dot {
+  .sidebar-discovery-row i,
+  .sidebar-discovery-row b,
+  .boot-progress span {
     animation: none;
   }
 
-  .agent-discovery-progress span {
-    width: 58%;
-    transform: translateX(36%);
+  .boot-progress span {
+    width: 100%;
+    opacity: 0.5;
   }
-}
-
-@media (max-width: 480px) {
-  .agent-discovery-overlay { padding: 24px; }
-  .agent-discovery-copy h1 { font-size: 26px; }
-  .agent-discovery-mark { margin-bottom: 20px; }
 }

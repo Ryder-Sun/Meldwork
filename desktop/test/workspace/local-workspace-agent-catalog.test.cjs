@@ -36,7 +36,7 @@ function fixture(overrides = {}) {
       events.push('snapshot')
       return { agents }
     },
-    now: () => '2026-08-03T00:00:00.000Z',
+    now: overrides.now || (() => '2026-08-03T00:00:00.000Z'),
   })
   return { agents: () => agents, catalog, events, state }
 }
@@ -431,4 +431,100 @@ test('runtime credential cleanup removes only missing entries and never emits', 
   events.length = 0
   assert.equal(catalog.clearRuntimeCredentialFailures(), false)
   assert.deepEqual(events, [])
+})
+
+function clock(start = '2026-08-03T00:00:00.000Z') {
+  let current = Date.parse(start)
+  return {
+    now: () => new Date(current).toISOString(),
+    advance: (ms) => { current += ms },
+  }
+}
+
+const OPENCLAW = {
+  kind: 'openclaw', executable: '/tmp/openclaw', resolvedVersion: '2026.7.1-2', compatibilityState: 'compatible',
+}
+
+test('an Agent that was usable stays usable while its readiness probe is inconclusive, for a bounded time', async () => {
+  const time = clock()
+  let probe = { state: 'ready', source: 'native-auth-status' }
+  const { agents, catalog } = fixture({
+    now: time.now,
+    detectAgents: async () => [OPENCLAW],
+    credentialState: async () => probe,
+  })
+
+  await catalog.refresh()
+  assert.equal(agents()[0].available, true)
+  assert.equal(agents()[0].availabilitySource, 'native-auth-status')
+
+  // The 7 second status check times out: no answer, not "signed out".
+  probe = { state: 'unknown', source: 'native-runtime-unavailable' }
+  time.advance(60 * 1000)
+  await catalog.refresh()
+  assert.equal(agents()[0].available, true)
+  assert.equal(agents()[0].authenticated, true)
+  assert.equal(agents()[0].credentialState, 'ready')
+  assert.equal(agents()[0].availabilitySource, 'native-auth-status')
+
+  time.advance(8 * 60 * 1000)
+  await catalog.refresh()
+  assert.equal(agents()[0].available, true, 'still inside the 10 minute window')
+
+  time.advance(2 * 60 * 1000)
+  await catalog.refresh()
+  assert.equal(agents()[0].available, false, 'a probe that keeps failing is eventually reported')
+
+  // One good answer restores it and restarts the window.
+  probe = { state: 'ready', source: 'native-auth-status' }
+  await catalog.refresh()
+  assert.equal(agents()[0].available, true)
+  probe = { state: 'unknown', source: 'native-runtime-unavailable' }
+  time.advance(60 * 1000)
+  await catalog.refresh()
+  assert.equal(agents()[0].available, true)
+})
+
+test('an Agent that was never usable is not made available by an inconclusive probe', async () => {
+  const { agents, catalog } = fixture({
+    detectAgents: async () => [OPENCLAW],
+    credentialState: async () => ({ state: 'unknown', source: 'native-runtime-unavailable' }),
+  })
+  await catalog.refresh()
+  await catalog.refresh()
+  assert.equal(agents()[0].available, false)
+})
+
+test('a definitive signed-out answer, a recorded auth failure or an incompatible version is never softened', async () => {
+  const time = clock()
+  let probe = { state: 'ready', source: 'native-auth-status' }
+  let detected = { ...OPENCLAW }
+  const { agents, catalog, state } = fixture({
+    now: time.now,
+    detectAgents: async () => [detected],
+    credentialState: async () => probe,
+  })
+  await catalog.refresh()
+  assert.equal(agents()[0].available, true)
+
+  probe = { state: 'missing', source: 'native-auth-status' }
+  await catalog.refresh()
+  assert.equal(agents()[0].available, false)
+
+  probe = { state: 'ready', source: 'native-auth-status' }
+  await catalog.refresh()
+  assert.equal(agents()[0].available, true)
+  state.agentRuntime.openclaw = { credentialState: 'missing', checkedAt: time.now() }
+  probe = { state: 'unknown', source: 'native-probe-failed' }
+  await catalog.refresh()
+  assert.equal(agents()[0].available, false)
+
+  delete state.agentRuntime.openclaw
+  probe = { state: 'ready', source: 'native-auth-status' }
+  await catalog.refresh()
+  assert.equal(agents()[0].available, true)
+  detected = { ...OPENCLAW, compatibilityState: 'incompatible' }
+  probe = { state: 'unknown', source: 'native-probe-failed' }
+  await catalog.refresh()
+  assert.equal(agents()[0].available, false)
 })

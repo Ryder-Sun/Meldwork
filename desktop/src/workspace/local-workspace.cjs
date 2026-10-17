@@ -192,6 +192,10 @@ class LocalWorkspace extends EventEmitter {
     this.detectedAgents = []
     this.preparingRuns = new Map()
     this.activeRuns = new Map()
+    // Highest turn number handed out per group topic in this process. Saved
+    // messages are the durable source; reservations only cover turns that are
+    // dispatched but not written yet.
+    this.turnSeqReservations = new Map()
     this.pendingV4ManualRecoveries = new Map()
     this.pendingV4AutoRecoveries = new Map()
     this.runCheckpointTimers = new Map()
@@ -247,6 +251,7 @@ class LocalWorkspace extends EventEmitter {
       terminalRetrySleep: options.terminalRetrySleep,
     })
     this.conversations = new LocalWorkspaceConversations({
+      reserveTurnSeq: (groupId, threadRootId) => this.reserveTurnSeqs(groupId, threadRootId, 1)[0],
       state: () => this.state,
       detectedAgents: () => this.detectedAgents,
       save: () => this.save(),
@@ -266,7 +271,9 @@ class LocalWorkspace extends EventEmitter {
       addMessage: (...args) => this.addMessage(...args),
     })
     this.agentInvocation = new LocalWorkspaceAgentInvocation({
+      reserveTurnSeq: (groupId, threadRootId) => this.reserveTurnSeqs(groupId, threadRootId, 1)[0],
       state: () => this.state,
+      agentLabel: kind => this.agentLabel(kind),
       detectedAgents: () => this.detectedAgents,
       activeRuns: this.activeRuns,
       runAgentTimeoutMs: this.runAgentTimeoutMs,
@@ -310,6 +317,7 @@ class LocalWorkspace extends EventEmitter {
       attachmentSupport: (...args) => this.attachmentSupportFn(...args),
     })
     this.autoRunner = new LocalWorkspaceAutoRunner({
+      reserveTurnSeqs: (...args) => this.reserveTurnSeqs(...args),
       state: () => this.state,
       canWriteWorkspace: kind => agentRuntimeCapabilities(kind, {
         agent: this.detectedAgents.find(agent => agent.kind === kind),
@@ -329,7 +337,6 @@ class LocalWorkspace extends EventEmitter {
       recordAgentFailure: (...args) => this.recordAgentFailure(...args),
       recordAgentInterruption: (...args) => this.recordAgentInterruption(...args),
       addMessage: (...args) => this.addMessage(...args),
-      removeAgent: (...args) => this.conversations.removeAgent(...args),
       commitV4AgentMessage: input => this.commitV4AgentMessage(input),
       emitChanged: () => this.emitChanged(),
       finishRun: (...args) => this.finishRun(...args),
@@ -352,6 +359,7 @@ class LocalWorkspace extends EventEmitter {
       retrySleep: options.retrySleep,
     })
     this.messageSubmission = new LocalWorkspaceMessageSubmission({
+      reserveTurnSeqs: (...args) => this.reserveTurnSeqs(...args),
       state: () => this.state,
       detectedAgents: () => this.detectedAgents,
       isShuttingDown: () => this.shuttingDown,
@@ -1176,7 +1184,9 @@ class LocalWorkspace extends EventEmitter {
       && continuation.snapshotHash === request.snapshotHash
       && slot?.agentRunId === source.agentRunId && slot.agentKind === source.kind
       && slot.operationId === request.operationId && slot.commitStatus === 'committed'
-      && this.autoRunner.v4NaturalOwner(group, durable, durable.threadRootId) === source.kind)
+      && this.autoRunner.v4NaturalOwner(
+        group, durable, durable.threadRootId, durable.orchestration?.activeKinds,
+      ) === source.kind)
   }
 
   v4TaskDecisionResponses(runId) {
@@ -2430,6 +2440,22 @@ class LocalWorkspace extends EventEmitter {
     )
   }
 
+  // Reserves `count` consecutive dispatch-turn numbers for one group topic.
+  reserveTurnSeqs(groupId, threadRootId, count = 1) {
+    const amount = Math.max(0, Math.min(64, Math.floor(Number(count) || 0)))
+    if (!groupId || !threadRootId || !amount) return []
+    const key = `${groupId}\u0000${threadRootId}`
+    let cursor = this.turnSeqReservations.get(key) || 0
+    for (const message of this.state.messages) {
+      if (message.groupId === groupId && message.threadRootId === threadRootId
+          && Number.isSafeInteger(message.turnSeq) && message.turnSeq > cursor) {
+        cursor = message.turnSeq
+      }
+    }
+    this.turnSeqReservations.set(key, cursor + amount)
+    return Array.from({ length: amount }, (_, index) => cursor + index + 1)
+  }
+
   commitV4AgentMessage(input = {}) {
     const messageId = String(input.messageId || '')
     const existing = this.state.messages.find(message => message.id === messageId)
@@ -2459,6 +2485,11 @@ class LocalWorkspace extends EventEmitter {
       ...(input.metadata?.responseVersionRootId
         ? { responseVersionRootId: input.metadata.responseVersionRootId } : {}),
       ...(input.metadata?.trace ? { trace: input.metadata.trace } : {}),
+      ...(input.metadata?.turnSeq
+        ? { turnSeq: input.metadata.turnSeq }
+        : (input.threadRootId && group.conversationType !== 'direct'
+          ? { turnSeq: this.reserveTurnSeqs(group.id, input.threadRootId, 1)[0] }
+          : {})),
     })
     if (!message || message.id !== messageId) throw new Error('LOCAL_RUN_COMMIT_INVALID')
     const previousMessages = [...this.state.messages]
@@ -2512,24 +2543,45 @@ class LocalWorkspace extends EventEmitter {
   }
 
   persistSessionState(key, sessionRef, meta) {
+    const canonicalKey = this.canonicalConversationSessionKey(key)
     const nextRef = normalizeSessionRef(sessionRef)
-    if (!SESSION_KEY.test(String(key || '')) || !nextRef) return false
-    const hadSession = Object.hasOwn(this.state.sessions, key)
-    const hadMeta = Object.hasOwn(this.state.sessionMeta, key)
-    const previousSession = this.state.sessions[key]
-    const previousMeta = this.state.sessionMeta[key]
-    this.state.sessions[key] = nextRef
-    this.state.sessionMeta[key] = normalizeSessionMeta(meta)
+    if (!SESSION_KEY.test(String(canonicalKey || '')) || !nextRef) return false
+    const hadSession = Object.hasOwn(this.state.sessions, canonicalKey)
+    const hadMeta = Object.hasOwn(this.state.sessionMeta, canonicalKey)
+    const hadLegacySession = Object.hasOwn(this.state.sessions, key)
+    const hadLegacyMeta = Object.hasOwn(this.state.sessionMeta, key)
+    const previousLegacySession = this.state.sessions[key]
+    const previousLegacyMeta = this.state.sessionMeta[key]
+    const previousSession = this.state.sessions[canonicalKey]
+    const previousMeta = this.state.sessionMeta[canonicalKey]
+    this.state.sessions[canonicalKey] = nextRef
+    this.state.sessionMeta[canonicalKey] = normalizeSessionMeta(meta)
+    if (canonicalKey !== key) {
+      delete this.state.sessions[key]
+      delete this.state.sessionMeta[key]
+    }
     try {
       this.save()
     } catch (error) {
-      if (hadSession) this.state.sessions[key] = previousSession
-      else delete this.state.sessions[key]
-      if (hadMeta) this.state.sessionMeta[key] = previousMeta
-      else delete this.state.sessionMeta[key]
+      if (hadSession) this.state.sessions[canonicalKey] = previousSession
+      else delete this.state.sessions[canonicalKey]
+      if (hadMeta) this.state.sessionMeta[canonicalKey] = previousMeta
+      else delete this.state.sessionMeta[canonicalKey]
+      if (canonicalKey !== key) {
+        if (hadLegacySession) this.state.sessions[key] = previousLegacySession
+        else delete this.state.sessions[key]
+        if (hadLegacyMeta) this.state.sessionMeta[key] = previousLegacyMeta
+        else delete this.state.sessionMeta[key]
+      }
       throw error
     }
     return true
+  }
+
+  canonicalConversationSessionKey(key) {
+    const value = String(key || '')
+    const match = value.match(/^([^:]+):task:[^:]+:([^:]+)$/)
+    return match ? `${match[1]}:${match[2]}` : value
   }
 
   persistSessionRef(key, sessionRef) {

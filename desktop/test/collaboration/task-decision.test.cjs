@@ -56,3 +56,21 @@ test('task decisions reject malformed and oversized payloads', () => {
     { ...decision, deliverables: [42] },
   ]) assert.throws(() => parseTaskDecision(input), /LOCAL_RUN_TASK_DECISION_INVALID/)
 })
+
+test('lenient task decisions accept common hand-written slips', () => {
+  const { normalizeTaskDecision, parseLenientTaskDecision } = require('../../src/collaboration/task-decision.cjs')
+  assert.deepEqual(parseLenientTaskDecision({ status: 'Done', reason: 'Answered.' }), {
+    status: 'completed', reason: 'Answered.', deliverables: ['The answer in this message'],
+  })
+  assert.deepEqual(parseLenientTaskDecision({
+    status: 'in_progress', reason: 'Need review', deliverables: 'draft.md',
+    nextKinds: ['@Hermes', 'hermes', 'Codex'], handoffTo: '@OpenClaw', note: 'extra key',
+  }), {
+    status: 'continue', reason: 'Need review', deliverables: ['draft.md'],
+    handoffTo: 'openclaw', nextKinds: ['hermes', 'codex'],
+  })
+  // Requests only make sense while continuing; an explicit list is kept empty.
+  assert.deepEqual(normalizeTaskDecision({ status: 'blocked', reason: 'No access', nextKinds: ['hermes'] }).nextKinds, [])
+  assert.equal(parseLenientTaskDecision({ status: 'continue' }, { fallbackReason: 'Summary text' }).reason, 'Summary text')
+  assert.throws(() => parseLenientTaskDecision({ status: 'maybe', reason: 'x' }), /LOCAL_RUN_TASK_DECISION_INVALID/)
+})

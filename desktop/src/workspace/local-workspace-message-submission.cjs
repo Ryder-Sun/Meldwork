@@ -11,11 +11,13 @@ const {
   attachmentType,
   cleanInline,
   cleanText,
+  knowledgeBaseHintsPrompt,
   normalizeAttachmentMetadata,
   normalizeAutoRounds,
   normalizeKnowledgeBaseHint,
   normalizeSkillHint,
   normalizeTargetKinds,
+  skillHintsPrompt,
   terminalRunStatusForReason,
 } = require('./local-workspace-inputs.cjs')
 const { MAX_RUN_AGENT_ATTEMPTS } = require('../runs/failure-policy.cjs')
@@ -37,12 +39,12 @@ const {
 } = require('../collaboration/orchestration-v4-records.cjs')
 const {
   restoreV4SnapshotSkills,
-  v4Prompt,
   v4Snapshot,
   v4SnapshotBodyHash,
   v4SnapshotSkillHints,
   validateV4SnapshotBody,
 } = require('./local-workspace-context.cjs')
+const { manualReplyPrompt } = require('./prompts/manual-reply-prompt.cjs')
 
 const DISCUSSION_STYLES = new Set(['sequential', 'agent-led'])
 
@@ -108,6 +110,9 @@ class LocalWorkspaceMessageSubmission {
     this.bindRunTask = options.bindRunTask
     this.releasePreparation = options.releasePreparation
     this.addMessage = options.addMessage
+    this.reserveTurnSeqs = typeof options.reserveTurnSeqs === 'function'
+      ? options.reserveTurnSeqs
+      : () => []
     this.rollbackAddedMessage = options.rollbackAddedMessage
     this.startAutoRunner = options.startAutoRunner
     this.beginRun = options.beginRun
@@ -545,6 +550,7 @@ class LocalWorkspaceMessageSubmission {
         ...(pendingMessage.metadata?.responseVersionRootId
           ? { responseVersionRootId: pendingMessage.metadata.responseVersionRootId } : {}),
         ...(trace ? { trace } : {}),
+        ...(pendingMessage.metadata?.turnSeq ? { turnSeq: pendingMessage.metadata.turnSeq } : {}),
       },
     }))
     const contentRef = this.contentBlobStore.put(canonicalJson(body), {
@@ -879,14 +885,22 @@ class LocalWorkspaceMessageSubmission {
     skillHintsByKind = new Map(), resumedGate = null }) {
     const snapshotSourceMessageIds = [snapshot.messageId, ...snapshot.history.map(item => item.id)]
     const frozenSnapshotHash = controller.orchestration.snapshotHash
-    const prompts = new Map(activeKinds.map(kind => [kind, v4Prompt({
+    const prompts = new Map(activeKinds.map(kind => [kind, manualReplyPrompt({
       group: { ...group, ...snapshot.group },
       kind,
-      phase: 'proposal',
-      role: kind === writerKind ? 'writer-proposal' : 'proposal',
-      snapshot,
-      skillHints: skillHintsByKind.get(kind) || [],
+      targetKinds,
+      taskText: snapshot.taskText,
+      history: snapshot.history,
+      skillHintsText: skillHintsPrompt(skillHintsByKind.get(kind) || []),
+      knowledgeBaseHintsText: knowledgeBaseHintsPrompt(
+        prepared?.knowledgeBaseHintsByKind?.get(kind) || [],
+      ),
+      writer: kind === writerKind,
     })]))
+    // Concurrent replies keep slot order in the timeline whatever order they
+    // finish in; failure notices take their slot's number too.
+    const reservedTurns = this.reserveTurnSeqs(group.id, threadRootId, activeKinds.length)
+    const turnSeqByKind = new Map(activeKinds.map((kind, index) => [kind, reservedTurns[index]]))
     const pending = await Promise.all(activeKinds.map(async (kind) => {
       const index = targetKinds.indexOf(kind)
       const slot = slots[index]
@@ -923,6 +937,7 @@ class LocalWorkspaceMessageSubmission {
             slotId: slot.slotId,
             snapshotHash: frozenSnapshotHash,
             sessionPolicy: 'frozen',
+            ...(turnSeqByKind.get(kind) ? { turnSeq: turnSeqByKind.get(kind) } : {}),
             promptOverride: prompts.get(kind),
             contextPackId: controller.contextPackId,
             snapshotSourceMessageIds,
@@ -965,6 +980,7 @@ class LocalWorkspaceMessageSubmission {
             ...(resumedGate?.agentKind === kind ? { resumedGate } : {}),
             skillHints: skillHintsByKind.get(kind) || [],
             knowledgeBaseHints: prepared?.knowledgeBaseHintsByKind?.get(kind) || [],
+            attachmentSnapshots: prepared?.attachments || [],
           },
         })
         if (controller.signal.aborted) return { kind, index, stopped: true }
