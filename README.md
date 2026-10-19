@@ -23,7 +23,7 @@ Meldwork is a local-first multi-agent orchestration desktop app for macOS (Apple
 Unlike terminal multiplexers (tmux, zellij) that show raw output side by side, Meldwork preserves every finding as structured evidence (Finding → Evidence → Decision → Disposition), keeps a human adoption gate before any file changes, and makes multi-agent work inspectable and reusable across sessions.
 
 <p align="center">
-  <a href="https://github.com/Ryder-MHumble/Meldwork/releases/download/Meldwork-V1.0.4/Meldwork-0.1.4-arm64.dmg"><strong>Download Meldwork V1.0.4 for Apple silicon macOS</strong></a>
+  <a href="https://github.com/Ryder-Sun/Meldwork/releases/download/Meldwork-V1.0.6/Meldwork-0.1.6-arm64.dmg"><strong>Download Meldwork V1.0.6 for Apple silicon macOS</strong></a>
   · <a href="architecture.md">Architecture</a>
   · <a href="LICENSE">License</a>
 </p>
@@ -118,7 +118,7 @@ Approved Agent Connectors can be added through the [Agent Connector SDK](docs/ag
 
 ### Apple silicon macOS preview
 
-Download [`Meldwork-0.1.4-arm64.dmg`](https://github.com/Ryder-MHumble/Meldwork/releases/download/Meldwork-V1.0.4/Meldwork-0.1.4-arm64.dmg) from the [official V1.0.4 prerelease](https://github.com/Ryder-MHumble/Meldwork/releases/tag/Meldwork-V1.0.4), move Meldwork to Applications, and install at least one supported local Agent CLI. The prerelease is ad-hoc signed and not notarized; macOS may require **Open Anyway** in **System Settings -> Privacy & Security** on first launch.
+Download [`Meldwork-0.1.6-arm64.dmg`](https://github.com/Ryder-Sun/Meldwork/releases/download/Meldwork-V1.0.6/Meldwork-0.1.6-arm64.dmg) from the [official V1.0.6 prerelease](https://github.com/Ryder-Sun/Meldwork/releases/tag/Meldwork-V1.0.6), move Meldwork to Applications, and install at least one supported local Agent CLI. The prerelease is ad-hoc signed and not notarized; macOS may require **Open Anyway** in **System Settings -> Privacy & Security** on first launch.
 
 ### Run from source
 
@@ -142,6 +142,14 @@ npm --prefix desktop test
 ## Current boundary
 
 Meldwork is a local Electron desktop app for multi-agent orchestration and review — not a hosted agent fleet or a general agent framework. The current preview does not provide remote/cloud agent execution, automatic participant selection, enterprise SSO/RBAC/governance, or an Outcome Network. Local-first does not mean fully offline: a selected Agent may send prompts, attachments, or Skills to its own CLI credentials' model provider. Workspace writes are opt-in workflow controls, not an operating-system sandbox.
+
+## V1.0.6
+
+V1.0.6 improves long-lived Agent recovery, keeps group discussions going through individual failures, and lets conversations run independently even in the same folder. It delivers attachments and knowledge sources to group Agents, restores WorkBuddy's bundled CLI launch, and tightens ACP and WorkBuddy permission checks.
+
+The interface starts without waiting for Agent detection, highlights conversations awaiting your decision, explains why an installed Agent is unavailable, and adds General settings with System, Light, and Dark appearance options.
+
+Release verification includes 357/357 frontend tests, 1,603/1,603 desktop tests, six deterministic evaluation cases with 18 results, web and desktop builds, packaging, DMG checksum and ZIP integrity checks, and code-signature verification. The packaged Apple silicon app launched with a fresh profile without main-process faults. Real Agent group execution, cancellation, and restart acceptance were not repeated for this release. The artifacts remain ad-hoc signed and unnotarized; live behavior still depends on the installed Agent CLI version, authentication, Provider, and capabilities.
 
 ## Docs
 

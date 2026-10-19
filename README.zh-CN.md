@@ -21,7 +21,7 @@
 当前预览版是一个面向已支持本地 Agent CLI 的本地工作单元。它把参与者、上下文、协作边界、运行状态和人类复核放在同一个工作空间里。已选 Agent 现在可以并发回复，也可以围绕同一目标先独立提案，再根据讨论互相指定下一位参与者，最后协作完成工作并进行复核。
 
 <p align="center">
-  <a href="https://github.com/Ryder-MHumble/Meldwork/releases/download/Meldwork-V1.0.4/Meldwork-0.1.4-arm64.dmg"><strong>下载 Meldwork V1.0.4 Apple 芯片 macOS 版</strong></a>
+  <a href="https://github.com/Ryder-Sun/Meldwork/releases/download/Meldwork-V1.0.6/Meldwork-0.1.6-arm64.dmg"><strong>下载 Meldwork V1.0.6 Apple 芯片 macOS 版</strong></a>
   · <a href="architecture.md">架构</a>
   · <a href="LICENSE">许可证</a>
 </p>
@@ -114,7 +114,7 @@ Meldwork 是面向多 Agent 评审与决策可追溯性的本地优先 AI Agent 
 
 ### Apple 芯片 macOS 预览版
 
-从[官方 V1.0.4 预发布页](https://github.com/Ryder-MHumble/Meldwork/releases/tag/Meldwork-V1.0.4)下载 [`Meldwork-0.1.4-arm64.dmg`](https://github.com/Ryder-MHumble/Meldwork/releases/download/Meldwork-V1.0.4/Meldwork-0.1.4-arm64.dmg)，将 Meldwork 移入“应用程序”，并至少安装一个受支持的本地 Agent CLI。该预发布版使用 ad-hoc 临时签名且未公证；首次启动时，macOS 可能要求你在“系统设置 -> 隐私与安全性”中选择“仍要打开 / Open Anyway”。
+从[官方 V1.0.6 预发布页](https://github.com/Ryder-Sun/Meldwork/releases/tag/Meldwork-V1.0.6)下载 [`Meldwork-0.1.6-arm64.dmg`](https://github.com/Ryder-Sun/Meldwork/releases/download/Meldwork-V1.0.6/Meldwork-0.1.6-arm64.dmg)，将 Meldwork 移入“应用程序”，并至少安装一个受支持的本地 Agent CLI。该预发布版使用 ad-hoc 临时签名且未公证；首次启动时，macOS 可能要求你在“系统设置 -> 隐私与安全性”中选择“仍要打开 / Open Anyway”。
 
 ### 从源码运行
 
@@ -138,6 +138,14 @@ npm --prefix desktop test
 ## 当前边界
 
 Meldwork 是本地 Electron 应用，不是托管式 Agent Fleet，也不是通用 Agent 框架。当前预览版不提供远程、云端或频道 Agent 执行，不提供自动选人组队、企业 SSO/RBAC/治理或 Outcome Network。Local-first 不等于完全离线：选定的 Agent 仍可能把 Prompt、附件或 Skill（技能）发送到其自身 CLI 凭据对应的模型服务商。工作区写入是可选的工作流控制，不是操作系统级沙箱。
+
+## V1.0.6
+
+V1.0.6 改进了长驻 Agent 的恢复能力，让群组讨论在个别成员失败时继续推进，并支持不同会话在同一目录下独立运行。同时完善群组 Agent 的附件与知识源传递，恢复 WorkBuddy 内置 CLI 启动，并加强 ACP 和 WorkBuddy 的权限检查。
+
+界面启动不再等待 Agent 检测完成，会标记等待你决策的会话、解释已安装 Agent 不可用的原因，并新增包含跟随系统、浅色和深色外观选项的通用设置。
+
+本版本发布验证包括 357/357 前端测试、1,603/1,603 桌面端测试、6 个确定性评估场景共 18 条结果，以及 Web 与桌面构建、打包、DMG 校验和、ZIP 完整性与代码签名校验。Apple 芯片安装包使用全新配置启动，未记录主进程故障。本版未重新执行真实 Agent 群组运行、取消和重启验收。安装包仍为 ad-hoc 临时签名且未公证；实际运行结果仍取决于本机 Agent CLI 版本、鉴权、Provider 和能力。
 
 ## 文档
 
