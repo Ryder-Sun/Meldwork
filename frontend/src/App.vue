@@ -12,7 +12,7 @@
     <section v-if="booting" class="boot-state" aria-live="polite">
       <img class="boot-logo" :src="productAppIcon" alt="Meldwork" />
       <p>{{ t('app.loading') }}</p>
-      <span class="boot-progress" aria-hidden="true"><span /></span>
+      <WavePhysicsLoader :theme="theme" />
     </section>
 
     <section v-else-if="bridgeMissing" class="bridge-state">
@@ -26,6 +26,33 @@
         :t="t" :theme="theme" :active-view="activeView" :blocked="contentInteractionBlocked"
         :open-system-settings="openSystemSettings" :toggle-locale="toggleLocale" :toggle-theme="toggleTheme"
         :shortcut-definitions="shortcutDefinitions" />
+      <transition name="agent-discovery" appear>
+        <section
+          v-if="agentDiscoveryPending"
+          class="agent-discovery-overlay"
+          role="status"
+          aria-live="polite"
+          :aria-label="t('agentDiscovery.title')"
+        >
+          <PixelBlast :theme="theme" />
+          <div class="agent-discovery-content">
+            <img class="agent-discovery-mark" :src="productMark" alt="" />
+            <div class="agent-discovery-copy">
+              <p class="agent-discovery-kicker">{{ t('agentDiscovery.kicker') }}</p>
+              <h1>{{ t('agentDiscovery.title') }}</h1>
+              <p>{{ t('agentDiscovery.body') }}</p>
+              <div class="agent-discovery-progress" aria-hidden="true">
+                <span />
+              </div>
+              <div class="agent-discovery-status">
+                <span class="agent-discovery-status-dot" aria-hidden="true" />
+                <span>{{ t('agentDiscovery.status') }}</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      </transition>
+
       <WorkspaceSidebar :controller="workspaceSidebarController" />
 
       <section
@@ -173,6 +200,8 @@
 </template>
 
 <script setup>
+import PixelBlast from './components/PixelBlast.vue'
+import WavePhysicsLoader from './components/WavePhysicsLoader.vue'
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import DeliveryPanel from './components/DeliveryPanel.vue'
 import {
@@ -601,10 +630,8 @@ const {
   snapshot,
 })
 const { messageDeleteArmedId } = messageActions
-// Agent discovery no longer blocks the window: history is local and usable at
-// once, and the sidebar, home and composer each show that detection is running.
 const contentInteractionBlocked = computed(() => (
-  blockingOverlayOpen.value || traceDrawerBlocking.value
+  blockingOverlayOpen.value || traceDrawerBlocking.value || agentDiscoveryPending.value
 ))
 const composerContext = useComposerContext({
   activeGroup,

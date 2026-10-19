@@ -1,4 +1,7 @@
 :root {
+  --pixel-blast-primary: #d92f24;
+  --pixel-blast-secondary: #007d91;
+  --pixel-blast-tertiary: #ed512f;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -90,6 +93,9 @@
 }
 
 :root[data-theme="dark"] {
+  --pixel-blast-primary: #ff836d;
+  --pixel-blast-secondary: #54f5ff;
+  --pixel-blast-tertiary: #ffa36f;
   color-scheme: dark;
   --bg: #111618;
   --sidebar: #161c1e;

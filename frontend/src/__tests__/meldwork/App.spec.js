@@ -45,7 +45,7 @@ afterEach(() => {
 })
 
 describe('Meldwork workbench', () => {
-  it('keeps the workspace usable while the first Agent detection runs', async () => {
+  it('shows the startup animation and blocks the workspace until Agent detection finishes', async () => {
     const fixture = createBridge()
     const pendingRefresh = deferred()
     fixture.state.agents = []
@@ -55,16 +55,11 @@ describe('Meldwork workbench', () => {
     const wrapper = mount(App, { attachTo: document.body })
     await flushPromises()
 
-    // No blocking overlay: local history stays reachable and nothing is inert.
-    expect(wrapper.find('.agent-discovery-overlay').exists()).toBe(false)
-    expect(wrapper.get('.workspace-pane').attributes()).not.toHaveProperty('inert')
-    expect(wrapper.get('.sidebar').attributes()).not.toHaveProperty('inert')
-    expect(wrapper.get('.sidebar-discovery').attributes('role')).toBe('status')
-    expect(wrapper.get('.sidebar-discovery').text()).toContain('Detecting local Agents')
-    // An empty Agent list is not a setup problem yet.
-    expect(wrapper.get('.home-workspace-state').text()).toBe('Detecting local Agents')
-    expect(wrapper.get('.home-workspace-state').classes()).not.toContain('attention')
-    expect(wrapper.find('.setup-guide').exists()).toBe(false)
+    expect(wrapper.get('.agent-discovery-overlay').attributes('role')).toBe('status')
+    expect(wrapper.get('.agent-discovery-overlay').text()).toContain('Agent CLI')
+    expect(wrapper.find('.pixel-blast-container').exists()).toBe(true)
+    expect(wrapper.get('.workspace-pane').attributes()).toHaveProperty('inert')
+    expect(wrapper.get('.sidebar').attributes()).toHaveProperty('inert')
 
     pendingRefresh.resolve(structuredClone({
       ...fixture.state,
@@ -72,8 +67,27 @@ describe('Meldwork workbench', () => {
     }))
     await flushPromises()
 
+    expect(wrapper.find('.agent-discovery-overlay').exists()).toBe(false)
+    expect(wrapper.get('.workspace-pane').attributes()).not.toHaveProperty('inert')
+    expect(wrapper.get('.sidebar').attributes()).not.toHaveProperty('inert')
     expect(wrapper.find('.sidebar-discovery').exists()).toBe(false)
     expect(wrapper.get('.home-workspace-state').text()).not.toBe('Detecting local Agents')
+    wrapper.unmount()
+  })
+
+  it('leaves the startup animation and shows an error if detection fails', async () => {
+    const pendingRefresh = deferred()
+    const { wrapper } = await mountApp(({ bridge }) => {
+      bridge.localWorkspace.refreshAgents.mockReturnValueOnce(pendingRefresh.promise)
+    })
+    expect(wrapper.find('.agent-discovery-overlay').exists()).toBe(true)
+
+    pendingRefresh.reject(new Error('LOCAL_AGENT_PROCESS_FAILED'))
+    await flushPromises()
+
+    expect(wrapper.find('.agent-discovery-overlay').exists()).toBe(false)
+    expect(wrapper.get('.workspace-pane').attributes()).not.toHaveProperty('inert')
+    expect(wrapper.get('.toast-message').attributes('role')).toBe('alert')
     wrapper.unmount()
   })
 
@@ -836,20 +850,17 @@ describe('Meldwork workbench', () => {
     expect(source).toMatch(/\.composer-zone\s*\{[^}]*background:\s*transparent;/s)
   })
 
-  it('keeps the first-run onboarding transition and loads no WebGL at startup', () => {
+  it('keeps the first-run onboarding transition and the original startup animations', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/styles.css'), 'utf8')
     const appSource = readFileSync(resolve(process.cwd(), 'src/App.vue'), 'utf8')
     const packageSource = readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')
 
     expect(appSource).toContain('<transition name="onboarding" appear>')
-    // Startup used to stack a physics loader and a full-screen WebGL field; it is one small bar now.
-    expect(appSource).not.toContain('PixelBlast')
-    expect(appSource).not.toContain('WavePhysicsLoader')
-    expect(appSource).not.toContain('agent-discovery-overlay')
-    expect(appSource).toContain('<span class="boot-progress" aria-hidden="true"><span /></span>')
-    expect(packageSource).not.toContain('"three"')
-    expect(source).not.toContain('--pixel-blast-')
-    expect(source).toMatch(/@keyframes boot-progress\s*\{[^}]*transform:\s*translateX/s)
+    expect(appSource).toContain('<PixelBlast :theme="theme" />')
+    expect(appSource).toContain('<WavePhysicsLoader :theme="theme" />')
+    expect(appSource).toContain('agent-discovery-overlay')
+    expect(packageSource).toContain('"three"')
+    expect(source).toContain('--pixel-blast-')
     expect(source).toMatch(/\.onboarding-leave-active\s*\{[^}]*transition:\s*opacity 0\.42s ease;/s)
     expect(source).toMatch(/\.onboarding-leave-active \.onboarding-backdrop\s*\{[^}]*transition:\s*background-color 0\.42s ease;/s)
     expect(source).toMatch(/\.onboarding-leave-to\s*\{[^}]*opacity:\s*0;/s)
