@@ -1,6 +1,7 @@
 const { ADOPTION_ACTION_STATUSES } = require('../collaboration/outcome-records.cjs')
 const { statusForHumanGateOption } = require('../gates/human-gate-coordinator.cjs')
 const { ATTACHMENT_FILE_EXTENSIONS } = require('../attachments/attachment-records.cjs')
+const { registerDeliveryIpc } = require('./delivery-ipc.cjs')
 
 const LOCAL_GROUP_IDENTIFIER = /^[^\u0000-\u001f\u007f]{1,100}$/u
 const LOCAL_RUN_IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/
@@ -163,6 +164,7 @@ function sanitizeCloudAgentSnapshot(snapshot) {
 }
 
 function registerDesktopIpc(options) {
+  registerDeliveryIpc(options)
   const {
     app,
     attachmentIdsFromSnapshot,

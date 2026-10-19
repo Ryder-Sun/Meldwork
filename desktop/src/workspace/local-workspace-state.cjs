@@ -1,6 +1,7 @@
 const fs = require('node:fs')
 const { atomicWritePrivateFile } = require('../security/private-file.cjs')
 const path = require('node:path')
+const { parseDeliveryTasks } = require('./delivery-tasks.cjs')
 const { RUN_STATUSES } = require('../runs/run-ledger-records.cjs')
 const { normalizeSessionMeta } = require('../runs/run-harness.cjs')
 const {
@@ -221,6 +222,9 @@ function loadWorkspaceState(storagePath) {
     return {
       state: {
         version: 3,
+        ...(parsed.deliveryTasks ? {
+          deliveryTasks: parseDeliveryTasks(parsed.deliveryTasks).filter(task => groupIds.has(task.groupId)),
+        } : {}),
         groups,
         messages,
         sessions,
@@ -414,10 +418,23 @@ function workspaceSnapshot({
       return gate?.runId === snapshot.runId
     }),
   }))
+  const deliveryMessages = new Map((state.deliveryTasks || []).flatMap(task => (
+    task.attempts.map(attempt => [attempt.messageId, { task, attempt }])
+  )))
   return {
     agents: detectedAgents.map(({ executable, ...agent }) => agent),
     groups: state.groups,
-    messages: state.messages,
+    messages: state.messages.map(message => {
+      const delivery = deliveryMessages.get(message.id)
+      if (!delivery || message.role !== 'user' || message.groupId !== delivery.task.groupId) return message
+      const { task, attempt } = delivery
+      return { ...message, content: [
+        task.brief.title, task.brief.goal, task.brief.output,
+        ...task.brief.criteria.map(item => `- ${item}`),
+        attempt.revision?.note, attempt.input,
+      ].filter(Boolean).join('\n\n') }
+    }),
+    ...(state.deliveryTasks?.length ? { deliveryTasks: structuredClone(state.deliveryTasks) } : {}),
     ...(workspaceRecovery?.trusted === false ? {
       recovery: {
         state: 'read-only',

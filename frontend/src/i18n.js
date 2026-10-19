@@ -49,6 +49,13 @@ export function messageKeys(language) {
 }
 
 export const DESKTOP_ERROR_MESSAGE_KEYS = Object.freeze({
+  LOCAL_DELIVERY_INVALID: 'delivery.error.invalid',
+  LOCAL_DELIVERY_NOT_FOUND: 'delivery.error.notFound',
+  LOCAL_DELIVERY_LOCKED: 'delivery.error.locked',
+  LOCAL_DELIVERY_REVISION_REQUIRED: 'delivery.error.revision',
+  LOCAL_DELIVERY_NOT_READY: 'delivery.error.notReady',
+  LOCAL_DELIVERY_INPUT_LIMIT: 'delivery.error.limit',
+  LOCAL_DELIVERY_EXPORT_FAILED: 'delivery.error.export',
   LOCAL_WORKSPACE_UNAVAILABLE: 'error.workspaceUnavailable',
   LOCAL_GROUP_AGENT_REQUIRED: 'error.groupAgentRequired',
   LOCAL_GROUP_NOT_FOUND: 'error.groupNotFound',

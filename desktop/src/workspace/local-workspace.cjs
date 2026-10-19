@@ -28,6 +28,7 @@ const {
 const { LocalWorkspaceRunCoordinator } = require('./local-workspace-run-coordinator.cjs')
 const { LocalWorkspaceRunMessages } = require('./local-workspace-run-messages.cjs')
 const { AgentRouter } = require('../agents/agent-routing.cjs')
+const { DeliveryTasks } = require('./delivery-tasks.cjs')
 const {
   clearSessionState,
   openClawSessionRef,
@@ -155,6 +156,7 @@ class LocalWorkspace extends EventEmitter {
     this.runLedger = options.runLedger || null
     this.workspaceRecovery = this.load()
     this.state = this.workspaceRecovery.state
+    this.delivery = new DeliveryTasks(this)
     const privateRoot = path.join(path.dirname(this.storagePath), 'meldwork-private')
     this.contentBlobStore = options.contentBlobStore || new ContentBlobStore({
       rootPath: path.join(privateRoot, 'content-blobs'),
@@ -404,6 +406,7 @@ class LocalWorkspace extends EventEmitter {
       this.humanGateCoordinator.reconcileDecisions?.()
       this.restoreInterruptedRuns()
       this.humanGateCoordinator.reconcileOrphans?.()
+      this.delivery.recover()
     }
   }
 
@@ -731,6 +734,10 @@ class LocalWorkspace extends EventEmitter {
   }
 
   finishRunCheckpoint(groupId, controller, status) {
+    this.delivery.complete(controller.runId, status, [
+      ...(controller.orchestration?.commitState?.messageIds || []),
+      controller.orchestration?.candidateCommit?.messageId,
+    ].filter(Boolean))
     return this.runLedgerCoordinator.finish(groupId, controller, status)
   }
 
@@ -768,9 +775,11 @@ class LocalWorkspace extends EventEmitter {
   }
 
   bindRunTask(groupId, controller, taskId, threadRootId = '', contextPackId = '') {
-    return this.runCoordinator.bindTask(
+    const result = this.runCoordinator.bindTask(
       groupId, controller, taskId, threadRootId, contextPackId,
     )
+    this.delivery.bind(groupId, controller, taskId)
+    return result
   }
 
   releasePreparation(groupId, controller) {
@@ -2791,7 +2800,10 @@ class LocalWorkspace extends EventEmitter {
   }
 
   async sendMessage(input) {
-    return this.messageSubmission.send(input)
+    if (!Object.hasOwn(input, 'deliveryTaskId')) return this.messageSubmission.send(input)
+    const prepared = this.delivery.prepare(input)
+    try { return await this.messageSubmission.send(prepared) }
+    finally { this.delivery.pending.delete(input.groupId) }
   }
 
   startAuto(input) {

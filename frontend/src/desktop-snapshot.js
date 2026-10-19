@@ -347,6 +347,7 @@ export function normalizeSnapshot(value) {
   return {
     agents: Array.isArray(value?.agents) ? value.agents : [],
     groups: Array.isArray(value?.groups) ? value.groups : [],
+    deliveryTasks: Array.isArray(value?.deliveryTasks) ? value.deliveryTasks : [],
     messages,
     runningGroupIds: Array.isArray(value?.runningGroupIds) ? value.runningGroupIds : [],
     runs,

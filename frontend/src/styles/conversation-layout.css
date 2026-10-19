@@ -6,6 +6,10 @@
   background: transparent;
 }
 
+.conversation-pane.with-delivery {
+  grid-template-rows: 68px auto minmax(0, 1fr) auto;
+}
+
 .conversation-header {
   min-width: 0;
   display: flex;

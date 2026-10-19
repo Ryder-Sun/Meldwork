@@ -39,6 +39,7 @@ class LocalWorkspaceConversations {
       messages: [...state.messages],
       sessions: { ...state.sessions },
       sessionMeta: { ...state.sessionMeta },
+      ...(state.deliveryTasks ? { deliveryTasks: structuredClone(state.deliveryTasks) } : {}),
     }
   }
 
@@ -160,6 +161,7 @@ class LocalWorkspaceConversations {
       this.clearSessionState(groupId)
       state.groups = state.groups.filter(group => group.id !== groupId)
       state.messages = state.messages.filter(message => message.groupId !== groupId)
+      if (state.deliveryTasks) state.deliveryTasks = state.deliveryTasks.filter(task => task.groupId !== groupId)
     }, () => this.runLedger?.deleteGroup?.(groupId))
   }
 

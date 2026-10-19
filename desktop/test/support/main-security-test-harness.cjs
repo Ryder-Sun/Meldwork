@@ -15,6 +15,11 @@ function pngHeader(width = 1, height = 1) {
 }
 
 const LOCAL_IPC_CHANNELS = Object.freeze([
+  'local-delivery:save',
+  'local-delivery:review',
+  'local-delivery:revise',
+  'local-delivery:reuse',
+  'local-delivery:export',
   'local-workspace:get',
   'local-workspace:refresh-agents',
   'local-workspace:create-group',

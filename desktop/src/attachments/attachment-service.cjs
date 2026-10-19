@@ -12,6 +12,15 @@ const MAX_ATTACHMENT_DISCARD_REQUEST = 32
 
 function attachmentIdsFromSnapshot(snapshot, groupId = '') {
   const ids = []
+  for (const task of snapshot?.deliveryTasks || []) {
+    if (groupId && task.groupId !== groupId) continue
+    for (const version of task.versions) {
+      for (const attachment of version.attachments) ids.push(attachment.id)
+    }
+    for (const attempt of task.attempts) {
+      for (const source of attempt.sources) if (source.attachmentId) ids.push(source.attachmentId)
+    }
+  }
   for (const message of Array.isArray(snapshot?.messages) ? snapshot.messages : []) {
     if (groupId && message?.groupId !== groupId) continue
     for (const attachment of Array.isArray(message?.attachments) ? message.attachments : []) {

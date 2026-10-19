@@ -126,6 +126,13 @@ if (isLocalDocument) Object.assign(desktopApi, {
   localOutcome: Object.freeze({
     recordAdoption: input => ipcRenderer.invoke('local-outcome:record-adoption', input),
   }),
+  localDelivery: Object.freeze({
+    save: input => ipcRenderer.invoke('local-delivery:save', input),
+    review: input => ipcRenderer.invoke('local-delivery:review', input),
+    revise: input => ipcRenderer.invoke('local-delivery:revise', input),
+    reuse: input => ipcRenderer.invoke('local-delivery:reuse', input),
+    export: input => ipcRenderer.invoke('local-delivery:export', input),
+  }),
   agentInstaller: Object.freeze({
     catalog: () => ipcRenderer.invoke('local-agent-installer:catalog'),
     skills: kind => ipcRenderer.invoke('local-agent-installer:skills', kind),
