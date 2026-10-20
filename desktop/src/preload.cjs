@@ -133,6 +133,10 @@ if (isLocalDocument) Object.assign(desktopApi, {
     reuse: input => ipcRenderer.invoke('local-delivery:reuse', input),
     export: input => ipcRenderer.invoke('local-delivery:export', input),
   }),
+  workBuddy: Object.freeze({
+    settings: () => ipcRenderer.invoke('local-workbuddy:settings'),
+    setModel: modelId => ipcRenderer.invoke('local-workbuddy:set-model', modelId),
+  }),
   agentInstaller: Object.freeze({
     catalog: () => ipcRenderer.invoke('local-agent-installer:catalog'),
     skills: kind => ipcRenderer.invoke('local-agent-installer:skills', kind),

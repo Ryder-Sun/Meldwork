@@ -141,6 +141,7 @@ async function runAgent(agent, prompt, workdir, options = {}) {
     invocationTransport: options.invocationTransport,
     sessionTransport: options.sessionTransport,
     maxTurns: options.maxTurns,
+    model: agent.kind === 'workbuddy' ? options.env?.CODEBUDDY_MODEL : undefined,
   })
   const profile = resolveConnectorEventProfile(agent.kind, {
     transport: spec.eventTransport,
@@ -458,13 +459,15 @@ async function runAgent(agent, prompt, workdir, options = {}) {
             [rawStderr, structuredDetail].filter(Boolean).join('\n'),
             childEnv,
           )
-          rejectTerminal(failedAgentProcessError(detail, { sessionRef: failureSessionRef }))
+          rejectTerminal(failedAgentProcessError(detail, {
+            sessionRef: failureSessionRef, kind: agent.kind, model: options.env?.CODEBUDDY_MODEL,
+          }))
           return
         }
         if (result.error) {
           rejectTerminal(failedAgentProcessError(
             redactChildSecrets(result.error, childEnv),
-            { sessionRef: failureSessionRef },
+            { sessionRef: failureSessionRef, kind: agent.kind, model: options.env?.CODEBUDDY_MODEL },
           ))
           return
         }

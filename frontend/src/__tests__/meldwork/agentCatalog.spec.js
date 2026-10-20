@@ -18,6 +18,11 @@ function catalogFor(agent) {
 }
 
 describe('Agent compatibility state', () => {
+  it('explains WorkBuddy host-encrypted credentials without reporting a desktop sign-out', () => {
+    setLocale('en')
+    const agent = { kind: 'workbuddy', installed: true, available: false, credentialState: 'missing', availabilitySource: 'workbuddy-desktop-locked' }
+    expect(catalogFor(agent).label).toBe('CLI setup needed')
+  })
   it('keeps installed unavailable Agents visible while respecting hidden preferences and runnable choices', () => {
     const snapshot = ref({ agents: [
       { kind: 'codex', installed: true, available: false, credentialState: 'missing', showInSidebar: true },

@@ -63,6 +63,7 @@
               {{ t('home.refresh') }}
             </button>
           </p>
+          <WorkBuddySettings v-if="agent.kind === 'workbuddy' && agent.installed" @changed="$emit('refresh-agents')" />
           <div class="agent-card-meta-row">
             <span
               v-if="agent.version"
@@ -124,6 +125,7 @@ import {
   RefreshOutline,
 } from '@vicons/ionicons5'
 import { t } from '../i18n.js'
+import WorkBuddySettings from './WorkBuddySettings.vue'
 
 defineProps({
   agentCatalogGroups: { type: Array, required: true },

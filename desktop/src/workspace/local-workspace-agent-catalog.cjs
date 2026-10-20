@@ -96,6 +96,7 @@ class LocalWorkspaceAgentCatalog {
       const native = nativeStates[index]
       let runtime = state.agentRuntime[agent.kind]
       const nativeState = ['ready', 'missing'].includes(native?.state) ? native.state : 'unknown'
+      const workBuddyUnavailable = ['workbuddy-desktop-locked', 'workbuddy-model-unavailable'].includes(native?.source)
       const authoritativeNativeState = native?.source === 'native-auth-status'
       // Give corrected native credentials a retry after the cooldown, never erase a newer failure.
       if (expiredAuthFailure(runtime, this.now())
@@ -138,6 +139,7 @@ class LocalWorkspaceAgentCatalog {
       const versionIdentified = agentVersionIdentified(agent)
       const compatible = agentCompatible(agent)
       const nativeConfigurationUnknown = !runtimeMissing
+        && !workBuddyUnavailable
         && nativeState === 'unknown'
         && native?.source !== 'native-runtime-unavailable'
         && native?.source !== 'native-probe-failed'
@@ -155,7 +157,7 @@ class LocalWorkspaceAgentCatalog {
         || (native?.source !== 'native-runtime-unavailable'
           && (native?.source !== 'native-probe-failed' || recentlyVerified(runtime, this.now())))
       const invocable = installed && versionIdentified && compatible && configured
-        && authenticated && runtimePrerequisitesReady
+        && authenticated && runtimePrerequisitesReady && !workBuddyUnavailable
       const verifiedRecently = (authoritativeNativeState && nativeState === 'ready')
         || recentlyVerified(runtime, this.now())
       const available = invocable
@@ -173,6 +175,7 @@ class LocalWorkspaceAgentCatalog {
       else if (verifiedReady) availabilitySource = 'verified-run'
       else if (nativeConfigurationUnknown) availabilitySource = 'local-cli'
       if (retained) availabilitySource = retained.availabilitySource
+      if (workBuddyUnavailable) availabilitySource = native.source
       return {
         ...agent,
         installed,
@@ -222,7 +225,7 @@ class LocalWorkspaceAgentCatalog {
     const agent = this.detectedAgents().find(item => item.kind === kind)
     if (!agent) throw new Error('LOCAL_AGENT_NOT_INSTALLED')
     const state = this.state()
-    state.agentPreferences[kind] = { showInSidebar: Boolean(visible) }
+    state.agentPreferences[kind] = { ...state.agentPreferences[kind], showInSidebar: Boolean(visible) }
     agent.showInSidebar = Boolean(visible)
     this.save()
     this.emitChanged()

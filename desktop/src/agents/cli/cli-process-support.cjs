@@ -52,6 +52,9 @@ function invalidSessionFailure(detail) {
 
 function failedAgentProcessError(detail, options = {}) {
   if (!detail) return agentExecutionError('LOCAL_AGENT_EXITED')
+  if (options.kind === 'workbuddy' && options.model && authFailureCode(detail)) {
+    return agentExecutionError('LOCAL_WORKBUDDY_PROVIDER_AUTH', detail)
+  }
   return agentExecutionError(
     options.sessionRef && invalidSessionFailure(detail)
       ? 'LOCAL_AGENT_SESSION_INVALID'

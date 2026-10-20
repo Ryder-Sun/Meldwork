@@ -237,7 +237,7 @@ function authFailureCode(detail) {
 function failureCategory(code) {
   const value = String(code || '')
   if (value === 'LOCAL_AGENT_SESSION_INVALID') return 'session'
-  if (value === 'LOCAL_AGENT_AUTH_REQUIRED') return 'authentication'
+  if (value === 'LOCAL_AGENT_AUTH_REQUIRED' || value === 'LOCAL_WORKBUDDY_PROVIDER_AUTH') return 'authentication'
   if (value === 'LOCAL_AGENT_ACCESS_DENIED') return 'provider'
   if (value === 'LOCAL_AGENT_TIMEOUT') return 'timeout'
   if (value === 'LOCAL_AGENT_EXECUTION_STOPPED') return 'cancellation'

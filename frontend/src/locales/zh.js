@@ -1,4 +1,13 @@
 export default {
+    'workbuddy.advanced': '高级 CLI 兼容设置',
+    'workbuddy.configure': '需要配置 CLI',
+    'workbuddy.providerAuth': '所选 WorkBuddy 模型的凭据或服务地址被拒绝，请在 WorkBuddy 中检查该模型的 API Key 和 URL 后重试。',
+    'workbuddy.desktopLocked': 'WorkBuddy 客户端的登录凭据由客户端加密，独立 CLI 无法解锁。请在下方选择已配置的本地模型，或单独配置 CLI 凭据。',
+    'workbuddy.model': 'WorkBuddy CLI 模型',
+    'workbuddy.native': '沿用 CLI 账号或环境配置',
+    'workbuddy.modelHint': '列出 WorkBuddy 原生配置中支持工具且已有密钥的模型。Meldwork 仅保存模型选择；客户端已登录不代表独立 CLI 已获授权。',
+    'workbuddy.modelUnavailable': '所选 WorkBuddy 模型不可用，请检查其原生配置并重新选择。',
+    'workbuddy.busy': '请等待当前运行结束，再更改 WorkBuddy 模型。',
     'delivery.unsavedReview': '检查结果尚未保存。导出正文前请保存检查或确认采用。',
     'delivery.versionRun': '此版本的运行',
     'delivery.revisionFiles': '修订时会附带此版本的实际文件；可在输入框补充新材料。',

@@ -1,4 +1,13 @@
 export default {
+    'workbuddy.advanced': 'Advanced CLI compatibility',
+    'workbuddy.configure': 'CLI setup needed',
+    'workbuddy.providerAuth': 'The selected WorkBuddy model rejected its credentials or endpoint. Check that model’s API key and URL in WorkBuddy, then retry.',
+    'workbuddy.desktopLocked': 'WorkBuddy desktop is signed in using host-encrypted credentials that its standalone CLI cannot unlock. Select a configured local model below or configure separate CLI credentials.',
+    'workbuddy.model': 'WorkBuddy CLI model',
+    'workbuddy.native': 'Native CLI account / environment',
+    'workbuddy.modelHint': 'Lists tool-capable models with credentials in your WorkBuddy configuration. Only the model choice is saved in Meldwork. Desktop sign-in alone may not authorize the standalone CLI.',
+    'workbuddy.modelUnavailable': 'The selected WorkBuddy model is unavailable. Check its native configuration and select again.',
+    'workbuddy.busy': 'Wait for current runs to finish before changing the WorkBuddy model.',
     'delivery.unsavedReview': 'Review changes are not saved. Save the review or accept before exporting text.',
     'delivery.versionRun': 'Run for this version',
     'delivery.revisionFiles': 'Revisions include this version’s actual files. Add new materials in the composer.',

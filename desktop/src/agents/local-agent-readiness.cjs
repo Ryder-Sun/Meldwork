@@ -7,6 +7,7 @@ const { promisify } = require('node:util')
 const { prepareCommand, searchPath } = require('./cli/cli-adapters.cjs')
 const { isOpenClawSecretReference } = require('./cli/openclaw-runtime.cjs')
 const { NETWORK_ENV_KEYS, networkEnvironment } = require('./cli/cli-network-environment.cjs')
+const { workBuddyCredentialState } = require('./cli/workbuddy-runtime.cjs')
 const { mimoConfiguredProvider } = require('./cli/mimo-native-config.cjs')
 
 const execFileAsync = promisify(execFile)
@@ -42,7 +43,7 @@ const CREDENTIAL_ENV_KEYS = Object.freeze({
   codex: ['OPENAI_API_KEY'],
   hermes: ['OPENAI_API_KEY', 'OPENROUTER_API_KEY', 'ANTHROPIC_API_KEY'],
   openclaw: ['OPENAI_API_KEY', 'OPENROUTER_API_KEY'],
-  workbuddy: ['CODEBUDDY_API_KEY', 'OPENAI_API_KEY', 'ANTHROPIC_API_KEY'],
+  workbuddy: ['CODEBUDDY_API_KEY', 'CODEBUDDY_AUTH_TOKEN'],
   pi: ['PI_API_KEY', 'OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'OPENROUTER_API_KEY', 'GEMINI_API_KEY'],
   kimi: ['MOONSHOT_API_KEY', 'KIMI_API_KEY', 'KIMI_MODEL_API_KEY', 'OPENAI_API_KEY'],
   mimo: ['MIMO_API_KEY'],
@@ -64,8 +65,8 @@ const RUNTIME_ENV_KEYS = Object.freeze({
   ],
   openclaw: ['OPENAI_API_KEY', 'OPENROUTER_API_KEY'],
   workbuddy: [
-    'CODEBUDDY_API_KEY', 'CODEBUDDY_BASE_URL', 'CODEBUDDY_MODEL',
-    'OPENAI_API_KEY', 'OPENAI_BASE_URL', 'OPENAI_MODEL', 'ANTHROPIC_API_KEY',
+    'CODEBUDDY_API_KEY', 'CODEBUDDY_AUTH_TOKEN', 'CODEBUDDY_BASE_URL', 'CODEBUDDY_MODEL',
+    'CODEBUDDY_CONFIG_DIR',
   ],
   pi: [
     'PI_API_KEY', 'PI_BASE_URL', 'PI_MODEL',
@@ -325,6 +326,7 @@ function resolveNativeShellEnvironment(options = {}) {
 }
 
 function nativeCredentialState(kind, options = {}) {
+  if (kind === 'workbuddy') return workBuddyCredentialState(options)
   const home = options.home || os.homedir()
   const env = options.env || process.env
   const codexHome = env.CODEX_HOME || path.join(home, '.codex')
@@ -341,7 +343,6 @@ function nativeCredentialState(kind, options = {}) {
     codex: [path.join(codexHome, 'auth.json'), path.join(codexHome, 'config.json')],
     hermes: [path.join(home, '.hermes', 'auth.json'), path.join(home, '.hermes', 'config.json')],
     openclaw: [path.join(home, '.openclaw', 'openclaw.json')],
-    workbuddy: [path.join(home, '.workbuddy', 'models.json')],
     pi: [
       path.join(piHome, 'auth.json'),
       path.join(piHome, 'models.json'),
@@ -376,7 +377,6 @@ function nativeCredentialState(kind, options = {}) {
       path.join(home, '.hermes', 'config.yml'),
     ],
     openclaw: [path.join(home, '.openclaw', '.env')],
-    workbuddy: [path.join(home, '.workbuddy', '.env')],
     pi: [
       path.join(home, '.pi', '.env'),
       path.join(home, '.pi', 'config.toml'),
@@ -745,6 +745,7 @@ async function queryMimoAuthState(options = {}) {
 }
 
 async function resolveNativeCredentialState(kind, options = {}) {
+  if (kind === 'workbuddy') return workBuddyCredentialState(options)
   const current = nativeCredentialState(kind, options)
   if (kind === 'mimo') {
     if (current.state === 'ready' || mimoConfiguredProvider(options)) {

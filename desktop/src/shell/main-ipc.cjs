@@ -180,6 +180,7 @@ function registerDesktopIpc(options) {
     getOutcomeStore,
     getSkillTrustStore,
     getWorkspace,
+    getWorkBuddySettings,
     installer,
     isShutdownStarted,
     knowledgeBaseStore,
@@ -419,6 +420,34 @@ function registerDesktopIpc(options) {
   })
   registerTrustedHandle('local-workspace:default-directory', () => app.getPath('documents'))
   registerTrustedHandle('local-agent-installer:catalog', async () => localAgentCatalog())
+  registerTrustedHandle('local-workbuddy:settings', () => getWorkBuddySettings())
+  registerTrustedHandle('local-workbuddy:set-model', async (...args) => {
+    if (args.length !== 1 || typeof args[0] !== 'string' || args[0].length > 120) {
+      throw new Error('LOCAL_WORKBUDDY_MODEL_UNAVAILABLE')
+    }
+    const workspace = getWorkspace()
+    if (!workspace) throw new Error('LOCAL_WORKSPACE_UNAVAILABLE')
+    const modelId = args[0]
+    const settings = await getWorkBuddySettings()
+    if (modelId && !settings.models.some(model => model.id === modelId)) {
+      throw new Error('LOCAL_WORKBUDDY_MODEL_UNAVAILABLE')
+    }
+    if (workspace.activeRuns.size || workspace.preparingRuns?.size) {
+      throw new Error('LOCAL_WORKBUDDY_BUSY')
+    }
+    const before = workspace.state.agentPreferences.workbuddy
+    const runtime = workspace.state.agentRuntime.workbuddy
+    workspace.state.agentPreferences.workbuddy = { ...before, modelId }
+    delete workspace.state.agentRuntime.workbuddy
+    try { workspace.save() } catch (error) {
+      if (before) workspace.state.agentPreferences.workbuddy = before
+      else delete workspace.state.agentPreferences.workbuddy
+      if (runtime) workspace.state.agentRuntime.workbuddy = runtime
+      throw error
+    }
+    await refreshLocalAgentState()
+    return { ...settings, modelId }
+  })
   registerTrustedHandle('local-agent-installer:skills', async (kind) => {
     const selectedKind = String(kind || '')
     if (customAgentStore.has(selectedKind)) {

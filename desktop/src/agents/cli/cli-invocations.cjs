@@ -150,6 +150,7 @@ function invocation(kind, executable, workdir, sessionRef = '', options = {}) {
         // run any command anywhere on the machine without confirmation.
         '--permission-mode', options.sandbox === 'workspace-write' ? 'acceptEdits' : 'plan',
         ...(maxTurns ? ['--max-turns', String(maxTurns)] : []),
+        ...(options.model ? ['--model', options.model] : []),
         ...(sessionRef ? ['--resume', sessionRef] : []),
       ],
       promptArg: true,

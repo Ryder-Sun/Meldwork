@@ -273,16 +273,17 @@ test('OpenRouter credentials loaded from the native shell mark Hermes ready', as
   assert.deepEqual(result, { state: 'ready', source: 'native-shell' })
 })
 
-test('WorkBuddy readiness checks configured model keys without exposing them', () => {
+test('WorkBuddy readiness requires a selected model and never exposes configured keys', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-workbuddy-readiness-'))
   const secret = 'workbuddy-secret-value'
   fs.mkdirSync(path.join(home, '.workbuddy'), { recursive: true })
   fs.writeFileSync(path.join(home, '.workbuddy', 'models.json'), JSON.stringify([
-    { id: 'glm', apiKey: secret },
+    { id: 'glm', apiKey: secret, url: 'https://model.example/v1', supportsToolCall: true },
   ]))
 
   try {
-    const result = nativeCredentialState('workbuddy', { home })
+    assert.deepEqual(nativeCredentialState('workbuddy', { home, env: {} }), { state: 'unknown', source: 'unverified' })
+    const result = nativeCredentialState('workbuddy', { home, env: {}, modelId: 'glm' })
     assert.deepEqual(result, { state: 'ready', source: 'native-credential' })
     assert.equal(JSON.stringify(result).includes(secret), false)
   } finally {
@@ -296,7 +297,6 @@ test('native readiness recognizes credential files for every supported CLI', () 
     ['codex', ['.codex', 'auth.json'], { tokens: { access_token: 'codex-secret' } }],
     ['hermes', ['.hermes', 'auth.json'], { access_token: 'hermes-secret' }],
     ['openclaw', ['.openclaw', 'openclaw.json'], { gateway: { auth: { token: 'claw-secret' } } }],
-    ['workbuddy', ['.workbuddy', 'models.json'], [{ apiKey: 'workbuddy-secret' }]],
     ['pi', ['.pi', 'auth.json'], { access_token: 'pi-secret' }],
     ['kimi', ['.kimi-code', 'credentials', 'kimi-code.json'], { refresh_token: 'kimi-secret' }],
     ['claude', ['.claude', '.credentials.json'], { oauth: { accessToken: 'claude-secret' } }],

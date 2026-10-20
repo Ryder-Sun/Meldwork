@@ -41,6 +41,8 @@ const LOCAL_IPC_CHANNELS = Object.freeze([
   'local-workspace:pick-directory',
   'local-workspace:default-directory',
   'local-agent-installer:catalog',
+  'local-workbuddy:settings',
+  'local-workbuddy:set-model',
   'local-agent-installer:skills',
   'local-skill-trust:list',
   'local-skill-trust:revoke',

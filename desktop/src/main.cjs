@@ -51,6 +51,7 @@ const {
 } = require('./agents/local-agent-readiness.cjs')
 const { LocalWorkspace } = require('./workspace/local-workspace.cjs')
 const { registerDesktopIpc } = require('./shell/main-ipc.cjs')
+const { workBuddyEnvironment, workBuddySettings } = require('./agents/cli/workbuddy-runtime.cjs')
 const {
   isAllowedExternalUrl,
   isAllowedLocalNavigation: isAllowedLocalNavigationForPaths,
@@ -366,6 +367,10 @@ async function runCoreAgent(agent, prompt, workdir, options = {}) {
     ? {}
     : {
         ...nativeCredentialEnvironment(agent.kind, shellEnvironment.env),
+        ...(agent.kind === 'workbuddy' ? workBuddyEnvironment({
+          env: shellEnvironment.env, home: shellEnvironment.home,
+          modelId: workspace?.state.agentPreferences.workbuddy?.modelId,
+        }) : {}),
         ...(shellEnvironment.env.PATH ? { PATH: shellEnvironment.env.PATH } : {}),
       }
   const callerEnv = connectorCredentialIsolation || agent.kind !== 'openclaw'
@@ -546,6 +551,7 @@ function createWorkspace() {
         env: shellEnvironment.env,
         home: shellEnvironment.home,
         credentialSource: shellEnvironment.source,
+        ...(kind === 'workbuddy' ? { modelId: workspace?.state.agentPreferences.workbuddy?.modelId } : {}),
       })
     },
     agentLabel: kind => customAgentStore.label(kind) || agentConnectors.label(kind),
@@ -743,6 +749,10 @@ function registerIpc() {
     getCloudAgentBridges: () => cloudAgentBridges,
     getMainWindow: () => mainWindow,
     getWorkspace: () => workspace,
+    getWorkBuddySettings: async () => {
+      const shell = await nativeShellEnvironment()
+      return workBuddySettings({ ...shell, modelId: workspace?.state.agentPreferences.workbuddy?.modelId })
+    },
     installer,
     isShutdownStarted: () => shutdownStarted,
     knowledgeBaseStore,

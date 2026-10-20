@@ -338,6 +338,18 @@ test('local preload exposes only the narrow Agent installer methods', async () =
   ])
 })
 
+test('WorkBuddy preload exposes only native model listing and ID selection', async () => {
+  const { api, invocations } = loadPreload('file:')
+  assert.equal(Object.isFrozen(api.workBuddy), true)
+  assert.deepEqual(Object.keys(api.workBuddy).sort(), ['setModel', 'settings'])
+  await api.workBuddy.settings()
+  await api.workBuddy.setModel('text')
+  assert.deepEqual(invocations, [
+    { channel: 'local-workbuddy:settings', args: [] },
+    { channel: 'local-workbuddy:set-model', args: ['text'] },
+  ])
+})
+
 test('local preload exposes only review and revocation for Skill trust', async () => {
   const { api, invocations } = loadPreload('file:')
   const bindingId = `skill-trust-binding-${'a'.repeat(64)}`
@@ -484,6 +496,7 @@ test('remote preload does not expose local credentials, workspace, or installer 
   assert.equal(api.localOnly, true)
   assert.equal('getAuthToken' in api, false)
   assert.equal('localWorkspace' in api, false)
+  assert.equal('workBuddy' in api, false)
   assert.equal('cloudAgent' in api, false)
   assert.equal('localOutcome' in api, false)
   assert.equal('agentInstaller' in api, false)

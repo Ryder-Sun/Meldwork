@@ -45,6 +45,25 @@ test('Agent catalog module exposes only its coordinator', () => {
   assert.deepEqual(Object.keys(catalogApi), ['LocalWorkspaceAgentCatalog'])
 })
 
+test('WorkBuddy encrypted desktop login blocks standalone invocation with a specific configuration reason', async () => {
+  const { catalog, agents, state } = fixture({
+    detectAgents: async () => [{ kind: 'workbuddy', version: '2.132.0', compatibilityState: 'compatible' }],
+    credentialState: async () => ({ state: 'unknown', source: 'workbuddy-desktop-locked' }),
+  })
+  state.messages.push({ role: 'agent', agentKind: 'workbuddy' })
+  await catalog.refresh()
+  assert.equal(agents()[0].available, false)
+  assert.equal(agents()[0].availabilitySource, 'workbuddy-desktop-locked')
+})
+
+test('sidebar visibility preserves a selected WorkBuddy model', async () => {
+  const { catalog, state } = fixture({ detectAgents: async () => [{ kind: 'workbuddy' }] })
+  state.agentPreferences.workbuddy = { modelId: 'native-text' }
+  await catalog.refresh()
+  catalog.setSidebarVisibility('workbuddy', false)
+  assert.deepEqual(state.agentPreferences.workbuddy, { modelId: 'native-text', showInSidebar: false })
+})
+
 test('one credential probe failure retains that installation and does not hide healthy peers', async () => {
   const { catalog } = fixture({
     detectAgents: async () => ['codex', 'claude'].map(kind => ({ kind, compatibilityState: 'compatible' })),
