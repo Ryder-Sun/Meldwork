@@ -15,7 +15,7 @@ Meldwork is a local-first Electron workspace for using the Agent tools you alrea
 The product is organized around a durable review record: **Case → Finding → Evidence → Decision → Disposition**. Meldwork keeps the task snapshot, Agent contributions, run state, artifacts, Human Gates, and adoption decision together in one local work cell. Workspace writes are opt-in and remain under the user's control.
 
 <p align="center">
-  <a href="https://github.com/Ryder-MHumble/Meldwork/releases/download/Meldwork-V1.0.5/Meldwork-0.1.5-arm64.dmg"><strong>Download Meldwork V1.0.5 for Apple silicon macOS</strong></a>
+  <a href="https://github.com/Ryder-Sun/Meldwork/releases/download/Meldwork-V1.0.6/Meldwork-0.1.6-arm64.dmg"><strong>Download Meldwork V1.0.6 for Apple silicon macOS</strong></a>
   · <a href="architecture.md">Architecture</a>
   · <a href="LICENSE">License</a>
 </p>
@@ -91,9 +91,9 @@ Meldwork runs as a local Electron application. Conversations, group configuratio
 
 Selected Agents may send prompts, attachments, or Skills to the model provider configured in their own CLI. Knowledge access is explicit and bounded: the current implementation supports local Obsidian retrieval and CLI-owned Feishu or DingTalk access modes. Local-first describes where Meldwork stores and coordinates work; it does not promise that an Agent's model provider is offline.
 
-## Download V1.0.5
+## Download V1.0.6
 
-For Apple silicon macOS, download the [Meldwork V1.0.5 prerelease](https://github.com/Ryder-MHumble/Meldwork/releases/tag/Meldwork-V1.0.5) and choose [`Meldwork-0.1.5-arm64.dmg`](https://github.com/Ryder-MHumble/Meldwork/releases/download/Meldwork-V1.0.5/Meldwork-0.1.5-arm64.dmg). The release also includes a ZIP archive and SHA-256 manifest. Install at least one supported local Agent CLI before opening the app.
+For Apple silicon macOS, download the [Meldwork V1.0.6 prerelease](https://github.com/Ryder-Sun/Meldwork/releases/tag/Meldwork-V1.0.6) and choose [`Meldwork-0.1.6-arm64.dmg`](https://github.com/Ryder-Sun/Meldwork/releases/download/Meldwork-V1.0.6/Meldwork-0.1.6-arm64.dmg). The release also includes a ZIP archive and SHA-256 manifest. Install at least one supported local Agent CLI before opening the app.
 
 The preview artifacts are ad-hoc signed and not notarized with an Apple Developer ID. macOS may require **Open Anyway** under **System Settings → Privacy & Security** on first launch.
 
@@ -116,11 +116,13 @@ npm --prefix frontend run build:desktop
 npm --prefix desktop test
 ```
 
-## V1.0.5
+## V1.0.6
 
-V1.0.5 improves local Agent readiness and recovery, preserves healthy participants when another Agent fails, keeps completed and stopped work visible after restart, and tightens group execution and output handling. It also updates the workspace preference flow, sidebar and titlebar details, and the Pi capability probe contract.
+V1.0.6 improves long-lived Agent recovery, keeps group discussions going through individual failures, and lets conversations run independently even in the same folder. It delivers attachments and knowledge sources to group Agents, restores WorkBuddy's bundled CLI launch, and tightens ACP and WorkBuddy permission checks.
 
-Verification for this prerelease includes 343/343 frontend tests, 1,562/1,562 desktop tests, six deterministic evaluation cases with 18 results, web and desktop builds, packaging, ZIP integrity, deep code-signature verification, and packaged macOS acceptance for group execution, cancellation, and restart recovery. The artifacts remain ad-hoc signed and unnotarized; live behavior still depends on the installed Agent CLI version, authentication, Provider, and capabilities.
+The interface starts without waiting for Agent detection, highlights conversations awaiting your decision, explains why an installed Agent is unavailable, and adds General settings with System, Light, and Dark appearance options.
+
+Release verification includes 357/357 frontend tests, 1,603/1,603 desktop tests, six deterministic evaluation cases with 18 results, web and desktop builds, packaging, DMG checksum and ZIP integrity checks, and code-signature verification. The packaged Apple silicon app launched with a fresh profile without main-process faults. Real Agent group execution, cancellation, and restart acceptance were not repeated for this release. The artifacts remain ad-hoc signed and unnotarized; live behavior still depends on the installed Agent CLI version, authentication, Provider, and capabilities.
 
 ## Documentation
 

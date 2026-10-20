@@ -15,7 +15,7 @@ Meldwork 是一个本地优先的 Electron 工作空间，用来连接你已经�
 产品围绕一条可持续复核的记录组织工作：**Case → Finding → Evidence → Decision → Disposition**。Meldwork 将任务快照、Agent 贡献、运行状态、产物、人工审批门和采用决定保存在同一个本地工作单元中。工作区写入默认受控，并由用户明确授权。
 
 <p align="center">
-  <a href="https://github.com/Ryder-MHumble/Meldwork/releases/download/Meldwork-V1.0.5/Meldwork-0.1.5-arm64.dmg"><strong>下载 Meldwork V1.0.5 Apple 芯片 macOS 版</strong></a>
+  <a href="https://github.com/Ryder-Sun/Meldwork/releases/download/Meldwork-V1.0.6/Meldwork-0.1.6-arm64.dmg"><strong>下载 Meldwork V1.0.6 Apple 芯片 macOS 版</strong></a>
   · <a href="architecture.md">架构</a>
   · <a href="LICENSE">许可证</a>
 </p>
@@ -91,9 +91,9 @@ Meldwork 作为本地 Electron 应用运行。对话、群组配置、运行记�
 
 选定的 Agent 仍可能把 Prompt、附件或 Skill 发送到其自身 CLI 凭据对应的模型服务商。知识访问必须明确选择并受边界约束：当前实现支持本地 Obsidian 检索，以及由本地 CLI 管理的飞书或钉钉访问模式。Local-first 描述的是 Meldwork 的数据和协作位置，不代表 Agent 使用的模型服务商一定离线。
 
-## 下载 V1.0.5
+## 下载 V1.0.6
 
-Apple 芯片 macOS 用户请前往 [Meldwork V1.0.5 预发布页](https://github.com/Ryder-MHumble/Meldwork/releases/tag/Meldwork-V1.0.5)，下载 [`Meldwork-0.1.5-arm64.dmg`](https://github.com/Ryder-MHumble/Meldwork/releases/download/Meldwork-V1.0.5/Meldwork-0.1.5-arm64.dmg)。发布页同时提供 ZIP 压缩包和 SHA-256 校验文件。启动应用前，请至少安装一个受支持的本地 Agent CLI。
+Apple 芯片 macOS 用户请前往 [Meldwork V1.0.6 预发布页](https://github.com/Ryder-Sun/Meldwork/releases/tag/Meldwork-V1.0.6)，下载 [`Meldwork-0.1.6-arm64.dmg`](https://github.com/Ryder-Sun/Meldwork/releases/download/Meldwork-V1.0.6/Meldwork-0.1.6-arm64.dmg)。发布页同时提供 ZIP 压缩包和 SHA-256 校验文件。启动应用前，请至少安装一个受支持的本地 Agent CLI。
 
 该预览版安装包使用 ad-hoc 临时签名，未使用 Apple Developer ID 签名，也未进行公证。macOS 首次启动时可能需要在“系统设置 → 隐私与安全性”中选择“仍要打开 / Open Anyway”。
 
@@ -116,11 +116,13 @@ npm --prefix frontend run build:desktop
 npm --prefix desktop test
 ```
 
-## V1.0.5
+## V1.0.6
 
-V1.0.5 改进了本地 Agent 的就绪检测与恢复，在单个 Agent 失败时保留健康参与者，重启后继续显示已完成和已停止的工作，并加强了群组执行与结果导入。同时更新了工作区偏好、侧栏和标题栏细节，以及 Pi 能力探测契约。
+V1.0.6 改进了长驻 Agent 的恢复能力，让群组讨论在个别成员失败时继续推进，并支持不同会话在同一目录下独立运行。同时完善群组 Agent 的附件与知识源传递，恢复 WorkBuddy 内置 CLI 启动，并加强 ACP 和 WorkBuddy 的权限检查。
 
-本预览版已完成 343/343 前端测试、1,562/1,562 桌面端测试、6 个确定性评估场景共 18 条结果验证，并通过 Web 与桌面构建、打包、ZIP 完整性、深度代码签名校验，以及 Apple 芯片 macOS 上的群组执行、取消和重启恢复验收。安装包仍为 ad-hoc 临时签名且未公证；实际运行结果仍取决于本机 Agent CLI 版本、鉴权、Provider 和能力。
+界面启动不再等待 Agent 检测完成，会标记等待你决策的会话、解释已安装 Agent 不可用的原因，并新增包含跟随系统、浅色和深色外观选项的通用设置。
+
+本版本发布验证包括 357/357 前端测试、1,603/1,603 桌面端测试、6 个确定性评估场景共 18 条结果，以及 Web 与桌面构建、打包、DMG 校验和、ZIP 完整性与代码签名校验。Apple 芯片安装包使用全新配置启动，未记录主进程故障。本版未重新执行真实 Agent 群组运行、取消和重启验收。安装包仍为 ad-hoc 临时签名且未公证；实际运行结果仍取决于本机 Agent CLI 版本、鉴权、Provider 和能力。
 
 ## 文档
 
