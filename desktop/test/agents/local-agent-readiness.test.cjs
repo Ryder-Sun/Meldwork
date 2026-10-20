@@ -771,13 +771,16 @@ test('OpenClaw model status overrides a stale gateway token without exposing aut
   }
 })
 
-test('MiMo readiness uses the installed CLI identity without forwarding private values', async () => {
+test('MiMo readiness uses the installed CLI identity without forwarding private values', async (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-mimo-auth-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
   const calls = []
   for (const stdout of [
     '\u001b[32mProvider: MiMo\u001b[0m\nUser ID: user-123',
     'Provider: MiMo\nType: OAuth',
   ]) {
     const result = await resolveNativeCredentialState('mimo', {
+      home,
       env: { PATH: '/usr/bin', MELDWORK_PRIVATE_VALUE: 'desktop-private-value' },
       executable: '/tmp/mimo',
       execFileFn: async (command, args, options) => {
@@ -795,8 +798,11 @@ test('MiMo readiness uses the installed CLI identity without forwarding private 
   assert.equal(calls.every(call => call.env.MELDWORK_PRIVATE_VALUE === undefined), true)
 })
 
-test('MiMo readiness recognizes ANSI-colored logged-out output even when the CLI exits zero', async () => {
+test('MiMo readiness recognizes ANSI-colored logged-out output even when the CLI exits zero', async (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-mimo-auth-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
   const result = await resolveNativeCredentialState('mimo', {
+    home,
     env: {},
     executable: '/tmp/mimo',
     execFileFn: async () => ({
@@ -807,8 +813,10 @@ test('MiMo readiness recognizes ANSI-colored logged-out output even when the CLI
   assert.deepEqual(result, { state: 'missing', source: 'native-auth-status' })
 })
 
-test('MiMo readiness remains unknown for missing or malformed identity output', async () => {
-  assert.deepEqual(await resolveNativeCredentialState('mimo', {}), {
+test('MiMo readiness remains unknown for missing or malformed identity output', async (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-mimo-auth-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  assert.deepEqual(await resolveNativeCredentialState('mimo', { home, env: {} }), {
     state: 'unknown', source: 'unverified',
   })
 
@@ -820,6 +828,7 @@ test('MiMo readiness remains unknown for missing or malformed identity output', 
     'Authentication status unavailable',
   ]) {
     const result = await resolveNativeCredentialState('mimo', {
+      home,
       env: {},
       executable: '/tmp/mimo',
       execFileFn: async () => ({ stdout }),

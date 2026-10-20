@@ -7,6 +7,7 @@ const { promisify } = require('node:util')
 const { prepareCommand, searchPath } = require('./cli/cli-adapters.cjs')
 const { isOpenClawSecretReference } = require('./cli/openclaw-runtime.cjs')
 const { NETWORK_ENV_KEYS, networkEnvironment } = require('./cli/cli-network-environment.cjs')
+const { mimoConfiguredProvider } = require('./cli/mimo-native-config.cjs')
 
 const execFileAsync = promisify(execFile)
 
@@ -746,6 +747,9 @@ async function queryMimoAuthState(options = {}) {
 async function resolveNativeCredentialState(kind, options = {}) {
   const current = nativeCredentialState(kind, options)
   if (kind === 'mimo') {
+    if (current.state === 'ready' || mimoConfiguredProvider(options)) {
+      return { state: 'ready', source: 'native-credential' }
+    }
     return await queryMimoAuthState(options) || current
   }
   if (kind === 'openclaw') {
