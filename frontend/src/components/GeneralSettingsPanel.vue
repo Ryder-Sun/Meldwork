@@ -41,6 +41,7 @@
         </button>
       </div>
     </div>
+    <WorkPreferences />
   </section>
 </template>
 
@@ -48,6 +49,7 @@
 import { computed, unref } from 'vue'
 import { DesktopOutline, MoonOutline, SunnyOutline } from '@vicons/ionicons5'
 import { locale as currentLocale, setLocale, t } from '../i18n.js'
+import WorkPreferences from './WorkPreferences.vue'
 
 const props = defineProps({
   setThemePreference: { type: Function, required: true },

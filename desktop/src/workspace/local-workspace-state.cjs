@@ -2,6 +2,7 @@ const fs = require('node:fs')
 const { atomicWritePrivateFile } = require('../security/private-file.cjs')
 const path = require('node:path')
 const { parseDeliveryTasks } = require('./delivery-tasks.cjs')
+const { loadedWorkPreferences } = require('./work-preferences.cjs')
 const { RUN_STATUSES } = require('../runs/run-ledger-records.cjs')
 const { normalizeSessionMeta } = require('../runs/run-harness.cjs')
 const {
@@ -222,6 +223,7 @@ function loadWorkspaceState(storagePath) {
     return {
       state: {
         version: 3,
+        ...(parsed.workPreferences ? { workPreferences: loadedWorkPreferences(parsed.workPreferences) } : {}),
         ...(parsed.deliveryTasks ? {
           deliveryTasks: parseDeliveryTasks(parsed.deliveryTasks).filter(task => groupIds.has(task.groupId)),
         } : {}),

@@ -12,11 +12,12 @@
     >
       <div class="onboarding-slide-viewport">
         <transition name="onboarding-slide">
-          <article :key="onboardingIndex" class="onboarding-slide">
-            <img :src="onboardingSlide.image" alt="" />
+          <article :key="onboardingIndex" class="onboarding-slide" :class="{ 'preferences-slide': onboardingSlide.preferences }">
+            <img v-if="!onboardingSlide.preferences" :src="onboardingSlide.image" alt="" />
             <div>
               <h1 id="onboarding-title">{{ onboardingSlide.title }}</h1>
               <p>{{ onboardingSlide.body }}</p>
+              <WorkPreferences v-if="onboardingSlide.preferences" />
             </div>
           </article>
         </transition>
@@ -58,6 +59,7 @@
 <script setup>
 import { ref } from 'vue'
 import { CheckmarkCircleOutline } from '@vicons/ionicons5'
+import WorkPreferences from './WorkPreferences.vue'
 
 const props = defineProps({
   controller: { type: Object, required: true },
@@ -82,3 +84,9 @@ defineExpose({
   querySelectorAll: selector => dialog.value?.querySelectorAll(selector) || [],
 })
 </script>
+
+<style scoped>
+.preferences-slide { grid-template-rows: minmax(0, 1fr); }
+.preferences-slide :deep(.work-preferences) { margin-top: 20px; }
+.preferences-slide :deep(.work-preferences h2), .preferences-slide :deep(.work-preferences > p) { display: none; }
+</style>

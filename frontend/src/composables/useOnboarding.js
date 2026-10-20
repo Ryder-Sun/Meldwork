@@ -39,6 +39,11 @@ export function useOnboarding({ refreshAgents }) {
       title: t('onboarding.autoTitle'),
       body: t('onboarding.autoBody'),
     },
+    {
+      preferences: true,
+      title: t('workPreferences.onboardingTitle'),
+      body: t('workPreferences.onboardingHint'),
+    },
   ])
   const onboardingSlide = computed(() => (
     onboardingSlides.value[onboardingIndex.value] || onboardingSlides.value[0]

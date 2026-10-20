@@ -2,6 +2,7 @@ const { ADOPTION_ACTION_STATUSES } = require('../collaboration/outcome-records.c
 const { statusForHumanGateOption } = require('../gates/human-gate-coordinator.cjs')
 const { ATTACHMENT_FILE_EXTENSIONS } = require('../attachments/attachment-records.cjs')
 const { registerDeliveryIpc } = require('./delivery-ipc.cjs')
+const { loadedWorkPreferences, parseWorkPreferences } = require('../workspace/work-preferences.cjs')
 
 const LOCAL_GROUP_IDENTIFIER = /^[^\u0000-\u001f\u007f]{1,100}$/u
 const LOCAL_RUN_IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/
@@ -421,6 +422,23 @@ function registerDesktopIpc(options) {
   registerTrustedHandle('local-workspace:default-directory', () => app.getPath('documents'))
   registerTrustedHandle('local-agent-installer:catalog', async () => localAgentCatalog())
   registerTrustedHandle('local-workbuddy:settings', () => getWorkBuddySettings())
+  registerTrustedHandle('local-work-preferences:get', () => loadedWorkPreferences(getWorkspace()?.state.workPreferences))
+  registerTrustedHandle('local-work-preferences:save', (...args) => {
+    if (args.length !== 1) throw new Error('LOCAL_WORK_PREFERENCES_INVALID')
+    const value = parseWorkPreferences(args[0])
+    const workspace = getWorkspace()
+    if (!workspace) throw new Error('LOCAL_WORKSPACE_UNAVAILABLE')
+    if (workspace.activeRuns.size || workspace.preparingRuns?.size) throw new Error('LOCAL_WORK_PREFERENCES_BUSY')
+    const previous = workspace.state.workPreferences
+    workspace.state.workPreferences = value
+    try { workspace.save() } catch (error) {
+      if (previous) workspace.state.workPreferences = previous
+      else delete workspace.state.workPreferences
+      throw error
+    }
+    workspace.emitChanged()
+    return value
+  })
   registerTrustedHandle('local-workbuddy:set-model', async (...args) => {
     if (args.length !== 1 || typeof args[0] !== 'string' || args[0].length > 120) {
       throw new Error('LOCAL_WORKBUDDY_MODEL_UNAVAILABLE')

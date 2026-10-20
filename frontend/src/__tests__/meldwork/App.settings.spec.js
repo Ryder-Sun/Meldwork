@@ -66,7 +66,7 @@ describe('Meldwork workbench', () => {
     })
 
     expect(wrapper.get('.onboarding-dialog').attributes('aria-modal')).toBe('true')
-    expect(wrapper.findAll('.onboarding-dot')).toHaveLength(4)
+    expect(wrapper.findAll('.onboarding-dot')).toHaveLength(5)
     expect(wrapper.get('.onboarding-slide img').attributes('src')).toContain('discover-local-agents-meldwork.png')
     expect(wrapper.get('.onboarding-primary').attributes()).toHaveProperty('disabled')
     expect(wrapper.get('.onboarding-primary').text()).toContain('Detecting local Agents')

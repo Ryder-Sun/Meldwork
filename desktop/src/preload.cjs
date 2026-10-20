@@ -137,6 +137,10 @@ if (isLocalDocument) Object.assign(desktopApi, {
     settings: () => ipcRenderer.invoke('local-workbuddy:settings'),
     setModel: modelId => ipcRenderer.invoke('local-workbuddy:set-model', modelId),
   }),
+  workPreferences: Object.freeze({
+    get: () => ipcRenderer.invoke('local-work-preferences:get'),
+    save: input => ipcRenderer.invoke('local-work-preferences:save', input),
+  }),
   agentInstaller: Object.freeze({
     catalog: () => ipcRenderer.invoke('local-agent-installer:catalog'),
     skills: kind => ipcRenderer.invoke('local-agent-installer:skills', kind),

@@ -1,4 +1,5 @@
 const { createHash, randomUUID } = require('node:crypto')
+const { workPreferencesPrompt } = require('./work-preferences.cjs')
 const {
   assertResumedPermissionBinding,
   automaticPermissionResponse,
@@ -757,7 +758,8 @@ class LocalWorkspaceAgentInvocation {
       stagedInputs = isolated
         ? null
         : stageAgentInputs(group.workdir, context.attachmentSnapshots || [], nativeImageLimit)
-      const buildPrompt = (afterKind, contextPackage) => assembleInvocationPrompt({
+      const preferencesText = isolated ? '' : workPreferencesPrompt(this.state().workPreferences)
+      const buildPrompt = (afterKind, contextPackage) => [assembleInvocationPrompt({
         group,
         kind,
         mode,
@@ -774,7 +776,7 @@ class LocalWorkspaceAgentInvocation {
         stagedInputs,
         promptFor: (...args) => this.promptFor(...args),
         agentLabel: label => this.agentLabel(label),
-      })
+      }), preferencesText].filter(Boolean).join('\n\n')
       let prompt = buildPrompt(transcriptAfterKind, packedContext)
       const recordOutboundPayload = (outbound = {}) => {
         watchdog.progress()

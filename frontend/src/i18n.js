@@ -100,6 +100,8 @@ export const DESKTOP_ERROR_MESSAGE_KEYS = Object.freeze({
   LOCAL_WORKBUDDY_MODEL_UNAVAILABLE: 'workbuddy.modelUnavailable',
   LOCAL_WORKBUDDY_BUSY: 'workbuddy.busy',
   LOCAL_WORKBUDDY_PROVIDER_AUTH: 'workbuddy.providerAuth',
+  LOCAL_WORK_PREFERENCES_INVALID: 'workPreferences.invalid',
+  LOCAL_WORK_PREFERENCES_BUSY: 'workPreferences.busy',
   LOCAL_AGENT_ACCESS_DENIED: 'error.agentAccessDenied',
   LOCAL_AGENT_SESSION_INVALID: 'error.agentSessionInvalid',
   LOCAL_AGENT_OUTPUT_LIMIT: 'error.agentOutputLimit',
