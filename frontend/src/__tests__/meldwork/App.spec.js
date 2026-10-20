@@ -900,8 +900,9 @@ describe('Meldwork workbench', () => {
 
     expect(source).toMatch(/html,\s*body,\s*#app\s*\{[^}]*scrollbar-width:\s*none;[^}]*-ms-overflow-style:\s*none;/s)
     expect(source).toMatch(/html::-webkit-scrollbar,[^}]+body::-webkit-scrollbar,[^}]+#app::-webkit-scrollbar,[^}]+\*::\-webkit-scrollbar\s*\{[^}]*width:\s*0;[^}]*height:\s*0;/s)
-    // Long sidebar lists, run details and settings show where you are; the chat page and dialogs stay clean.
-    expect(source).toMatch(/\.conversation-nav,[^{]*\.trace-panel-scroll,[^{]*\.settings-panel,[^{]*\{[^}]*scrollbar-width:\s*thin;[^}]*scrollbar-color:\s*var\(--scrollbar-thumb\) transparent;/s)
+    // Only run details and settings keep visible scrollbars; sidebar scrolling stays available.
+    expect(source).toMatch(/\.trace-panel-scroll,[^{]*\.settings-panel,[^{]*\{[^}]*scrollbar-width:\s*thin;[^}]*scrollbar-color:\s*var\(--scrollbar-thumb\) transparent;/s)
+    expect(source).not.toMatch(/\.conversation-nav,[^{]*\{[^}]*scrollbar-width:\s*thin;/s)
     expect(source).not.toMatch(/\.message-scroll,[^{]*\{[^}]*scrollbar-width:\s*thin;/s)
     expect(source).not.toMatch(/\.modal-body,[^{]*\{[^}]*scrollbar-width:\s*thin;/s)
   })

@@ -87,12 +87,8 @@
           @select-group="selectGroup"
         />
 
-        <section v-else class="conversation-pane" :class="{ 'with-delivery': Boolean(api?.localDelivery && activeGroup) }">
+        <section v-else class="conversation-pane">
           <ConversationHeader ref="conversationHeader" :controller="conversationHeaderController" />
-
-          <DeliveryPanel v-if="api?.localDelivery && activeGroup" :key="activeGroup.id" ref="deliveryPanel"
-            :group-id="activeGroup.id" :snapshot="snapshot" :api="api" :sending="sending"
-            @bind="deliveryTaskId = $event" @refresh="refreshDelivery" @error="showError" @notify="notify" @reuse="reuseDelivery" />
 
           <ConversationTimelineView :controller="timelineController" />
 
@@ -202,8 +198,7 @@
 <script setup>
 import PixelBlast from './components/PixelBlast.vue'
 import WavePhysicsLoader from './components/WavePhysicsLoader.vue'
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
-import DeliveryPanel from './components/DeliveryPanel.vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import {
   AlertCircleOutline,
   CheckmarkCircleOutline,
@@ -255,17 +250,6 @@ import { locale, t, translateError, translateSystemMessage } from './i18n.js'
 import { createWorkspaceControllers } from './workspaceControllers.js'
 
 const snapshot = ref(emptySnapshot())
-const deliveryPanel = ref(null)
-const deliveryTaskId = ref('')
-async function refreshDelivery() {
-  try { snapshot.value = normalizeSnapshot(await workspace.value.get()) } catch (error) { showError(error) }
-}
-async function reuseDelivery(result) {
-  await refreshDelivery()
-  selectGroup(result.groupId)
-  await nextTick()
-  deliveryPanel.value?.selectTask(result.taskId)
-}
 const shortcutDefinitions = Object.freeze([
   { labelKey: 'shortcut.toggleSidebar', keys: '⌘ B' },
   { labelKey: 'shortcut.newGroup', keys: '⌘ G' },
@@ -705,7 +689,6 @@ const {
   safeAttachmentPayload,
 } = attachmentController
 const conversationExecution = useConversationExecution({
-  deliveryTaskId,
   activeGroup,
   activeRun,
   automaticTeamFormation,

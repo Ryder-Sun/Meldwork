@@ -328,7 +328,7 @@
   align-items: center;
   gap: 7px;
   padding: 5px 8px;
-  border: 1px solid var(--border);
+  border: 0;
   border-radius: var(--radius-sm);
   background: var(--surface-raised);
   color: var(--text-soft);
@@ -338,7 +338,6 @@
 
 .trace-select-trigger:hover:not(:disabled),
 .trace-select-trigger[aria-expanded="true"] {
-  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
   background: var(--surface-hover);
 }
 

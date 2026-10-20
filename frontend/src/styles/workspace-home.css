@@ -7,6 +7,10 @@
   box-shadow: var(--workspace-shadow);
 }
 
+.workspace-pane:has(.conversation-pane) {
+  box-shadow: none;
+}
+
 .agent-home {
   height: 100%;
   overflow: auto;

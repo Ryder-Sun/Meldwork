@@ -16,7 +16,6 @@
     "eval:deterministic": "node scripts/run-evals.cjs --suite deterministic",
     "eval:provider": "node scripts/run-evals.cjs --suite provider",
     "test": "node scripts/run-tests.cjs",
-    "test:delivery:desktop": "electron scripts/delivery-smoke.cjs",
     "test:agents": "node scripts/run-tests.cjs --suite agents",
     "test:runs": "node scripts/run-tests.cjs --suite runs",
     "test:workspace": "node scripts/run-tests.cjs --suite workspace",

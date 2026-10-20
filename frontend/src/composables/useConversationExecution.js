@@ -3,7 +3,6 @@ import { agentLabel } from '../catalog.js'
 import { MAX_ATTACHMENTS } from './useComposerAttachments.js'
 
 export function useConversationExecution({
-  deliveryTaskId,
   activeGroup,
   activeRun,
   automaticTeamFormation,
@@ -40,7 +39,7 @@ export function useConversationExecution({
     && composerTargetKinds.value.length > 0
     && !importingAttachment.value
     && composerAttachmentSupported.value
-    && Boolean(draft.value.trim() || composerAttachments.value.length || deliveryTaskId?.value)
+    && Boolean(draft.value.trim() || composerAttachments.value.length)
   ))
 
   function isGroupSending(groupId) {
@@ -66,7 +65,7 @@ export function useConversationExecution({
     const attachments = composerAttachments.value.map(safeAttachmentPayload)
     const mode = composerMode.value
     const backendMode = mode === 'auto-beta' ? 'auto' : mode
-    if (!text && !attachments.length && !deliveryTaskId?.value) {
+    if (!text && !attachments.length) {
       notify(t('composer.messageRequired'))
       return
     }
@@ -97,7 +96,6 @@ export function useConversationExecution({
     try {
       await workspace.value.send({
         groupId,
-        ...(deliveryTaskId?.value ? { deliveryTaskId: deliveryTaskId.value } : {}),
         text,
         targetKinds: automaticTeamFormation.value ? [] : targets,
         ...(automaticTeamFormation.value ? { routingMode: 'automatic' } : {}),
