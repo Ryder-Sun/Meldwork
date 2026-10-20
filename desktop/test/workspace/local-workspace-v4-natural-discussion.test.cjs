@@ -464,7 +464,7 @@ for (const discussionStyle of ['sequential', 'agent-led']) {
   })
 }
 
-test('Natural Agent-led V4 uses the full first-round transcript and inline mentions', async (t) => {
+test('Natural Agent-led V4 compacts first-round background while preserving all peer handoffs and inline mentions', async (t) => {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
   const ledger = new RunLedger({ storagePath: path.join(directory, 'run-ledger.json') })
@@ -534,7 +534,9 @@ test('Natural Agent-led V4 uses the full first-round transcript and inline menti
   assert.equal(maxRoutedRunning, 3)
   const coordinator = calls[3]
   for (const sentinel of tails.values()) assert.match(coordinator.prompt, new RegExp(sentinel))
-  assert.ok(coordinator.prompt.length > 24000)
+  assert.ok(coordinator.prompt.length < 24000)
+  assert.match(coordinator.prompt, /Excerpt: omitted text/u)
+  assert.equal(coordinator.prompt.includes('x'.repeat(9000)), false)
   assert.equal(coordinator.sessionRef, 'codex-task-session')
   assert.equal(calls[4].sessionRef, 'hermes-task-session')
   assert.equal(calls[5].sessionRef, 'workbuddy-task-session')

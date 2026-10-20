@@ -33,7 +33,7 @@ test('Natural handoff tells every participant to return control to the outer sch
 
 test('Natural transcript retains complete short contributions in chronological order', () => {
   const entries = ['one', 'two', 'three'].map((kind, index) => entry(
-    index, kind, `${kind}-opening\n${'x'.repeat(9000)}\n${kind}-closing`,
+    index, kind, `${kind}-opening\n${'x'.repeat(900)}\n${kind}-closing`,
   ))
   const text = packNaturalDiscussionTranscript(entries)
   assert.doesNotMatch(text, /partial|omitted/u)
@@ -49,12 +49,11 @@ test('Natural transcript stays bounded and prioritizes the latest contribution o
   }
   entries.push(entry(45, 'active-peer', 'NEWEST_HANDOFF: @quiet-peer verify the original evidence.'))
   const text = packNaturalDiscussionTranscript(entries)
-  assert.ok(text.length <= 48000)
+  assert.ok(text.length <= 16000)
   assert.match(text, /This transcript is partial/u)
   assert.match(text, /Omission is not evidence of agreement or completion/u)
   assert.match(text, /QUIET_EVIDENCE/u)
   assert.match(text, /NEWEST_HANDOFF/u)
-  assert.doesNotMatch(text, /OLDER_1\n/u)
   assert.ok(text.indexOf('QUIET_EVIDENCE') < text.indexOf('NEWEST_HANDOFF'))
   assert.ok(entries[1].text.includes('OLDER_1'))
 })
@@ -62,9 +61,9 @@ test('Natural transcript stays bounded and prioritizes the latest contribution o
 test('Oversized contributions preserve closing handoffs and mark the omitted middle', () => {
   const original = `OPENING_FINDING\n${'x'.repeat(100000)}\n@peer CLOSE_WITH_REQUEST`
   const text = packNaturalDiscussionTranscript([entry(0, 'author', original)])
-  assert.ok(text.length <= 48000)
+  assert.ok(text.length <= 16000)
   assert.match(text, /OPENING_FINDING/u)
-  assert.match(text, /Middle of this turn omitted/u)
+  assert.match(text, /Excerpt: omitted text/u)
   assert.match(text, /@peer CLOSE_WITH_REQUEST/u)
   assert.match(text, /Ask peers to restate any missing evidence/u)
 })
@@ -72,7 +71,7 @@ test('Oversized contributions preserve closing handoffs and mark the omitted mid
 test('Natural transcript cannot grow without bound through many tiny turns', () => {
   const entries = Array.from({ length: 1200 }, (_, index) => entry(index, 'peer', `TURN_${index}`))
   const text = packNaturalDiscussionTranscript(entries)
-  assert.ok(text.length <= 48000)
+  assert.ok(text.length <= 16000)
   assert.match(text, /This transcript is partial/u)
   assert.match(text, /TURN_1199/u)
   assert.doesNotMatch(text, /TURN_0\n/u)

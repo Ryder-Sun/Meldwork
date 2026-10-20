@@ -80,7 +80,7 @@ test('Natural uncertain delivery is resent, and partial or omitted entries are n
   assert.match(f.prepare().prompt, /RETRY_EVIDENCE/)
   f.add(`LONG_START\n${'x'.repeat(100000)}\nLONG_END`)
   const partial = f.prepare()
-  assert.match(partial.prompt, /Middle of this turn omitted/)
+  assert.match(partial.prompt, /Excerpt: omitted text/)
   assert.equal(partial.delivery.entries[0].sourceMessages.length, 1)
   f.settle(partial)
   const repeated = f.prepare()

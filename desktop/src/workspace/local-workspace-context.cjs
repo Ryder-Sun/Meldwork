@@ -28,6 +28,7 @@ const {
   responseLanguagePrompt,
 } = require('./prompts/prompt-contracts.cjs')
 const { naturalBrief } = require('./prompts/natural-discussion-prompt.cjs')
+const { sharedContextExcerpt } = require('./shared-context-excerpt.cjs')
 
 const CONTINUATION_STABLE_CONTEXT_TEXT_LIMIT = 1400
 const CONTINUATION_RECENT_CONTEXT_TEXT_LIMIT = 4600
@@ -37,8 +38,8 @@ const CONTINUATION_RECENT_CONTEXT_TEXT_LIMIT = 4600
 // documents unusable. The extra room covers the attached-file note.
 const CURRENT_TASK_TEXT_LIMIT = MAX_MESSAGE_TEXT_CHARS + 2000
 const V4_SNAPSHOT_HISTORY_LIMIT = 16
-const NATURAL_TRANSCRIPT_TEXT_LIMIT = 48000
-const NATURAL_TRANSCRIPT_ENTRY_LIMIT = 20000
+const NATURAL_TRANSCRIPT_TEXT_LIMIT = 16000
+const NATURAL_TRANSCRIPT_ENTRY_LIMIT = 2400
 const NATURAL_TRANSCRIPT_OMISSION_NOTICE = 'This transcript is partial: some turns or parts of turns were omitted to fit the context budget. Omission is not evidence of agreement or completion. Ask peers to restate any missing evidence needed to judge the original task.'
 const V4_SNAPSHOT_FIELDS = [
   'group', 'history', 'messageId', 'phase', 'snapshotHash',
@@ -72,17 +73,16 @@ function packNaturalDiscussionTranscript(entries, options = {}) {
   const latestByKind = new Map(entries.map((entry, index) => [entry.agentKind, index]))
   let excerpted = entries.some(entry => entry.partial === true)
   const completeBodies = new Map()
+  const excerptedMessageIds = []
+  const fairEntryLimit = Math.min(NATURAL_TRANSCRIPT_ENTRY_LIMIT, Math.max(128,
+    Math.floor((NATURAL_TRANSCRIPT_TEXT_LIMIT - prefix.length - 600) / Math.max(1, latestByKind.size))))
   const packed = packContextEntries(entries.map((entry, index) => {
-    const heading = `Round ${Number(entry.round) || 0} - @${entry.agentKind}\n`
+    const heading = `Round ${Number(entry.round) || 0} - @${entry.agentKind} [${entry.id}]\n`
     let text = String(entry.text || '').trim()
-    const limit = NATURAL_TRANSCRIPT_ENTRY_LIMIT - heading.length
+    const limit = fairEntryLimit - heading.length
     if (text.length > limit) {
-      const marker = '\n[Middle of this turn omitted]\n'
-      const edge = Math.floor((limit - marker.length) / 2)
-      // Preserve closing requests as well as opening findings, without inventing a summary.
-      const head = text.slice(0, edge).replace(/[\uD800-\uDBFF]$/u, '')
-      const tail = text.slice(-edge).replace(/^[\uDC00-\uDFFF]/u, '')
-      text = `${head}${marker}${tail}`
+      text = sharedContextExcerpt(text, Math.max(32, limit)).text
+      excerptedMessageIds.push(entry.id)
       excerpted = true
     } else if (!entry.partial) {
       completeBodies.set(entry.id, `${heading}${text}`)
@@ -95,7 +95,7 @@ function packNaturalDiscussionTranscript(entries, options = {}) {
     }
   }), {
     budget: NATURAL_TRANSCRIPT_TEXT_LIMIT - NATURAL_TRANSCRIPT_OMISSION_NOTICE.length - prefix.length - 2,
-    entryLimit: NATURAL_TRANSCRIPT_ENTRY_LIMIT,
+    entryLimit: fairEntryLimit,
     maxEntries: 100,
   })
   const text = [
@@ -105,6 +105,10 @@ function packNaturalDiscussionTranscript(entries, options = {}) {
   ].filter(Boolean).join('\n')
   return options.withEntries ? {
     text,
+    sourceChars: entries.reduce((total, entry) => total + String(entry.text || '').length, 0),
+    deliveredChars: text.length,
+    omittedCount: packed.omittedCount,
+    excerptedMessageIds,
     completeMessageIds: packed.sourceEntries.filter(entry => (
       completeBodies.get(entry.id) === entry.text
     )).map(entry => entry.id),
@@ -122,15 +126,17 @@ function v4Snapshot({
   )]
   const scoped = (state?.messages || []).filter(item => item.groupId === group?.id)
   const currentIndex = scoped.findIndex(item => item.id === message?.id)
-  const history = scoped
+  const prior = scoped
     .slice(0, currentIndex >= 0 ? currentIndex : scoped.length)
     .filter(item => ['user', 'agent'].includes(item.role))
-    .slice(-V4_SNAPSHOT_HISTORY_LIMIT)
+  const anchors = prior.filter(item => item.role === 'user').slice(0, 2)
+  const historyIds = new Set([...anchors, ...prior.slice(-(V4_SNAPSHOT_HISTORY_LIMIT - anchors.length))].map(item => item.id))
+  const history = prior.filter(item => historyIds.has(item.id))
     .map(item => ({
       id: cleanText(item.id, 120),
       role: item.role,
       agentKind: cleanText(item.agentKind, 80),
-      text: cleanText(item.content, 1800),
+      text: cleanText(sharedContextExcerpt(item.content, 1800).text, 1800),
     }))
   const body = {
     version: 1,
