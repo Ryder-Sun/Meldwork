@@ -4,7 +4,9 @@ Meldwork's own design system, extracted from the shipped app (`frontend/src/styl
 
 ## 1. Visual Theme & Atmosphere
 
-Dark, quiet, instrument-panel calm. Meldwork is a local-first work cell where multiple AI agents are reviewed by a human — the visual mood is "traceability made visible": a near-black field, a faint dot-matrix of evidence points, one continuous coral work line, and generous negative space. Density is low; motion is slow and deliberate; nothing loops aggressively. Retro dot-matrix display type signals the "run state / terminal" heritage without becoming a gimmick.
+Dark, quiet, instrument-panel calm. Meldwork is a local-first workspace where selected Agents collaborate to advance a shared task. The visual language connects their contributions: a near-black field, a faint dot-matrix of participants, one continuous coral work line, and generous negative space. Density is low; motion is slow and deliberate; nothing loops aggressively. Retro dot-matrix display type signals the "run state / terminal" heritage without becoming a gimmick.
+
+Marketing copy leads with "Set the goal. Let Agents work together." Emphasize shared context, discussion, authorized execution, peer review, and less manual coordination. Users set goals and permissions and step in when information or key decisions are needed. Local history supports revisiting the work; do not promise complete evidence traceability, guaranteed correctness, or tasks completing without human input.
 
 ## 2. Color Palette & Roles
 
@@ -19,19 +21,20 @@ Dark, quiet, instrument-panel calm. Meldwork is a local-first work cell where mu
 | `ink-soft` | `#c3cdd1` | Secondary text |
 | `muted` | `#93a0a5` | Labels, captions (app dark muted) |
 | `faint` | `#707b80` | Disabled / tertiary |
-| `coral` | `#ef5a45` | Brand accent — the "acceptance point"; active indicators, glyphs, focus |
-| `coral-deep` | `#d45f52` | Accent on light surfaces (app light accent) |
+| `coral` | `#d98568` | Product dark-theme accent; active indicators, glyphs, focus |
+| `coral-deep` | `#d45f52` | Product light-theme accent |
 | `line` | `rgba(255,255,255,0.10)` | Hairline borders on dark |
 | `pill-white` | `#ffffff` | Nav pill, primary CTA, logo badge |
 | `nav-ink` | `#26343c` | Text on white pills (app light text) |
 
-Light/dark mapping: marketing pages are dark-only. App light-theme tokens (`#f3f6f8` bg, `#d45f52` accent) appear only inside product screenshots.
+Light/dark mapping: marketing defaults to dark and supports a light-theme toggle. Accent RGB and translucent effects follow the selected product accent; do not reintroduce the older saturated `#ef5a45` into interface effects. Brand assets retain their original colors.
 
 ## 3. Typography Rules
 
 Families:
 - UI: `"Inter", "Segoe UI", system-ui, sans-serif` (weights 400/500/600)
 - Display: `"BubbledotICG-FinePos", "Geist Pixel Circle", monospace` — retro dot-matrix, Latin only
+- Chinese display fallback: local `Meldwork Pixel CJK` (Fusion Pixel 12px proportional, OFL-1.1). Use it for headings and short state labels; keep body text in the system Chinese sans-serif stack. Chinese headings allow character wrapping; preserve Latin words as units.
 - Mono accents: same display stack for stat glyphs
 
 | Level | Size | Weight | Tracking | Line-height |
@@ -76,7 +79,7 @@ Do:
 - Use coral only for acceptance/active/focus moments — it must stay rare.
 - Keep the trace-line metaphor consistent: continuous rounded line, round terminals, one bright end point.
 - Respect `prefers-reduced-motion`: static frame, final states, no marquee.
-- Ground every claim in README facts (12 CLIs, 3 modes, local-first, human gate, V1.0.3).
+- Ground every claim in README facts (12 CLIs, 3 modes, local-first collaboration, opt-in writes, user decisions when needed). Label historical examples with their version.
 
 Don't:
 - No gradient/shimmer headlines; no glassmorphism everywhere; no neon multi-color.
