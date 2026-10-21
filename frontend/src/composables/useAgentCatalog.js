@@ -96,6 +96,7 @@ export function useAgentCatalog({
   const readyCount = computed(() => readyAgents.value.length)
   const installedCount = computed(() => mergedCatalog.value.filter(agent => agent.installed).length)
   const sidebarAgents = computed(() => mergedCatalog.value.filter((agent) => {
+    if (agent.showInSidebar === false || (agent.kind === 'workbuddy' && !agent.ready)) return false
     if ((agent.ready || agent.installed) && agent.showInSidebar !== false) return true
     return !agent.ready && directGroupsFor(agent.kind).length > 0
   }))

@@ -83,7 +83,6 @@
   .home-header { flex-direction: column; }
   .header-actions { width: 100%; flex-wrap: wrap; }
   .header-actions > button { flex: 1 1 120px; }
-  .system-settings-header { padding: 22px 18px 18px; }
   .system-settings-body { padding-inline: 18px; }
   .knowledge-base-list,
   .knowledge-base-future-list {

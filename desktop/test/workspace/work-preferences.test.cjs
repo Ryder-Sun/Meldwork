@@ -6,7 +6,16 @@ const { LocalWorkspace } = require('../../src/workspace/local-workspace.cjs')
 const { registerDesktopIpc } = require('../../src/shell/main-ipc.cjs')
 const { fixture } = require('../support/local-workspace-test-helpers.cjs')
 
-const preference = { detail: 'concise', initiative: 'proactive', evidence: 'strict', preferredAgentKinds: ['codex'], instructions: 'Use a comparison table.' }
+const preference = { detail: 37, initiative: 82, evidence: 91, preferredAgentKinds: ['codex'], instructions: 'Use a comparison table.' }
+
+test('legacy preferences migrate while continuous scores retain their exact values', () => {
+  assert.deepEqual(parseWorkPreferences({ ...preference, detail: 'concise', initiative: 'balanced', evidence: 'strict' }), { ...preference, detail: 0, initiative: 50, evidence: 100 })
+  assert.deepEqual(loadedWorkPreferences(preference), preference)
+  for (const detail of [-1, 101, 33.5, NaN, '37']) assert.throws(() => parseWorkPreferences({ ...preference, detail }), /INVALID/)
+  assert.match(workPreferencesPrompt(preference), /Delivery detail: 37\/100/)
+  assert.match(workPreferencesPrompt(preference), /Initiative: 82\/100/)
+  assert.match(workPreferencesPrompt(preference), /Evidence standard: 91\/100/)
+})
 
 test('delivery preferences stay short, reject unknown fields, and cannot change permissions', () => {
   assert.equal(workPreferencesPrompt(undefined), '')
@@ -42,6 +51,9 @@ test('preferences are transactionally saved, survive restart and reach each actu
   for (const call of f.calls) {
     assert.match(call.prompt, /Use a comparison table/)
     assert.match(call.prompt, /Budget must not exceed 500/)
+    assert.match(call.prompt, /Delivery detail: 37\/100/)
+    assert.match(call.prompt, /Initiative: 82\/100/)
+    assert.match(call.prompt, /Evidence standard: 91\/100/)
     assert.equal(call.runOptions.sandbox, 'read-only')
   }
   const before = workspace.state.workPreferences

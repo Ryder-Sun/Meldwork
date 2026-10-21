@@ -43,6 +43,22 @@ afterEach(() => {
 })
 
 describe('Meldwork workbench', () => {
+  it('keeps one settings navigation shell across all tabs without a visible title block', async () => {
+    const { wrapper } = await mountApp()
+    await wrapper.get('.sidebar-settings-entry').trigger('click')
+    const body = wrapper.get('.system-settings-body').element
+    const navigation = wrapper.get('.settings-tabs').element
+    for (const index of [0, 3, 1, 2, 0]) {
+      await wrapper.findAll('.settings-tabs button')[index].trigger('click')
+      await flushPromises()
+      expect(wrapper.get('.system-settings-body').element).toBe(body)
+      expect(wrapper.get('.settings-tabs').element).toBe(navigation)
+      expect(wrapper.find('.system-settings-header').exists()).toBe(false)
+      expect(wrapper.findAll('.settings-tabs [aria-selected="true"]')).toHaveLength(1)
+      expect(wrapper.findAll('.settings-tabs button')[index].attributes('aria-selected')).toBe('true')
+    }
+    wrapper.unmount()
+  })
   it('provides a dedicated cloud-server settings tab', async () => {
     const { wrapper } = await mountApp()
 

@@ -18,6 +18,21 @@ function catalogFor(agent) {
 }
 
 describe('Agent compatibility state', () => {
+  it('honors explicit hiding despite history and excludes unavailable WorkBuddy until it becomes ready', () => {
+    const snapshot = ref({ agents: [
+      { kind: 'hermes', installed: true, available: false, showInSidebar: false },
+      { kind: 'workbuddy', installed: true, available: false, showInSidebar: true, availabilitySource: 'workbuddy-desktop-locked' },
+    ] })
+    const catalog = useAgentCatalog({ activeGroup: ref(null), directGroupsFor: () => [{ id: 'old-chat' }],
+      installCatalog: ref({ agents: [] }), snapshot, t, theme: ref('light') })
+    expect(catalog.sidebarAgents.value.map(agent => agent.kind)).not.toContain('hermes')
+    expect(catalog.sidebarAgents.value.map(agent => agent.kind)).not.toContain('workbuddy')
+    expect(catalog.mergedCatalog.value.find(agent => agent.kind === 'workbuddy').installed).toBe(true)
+    snapshot.value.agents[1].available = true
+    expect(catalog.sidebarAgents.value.map(agent => agent.kind)).toContain('workbuddy')
+    snapshot.value.agents[1].showInSidebar = false
+    expect(catalog.sidebarAgents.value.map(agent => agent.kind)).not.toContain('workbuddy')
+  })
   it('explains WorkBuddy host-encrypted credentials without reporting a desktop sign-out', () => {
     setLocale('en')
     const agent = { kind: 'workbuddy', installed: true, available: false, credentialState: 'missing', availabilitySource: 'workbuddy-desktop-locked' }

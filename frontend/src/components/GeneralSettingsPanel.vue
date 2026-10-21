@@ -1,44 +1,46 @@
 <template>
   <section class="settings-panel general-settings-panel">
-    <div class="general-settings-row">
-      <div class="general-settings-copy">
-        <h2 id="general-settings-language">{{ t('generalSettings.languageTitle') }}</h2>
-        <p>{{ t('generalSettings.languageHint') }}</p>
+    <div class="general-interface-settings">
+      <div class="general-settings-row">
+        <div class="general-settings-copy">
+          <h2 id="general-settings-language">{{ t('generalSettings.languageTitle') }}</h2>
+          <p>{{ t('generalSettings.languageHint') }}</p>
+        </div>
+        <div class="choice-segmented" role="radiogroup" aria-labelledby="general-settings-language">
+          <button
+            v-for="option in languageOptions"
+            :key="option.value"
+            type="button"
+            role="radio"
+            :aria-checked="String(locale === option.value)"
+            :class="{ active: locale === option.value }"
+            :lang="option.lang"
+            @click="setLocale(option.value)"
+          >
+            {{ option.label }}
+          </button>
+        </div>
       </div>
-      <div class="choice-segmented" role="radiogroup" aria-labelledby="general-settings-language">
-        <button
-          v-for="option in languageOptions"
-          :key="option.value"
-          type="button"
-          role="radio"
-          :aria-checked="String(locale === option.value)"
-          :class="{ active: locale === option.value }"
-          :lang="option.lang"
-          @click="setLocale(option.value)"
-        >
-          {{ option.label }}
-        </button>
-      </div>
-    </div>
 
-    <div class="general-settings-row">
-      <div class="general-settings-copy">
-        <h2 id="general-settings-theme">{{ t('generalSettings.themeTitle') }}</h2>
-        <p>{{ t('generalSettings.themeHint') }}</p>
-      </div>
-      <div class="choice-segmented" role="radiogroup" aria-labelledby="general-settings-theme">
-        <button
-          v-for="option in themeOptions"
-          :key="option.value"
-          type="button"
-          role="radio"
-          :aria-checked="String(themePreference === option.value)"
-          :class="{ active: themePreference === option.value }"
-          @click="setThemePreference(option.value)"
-        >
-          <component :is="option.icon" aria-hidden="true" />
-          {{ t(option.labelKey) }}
-        </button>
+      <div class="general-settings-row">
+        <div class="general-settings-copy">
+          <h2 id="general-settings-theme">{{ t('generalSettings.themeTitle') }}</h2>
+          <p>{{ t('generalSettings.themeHint') }}</p>
+        </div>
+        <div class="choice-segmented" role="radiogroup" aria-labelledby="general-settings-theme">
+          <button
+            v-for="option in themeOptions"
+            :key="option.value"
+            type="button"
+            role="radio"
+            :aria-checked="String(themePreference === option.value)"
+            :class="{ active: themePreference === option.value }"
+            @click="setThemePreference(option.value)"
+          >
+            <component :is="option.icon" aria-hidden="true" />
+            {{ t(option.labelKey) }}
+          </button>
+        </div>
       </div>
     </div>
     <WorkPreferences />

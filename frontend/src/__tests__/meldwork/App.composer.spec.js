@@ -222,7 +222,7 @@ describe('Meldwork workbench', () => {
     await betaButton.trigger('click')
     expect(betaButton.classes()).toContain('active')
     expect(wrapper.get('.composer-box textarea').attributes('placeholder'))
-      .toBe('Beta: Agents @ each other into the discussion and the model orchestrates the rounds autonomously.')
+      .toBe('Beta: Agents request peer contributions, advance the work, and check results. Step in when they need information, permission, or a key decision.')
 
     await wrapper.get('.composer-box textarea').setValue('Plan a launch')
     await wrapper.get('.send-button').trigger('click')

@@ -1,39 +1,19 @@
 .system-settings-page {
   height: 100%;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
   background: transparent;
 }
 
-.system-settings-header {
-  padding: 28px clamp(24px, 4vw, 62px) 22px;
-}
-
-.system-settings-header > div,
 .system-settings-body {
-  width: min(1180px, 100%);
-  margin: 0 auto;
-}
-
-.system-settings-header h1 {
-  margin: 0;
-  font-size: var(--text-2xl);
-  line-height: 1.2;
-}
-
-.system-settings-header p {
-  max-width: 640px;
-  margin: 7px 0 0;
-  color: var(--muted);
-  line-height: 1.5;
-}
-
-.system-settings-body {
+  width: 100%;
+  min-width: 0;
   min-height: 0;
+  box-sizing: border-box;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  padding: 0 clamp(24px, 4vw, 62px);
+  padding: 24px clamp(24px, 4vw, 62px) 0;
   container-name: settings-content;
   container-type: inline-size;
 }
@@ -190,9 +170,20 @@
 .general-settings-panel {
   display: grid;
   align-content: start;
-  gap: 0;
-  max-width: 760px;
+  gap: 32px;
+  min-width: 0;
+  scrollbar-width: none;
 }
+
+.general-interface-settings { display: grid; gap: 12px; }
+
+@container settings-content (min-width: 820px) {
+  .general-interface-settings { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(32px, 5cqw, 72px); }
+  .general-interface-settings .general-settings-row { display: grid; align-content: start; justify-content: start; gap: 12px; padding: 6px 0 0; }
+  .general-interface-settings .choice-segmented { justify-self: start; }
+}
+
+.general-settings-panel::-webkit-scrollbar { display: none; width: 0; height: 0; }
 
 .general-settings-row {
   display: flex;
@@ -200,7 +191,7 @@
   justify-content: space-between;
   gap: 24px;
   padding: 18px 0;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 0;
 }
 
 .general-settings-row:first-child {

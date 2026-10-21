@@ -6,13 +6,13 @@
   <strong>English</strong> · <a href="README.zh-CN.md">简体中文</a>
 </p>
 
-# Meldwork — A local-first workspace for General Agents
+# Meldwork — Let Agents collaborate to move tasks forward
 
-**Turn several General Agents into a reviewable working group. Meldwork gives every task a shared context, lets selected Agents investigate independently or discuss across rounds, and keeps the evidence and human decision visible before anything is adopted.**
+**Set the goal. Let Agents work together. Meldwork brings your existing Agents into one working group to share context, discuss approaches, carry out work, and check each other's results — with less relaying, prompting, and stitching outputs together.**
 
-Meldwork is a local-first Electron workspace for using the Agent tools you already have on your Mac. It supports focused conversations, independent concurrent responses, and Auto Discussion V4 for proposal, challenge, negotiated work, synthesis, and verification. Agents can work with text, files, images, media, Skills, and selected knowledge sources, so the same workspace can support research, analysis, writing, planning, review, and implementation.
+Meldwork is a local-first multi-Agent collaboration workspace for the Agent tools you already use on your Mac. Once you choose the participants, goal, context, and permissions, Agents in Auto Discussion can build on each other's work, request contributions or reviews, and advance the task within the authorized scope. Direct conversations and independent concurrent responses also support research, analysis, writing, planning, review, and implementation.
 
-The product is organized around a durable review record: **Case → Finding → Evidence → Decision → Disposition**. Meldwork keeps the task snapshot, Agent contributions, run state, artifacts, Human Gates, and adoption decision together in one local work cell. Workspace writes are opt-in and remain under the user's control.
+You do not need to direct every round, but you still set the goal, grant permissions, and make key decisions. Missing information, permission requests, or tradeoffs may require your input. Workspace writes are opt-in; collaboration history, run state, and deliverables stay local so you can revisit the work and continue it.
 
 <p align="center">
   <a href="https://github.com/Ryder-Sun/Meldwork/releases/download/Meldwork-V1.0.6/Meldwork-0.1.6-arm64.dmg"><strong>Download Meldwork V1.0.6 for Apple silicon macOS</strong></a>
@@ -22,21 +22,21 @@ The product is organized around a durable review record: **Case → Finding → 
 
 ## What Meldwork is for
 
-Meldwork is useful when a decision benefits from more than one perspective and a clear record of why a result was adopted. Typical work includes:
+Meldwork is useful when several Agents need to advance the same task and you want to spend less time passing context and coordinating next steps. Typical work includes:
 
 - research and information synthesis across local Agent tools and selected knowledge sources;
 - product, market, operational, and technical analysis;
 - writing, planning, review, and structured document work;
 - multimodal work with local documents, images, audio, video, PDFs, and code or configuration files;
-- implementation and review tasks where findings, evidence, permissions, and the final adoption decision should remain inspectable.
+- implementation in an authorized workspace, with other Agents checking the deliverables and requesting revisions.
 
 ## How a task moves through Meldwork
 
-1. **Select** the Agents and participants for this Case.
+1. **Select** the Agents that will work on the task together.
 2. **Scope** the goal, working directory, context, attachments, Skills, knowledge sources, and permissions.
-3. **Run** a direct conversation, Concurrent Responses, or Auto Discussion V4.
-4. **Review** the findings, evidence, artifacts, trace, and any Human Gate.
-5. **Adopt** the approved result or leave the Case unresolved for further work.
+3. **Collaborate** in Auto Discussion: let Agents discuss approaches, carry out authorized work, and check results. Direct conversations and Concurrent Responses are also available.
+4. **Decide** when the work needs information, permission, or a tradeoff resolved.
+5. **Check the result** and request changes when more work is needed.
 
 ## Collaboration modes
 
@@ -44,21 +44,15 @@ Meldwork is useful when a decision benefits from more than one perspective and a
 | --- | --- | --- |
 | **Direct** | One selected Agent keeps its conversation and native session when supported. | Focused research, writing, analysis, or execution. |
 | **Concurrent Responses** | Selected Agents receive the same frozen task snapshot and return independent responses in stable order. | Comparing perspectives before choosing a path. |
-| **Auto Discussion V4** | Agents propose, challenge, negotiate responsibilities, execute agreed work, synthesize a candidate result, and verify it across bounded rounds. Native Agent sessions continue when supported. | Multi-step work that needs discussion, division of responsibility, and review. |
+| **Auto Discussion V4** | Agents propose independently, discuss, request peer contributions, carry out authorized work, and check deliverables. A delivery owner judges progress and requests user decisions when needed. Native sessions continue when supported. | Multi-step collaboration with less manual coordination. |
 
 Participants are selected by the user. Automatic selection from a larger roster is outside the current preview.
 
-## The review record
+## Revisit the process and continue the work
 
-Meldwork treats collaboration as a decision process rather than a stream of chat messages:
+Meldwork keeps task context, Agent replies, run state, and deliverables locally so you can see how work progressed, where it stalled, and what needs attention next. The Run Ledger preserves phase, participant, attempt, artifact, recovery, and Human Gate state. Diagnostic tool output and sensitive runtime details stay behind the Electron main-process boundary.
 
-- **Case** defines the question, scope, context, and permissions.
-- **Finding** records an Agent's claim, observation, or proposed action.
-- **Evidence** links the finding to a response, artifact, file, knowledge result, or other bounded reference.
-- **Decision** records what the evidence supports, what remains uncertain, and which path is selected.
-- **Disposition** records whether the result was accepted, revised, rejected, superseded, or left unresolved.
-
-The Run Ledger preserves phase, participant, attempt, receipt, artifact, recovery, and Human Gate state. Diagnostic tool output and sensitive runtime details stay behind the Electron main-process boundary.
+These records help you inspect collaboration; they do not establish that every claim has been fact-checked. Peer review does not guarantee correctness, and important deliverables still need acceptance checks appropriate to their use.
 
 ## General Agent catalog
 

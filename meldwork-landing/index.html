@@ -3,18 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Meldwork — A Local-First Workspace for General Agents</title>
-  <meta name="description" content="Meldwork is a local-first General Agent workspace for macOS. Coordinate research, analysis, writing, review, planning, and implementation across 12+ local Agent tools with shared context, evidence, and a human adoption gate." />
-  <meta name="keywords" content="General Agent workspace, local-first Agent workspace, multi-agent collaboration, Agent review, evidence-backed decisions, local Agent tools, human-in-the-loop Agent review, Meldwork" />
-  <meta property="og:title" content="Meldwork — A Local-First Workspace for General Agents" />
-  <meta property="og:description" content="Coordinate General Agents from one local workspace. Shared context, independent findings, evidence-backed decisions, and a human adoption gate before workspace changes." />
-  <meta property="og:image" content="assets/meldwork-readme-banner-en.png" />
+  <title>Meldwork — Set the Goal. Let Agents Work Together.</title>
+  <meta name="description" content="Meldwork is a local-first multi-Agent collaboration workspace for macOS. Let your Agents share context, discuss, carry out authorized work, and check results. Step in for key decisions." />
+  <meta name="keywords" content="multi-agent collaboration, autonomous Agent collaboration, local-first Agent workspace, shared context, Agent task execution, local Agent tools, Meldwork" />
+  <meta property="og:title" content="Meldwork — Set the Goal. Let Agents Work Together." />
+  <meta property="og:description" content="Bring your existing Agents into one working group. Less manual coordination as Agents discuss, advance authorized work, and check results. You make key decisions." />
+  <meta property="og:image" content="assets/screenshots/meldwork-group-collaboration.png" />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://ryder-sun.github.io/Meldwork/" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Meldwork — A Local-First Workspace for General Agents" />
-  <meta name="twitter:description" content="Coordinate General Agents from one local workspace with shared context, evidence-backed decisions, and a human adoption gate." />
-  <meta name="twitter:image" content="assets/meldwork-readme-banner-en.png" />
+  <meta name="twitter:title" content="Meldwork — Set the Goal. Let Agents Work Together." />
+  <meta name="twitter:description" content="Let your Agents share context, discuss, carry out authorized work, and check results. Less manual coordination, with you making key decisions." />
+  <meta name="twitter:image" content="assets/screenshots/meldwork-group-collaboration.png" />
   <meta name="theme-color" content="#000000" />
   <meta name="robots" content="index, follow" />
   <link rel="canonical" href="https://ryder-sun.github.io/Meldwork/" />
@@ -29,8 +29,8 @@
         "applicationCategory": "DeveloperApplication",
         "operatingSystem": "macOS (Apple silicon)",
         "softwareVersion": "1.0.6",
-        "description": "Meldwork is a local-first General Agent workspace for macOS. It coordinates local Agent tools for research, analysis, writing, planning, review, and implementation, while preserving shared task context, independent findings, evidence, decisions, and a human adoption gate before workspace changes.",
-        "featureList": "General Agent workspace, Concurrent Responses, Auto Discussion V4, frozen task snapshots, Finding-Evidence-Decision-Disposition review record, Human Gate for workspace writes, native session continuity, local-first Electron desktop, multimodal attachments, selected knowledge sources, Agent Connector SDK",
+        "description": "Meldwork is a local-first multi-Agent collaboration workspace for macOS. Selected Agents share context, discuss approaches, carry out authorized work, and check results with less manual coordination. Users set goals and permissions and step in when information or key decisions are needed.",
+        "featureList": "Autonomous Agent collaboration, shared task context, peer contributions and reviews, authorized task execution, Concurrent Responses, Auto Discussion V4, opt-in workspace writes, user decisions when needed, local collaboration history, multimodal attachments, selected knowledge sources",
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
         "author": { "@type": "Organization", "name": "Meldwork", "url": "https://github.com/Ryder-Sun/Meldwork" },
         "downloadUrl": "https://github.com/Ryder-Sun/Meldwork/releases/tag/Meldwork-V1.0.6",
@@ -42,12 +42,12 @@
           {
             "@type": "Question",
             "name": "What is Meldwork and what does it do?",
-            "acceptedAnswer": { "@type": "Answer", "text": "Meldwork is a local-first General Agent workspace for macOS. It lets you coordinate local Agent tools for research, analysis, writing, planning, review, and implementation. Meldwork freezes one task snapshot, sends it to every selected Agent, captures independent findings as evidence, and requires your approval (Human Gate) before any workspace changes are written." }
+            "acceptedAnswer": { "@type": "Answer", "text": "Meldwork is a local-first multi-Agent collaboration workspace for macOS. It brings your existing Agents into one working group to share context, discuss approaches, carry out authorized work, and check results. You choose the participants, set goals and permissions, and step in when information or key decisions are needed." }
           },
           {
             "@type": "Question",
             "name": "How is Meldwork different from tmux or zellij for running multiple AI agents?",
-            "acceptedAnswer": { "@type": "Answer", "text": "tmux and zellij are terminal multiplexers that show agent output side by side but require you to manually copy context between agents. Meldwork freezes one task snapshot and delivers it to all selected agents automatically, then captures their responses as structured evidence (Finding → Evidence → Decision → Disposition) with a human adoption gate before any file changes. It also preserves session state across restarts, so you can resume interrupted multi-agent work." }
+            "acceptedAnswer": { "@type": "Answer", "text": "Meldwork adds task-level collaboration across selected Agent CLIs: shared context, peer discussion, requests for further contributions, authorized execution, and review of deliverables. This reduces the work of relaying replies and coordinating next steps yourself. Collaboration history and run state stay local so you can revisit progress and blockers." }
           },
           {
             "@type": "Question",
@@ -57,17 +57,17 @@
           {
             "@type": "Question",
             "name": "Can Meldwork run Codex and Claude Code at the same time on the same task?",
-            "acceptedAnswer": { "@type": "Answer", "text": "Yes. In Concurrent Responses mode, Meldwork sends the same frozen task snapshot to Codex, Claude Code, and any other selected agents simultaneously. Each agent returns an independent response, and you compare their findings side by side before deciding which result to adopt. In Auto Discussion V4 mode, agents can also propose, challenge each other's proposals, negotiate responsibilities, and verify results across multiple rounds." }
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. In Concurrent Responses, selected Agents receive the same task snapshot and reply independently. In Auto Discussion, they can build on peer replies, request contributions, carry out authorized work, and check deliverables across rounds. You can mix compatible Agent CLIs in the same working group." }
           },
           {
             "@type": "Question",
             "name": "What does Auto Discussion V4 actually do?",
-            "acceptedAnswer": { "@type": "Answer", "text": "Selected Agents independently propose, then critique with evidence, negotiate responsibilities, execute dependency-aware work, and verify the result. Every round is preserved — you can read the full Case later and adopt only the parts you approve." }
+            "acceptedAnswer": { "@type": "Answer", "text": "Selected Agents start with independent proposals, then discuss differences, request peer contributions, carry out authorized work, and check deliverables. A delivery owner judges progress and whether more work or a user decision is needed. You do not need to direct every round, but missing information, permissions, or key decisions can still require your input." }
           },
           {
             "@type": "Question",
-            "name": "How is Meldwork different from Claude Code Agent Teams or CrewAI?",
-            "acceptedAnswer": { "@type": "Answer", "text": "Claude Code Agent Teams only works within Claude Code — you cannot mix Codex, Hermes, or OpenCode. CrewAI is a Python framework you build yourself. Meldwork is a ready-to-use desktop app that orchestrates 12+ heterogeneous agent CLIs from different vendors in one workspace, with evidence trails, a human adoption gate, and no orchestration code to write." }
+            "name": "Do I still need to intervene?",
+            "acceptedAnswer": { "@type": "Answer", "text": "You choose the Agents, goal, context, and permissions. Auto Discussion lets Agents advance the work without you directing each turn, but missing information, permission requests, or key tradeoffs may require your input. Workspace writes are opt-in. Check important deliverables before using them; peer review does not guarantee correctness." }
           },
           {
             "@type": "Question",
@@ -83,13 +83,13 @@
       },
       {
         "@type": "HowTo",
-        "name": "How to coordinate General Agents with Meldwork",
-        "description": "Steps to use Meldwork to coordinate local General Agents on one Case with shared context, evidence, and a human adoption decision.",
+        "name": "How to let Agents collaborate with Meldwork",
+        "description": "Choose Agents, set the goal and permissions, let them collaborate, and step in for decisions when needed.",
         "step": [
           { "@type": "HowToStep", "name": "Select Agents", "text": "Open Meldwork and select the local General Agents you want to participate — for example Codex, Claude Code, and Gemini CLI." },
           { "@type": "HowToStep", "name": "Scope the task", "text": "Define the goal, working directory, context, and permissions. Meldwork freezes this as a task snapshot." },
-          { "@type": "HowToStep", "name": "Run collaboration mode", "text": "Choose Direct (one agent), Concurrent Responses (all agents get the same frozen snapshot and respond independently), or Auto Discussion V4 (agents propose, challenge, negotiate, and verify)." },
-          { "@type": "HowToStep", "name": "Review and adopt", "text": "Inspect each agent's findings, evidence, and any Human Gate prompts. Adopt only the result you approve — workspace writes are opt-in." }
+          { "@type": "HowToStep", "name": "Let Agents collaborate", "text": "Use Auto Discussion for Agents to discuss, request peer contributions, carry out authorized work, and check results. Direct conversations and Concurrent Responses are also available." },
+          { "@type": "HowToStep", "name": "Decide and check results", "text": "Respond when the work needs information, permission, or a key decision. Check deliverables and request changes when needed. Workspace writes are opt-in." }
         ]
       }
     ]
@@ -163,14 +163,14 @@
     </div>
 
     <div class="hero-inner">
-      <p class="eyebrow" data-decrypt data-text="LOCAL-FIRST · GENERAL AGENT WORKSPACE">LOCAL-FIRST · GENERAL AGENT WORKSPACE</p>
+      <p class="eyebrow" data-decrypt data-text="LOCAL-FIRST · MULTI-AGENT COLLABORATION">LOCAL-FIRST · MULTI-AGENT COLLABORATION</p>
 
       <h1 class="headline" id="headline" data-split>
-        <span class="hl-line">General Agent Work,</span>
-        <span class="hl-line">Legible &amp; Accountable</span>
+        <span class="hl-line">Set the Goal.</span>
+        <span class="hl-line">Let Agents Work Together.</span>
       </h1>
 
-      <p class="subhead">Meldwork is a <strong>local-first General Agent workspace</strong> — coordinate research, analysis, writing, planning, review, and implementation across the Agent tools you already run. Shared task snapshots, independent findings, evidence-backed decisions, and a human adoption gate keep every Case inspectable.</p>
+      <p class="subhead">Meldwork is a <strong>local-first multi-Agent collaboration workspace</strong>. Your existing Agents share context, discuss approaches, carry out authorized work, and check results — with less relaying and coordinating from you. Set the goal and permissions, then step in when they need information or a key decision.</p>
 
       <div class="cta-row">
         <a class="cta-primary magnet" href="https://github.com/Ryder-Sun/Meldwork/releases/download/Meldwork-V1.0.6/Meldwork-0.1.6-arm64.dmg">
@@ -212,7 +212,7 @@
       <div class="stat">
         <span class="stat-glyph">#</span>
         <span class="stat-value"><span class="count" data-target="1" data-decimals="0">0</span></span>
-        <span class="stat-label">Human adoption gate</span>
+        <span class="stat-label">Shared task</span>
       </div>
     </div>
 
@@ -248,7 +248,7 @@
     <h2 class="section-title reveal" data-reveal>What is Meldwork?</h2>
     <div class="geo-bento">
       <article class="geo-tile geo-tile--def spotlight reveal" data-reveal style="--d:0s">
-        <p class="geo-def-text">Meldwork is a <span class="gradient-text">local-first General Agent workspace</span> for research, analysis, writing, planning, review, and implementation. It freezes task context, captures independent findings as evidence, and puts a <strong>human adoption gate</strong> before any workspace change.</p>
+        <p class="geo-def-text">Meldwork is a <span class="gradient-text">local-first multi-Agent collaboration workspace</span> for research, analysis, writing, planning, review, and implementation. Selected Agents advance the same task through discussion, authorized execution, and peer review. You set the boundaries and make <strong>key decisions when needed</strong>.</p>
       </article>
       <article class="geo-tile geo-tile--wide spotlight reveal" data-reveal style="--d:0.08s">
         <span class="geo-kicker">Supported agents</span>
@@ -261,14 +261,14 @@
         <p class="geo-fact-value">Direct · Concurrent Responses · Auto Discussion V4</p>
       </article>
       <article class="geo-tile geo-tile--wide spotlight reveal" data-reveal style="--d:0.24s">
-        <span class="geo-kicker">Review record</span>
+        <span class="geo-kicker">Working together</span>
         <div class="geo-chips">
-          <span class="geo-chip">Finding</span>
-          <span class="geo-chip"><i>→</i> Evidence</span>
-          <span class="geo-chip"><i>→</i> Decision</span>
-          <span class="geo-chip"><i>→</i> Disposition</span>
+          <span class="geo-chip">Discuss</span>
+          <span class="geo-chip"><i>→</i> Execute</span>
+          <span class="geo-chip"><i>→</i> Check</span>
+          <span class="geo-chip"><i>→</i> Refine</span>
         </div>
-        <p class="geo-fact-value">Attached to every result — dissent stays visible, never hidden behind a manager.</p>
+        <p class="geo-fact-value">Agents build on peer contributions and request the next steps, reducing manual coordination.</p>
       </article>
       <article class="geo-tile spotlight reveal" data-reveal style="--d:0.32s">
         <span class="geo-kicker">Runs on</span>
@@ -281,7 +281,7 @@
   <!-- ================= WORKFLOW ================= -->
   <section class="section workflow" id="workflow">
     <p class="eyebrow reveal" data-reveal>THE WORK CELL</p>
-    <h2 class="section-title reveal" data-reveal>Four steps from task to adopted result.</h2>
+    <h2 class="section-title reveal" data-reveal>Set up the task. Let the group move it forward.</h2>
     <div class="steps" data-steps>
       <svg class="step-line" viewBox="0 0 1200 8" preserveAspectRatio="none" aria-hidden="true">
         <defs>
@@ -306,13 +306,13 @@
       </div>
       <div class="step reveal" data-reveal style="--d:0.2s">
         <span class="step-num">03</span>
-        <h3>Run</h3>
-        <p>Direct, Concurrent Responses, or Auto Discussion V4 — from a single focused session to negotiated multi-round work.</p>
+        <h3>Collaborate</h3>
+        <p>Start Auto Discussion so Agents can discuss, request contributions, carry out authorized work, and check deliverables.</p>
       </div>
       <div class="step reveal" data-reveal style="--d:0.3s">
         <span class="step-num">04</span>
-        <h3>Review &amp; adopt</h3>
-        <p>Inspect findings, evidence, and any Human Gate before the workspace changes. Nothing writes itself.</p>
+        <h3>Decide &amp; check</h3>
+        <p>Step in for missing information, permissions, or key decisions. Check the deliverables and request changes when needed.</p>
       </div>
     </div>
   </section>
@@ -321,7 +321,7 @@
   <section class="section modes" id="modes">
     <p class="eyebrow reveal" data-reveal>COLLABORATION MODES</p>
     <h2 class="section-title reveal" data-reveal>Three ways agents work together.</h2>
-    <p class="section-sub reveal" data-reveal>Same Case, same evidence trail — different depth of agreement. Pick the mode that matches how much review the decision deserves.</p>
+    <p class="section-sub reveal" data-reveal>Work with one Agent, compare independent replies, or let a group advance a task together.</p>
     <div class="mode-grid">
       <article class="mode-card spotlight reveal" data-reveal style="--d:0s">
         <span class="mode-glyph-wrap"><span class="mode-glyph">&gt;</span></span>
@@ -338,35 +338,35 @@
       <article class="mode-card spotlight reveal" data-reveal style="--d:0.24s">
         <span class="mode-glyph-wrap"><span class="mode-glyph">#</span></span>
         <h3>Auto Discussion V4</h3>
-        <p>Agents propose, challenge, negotiate responsibilities, execute dependency-aware work, then verify the result.</p>
-        <span class="mode-best">Best for multi-round work with explicit responsibility.</span>
+        <p>Agents propose, discuss differences, request peer contributions, carry out authorized work, and check results.</p>
+        <span class="mode-best">Best for multi-step work with less manual coordination.</span>
       </article>
     </div>
   </section>
 
   <!-- ================= CAPABILITIES ================= -->
   <section class="section capabilities" id="capabilities">
-    <p class="eyebrow reveal" data-reveal>WHAT YOU CONTROL</p>
-    <h2 class="section-title reveal" data-reveal>Four guarantees that hold the work together.</h2>
-    <p class="section-sub reveal" data-reveal>These four invariants are what make multi-agent output reviewable instead of just decorative.</p>
+    <p class="eyebrow reveal" data-reveal>WHAT SUPPORTS THE WORK</p>
+    <h2 class="section-title reveal" data-reveal>Less coordinating. More work moving forward.</h2>
+    <p class="section-sub reveal" data-reveal>Shared context and peer contributions help Agents advance the task. You keep control of the boundaries and key decisions.</p>
     <div class="cap-grid">
       <article class="cap-card spotlight tilt reveal" data-reveal style="--d:0s">
         <div class="cap-icon"><span class="cap-gate"></span></div>
-        <h3>Human Gate</h3>
-        <p>Workspace writes are opt-in. Nothing changes until <em>you</em> adopt the result — agents don't.</p>
-        <span class="cap-tag">Opt-in workflow controls</span>
+        <h3>You Set the Boundaries</h3>
+        <p>Choose the goal and permissions. Workspace writes are opt-in; requests for information or key decisions come back to you.</p>
+        <span class="cap-tag">Decide when needed</span>
       </article>
       <article class="cap-card spotlight tilt reveal" data-reveal style="--d:0.08s">
         <div class="cap-icon"><span class="cap-snap"></span></div>
-        <h3>Frozen Context</h3>
-        <p>Every run starts from a snapshot. All selected Agents see the same brief, in stable order.</p>
-        <span class="cap-tag">Case-scoped, reproducible</span>
+        <h3>Shared Context</h3>
+        <p>Agents start from the same task snapshot and receive peer contributions as discussion progresses.</p>
+        <span class="cap-tag">Less context relaying</span>
       </article>
       <article class="cap-card spotlight tilt reveal" data-reveal style="--d:0.16s">
         <div class="cap-icon"><span class="cap-trail"></span></div>
-        <h3>Evidence Trail</h3>
-        <p>Finding → Evidence → Decision → Disposition, attached to each result. Dissent stays visible.</p>
-        <span class="cap-tag">No hidden manager</span>
+        <h3>Agents Advance the Work</h3>
+        <p>Agents request peer input, continue authorized work, and review deliverables. Revisit replies and run status when you need to.</p>
+        <span class="cap-tag">Contribute, check, refine</span>
       </article>
       <article class="cap-card spotlight tilt reveal" data-reveal style="--d:0.24s">
         <div class="cap-icon"><span class="cap-lock"></span></div>
@@ -380,8 +380,8 @@
   <!-- ================= SCENARIO (animated stepper) ================= -->
   <section class="section scenario" id="scenario">
     <p class="eyebrow reveal" data-reveal>INSIDE A REAL RUN</p>
-    <h2 class="section-title reveal" data-reveal>Launch Readiness Council — three rounds, one gate.</h2>
-    <p class="section-sub reveal" data-reveal>Below: the actual evidence from a V1.0.3 session where Codex, Hermes, and OpenCodeReview reviewed a private-beta release decision. Scroll or wait — the timeline advances on its own.</p>
+    <h2 class="section-title reveal" data-reveal>A release review, from proposals to a user decision.</h2>
+    <p class="section-sub reveal" data-reveal>Historical V1.0.3 session excerpts: Codex, Hermes, and OpenCodeReview discussed a private-beta release, with the user steering a key tradeoff. This example shows discussion and human input, rather than an end-to-end execution task.</p>
 
     <div class="scenario-stage reveal" data-reveal data-scenario>
       <div class="mac-titlebar">
@@ -461,7 +461,7 @@
   <!-- ================= PRODUCT SCREENSHOTS (CardSwap) ================= -->
   <section class="section product" id="product">
     <p class="eyebrow reveal" data-reveal>INSIDE THE WORK CELL</p>
-    <h2 class="section-title reveal" data-reveal>Inspectable from discovery to adoption.</h2>
+    <h2 class="section-title reveal" data-reveal>One workspace for the group and its work.</h2>
     <div class="card-swap-stage reveal" data-reveal>
       <div class="card-swap-info">
         <div class="cs-info-item is-active" data-cs-info="0">
@@ -470,15 +470,15 @@
         </div>
         <div class="cs-info-item" data-cs-info="1">
           <h3>Multi-agent review</h3>
-          <p>Findings, evidence, and adoption decisions live in one Case. Dissent stays visible — never hidden behind a manager.</p>
+          <p>Agents compare approaches and check each other's contributions in the same task context.</p>
         </div>
         <div class="cs-info-item" data-cs-info="2">
           <h3>Auto Discussion V4</h3>
-          <p>Propose, negotiate, verify — across rounds. Every Agent's position is preserved for later review.</p>
+          <p>Agents discuss, request contributions, and advance authorized work across rounds. Step in when a decision needs you.</p>
         </div>
         <div class="cs-info-item" data-cs-info="3">
           <h3>Direct mode</h3>
-          <p>One Agent, its native session preserved. Focused work with the full evidence trail still attached.</p>
+          <p>Work with one Agent and continue its native session when supported. Keep the conversation and results together.</p>
         </div>
       </div>
       <div class="card-swap-3d" data-card-swap>
@@ -488,7 +488,7 @@
             <div class="cs-caption">Local Agent discovery</div>
           </div>
           <div class="cs-card" data-card-idx="1">
-            <img src="assets/screenshots/meldwork-multi-agent-review.png" alt="Multi-agent review with evidence and human review" loading="lazy" />
+            <img src="assets/screenshots/meldwork-multi-agent-review.png" alt="Agents discussing and reviewing a shared task" loading="lazy" />
             <div class="cs-caption">Multi-agent review</div>
           </div>
           <div class="cs-card" data-card-idx="2">
@@ -502,7 +502,7 @@
         </div>
       </div>
     </div>
-    <p class="product-foot reveal" data-reveal>Example: give Codex, Claude Code, and Gemini CLI the same task — review a PR, analyze a bug, or compare implementation approaches. Meldwork freezes the task context, sends it to all three agents, captures their independent findings as evidence, and lets you adopt only the result you approve. No manual context copying between terminals.</p>
+    <p class="product-foot reveal" data-reveal>Try a task such as reviewing a PR, analyzing a bug, or drafting a plan. Choose compatible Agents, give them shared context, and start Auto Discussion. They can compare approaches, request further work, and check deliverables. Authorize workspace writes when implementation is needed, and respond when they need a key decision.</p>
   </section>
 
   <!-- ================= WHY / DIFFER ================= -->
@@ -510,25 +510,25 @@
     <div class="why-grid">
       <div class="why-left">
         <p class="eyebrow reveal" data-reveal>HOW MELDWORK DIFFERS</p>
-        <h2 class="section-title reveal" data-reveal>A General Agent workspace, not another terminal runner.</h2>
-        <p class="section-sub reveal" data-reveal>Meldwork is a <strong>local-first General Agent workspace</strong> for macOS. Coordinate research, analysis, writing, planning, review, and implementation across the Agent tools you already run, with no manual context copying between terminals.</p>
+        <h2 class="section-title reveal" data-reveal>Spend less time managing the handoffs.</h2>
+        <p class="section-sub reveal" data-reveal>Meldwork brings the Agent tools you already run into a <strong>local-first collaboration workspace</strong>. Let the group discuss and advance the task, while you focus on the goal, boundaries, and key decisions.</p>
       </div>
       <ul class="why-list">
         <li class="reveal" data-reveal style="--d:0s">
-          <h3>Finding → Evidence → Decision → Disposition</h3>
-          <p>Dissent stays visible. Disagreement, re-checks, and adoption records are tracked — never hidden behind a central manager.</p>
+          <h3>Agents coordinate the next contribution</h3>
+          <p>Agents can request a peer's input or review, and the delivery owner judges whether more work or a user decision is needed.</p>
         </li>
         <li class="reveal" data-reveal style="--d:0.08s">
-          <h3>Human Gate before workspace writes</h3>
-          <p>Workspace writes are opt-in workflow controls. You adopt the result — the agents don't.</p>
+          <h3>Authorized execution and peer review</h3>
+          <p>Enable workspace writes for implementation tasks. Agents can carry out work within that scope and ask peers to check the deliverables.</p>
         </li>
         <li class="reveal" data-reveal style="--d:0.16s">
           <h3>Local-first boundaries</h3>
           <p>Runs in your Electron work cell with existing CLIs. No cloud Agent fleet, no required server, conversations stay local.</p>
         </li>
         <li class="reveal" data-reveal style="--d:0.24s">
-          <h3>Frozen context, independent judgment</h3>
-          <p>Case-scoped independent judgments with evidence-backed decisions — not terminal count or worktree throughput.</p>
+          <h3>Shared context and local history</h3>
+          <p>Keep the brief, peer replies, run state, and deliverables together so you can revisit progress and continue the work.</p>
         </li>
       </ul>
     </div>
@@ -537,8 +537,8 @@
   <!-- ================= COMPARISON TABLE ================= -->
   <section class="section compare" id="compare">
     <p class="eyebrow reveal" data-reveal>WHERE MELDWORK FITS</p>
-        <h2 class="section-title reveal" data-reveal>How Meldwork compares to other Agent workspaces.</h2>
-    <p class="section-sub reveal" data-reveal>A condensed map of how Meldwork positions itself next to terminal runners, cloud fleets, communication networks, and framework-based orchestrators like CrewAI, LangGraph, and Claude Code Agent Teams. Full per-project comparison lives in the <a href="https://github.com/Ryder-Sun/Meldwork#how-meldwork-differs" target="_blank" rel="noopener">README ↗</a>.</p>
+        <h2 class="section-title reveal" data-reveal>Where task collaboration fits in your workflow.</h2>
+    <p class="section-sub reveal" data-reveal>Meldwork focuses on shared tasks across the local Agent tools you choose. Here is how that focus relates to other ways of organizing Agent work.</p>
 
     <div class="cmp-table reveal" data-reveal role="table">
       <div class="cmp-row cmp-head" role="row">
@@ -547,28 +547,28 @@
         <div role="columnheader">Meldwork's difference</div>
       </div>
       <div class="cmp-row" role="row">
-        <div role="cell" class="cmp-cat">Terminal / IDE runners<br><small>tmux, zellij, Claude Code, Codex CLI</small></div>
-        <div role="cell">Run a command, view output, navigate worktrees. Manual context copying between agents.</div>
-        <div role="cell">Adds evidence-backed review, frozen task snapshots, and a human adoption gate on top of the same CLIs.</div>
+        <div role="cell" class="cmp-cat">Individual Agent sessions</div>
+        <div role="cell">Work with an Agent through its own interface and tools.</div>
+        <div role="cell">Bring selected CLIs into a shared task where Agents can discuss and request peer contributions.</div>
       </div>
       <div class="cmp-row" role="row">
-        <div role="cell" class="cmp-cat">Cloud Agent fleets<br><small>Devin, Factory, OpenHands Cloud</small></div>
-        <div role="cell">Hosted sandboxes, remote execution, multi-tenant routing.</div>
+        <div role="cell" class="cmp-cat">Hosted Agent execution</div>
+        <div role="cell">Run work in a remotely managed environment.</div>
         <div role="cell">Local Electron desktop app using the CLIs already installed on your machine.</div>
       </div>
       <div class="cmp-row" role="row">
-        <div role="cell" class="cmp-cat">Agent communication networks<br><small>Buzz, MCP Agent Mail</small></div>
-        <div role="cell">Identity, channels, events, persistent collaboration.</div>
-        <div role="cell">Case-scoped independent judgments, each attached to evidence and a Decision / Disposition.</div>
+        <div role="cell" class="cmp-cat">Agent messaging</div>
+        <div role="cell">Exchange messages and events between participants.</div>
+        <div role="cell">Connect discussion to authorized execution, deliverable review, and task progress decisions.</div>
       </div>
       <div class="cmp-row" role="row">
-        <div role="cell" class="cmp-cat">Parallel coding workspaces<br><small>Conductor, Claude Squad, amux, Emdash</small></div>
-        <div role="cell">Multiple workspaces, parallel Agents, and merge queues.</div>
-        <div role="cell">Review across heterogeneous CLIs — not just worktree throughput or parallel execution.</div>
+        <div role="cell" class="cmp-cat">Parallel workspaces</div>
+        <div role="cell">Organize separate tasks or branches running at the same time.</div>
+        <div role="cell">Let different Agent CLIs build on each other's contributions to the same task.</div>
       </div>
       <div class="cmp-row" role="row">
-        <div role="cell" class="cmp-cat">Multi-Agent frameworks<br><small>CrewAI, LangGraph, AutoGen, Claude Code Agent Teams</small></div>
-        <div role="cell">Graphs, routing, approvals, and DSLs you build yourself. Agent Teams only works within Claude Code.</div>
+        <div role="cell" class="cmp-cat">Custom orchestration</div>
+        <div role="cell">Build and maintain your own task routing and collaboration logic.</div>
         <div role="cell">A ready-to-use desktop workflow across 12+ heterogeneous CLIs — no orchestration framework to assemble.</div>
       </div>
     </div>
@@ -582,9 +582,9 @@
       <div class="bnd-col reveal" data-reveal style="--d:0s">
         <h3><span class="bnd-glyph bnd-yes"></span> Is</h3>
         <ul>
-          <li>A local-first Electron app for desktop review workflows.</li>
-          <li>A work cell that orchestrates the Agent CLIs you already have.</li>
-          <li>An evidence-first review record (Finding → Evidence → Decision → Disposition).</li>
+          <li>A local-first desktop workspace for multi-Agent collaboration.</li>
+          <li>A working group built from the Agent CLIs you select.</li>
+          <li>Shared context, authorized execution, peer review, and local run history.</li>
           <li>Workspace writes as opt-in workflow controls.</li>
           <li>Source-available under the Meldwork Non-Commercial Source License 1.0.</li>
         </ul>
@@ -594,7 +594,7 @@
         <ul>
           <li>Not a hosted Agent fleet or general Agent framework.</li>
           <li>Not automatic participant selection from a larger roster.</li>
-          <li>Not enterprise SSO / RBAC / governance tooling.</li>
+          <li>Not a guarantee that every task finishes without your input.</li>
           <li>Not an operating-system sandbox — writes happen through your shell.</li>
           <li>Not fully offline — a selected Agent may send prompts to its own CLI provider.</li>
         </ul>
@@ -615,7 +615,7 @@
             <span class="acc-icon" aria-hidden="true"></span>
           </button>
           <div class="acc-panel">
-            <p>Meldwork is a <strong>local-first General Agent workspace</strong> for macOS. It coordinates the Agent tools you already run from one workspace for research, analysis, writing, planning, review, and implementation. Meldwork freezes one task snapshot, captures independent findings as evidence, and puts a human adoption gate before any workspace change.</p>
+            <p>Meldwork is a <strong>local-first multi-Agent collaboration workspace</strong> for macOS. It brings your existing Agents into one working group to share context, discuss approaches, carry out authorized work, and check results. You choose the participants, set goals and permissions, and step in when information or key decisions are needed.</p>
           </div>
         </li>
         <li class="acc-item reveal" data-reveal style="--d:0.06s">
@@ -624,7 +624,7 @@
             <span class="acc-icon" aria-hidden="true"></span>
           </button>
           <div class="acc-panel">
-            <p>No, not by itself. Meldwork runs locally in your Electron work cell. Selected Agents send prompts, attachments, or Skills to <em>their own</em> CLI provider — but Meldwork itself is a local review UI, not a cloud relay. Conversations stay on your machine.</p>
+            <p>Meldwork stores conversations and coordinates work locally. Selected Agents may send prompts, attachments, or Skills to the model provider configured in <em>their own</em> CLI. Local-first describes where Meldwork stores and coordinates the work; it does not mean the model runs offline.</p>
           </div>
         </li>
         <li class="acc-item reveal" data-reveal style="--d:0.06s">
@@ -642,7 +642,7 @@
             <span class="acc-icon" aria-hidden="true"></span>
           </button>
           <div class="acc-panel">
-            <p>Selected Agents independently propose, then critique with evidence, negotiate responsibilities, execute dependency-aware work, and verify the result. Every round is preserved — you can read the full Case later and adopt only the parts you approve.</p>
+            <p>Selected Agents start with independent proposals, then discuss differences, request peer contributions, carry out authorized work, and check deliverables. A delivery owner judges progress and whether more work or a user decision is needed. You do not need to direct every round, but missing information, permissions, or key decisions can still require your input.</p>
           </div>
         </li>
         <li class="acc-item reveal" data-reveal style="--d:0.18s">
@@ -651,7 +651,16 @@
             <span class="acc-icon" aria-hidden="true"></span>
           </button>
           <div class="acc-panel">
-            <p>A terminal runs <em>one</em> Agent at a time and shows raw output. tmux or zellij can show multiple agents side by side but require manual context copying between them. Meldwork scopes a single task across multiple agents, sends the same frozen snapshot to each, captures their independent findings as evidence, and keeps the human adoption decision visible as a first-class artifact. It also works across heterogeneous CLIs — you can mix Codex, Claude Code, Hermes, and OpenCode in one workspace, unlike Claude Code Agent Teams which only works within Claude Code.</p>
+            <p>Meldwork adds task-level collaboration across selected Agent CLIs: shared context, peer discussion, requests for further contributions, authorized execution, and review of deliverables. This reduces the work of relaying replies and coordinating next steps yourself. Collaboration history and run state stay local so you can revisit progress and blockers.</p>
+          </div>
+        </li>
+        <li class="acc-item reveal" data-reveal style="--d:0.21s">
+          <button type="button" class="acc-trigger" aria-expanded="false">
+            <span>Do I still need to intervene?</span>
+            <span class="acc-icon" aria-hidden="true"></span>
+          </button>
+          <div class="acc-panel">
+            <p>You choose the Agents, goal, context, and permissions. Auto Discussion lets Agents advance the work without you directing each turn, but missing information, permission requests, or key tradeoffs may require your input. Workspace writes are opt-in. Check important deliverables before using them; peer review does not guarantee correctness.</p>
           </div>
         </li>
         <li class="acc-item reveal" data-reveal style="--d:0.24s">
@@ -678,14 +687,14 @@
   <!-- ================= VELOCITY MARQUEE ================= -->
   <div class="velocity" data-velocity aria-hidden="true">
     <div class="velocity-track">
-      <span>LEGIBLE</span><i>·</i><span>ACCOUNTABLE</span><i>·</i><span>REUSABLE</span><i>·</i>
-      <span>LEGIBLE</span><i>·</i><span>ACCOUNTABLE</span><i>·</i><span>REUSABLE</span><i>·</i>
+      <span>DISCUSS</span><i>·</i><span>EXECUTE</span><i>·</i><span>REFINE</span><i>·</i>
+      <span>DISCUSS</span><i>·</i><span>EXECUTE</span><i>·</i><span>REFINE</span><i>·</i>
     </div>
   </div>
 
   <!-- ================= CTA / FOOTER ================= -->
   <footer class="cta-final" id="download">
-    <h2 class="final-title" data-split>Coordinate your agents. Keep the evidence.</h2>
+    <h2 class="final-title" data-split>Set the goal. Let Agents work together.</h2>
     <p class="final-sub">V1.0.6 improves Agent recovery, keeps group discussions going through individual failures, delivers group attachments and knowledge sources, and highlights conversations awaiting your decision. <a href="https://github.com/Ryder-Sun/Meldwork/releases/tag/Meldwork-V1.0.6" target="_blank" rel="noopener">Read the release notes ↗</a></p>
     <div class="cta-row">
       <a class="cta-primary magnet" href="https://github.com/Ryder-Sun/Meldwork/releases/download/Meldwork-V1.0.6/Meldwork-0.1.6-arm64.dmg">

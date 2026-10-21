@@ -1,12 +1,5 @@
 <template>
-  <section class="system-settings-page">
-    <header class="system-settings-header">
-      <div>
-        <h1>{{ t('systemSettings.title') }}</h1>
-        <p>{{ t('systemSettings.subtitle') }}</p>
-      </div>
-    </header>
-
+  <section class="system-settings-page" :aria-label="t('systemSettings.title')">
     <div class="system-settings-body">
       <nav class="settings-tabs" role="tablist" :aria-label="t('systemSettings.title')">
         <button

@@ -110,15 +110,15 @@ describe('Meldwork workbench', () => {
     await wrapper.get('.sidebar-settings-entry').trigger('click')
     expect(wrapper.findAll('.agent-card')).toHaveLength(AGENTS.length)
     expect(wrapper.get('.agent-manager').text()).toContain('OpenCodeReview')
-    expect(wrapper.get('.system-settings-header h1').text()).toBe('Settings')
-    expect(wrapper.get('.system-settings-header p').text()).toContain('knowledge bases')
+    expect(wrapper.get('.system-settings-page').attributes('aria-label')).toBe('Settings')
+    expect(wrapper.find('.system-settings-header').exists()).toBe(false)
     expect(wrapper.get('.sidebar-settings-entry').attributes('aria-current')).toBe('page')
     expect(wrapper.get('.brand-button').attributes()).not.toHaveProperty('aria-current')
 
     const controls = wrapper.findAll('.titlebar-preferences button')
     await controls[0].trigger('click')
-    expect(wrapper.get('.system-settings-header h1').text()).toBe('设置')
-    expect(wrapper.get('.system-settings-header p').text()).toContain('知识库')
+    expect(wrapper.get('.system-settings-page').attributes('aria-label')).toBe('设置')
+    expect(wrapper.find('.system-settings-header').exists()).toBe(false)
 
     await controls[1].trigger('click')
     expect(document.documentElement.dataset.theme).toBe('dark')
@@ -325,7 +325,7 @@ describe('Meldwork workbench', () => {
 
     await vi.advanceTimersByTimeAsync(2_800)
     await flushPromises()
-    expect(wrapper.get('.conversation-empty-copy').text()).toContain('再把 Agent 们叫到一起')
+    expect(wrapper.get('.conversation-empty-copy').text()).toContain('提出目标，让 Agent 们协作完成')
 
     await wrapper.findAll('.titlebar-preferences button')[1].trigger('click')
     expect(wrapper.get('.conversation-empty-wordmark').attributes('src')).toBe('./logos/meldwork-wordmark-v3-dark.svg')
@@ -496,12 +496,14 @@ describe('Meldwork workbench', () => {
 
   it('collapses the sidebar while keeping Agent logos and workspace preferences available', async () => {
     const { wrapper } = await mountApp()
+    // The fixture installs WorkBuddy but has no usable WorkBuddy runtime.
+    const visibleCount = AGENTS.length - 1
 
     expect(wrapper.find('.brand-actions').exists()).toBe(false)
     expect(wrapper.findAll('.titlebar-preferences button')).toHaveLength(2)
     expect(wrapper.findAll('.titlebar-preferences .preference-icon-frame')).toHaveLength(2)
     expect(wrapper.findAll('.nav-heading svg')).toHaveLength(0)
-    expect(wrapper.findAll('.sidebar-agent-main img')).toHaveLength(AGENTS.length)
+    expect(wrapper.findAll('.sidebar-agent-main img')).toHaveLength(visibleCount)
     const [agentsToggle, groupsToggle] = wrapper.findAll('.nav-heading')
     expect(agentsToggle.attributes('aria-expanded')).toBe('true')
     await agentsToggle.trigger('click')
@@ -513,12 +515,12 @@ describe('Meldwork workbench', () => {
     await groupsToggle.trigger('click')
     expect(wrapper.get('#sidebar-group-list').exists()).toBe(true)
     await agentsToggle.trigger('click')
-    expect(wrapper.findAll('.sidebar-agent-main img')).toHaveLength(AGENTS.length)
+    expect(wrapper.findAll('.sidebar-agent-main img')).toHaveLength(visibleCount)
 
     await wrapper.get('.sidebar-toggle').trigger('click')
     expect(wrapper.get('.app-shell').classes()).toContain('sidebar-collapsed')
     expect(wrapper.get('.sidebar').classes()).toContain('collapsed')
-    expect(wrapper.findAll('.sidebar-agent-main img')).toHaveLength(AGENTS.length)
+    expect(wrapper.findAll('.sidebar-agent-main img')).toHaveLength(visibleCount)
 
     await wrapper.get('.sidebar-toggle').trigger('click')
     expect(wrapper.get('.app-shell').classes()).not.toContain('sidebar-collapsed')
@@ -1894,7 +1896,7 @@ describe('Meldwork workbench', () => {
       Object.assign(state.agents.find(agent => agent.kind === 'hermes'), {
         available: false,
         credentialState: 'missing',
-        showInSidebar: false,
+        showInSidebar: true,
       })
       state.groups.push({
         id: 'direct-hermes',
