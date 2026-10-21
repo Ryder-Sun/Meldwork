@@ -127,4 +127,4 @@ V1.0.6 改进了长驻 Agent 的恢复能力，让群组讨论在个别成员失
 
 ## 许可证
 
-Meldwork 采用 [Meldwork 非商用源码许可 1.0](LICENSE)。你可以出于非商业目的查看、运行、修改和分享。商业使用需要事先书面许可，详见 [COMMERCIAL_USE.md](COMMERCIAL_USE.md)。
+Meldwork 以 [Apache License 2.0](LICENSE) 开源。在许可证条款范围内，可以商用、私用、修改和再分发。许可证不授予 Meldwork 名称、标志和其他品牌素材的使用权，详见 [COMMERCIAL_USE.md](COMMERCIAL_USE.md)。

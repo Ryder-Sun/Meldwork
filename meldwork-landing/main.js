@@ -29,6 +29,7 @@
     if (!el || el.dataset.splitDone) return 1;
     el.dataset.splitDone = "1";
     var lines = el.querySelectorAll(".hl-line, [data-split-line]");
+    if (!lines.length) lines = [el];
     var globalIndex = 0;
     var baseDelay = parseFloat(el.dataset.splitDelay || "0.04");
     lines.forEach(function (line) {
@@ -36,7 +37,9 @@
       var raw = line.textContent;
       line.textContent = "";
       // Preserve words so spacing stays right; per-char inside each word.
-      var words = raw.split(/(\s+)/);
+      var words = doc.documentElement.lang === "zh-CN"
+        ? raw.match(/[A-Za-z0-9]+|[^\sA-Za-z0-9]|\s+/g) || []
+        : raw.split(/(\s+)/);
       words.forEach(function (token) {
         if (/^\s+$/.test(token)) {
           line.appendChild(document.createTextNode(token));
@@ -94,6 +97,15 @@
     }
   }
 
+  doc.addEventListener("meldwork:localechange", function () {
+    [headline, finalTitle].forEach(function (el) {
+      if (!el) return;
+      delete el.dataset.splitDone;
+      splitText(el);
+      el.classList.add("play");
+    });
+  });
+
   /* =========================================================
      2. DECRYPTED TEXT — scramble the eyebrow on entrance
      ========================================================= */
@@ -109,6 +121,7 @@
     var duration = 900;
     var start = performance.now();
     function frame(now) {
+      if (el.dataset.text && el.dataset.text !== target) return;
       var p = Math.min((now - start) / duration, 1);
       var revealCount = Math.floor(target.length * p);
       var out = "";
@@ -308,92 +321,103 @@
   /* =========================================================
      9. SCENARIO STEPPER — auto-cycle the timeline
      ========================================================= */
-    var scenario = doc.querySelector("[data-scenario]");
+  var scenario = doc.querySelector("[data-scenario]");
   if (scenario) {
     var steps = scenario.querySelectorAll(".t-step");
     var total = steps.length;
     var current = 0;
     var isInView = false;
+    var hovered = false;
+    var focused = false;
+    var paused = false;
     var autoTimer = null;
-    var autoDelay = 1600;
-    var scnMode = "auto"; // "auto" = step-by-step playback, "order" = full transcript
+    var scnMode = reduced ? "order" : "auto";
     var railFill = scenario.querySelector("[data-rail]");
     var railStatus = scenario.querySelector("[data-status]");
     var roundLabel = scenario.querySelector("[data-round]");
-    var roundNames = [
-      "Round 1 · Propose",
-      "Round 1 · Critique",
-      "Round 2 · Propose",
-      "Round 2 · Reconcile",
-      "Adoption · Human Gate"
-    ];
-
-    function setStep(idx, revealAll) {
-      current = (idx + total) % total;
-      steps.forEach(function (s, i) {
-        if (revealAll || i <= current) s.classList.add("is-visible");
-        else s.classList.remove("is-visible");
-        s.classList.toggle("is-active", i === current);
-      });
-      if (railFill) railFill.style.height = (((current + 1) / total) * 100) + "%";
-      if (railStatus) railStatus.textContent = (current + 1) + " / " + total;
-      if (roundLabel) roundLabel.textContent = roundNames[current];
-    }
-    function startAuto() {
-      stopAuto();
-      autoTimer = setInterval(function () {
-        setStep(current + 1);
-      }, autoDelay);
-    }
-    function stopAuto() { if (autoTimer) { clearInterval(autoTimer); autoTimer = null; } }
-
-    scenario.querySelector("[data-prev]").addEventListener("click", function () {
-      setStep(current - 1); startAuto();
-    });
-    scenario.querySelector("[data-next]").addEventListener("click", function () {
-      setStep(current + 1); startAuto();
-    });
-    scenario.addEventListener("mouseenter", stopAuto);
-    scenario.addEventListener("mouseleave", function () {
-      if (isInView && scnMode === "auto") startAuto();
-    });
-
-    // macOS segmented control — Auto vs Sequence
+    var pauseButton = scenario.querySelector("[data-pause]");
     var segBtns = scenario.querySelectorAll(".seg-btn");
+    var roundNames = ["Round 1 · Propose", "Round 1 · Critique", "Round 2 · Review",
+      "Round 2 · Reconcile", "Adoption · Human Gate"];
+    function translate(text) { return win.meldworkI18n.t(text); }
+
+    function setStep(idx) {
+      current = Math.max(0, Math.min(total - 1, idx));
+      steps.forEach(function (step, i) {
+        step.classList.toggle("is-visible", i <= current);
+        step.classList.toggle("is-active", i === current);
+        if (i === current) step.setAttribute("aria-current", "step");
+        else step.removeAttribute("aria-current");
+      });
+      var node = steps[current].querySelector(".t-node");
+      if (railFill) railFill.style.height = (steps[current].offsetTop + node.offsetTop + node.offsetHeight / 2) + "px";
+      if (railStatus) railStatus.textContent = (current + 1) + " / " + total;
+      if (roundLabel) roundLabel.textContent = translate(roundNames[current]);
+      scenario.querySelector("[data-prev]").disabled = current === 0;
+      scenario.querySelector("[data-next]").disabled = current === total - 1;
+      pauseButton.textContent = translate(current === total - 1 ? "Replay" : paused ? "Resume" : "Pause");
+      pauseButton.setAttribute("aria-pressed", String(paused));
+    }
+    function stopAuto() {
+      clearTimeout(autoTimer);
+      autoTimer = null;
+      scenario.dataset.playback = "paused";
+    }
+    function scheduleNext() {
+      stopAuto();
+      if (!isInView || hovered || focused || paused || reduced || doc.hidden || scnMode !== "auto" || current === total - 1) return;
+      scenario.dataset.playback = "playing";
+      // Allow time to read each contribution. Language switches preserve the step.
+      var length = steps[current].querySelector("p").textContent.length;
+      var delay = doc.documentElement.lang === "zh-CN" ? Math.max(7000, length * 90) : Math.max(7000, length * 32);
+      autoTimer = setTimeout(function () { setStep(current + 1); scheduleNext(); }, delay);
+    }
+    function manualStep(idx) { paused = true; setStep(idx); scheduleNext(); }
+    scenario.querySelector("[data-prev]").addEventListener("click", function () { manualStep(current - 1); });
+    scenario.querySelector("[data-next]").addEventListener("click", function () { manualStep(current + 1); });
+    pauseButton.addEventListener("click", function () {
+      if (current === total - 1) { paused = false; setStep(0); }
+      else { paused = !paused; setStep(current); }
+      scheduleNext();
+    });
+    scenario.addEventListener("mouseenter", function () { hovered = true; stopAuto(); });
+    scenario.addEventListener("mouseleave", function () { hovered = false; scheduleNext(); });
+    scenario.addEventListener("focusin", function () { focused = true; stopAuto(); });
+    scenario.addEventListener("focusout", function (event) {
+      focused = scenario.contains(event.relatedTarget);
+      scheduleNext();
+    });
+    scenario.addEventListener("keydown", function (event) {
+      if (scnMode !== "auto" || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+      manualStep(event.key === "Home" ? 0 : event.key === "End" ? total - 1 : current + (event.key === "ArrowRight" ? 1 : -1));
+    });
     function setMode(mode) {
       scnMode = mode;
       scenario.classList.toggle("is-order", mode === "order");
-      segBtns.forEach(function (b) {
-        b.classList.toggle("is-on", b.dataset.mode === mode);
+      segBtns.forEach(function (button) {
+        var selected = button.dataset.mode === mode;
+        button.classList.toggle("is-on", selected);
+        button.setAttribute("aria-pressed", String(selected));
       });
-      if (mode === "order") {
-        stopAuto();
-        setStep(total - 1, true); // full transcript, rail at 100%, gate highlighted
-      } else {
-        setStep(0);
-        if (isInView && !reduced) startAuto();
-      }
+      setStep(current);
+      scheduleNext();
     }
-    segBtns.forEach(function (b) {
-      b.addEventListener("click", function () { setMode(b.dataset.mode); });
+    segBtns.forEach(function (button) {
+      button.addEventListener("click", function () { setMode(button.dataset.mode); });
     });
-
+    doc.addEventListener("visibilitychange", scheduleNext);
+    doc.addEventListener("meldwork:localechange", function () { setStep(current); scheduleNext(); });
+    if ("ResizeObserver" in win) {
+      new ResizeObserver(function () { setStep(current); }).observe(scenario.querySelector(".timeline"));
+    }
     if ("IntersectionObserver" in win) {
-      var scnObs = new IntersectionObserver(function (entries) {
-        entries.forEach(function (entry) {
-          isInView = entry.isIntersecting;
-          if (isInView) {
-            if (scnMode === "auto") {
-              setStep(0);
-              if (!reduced) startAuto();
-            } else {
-              setStep(total - 1, true);
-            }
-          } else stopAuto();
-        });
-      }, { threshold: 0.25 });
-      scnObs.observe(scenario);
-    } else setStep(0);
+      new IntersectionObserver(function (entries) {
+        isInView = entries[0].isIntersecting;
+        scheduleNext();
+      }, { threshold: 0.15 }).observe(scenario);
+    } else isInView = true;
+    setMode(scnMode);
   }
 
   /* =========================================================
@@ -868,6 +892,7 @@
       var darkSrc = img.getAttribute("data-dark-src");
       img.setAttribute("src", t === "light" ? lightSrc : darkSrc);
     });
+    doc.dispatchEvent(new CustomEvent("meldwork:themechange"));
   }
 
   // Dark is the default theme — always start dark; the toggle

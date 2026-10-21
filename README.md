@@ -127,4 +127,4 @@ Release verification includes 357/357 frontend tests, 1,603/1,603 desktop tests,
 
 ## License
 
-Meldwork is source-available under the [Meldwork Non-Commercial Source License 1.0](LICENSE). You may inspect, run, modify, and share it for non-commercial purposes. Commercial use requires prior written permission; see [COMMERCIAL_USE.md](COMMERCIAL_USE.md).
+Meldwork is open source under the [Apache License 2.0](LICENSE). Commercial use, private use, modification, and redistribution are permitted under the license terms. The license does not grant rights to the Meldwork name, logo, or other brand assets; see [COMMERCIAL_USE.md](COMMERCIAL_USE.md).
