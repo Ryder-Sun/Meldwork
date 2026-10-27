@@ -253,6 +253,8 @@ export function useComposerContext({
   // was typed. Attachments and mentions are still reset: they are tied to the
   // conversation's members and to files staged for it.
   const draftsByGroupId = new Map()
+  const modesByGroupId = new Map()
+  let contextGroupId = ''
 
   function stashComposerDraft(groupId) {
     const id = String(groupId || '')
@@ -269,10 +271,14 @@ export function useComposerContext({
   function pruneComposerDrafts(groupIds) {
     const live = new Set((Array.isArray(groupIds) ? groupIds : []).map(String))
     for (const id of draftsByGroupId.keys()) if (!live.has(id)) draftsByGroupId.delete(id)
+    for (const id of modesByGroupId.keys()) if (!live.has(id)) modesByGroupId.delete(id)
   }
 
   function resetComposerContext(group) {
-    discussionMode.value = group?.conversationType === 'direct' ? 'manual' : 'auto'
+    if (contextGroupId) modesByGroupId.set(contextGroupId, discussionMode.value)
+    contextGroupId = String(group?.id || '')
+    discussionMode.value = group?.conversationType === 'direct'
+      ? 'manual' : modesByGroupId.get(contextGroupId) || 'auto'
     automaticTeamFormation.value = false
     targetKinds.value = group?.conversationType === 'direct' ? [...group.agentKinds] : []
     clearComposerContext()

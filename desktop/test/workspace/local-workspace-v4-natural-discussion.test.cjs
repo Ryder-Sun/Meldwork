@@ -50,6 +50,36 @@ function decisionReply(text, status = 'completed', extra = {}) {
   })}]]`
 }
 
+test('a native repetition failure preserves the partial proposal through reload', { timeout: 10000 }, async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const entered = deferred()
+  const release = deferred()
+  options.naturalAgentResponses = true
+  options.runAgent = async (agent, _prompt, _workdir, runOptions) => {
+    if (agent.kind === 'codex') return { text: 'Independent analysis completed.', outcome: 'completed' }
+    runOptions.onEvent({ type: 'answer_delta', status: 'running', delta: '已完成的初步研究结果。' })
+    entered.resolve()
+    await release.promise
+    throw new Error('LOCAL_AGENT_REPEATED_OUTPUT')
+  }
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Repetition failure', agentKinds: ['codex', 'hermes'], workdir: directory })
+  const sending = workspace.sendMessage({ groupId: group.id, text: 'Research', mode: 'auto', protocol: 'v4',
+    targetKinds: group.agentKinds, discussionStyle: 'agent-led', maxRounds: 1 })
+  await entered.promise
+  const controller = workspace.activeRuns.get(group.id)
+  release.resolve()
+  await sending
+  await controller.promise
+  const reopened = new LocalWorkspace(options)
+  assert.ok(reopened.snapshot().messages.some(message => (
+    message.system?.params?.reason === 'LOCAL_AGENT_REPEATED_OUTPUT'
+      && message.content.includes('已完成的初步研究结果。')
+  )))
+})
+
 function naturalPhase(prompt) {
   if (prompt.includes('Work independently on the user task')) return 'proposal'
   if (prompt.includes('Continue from the available peer responses')) return 'discussion'

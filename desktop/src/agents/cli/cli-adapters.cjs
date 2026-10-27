@@ -30,6 +30,7 @@ const {
   shutdownAcpSessionRuntime,
 } = require('./cli-acp-runner.cjs')
 const { withOpenClawGateway } = require('./cli-openclaw-gateway.cjs')
+const { createOutputRepetitionGuard } = require('./cli-output-repetition.cjs')
 const { imageAttachmentLimit, invocation } = require('./cli-invocations.cjs')
 const {
   connectorLimitedRuntimeEvent,
@@ -226,6 +227,8 @@ async function runAgent(agent, prompt, workdir, options = {}) {
     }))
   }
   const childEnv = childEnvironment(agent, workdir, options, platform)
+  const repetitionGuard = ['opencode', 'mimo', 'hermes'].includes(agent.kind)
+    ? createOutputRepetitionGuard() : null
   const runtimeEvents = createRuntimeEventEmitter({ ...options, onActivity: noteActivity }, childEnv)
   const capabilityWarning = connectorLimitedRuntimeEvent(agent.kind, profile)
   if (capabilityWarning) runtimeEvents.emit(capabilityWarning)
@@ -296,6 +299,12 @@ async function runAgent(agent, prompt, workdir, options = {}) {
           const progressEvent = profile.mapProgress(event)
           if (progressEvent) emitProgress(progressEvent)
           for (const runtimeEvent of profile.mapEvent(event, runtimeState)) {
+            if (stopRequested || settled) return
+            if (repetitionGuard?.(runtimeEvent)) {
+              inputError = agentExecutionError('LOCAL_AGENT_REPEATED_OUTPUT')
+              abort()
+              return
+            }
             runtimeEvents.emit(runtimeEvent)
           }
         })

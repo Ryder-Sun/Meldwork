@@ -8,6 +8,20 @@ const options = [
   { optionId: 'reject', kind: 'reject_once', name: 'Reject' },
 ]
 
+test('read-only plan rejection exits instead of requesting a revision without feedback', () => {
+  const request = { toolCall: { kind: 'switch_mode' }, options: [
+    { optionId: 'plan_approve', kind: 'allow_once', name: 'Approve' },
+    { optionId: 'plan_revise', kind: 'reject_once', name: 'Revise' },
+    { optionId: 'plan_reject_and_exit', kind: 'reject_once', name: 'Reject and Exit' },
+  ] }
+  assert.deepEqual(automaticPermissionResponse(request, { allowWrite: false }), {
+    status: 'rejected', optionId: 'plan_reject_and_exit',
+  })
+  assert.deepEqual(automaticPermissionResponse(request, { allowWrite: true }), {
+    status: 'approved', optionId: 'plan_approve',
+  })
+})
+
 test('read-only turns approve only tools without side effects', () => {
   for (const kind of ['read', 'search', 'fetch', 'think']) {
     assert.deepEqual(

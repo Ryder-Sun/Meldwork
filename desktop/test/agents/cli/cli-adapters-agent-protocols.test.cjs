@@ -180,15 +180,15 @@ test('WorkBuddy JSON output returns the final reply and session id', () => {
   })
 })
 
-test('Kimi uses ACP plan mode by default and prompt mode only after write authorization', () => {
+test('Kimi uses ACP manual mode by default and prompt mode only after write authorization', () => {
   const chat = invocation('kimi', '/tmp/kimi', '/tmp/work')
   assert.deepEqual(chat.args, ['acp'])
-  assert.equal(chat.acpMode, 'plan')
+  assert.equal(chat.acpMode, 'default')
   assert.equal(chat.promptArg, undefined)
 
   const resumed = invocation('kimi', '/tmp/kimi', '/tmp/work', 'kimi-session')
   assert.deepEqual(resumed.args, ['acp'])
-  assert.equal(resumed.acpMode, 'plan')
+  assert.equal(resumed.acpMode, 'default')
 
   const writable = invocation('kimi', '/tmp/kimi', '/tmp/work', 'kimi-session', {
     sandbox: 'workspace-write',
@@ -217,7 +217,7 @@ test('Kimi stream JSON output returns assistant text and the native session id',
   })
 })
 
-test('Kimi ACP plan mode creates and resumes sessions while reporting incomplete turns', async (t) => {
+test('Kimi ACP manual mode creates and resumes sessions while reporting incomplete turns', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-kimi-acp-'))
   const workdir = fs.realpathSync(directory)
   const lifecycleFile = path.join(directory, 'lifecycle.log')
@@ -349,7 +349,7 @@ input.on('line', (line) => {
       onEvent: event => createdEvents.push(event),
     },
   )
-  assert.equal(created.text, `new|plan|cancelled|first prompt|${workdir}`)
+  assert.equal(created.text, `new|default|cancelled|first prompt|${workdir}`)
   assert.equal(created.sessionRef, 'kimi-acp-session')
   assert.equal(created.outcome, 'completed')
   assert.deepEqual(createdSessionRefs, [{
@@ -387,7 +387,7 @@ input.on('line', (line) => {
       (answer, event) => event.replace === true ? event.delta : answer + event.delta,
       '',
     ),
-    'new|plan|cancelled|first prompt|[path]',
+    'new|default|cancelled|first prompt|[path]',
   )
   // Thinking surfaces only as a text-free reasoning status event.
   assert.equal(createdEvents.some(event => (
@@ -421,7 +421,7 @@ input.on('line', (line) => {
       onSessionRef: (sessionRef, metadata) => resumedSessionRefs.push({ sessionRef, metadata }),
     },
   )
-  assert.equal(resumed.text, `resume|plan|cancelled|next prompt|${workdir}`)
+  assert.equal(resumed.text, `resume|default|cancelled|next prompt|${workdir}`)
   assert.equal(resumed.sessionRef, 'kimi-acp-session')
   assert.equal(resumed.outcome, 'completed')
   assert.deepEqual(resumedSessionRefs, [{
@@ -450,7 +450,7 @@ input.on('line', (line) => {
       onSessionRef: sessionRef => privateSessionRefs.push(sessionRef),
     },
   )
-  assert.equal(privateSession.text, `new|plan|cancelled|private session prompt|${workdir}`)
+  assert.equal(privateSession.text, `new|default|cancelled|private session prompt|${workdir}`)
   assert.equal(privateSession.sessionRef, '')
   assert.deepEqual(privateSessionRefs, [])
   assert.deepEqual(

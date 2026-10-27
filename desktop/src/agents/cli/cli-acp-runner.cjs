@@ -23,12 +23,16 @@ const {
 } = require('./cli-process-support.cjs')
 const { createAcpOutboundPayload } = require('../../collaboration/outbound-payload.cjs')
 const { redactSecrets } = require('../../security/secret-redaction.cjs')
+const { createOutputRepetitionGuard } = require('./cli-output-repetition.cjs')
+const { terminalPlanRejection } = require('../agent-permission-policy.cjs')
 
 const ACP_CANCEL_GRACE_MS = 250
 // After a stop or timeout the Agent gets this long to answer the cancelled
 // prompt. A clean cancellation keeps the long-lived process and its native
 // session; only an Agent that ignores cancel is torn down.
 const ACP_CANCEL_SETTLE_MS = 3000
+// MiMo can flush the last delta of a message just after its prompt response.
+const MIMO_TERMINAL_DRAIN_MS = 50
 const ACP_INITIALIZE_TIMEOUT_MS = 60 * 1000
 const ACP_STDERR_TAIL_BYTES = 64 * 1024
 // Process identity must not change when only volatile shell values change.
@@ -355,7 +359,7 @@ function boundedAcpStream(
 }
 
 function permissionRejection(options) {
-  return (options || []).find(option => (
+  return terminalPlanRejection(options || []) || (options || []).find(option => (
     ['reject_once', 'reject_always'].includes(option.kind)
       || /reject|deny/i.test(`${option.optionId || ''} ${option.name || ''}`)
   ))
@@ -621,7 +625,7 @@ function runtimeSignature(agent, workdir, spec, profile, childEnv) {
     workdir,
     command: spec.command,
     args: spec.args,
-    // The session mode (read-only plan versus write) is applied on every turn
+    // The native session mode is applied on every turn
     // with session/set_mode, so it does not identify a process. Anything that
     // really needs a separate process (a permission policy in the environment)
     // is already part of the environment below.
@@ -746,6 +750,10 @@ async function createAcpRuntime(input) {
   const client = {
     async requestPermission(params) {
       const turn = runtime.activeTurn
+      if (runtime.agent.kind === 'mimo' && runtime.replyState.promptTerminalSequence != null) {
+        runtime.replyState.permissionPendingAtPromptTerminal = true
+        return { outcome: { outcome: 'cancelled' } }
+      }
       const pending = permissionOutcome(params, turn?.options || {}, childEnv)
       turn?.pendingPermissionCallbacks.add(pending)
       pending.then(
@@ -762,7 +770,18 @@ async function createAcpRuntime(input) {
       if (params.sessionId !== runtime.protocolSessionRef) return
       if (runtime.replyState.promptTerminalSequence != null
           && Number.isInteger(sequence)
-          && sequence > runtime.replyState.promptTerminalSequence) return
+          && sequence > runtime.replyState.promptTerminalSequence
+          && !(runtime.agent.kind === 'mimo'
+            && params.update?.sessionUpdate === 'agent_message_chunk'
+            && turn.lastMessageId
+            && params.update.messageId === turn.lastMessageId)) return
+      if (params.update?.sessionUpdate === 'agent_message_chunk' && params.update.messageId) {
+        turn.lastMessageId = params.update.messageId
+      }
+      if (turn.repetitionGuard?.(params.update)) {
+        turn.stopRepeatedOutput()
+        return
+      }
       turn.structuredOutput.ingest?.(params)
       for (const event of turn.profile.mapEvent(params.update, turn.runtimeState)) {
         turn.runtimeEvents.emit(event)
@@ -878,6 +897,7 @@ async function runAcpTurn(runtime, prompt, options, spec, profile) {
     noteActivity,
     outboundPayloadFailed: false,
     pendingPermissionCallbacks: new Set(),
+    repetitionGuard: ['opencode', 'mimo', 'hermes'].includes(runtime.agent.kind) ? createOutputRepetitionGuard() : null,
   }
   runtime.activeTurn = turn
   runtime.stderr = []
@@ -905,7 +925,7 @@ async function runAcpTurn(runtime, prompt, options, spec, profile) {
   let cancelPromise = Promise.resolve()
   let rejectAbort
   const abortPromise = new Promise((_, reject) => { rejectAbort = reject })
-  const abort = () => {
+  const abort = (error = agentExecutionError('LOCAL_AGENT_EXECUTION_STOPPED')) => {
     if (abortRequested) return
     abortRequested = true
     if (protocolSessionRef) {
@@ -915,7 +935,12 @@ async function runAcpTurn(runtime, prompt, options, spec, profile) {
         })).catch(() => {})
       } catch { /* the ACP stream has already closed */ }
     }
-    rejectAbort(agentExecutionError('LOCAL_AGENT_EXECUTION_STOPPED'))
+    rejectAbort(error instanceof Error ? error : agentExecutionError('LOCAL_AGENT_EXECUTION_STOPPED'))
+  }
+  turn.stopRepeatedOutput = () => {
+    runtime.replyState.collecting = false
+    abort(agentExecutionError('LOCAL_AGENT_REPEATED_OUTPUT',
+      'The Agent repeated the same response without tool progress; the native turn was cancelled.'))
   }
   const operation = promise => Promise.race([promise, abortPromise, runtime.failurePromise])
   const timeout = setTimeout(() => {
@@ -970,6 +995,9 @@ async function runAcpTurn(runtime, prompt, options, spec, profile) {
       }))
       promptRequest.catch(() => {})
       promptResult = await operation(promptRequest)
+      if (runtime.agent.kind === 'mimo' && turn.lastMessageId) {
+        await operation(new Promise(resolve => setTimeout(resolve, MIMO_TERMINAL_DRAIN_MS)))
+      }
     } finally {
       runtime.replyState.collecting = false
     }
@@ -1038,7 +1066,8 @@ async function runAcpTurn(runtime, prompt, options, spec, profile) {
           ACP_CANCEL_SETTLE_MS,
         )
       }
-      if (caughtError && promptSettled && !runtime.closed && !runtime.failureError) {
+      if (caughtError && caughtError.code !== 'LOCAL_AGENT_REPEATED_OUTPUT'
+          && promptSettled && !runtime.closed && !runtime.failureError) {
         Object.defineProperty(caughtError, 'acpRuntimeReusable', {
           value: true, enumerable: false, configurable: true,
         })

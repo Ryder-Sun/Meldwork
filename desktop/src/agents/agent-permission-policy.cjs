@@ -8,6 +8,12 @@ function sha256(value) {
 // Tool kinds an Agent may use without approval during a read-only turn.
 const READ_ONLY_SAFE_TOOL_KINDS = new Set(['read', 'search', 'fetch', 'think'])
 
+function terminalPlanRejection(options = []) {
+  // Kimi's first reject option is "Revise", which loops without feedback.
+  return options.find(option => option?.optionId === 'plan_reject_and_exit'
+    && ['reject_once', 'reject_always'].includes(option.kind))
+}
+
 // Automatic answer to an Agent's permission request when the run is not
 // waiting for a person. Returns the response to send, `null` when the request
 // is refused but the Agent offered nothing to refuse with, or `undefined`
@@ -19,7 +25,8 @@ const READ_ONLY_SAFE_TOOL_KINDS = new Set(['read', 'search', 'fetch', 'think'])
 function automaticPermissionResponse(request, { allowWrite }) {
   const options = Array.isArray(request?.options) ? request.options : []
   if (!allowWrite && !READ_ONLY_SAFE_TOOL_KINDS.has(request?.toolCall?.kind)) {
-    const rejection = options.find(candidate => candidate?.kind === 'reject_once')
+    const rejection = terminalPlanRejection(options)
+      || options.find(candidate => candidate?.kind === 'reject_once')
       || options.find(candidate => candidate?.kind === 'reject_always')
     return rejection?.optionId ? { status: 'rejected', optionId: rejection.optionId } : null
   }
@@ -69,6 +76,7 @@ function assertResumedPermissionBinding(resumed, currentBinding, sessionRef) {
 }
 
 module.exports = {
+  terminalPlanRejection,
   READ_ONLY_SAFE_TOOL_KINDS,
   assertResumedPermissionBinding,
   automaticPermissionResponse,

@@ -197,7 +197,9 @@ function invocation(kind, executable, workdir, sessionRef = '', options = {}) {
       return {
         command: executable,
         args: ['acp'],
-        acpMode: 'plan',
+        // Native plan mode requires a plan/approval cycle even for a query.
+        // Manual mode keeps writes behind the ACP permission callback.
+        acpMode: 'default',
         eventTransport: 'acp',
       }
     }

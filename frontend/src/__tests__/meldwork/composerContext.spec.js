@@ -50,6 +50,20 @@ afterEach(() => {
 })
 
 describe('composer context', () => {
+  it('keeps the selected discussion mode when the current group membership refreshes', () => {
+    const { activeGroup, composer, scope } = createComposer()
+    activeGroup.value = { id: 'group-auto', agentKinds: ['codex', 'hermes'] }
+    composer.resetComposerContext(activeGroup.value)
+    composer.discussionMode.value = 'auto-beta'
+    composer.resetComposerContext({ ...activeGroup.value, agentKinds: ['hermes', 'codex'] })
+    expect(composer.discussionMode.value).toBe('auto-beta')
+    composer.resetComposerContext({ id: 'other-group', agentKinds: ['codex', 'hermes'] })
+    expect(composer.discussionMode.value).toBe('auto')
+    composer.resetComposerContext(activeGroup.value)
+    expect(composer.discussionMode.value).toBe('auto-beta')
+    scope.stop()
+  })
+
   it('treats an empty manual selection as the whole group', () => {
     const { activeGroup, composer, scope } = createComposer()
     activeGroup.value = {

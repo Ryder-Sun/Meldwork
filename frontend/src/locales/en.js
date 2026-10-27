@@ -896,6 +896,7 @@ export default {
     'error.runCircuitBreaker': 'This run stopped after too many failed attempts.',
     'error.agentAuthRequired': 'Sign in to this Agent or configure its credentials, then try again.',
     'error.agentProcessFailed': 'The Agent process failed before completing the task.',
+    'error.agentRepeatedOutput': 'The Agent kept repeating the same response. This call was stopped and received output was preserved. Check the CLI model/provider configuration before trying again.',
     'error.customAgentLimit': 'You can connect up to 32 custom Agents.',
     'error.customAgentLabel': 'Enter a valid Agent name.',
     'error.customAgentDescription': 'Keep the description within 240 characters.',
