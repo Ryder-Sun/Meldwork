@@ -15,7 +15,7 @@ Meldwork 是一个本地优先的多 Agent 协作工作空间，用来连接你�
 你无需安排每一轮发言，但仍负责目标、权限和关键决策。遇到信息缺失、权限请求或需要取舍的问题时，任务可能等待你处理。工作区写入需要明确授权；协作过程、运行状态和产物保存在本地，方便回看和继续工作。
 
 <p align="center">
-  <a href="https://github.com/Ryder-Sun/Meldwork/releases/download/Meldwork-V1.0.7/Meldwork-1.0.7-arm64.dmg"><strong>下载 Meldwork V1.0.7 Apple 芯片 macOS 版</strong></a>
+  <a href="https://github.com/Ryder-Sun/Meldwork/releases/download/Meldwork-V1.0.8/Meldwork-1.0.8-arm64.dmg"><strong>下载 Meldwork V1.0.8 Apple 芯片 macOS 版</strong></a>
   · <a href="architecture.md">架构</a>
   · <a href="LICENSE">许可证</a>
 </p>
@@ -86,9 +86,9 @@ Meldwork 作为本地 Electron 应用运行。对话、群组配置、运行记�
 
 选定的 Agent 仍可能把 Prompt、附件或 Skill 发送到其自身 CLI 凭据对应的模型服务商。知识访问必须明确选择并受边界约束：当前实现支持本地 Obsidian 检索，以及由本地 CLI 管理的飞书或钉钉访问模式。Local-first 描述的是 Meldwork 的数据和协作位置，不代表 Agent 使用的模型服务商一定离线。
 
-## 下载 V1.0.7
+## 下载 V1.0.8
 
-Apple 芯片 macOS 用户请前往 [Meldwork V1.0.7 预发布页](https://github.com/Ryder-Sun/Meldwork/releases/tag/Meldwork-V1.0.7)，下载 [`Meldwork-1.0.7-arm64.dmg`](https://github.com/Ryder-Sun/Meldwork/releases/download/Meldwork-V1.0.7/Meldwork-1.0.7-arm64.dmg)。发布页同时提供 ZIP 压缩包和 SHA-256 校验文件。启动应用前，请至少安装一个受支持的本地 Agent CLI。
+Apple 芯片 macOS 用户请前往 [Meldwork V1.0.8 预发布页](https://github.com/Ryder-Sun/Meldwork/releases/tag/Meldwork-V1.0.8)，下载 [`Meldwork-1.0.8-arm64.dmg`](https://github.com/Ryder-Sun/Meldwork/releases/download/Meldwork-V1.0.8/Meldwork-1.0.8-arm64.dmg)。发布页同时提供 ZIP 压缩包和 SHA-256 校验文件。启动应用前，请至少安装一个受支持的本地 Agent CLI。
 
 该预览版安装包使用 ad-hoc 临时签名，未使用 Apple Developer ID 签名，也未进行公证。macOS 首次启动时可能需要在“系统设置 → 隐私与安全性”中选择“仍要打开 / Open Anyway”。
 
@@ -111,11 +111,13 @@ npm --prefix frontend run build:desktop
 npm --prefix desktop test
 ```
 
-## V1.0.7
+## V1.0.8
 
-V1.0.7 修复自动讨论中断后流式回复丢失，适配 Hermes 原生流式输出与 ACP 会话边界，并避免 MiMo 无界面运行卡在交互式计划提示。新增 Zcode，使用官方标志、排列在 Pi Agent 前并沿用原生默认配置；WorkBuddy 可以复用在 Meldwork 中选定的桌面已配置模型。
+V1.0.8 将 Kimi 只读问答改为手动权限模式，避免强制进入计划流程；修复 MiMo 末尾文本丢失、原生 CLI 配置变量遗漏，以及发送后 Auto Discussion 模式重置。原生输出持续重复时会取消调用并保留已输出内容。Zcode 保持官方标志和 Pi Agent 前的位置，沿用原生默认配置；WorkBuddy 可以复用在 Meldwork 中选定的桌面已配置模型。
 
-Electron 验收覆盖模拟适配器下六 Agent 无限轮讨论、中断和重载后内容保留，以及真实 WorkBuddy 回复。CLI 与界面回归测试覆盖输出解析、取消、认证报错和脱敏。真实执行仍取决于 CLI 与服务商：Zcode 默认服务商需要有效 API Key，OpenCode 路由返回错误 `tool_calls` 结束原因的问题仍需上游修复。无限轮讨论不会关闭进程停滞检测。
+本轮对全部 13 个已安装 CLI 进行了真实调用。使用独立 Magpie 热修网关的五 Agent 无限轮讨论中，14 次原生调用全部完成。当前安装的 Magpie 可能把 `tool_calls:null` 误判为真实工具调用，将 `stop` 改写为 `tool_calls`，导致 OpenCode、MiMo 和 Hermes 持续续写；本次 Meldwork 发布不会安装或重启 Magpie。OpenClaw、Zcode、Gemini、Qwen 和 OpenCodeReview 在本机另有原生配置或认证故障，检测到安装不代表模型连接已可用。回归验证包括桌面测试 1,655 项、前端测试 370 项、Web 与桌面构建及打包验证。无限轮讨论保留进程停滞检测，工作区写入仍需明确授权。
+
+Electron 实机界面另完成一轮五 Agent 无限轮讨论：19 次原生调用全部成功，无失败或自动重试，用时约 12 分钟。发送、完成、切回首页再返回群聊后，自动讨论与不限轮数均保持选中。该验收同样使用独立热修网关，证明流程可完成，不构成响应时长保证，也不代表用户现有网关已修复。
 
 ## 文档
 

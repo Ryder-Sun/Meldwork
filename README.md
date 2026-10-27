@@ -15,7 +15,7 @@ Meldwork is a local-first multi-Agent collaboration workspace for the Agent tool
 You do not need to direct every round, but you still set the goal, grant permissions, and make key decisions. Missing information, permission requests, or tradeoffs may require your input. Workspace writes are opt-in; collaboration history, run state, and deliverables stay local so you can revisit the work and continue it.
 
 <p align="center">
-  <a href="https://github.com/Ryder-Sun/Meldwork/releases/download/Meldwork-V1.0.7/Meldwork-1.0.7-arm64.dmg"><strong>Download Meldwork V1.0.7 for Apple silicon macOS</strong></a>
+  <a href="https://github.com/Ryder-Sun/Meldwork/releases/download/Meldwork-V1.0.8/Meldwork-1.0.8-arm64.dmg"><strong>Download Meldwork V1.0.8 for Apple silicon macOS</strong></a>
   · <a href="architecture.md">Architecture</a>
   · <a href="LICENSE">License</a>
 </p>
@@ -86,9 +86,9 @@ Meldwork runs as a local Electron application. Conversations, group configuratio
 
 Selected Agents may send prompts, attachments, or Skills to the model provider configured in their own CLI. Knowledge access is explicit and bounded: the current implementation supports local Obsidian retrieval and CLI-owned Feishu or DingTalk access modes. Local-first describes where Meldwork stores and coordinates work; it does not promise that an Agent's model provider is offline.
 
-## Download V1.0.7
+## Download V1.0.8
 
-For Apple silicon macOS, download the [Meldwork V1.0.7 prerelease](https://github.com/Ryder-Sun/Meldwork/releases/tag/Meldwork-V1.0.7) and choose [`Meldwork-1.0.7-arm64.dmg`](https://github.com/Ryder-Sun/Meldwork/releases/download/Meldwork-V1.0.7/Meldwork-1.0.7-arm64.dmg). The release also includes a ZIP archive and SHA-256 manifest. Install at least one supported local Agent CLI before opening the app.
+For Apple silicon macOS, download the [Meldwork V1.0.8 prerelease](https://github.com/Ryder-Sun/Meldwork/releases/tag/Meldwork-V1.0.8) and choose [`Meldwork-1.0.8-arm64.dmg`](https://github.com/Ryder-Sun/Meldwork/releases/download/Meldwork-V1.0.8/Meldwork-1.0.8-arm64.dmg). The release also includes a ZIP archive and SHA-256 manifest. Install at least one supported local Agent CLI before opening the app.
 
 The preview artifacts are ad-hoc signed and not notarized with an Apple Developer ID. macOS may require **Open Anyway** under **System Settings → Privacy & Security** on first launch.
 
@@ -111,11 +111,13 @@ npm --prefix frontend run build:desktop
 npm --prefix desktop test
 ```
 
-## V1.0.7
+## V1.0.8
 
-V1.0.7 preserves streamed replies when Auto Discussion is interrupted, handles Hermes native streaming and ACP session boundaries, and prevents MiMo headless runs from waiting on interactive plan prompts. Zcode joins the catalog before Pi Agent, with its official logo and native default configuration. WorkBuddy can reuse a configured desktop model selected in Meldwork.
+V1.0.8 keeps Kimi read-only queries in manual approval mode instead of forcing a planning cycle, preserves MiMo's final text chunks, forwards supported native CLI configuration, and retains the selected Auto Discussion mode after sending. Repetitive native output is cancelled with partial replies preserved. Zcode remains before Pi Agent with its official logo and native default configuration; WorkBuddy can reuse a configured desktop model selected in Meldwork.
 
-Electron acceptance covered interrupted six-Agent unlimited discussions with simulated adapters, persistence after reload, and a real WorkBuddy reply. CLI and UI regression tests cover output parsing, cancellation, authentication errors, and redaction. Native Agent behavior still depends on the CLI and its provider: Zcode's default provider needs a valid API key, and an OpenCode route returning an invalid `tool_calls` finish reason remains an upstream issue. Unlimited discussion does not bypass stalled-process detection.
+Real CLI acceptance covered all 13 installed Agents. A five-Agent unlimited discussion completed all 14 native calls through an isolated Magpie hotfix. The installed Magpie version can rewrite `stop` into `tool_calls` when `tool_calls` is null, causing OpenCode, MiMo, and Hermes to continue indefinitely; this Meldwork release does not install or restart Magpie. OpenClaw, Zcode, Gemini, Qwen, and OpenCodeReview also had native configuration or authentication failures in this audit. Detecting an installed CLI does not certify a working model connection. Regression validation includes 1,655 desktop tests, 370 frontend tests, web and desktop builds, and package validation. Unlimited discussion retains stalled-process detection and write permissions remain opt-in.
+
+Electron acceptance with the same isolated gateway also completed a separate five-Agent unlimited discussion: 19 native calls, no failed attempts or retries, about 12 minutes. Auto Discussion and No round limit remained selected after sending, completion, and leaving and reopening the group. This verifies the workflow, not a response-time guarantee or a repair to the user's installed gateway.
 
 ## Documentation
 
