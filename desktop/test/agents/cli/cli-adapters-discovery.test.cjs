@@ -183,7 +183,7 @@ test('Agent discovery scans independent Agent kinds concurrently', async () => {
   const startedBeforeRelease = started.length
   release()
   assert.deepEqual(await detection, [])
-  assert.equal(startedBeforeRelease, 12)
+  assert.equal(startedBeforeRelease, 13)
 })
 
 test('Hermes capability and ACP checks run concurrently without changing the result', async () => {

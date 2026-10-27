@@ -138,6 +138,7 @@ async function runAgent(agent, prompt, workdir, options = {}) {
     sandbox: options.sandbox,
     attachments: options.attachments,
     hermesAcpAvailable,
+    hermesStreamJsonAvailable: agent.streamJsonAvailable,
     invocationTransport: options.invocationTransport,
     sessionTransport: options.sessionTransport,
     maxTurns: options.maxTurns,
@@ -327,6 +328,7 @@ async function runAgent(agent, prompt, workdir, options = {}) {
       if (terminalObserved || !event || typeof event !== 'object') return
       const terminal = (
         (['workbuddy', 'claude', 'qwen'].includes(agent.kind) && event.type === 'result')
+        || (agent.kind === 'hermes' && spec.eventTransport === 'stream-json' && event.type === 'result')
         || (agent.kind === 'pi' && event.type === 'agent_end')
         || (agent.kind === 'codex' && event.type === 'turn.completed')
         || (['mimo', 'opencode'].includes(agent.kind) && event.type === 'step_finish'

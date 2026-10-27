@@ -450,11 +450,99 @@ const HERMES_FINAL_TEXT_PROFILE = profile({
   createFinalOutputAccumulator: createHermesLegacyFinalOutputAccumulator,
 })
 
+const HERMES_STREAM_JSON_PROFILE = profile({
+  profileId: 'hermes-stream-json-v1',
+  protocol: 'hermes-stream-json',
+  framing: 'jsonl',
+  source: 'stdout',
+  capabilities: {
+    answerMode: 'delta', tools: START_RESULT_TOOL_LIFECYCLE,
+    plan: false, reasoning: false, session: true, terminal: true,
+  },
+  createDecoder: createJsonLineParser,
+  createState: createStatelessRuntimeState,
+  mapEvent(event) {
+    if (event.type === 'text' && typeof event.text === 'string') {
+      return [{ type: 'answer_delta', status: 'running', delta: event.text }]
+    }
+    if (['tool_use', 'tool_result'].includes(event.type)) {
+      return [{
+        id: event.tool_call_id || event.name,
+        type: event.type === 'tool_use' ? 'tool_start' : 'tool_result_summary',
+        title: event.name || 'tool',
+        status: event.type === 'tool_use' ? 'running' : event.is_error ? 'failed' : 'completed',
+      }]
+    }
+    return []
+  },
+  async finalizeResult({ result, options }) {
+    // Both native chat formats use the same resumable conversation IDs.
+    if (result.sessionRef) await options.onSessionRef?.(result.sessionRef, { transport: 'legacy' })
+    return result
+  },
+  createFinalOutputAccumulator(sessionRef = '') {
+    const state = { text: '', sessionRef, outcome: 'partial' }
+    const ingest = event => {
+      if (typeof event.session_id === 'string' && event.session_id) state.sessionRef = event.session_id
+      if (event.type === 'text' && typeof event.text === 'string') appendFinalText(state, event.text)
+      if (event.type === 'result') {
+        if (typeof event.text === 'string') state.text = event.text.slice(0, MAX_FINAL_TEXT_CHARS)
+        state.outcome = event.exit_code === 0 && !event.error ? 'completed' : 'failed'
+        if (event.error) state.error = String(event.error)
+      }
+    }
+    const parser = createJsonLineParser(ingest)
+    return {
+      ingest,
+      write: chunk => parser.write(chunk),
+      end() {
+        parser.end()
+        return { ...state }
+      },
+    }
+  },
+})
+
+const ZCODE_JSON_PROFILE = profile({
+  profileId: 'zcode-prompt-json-v1',
+  protocol: 'zcode-prompt-json',
+  framing: 'document',
+  source: 'stdout',
+  capabilities: {
+    answerMode: 'final', tools: NO_TOOL_LIFECYCLE,
+    plan: false, reasoning: false, session: true, terminal: true,
+  },
+  createState: createStatelessRuntimeState,
+  createDecoder: null,
+  mapEvent: finalOnlyRuntimeEvents,
+  createFinalOutputAccumulator() {
+    const decoder = new StringDecoder('utf8')
+    const raw = { text: '' }
+    return {
+      capture(chunk) { appendFinalText(raw, decoder.write(chunk)) },
+      end() {
+        appendFinalText(raw, decoder.end())
+        let value
+        try { value = JSON.parse(raw.text) } catch { return { text: '', outcome: 'failed' } }
+        if (typeof value.response !== 'string' || typeof value.sessionId !== 'string') {
+          return { text: '', outcome: 'failed' }
+        }
+        return {
+          text: value.response,
+          sessionRef: value.sessionId,
+          outcome: ['idle', 'completed'].includes(value.projection?.status) ? 'completed' : 'partial',
+        }
+      },
+    }
+  },
+})
+
 const CONNECTOR_EVENT_PROFILES = Object.freeze({
   codex: CODEX_APP_SERVER_PROFILE,
   hermes: ACP_JSONRPC_PROFILE,
   openclaw: ACP_JSONRPC_PROFILE,
   workbuddy: WORKBUDDY_TERMINAL_RESULT_PROFILE,
+  zcode: ZCODE_JSON_PROFILE,
   pi: PI_JSON_EVENTS_PROFILE,
   kimi: ACP_JSONRPC_PROFILE,
   mimo: MIMO_JSON_EVENTS_PROFILE,
@@ -466,7 +554,7 @@ const CONNECTOR_EVENT_PROFILES = Object.freeze({
 })
 
 const TRANSPORT_EVENT_PROFILES = Object.freeze({
-  hermes: Object.freeze({ legacy: HERMES_FINAL_TEXT_PROFILE }),
+  hermes: Object.freeze({ legacy: HERMES_FINAL_TEXT_PROFILE, 'stream-json': HERMES_STREAM_JSON_PROFILE }),
   openclaw: Object.freeze({ legacy: OPENCLAW_TERMINAL_DOCUMENT_PROFILE }),
   kimi: Object.freeze({ 'stream-json': KIMI_STREAM_JSON_PROFILE }),
   mimo: Object.freeze({ acp: ACP_JSONRPC_PROFILE }),

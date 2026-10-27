@@ -1,6 +1,7 @@
 {
   "schemaVersion": 1,
   "fixtures": [
+    { "kind": "zcode", "agent": "Zcode", "version": "0.16.1", "protocol": "zcode-prompt-json", "evidence": "source-derived", "file": "zcode.json" },
     { "kind": "codex", "agent": "Codex", "version": "0.137.0", "protocol": "codex-app-server", "evidence": "captured-fixture", "file": "codex.jsonl" },
     { "kind": "hermes", "agent": "Hermes", "version": "0.19.1", "protocol": "terminal-text", "evidence": "captured-fixture", "file": "hermes.txt" },
     { "kind": "openclaw", "transport": "legacy", "agent": "OpenClaw", "version": "2026.7.1-2", "protocol": "openclaw-terminal-document", "evidence": "captured-fixture", "file": "openclaw.json" },

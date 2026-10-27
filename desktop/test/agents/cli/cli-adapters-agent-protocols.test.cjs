@@ -1712,6 +1712,7 @@ process.stdout.write(JSON.stringify({ status: 'accepted', job_id: 'not-terminal'
 
 test('every supported built-in Agent produces an explicit completion outcome', () => {
   const outputs = {
+    zcode: JSON.stringify({ response: 'Zcode reply', sessionId: 'zcode-session', projection: { status: 'idle' } }),
     codex: [
       JSON.stringify({ type: 'thread.started', thread_id: 'codex-session' }),
       JSON.stringify({
@@ -1984,6 +1985,7 @@ test('recorded fixtures cover every supported built-in output schema', () => {
     [...ALLOWED_KINDS].sort(),
   )
   const expectedText = {
+    zcode: 'Zcode fixture reply',
     codex: 'Codex fixture reply',
     hermes: 'Hermes fixture reply',
     openclaw: 'OpenClaw fixture reply',
@@ -2395,6 +2397,9 @@ process.stdout.write(JSON.stringify({
 
   assert.deepEqual(JSON.parse(result.text), {
     '*': 'deny',
+    plan_enter: 'deny',
+    plan_exit: 'deny',
+    question: 'deny',
     read: 'allow',
     glob: 'allow',
     grep: 'allow',

@@ -33,6 +33,9 @@ input.on('line', (line) => {
   } else if (message.method === 'session/set_mode') {
     send({ jsonrpc: '2.0', id: message.id, result: {} })
   } else if (message.method === 'session/prompt') {
+    send({ jsonrpc: '2.0', method: 'session/update', params: { sessionId: 'another-session', update: {
+      sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'unrelated session output' },
+    } } })
     process.stdout.write('WARNING: update available (not protocol traffic)\\n')
     send({ jsonrpc: '2.0', method: '_vendor/progress', params: { done: 1 } })
     send({ jsonrpc: '2.0', method: 'session/update', params: { sessionId, update: { sessionUpdate: 'brand_new_update_kind', payload: 1 } } })

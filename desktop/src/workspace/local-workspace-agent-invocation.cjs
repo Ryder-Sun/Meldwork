@@ -626,8 +626,9 @@ class LocalWorkspaceAgentInvocation {
     const answerFilter = createAnswerMarkerFilter({
       mode: context.v4 === true ? 'receipt' : (mode === 'auto' ? 'auto' : 'plain'),
     })
+    let flushingTerminalAnswer = false
     const emitHarnessEvent = (rawEvent) => {
-      if (agentCallbacksClosed || agentController.signal.aborted
+      if (agentCallbacksClosed || (agentController.signal.aborted && !flushingTerminalAnswer)
           || this.activeRuns.get(group.id) !== activeRun
           || !harness || !harnessRun || !rawEvent) return
       const event = harness.ingest(kind, round, rawEvent, harnessRun.agentRunId)
@@ -707,7 +708,9 @@ class LocalWorkspaceAgentInvocation {
     }
     const finishHarness = (status, finalText = '', runtimeContext = {}) => {
       if (!harness || !harnessRun || harnessFinished) return null
+      flushingTerminalAnswer = true
       flushRuntimeEvent(finalText)
+      flushingTerminalAnswer = false
       closeAgentCallbacks()
       this.clearAgentSilence(activeRun, kind, round, harnessRun.agentRunId)
       const finished = harness.finishAgent(kind, round, status, finalText, {

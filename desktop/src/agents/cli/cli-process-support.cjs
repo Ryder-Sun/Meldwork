@@ -52,6 +52,9 @@ function invalidSessionFailure(detail) {
 
 function failedAgentProcessError(detail, options = {}) {
   if (!detail) return agentExecutionError('LOCAL_AGENT_EXITED')
+  if (options.kind === 'zcode' && /\bModel provider is missing an API key:/i.test(detail)) {
+    return agentExecutionError('LOCAL_AGENT_AUTH_REQUIRED', 'Missing API key for the configured Zcode provider.')
+  }
   if (options.kind === 'workbuddy' && options.model && authFailureCode(detail)) {
     return agentExecutionError('LOCAL_WORKBUDDY_PROVIDER_AUTH', detail)
   }
@@ -113,10 +116,21 @@ function childEnvironment(agent, workdir, options, platform) {
       ? { HERMES_EXEC_ASK: '', HERMES_YOLO_MODE: '1' }
       : { HERMES_EXEC_ASK: '1', HERMES_YOLO_MODE: '' }
     : {}
-  const openCodeSafetyEnv = agent.kind === 'opencode'
-      && options.sandbox !== 'workspace-write'
-    ? { OPENCODE_PERMISSION: OPENCODE_READ_ONLY_PERMISSION }
-    : {}
+  const openCodeSafetyEnv = {}
+  // ACP has no terminal UI for question/plan transitions. Match the native
+  // headless runner: return the answer to Meldwork instead of waiting forever.
+  const headlessPermissions = { question: 'deny', plan_enter: 'deny', plan_exit: 'deny' }
+  if (agent.kind === 'opencode') {
+    openCodeSafetyEnv.OPENCODE_PERMISSION = JSON.stringify({
+      ...(options.sandbox !== 'workspace-write' ? JSON.parse(OPENCODE_READ_ONLY_PERMISSION) : {}),
+      ...headlessPermissions,
+    })
+  }
+  if (agent.kind === 'mimo') {
+    // MiMo applies read/write permissions with ACP session/set_mode. Keep
+    // process-wide permissions stable when the discussion changes phase.
+    openCodeSafetyEnv.MIMOCODE_PERMISSION = JSON.stringify(headlessPermissions)
+  }
   const source = { ...process.env, ...options.env }
   const controlled = Object.fromEntries(Object.entries(options.env || {}).filter(([key, value]) => (
     typeof value === 'string'

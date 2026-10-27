@@ -44,6 +44,7 @@ const CREDENTIAL_ENV_KEYS = Object.freeze({
   hermes: ['OPENAI_API_KEY', 'OPENROUTER_API_KEY', 'ANTHROPIC_API_KEY'],
   openclaw: ['OPENAI_API_KEY', 'OPENROUTER_API_KEY'],
   workbuddy: ['CODEBUDDY_API_KEY', 'CODEBUDDY_AUTH_TOKEN'],
+  zcode: ['ANTHROPIC_API_KEY'],
   pi: ['PI_API_KEY', 'OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'OPENROUTER_API_KEY', 'GEMINI_API_KEY'],
   kimi: ['MOONSHOT_API_KEY', 'KIMI_API_KEY', 'KIMI_MODEL_API_KEY', 'OPENAI_API_KEY'],
   mimo: ['MIMO_API_KEY'],
@@ -68,6 +69,7 @@ const RUNTIME_ENV_KEYS = Object.freeze({
     'CODEBUDDY_API_KEY', 'CODEBUDDY_AUTH_TOKEN', 'CODEBUDDY_BASE_URL', 'CODEBUDDY_MODEL',
     'CODEBUDDY_CONFIG_DIR',
   ],
+  zcode: ['ANTHROPIC_API_KEY'],
   pi: [
     'PI_API_KEY', 'PI_BASE_URL', 'PI_MODEL',
     'OPENAI_API_KEY', 'OPENAI_BASE_URL', 'OPENAI_MODEL', 'ANTHROPIC_API_KEY',
@@ -340,6 +342,7 @@ function nativeCredentialState(kind, options = {}) {
   }
 
   const jsonFiles = {
+    zcode: [path.join(home, '.zcode', 'cli', 'config.json')],
     codex: [path.join(codexHome, 'auth.json'), path.join(codexHome, 'config.json')],
     hermes: [path.join(home, '.hermes', 'auth.json'), path.join(home, '.hermes', 'config.json')],
     openclaw: [path.join(home, '.openclaw', 'openclaw.json')],

@@ -8,6 +8,23 @@ const { childEnvironment, failedAgentProcessError } = require('../../../src/agen
 const { nativeOpenClawOptions } = require('../../../src/agents/cli/openclaw-runtime.cjs')
 const { workBuddyInstall } = require('../../support/cli-adapters-test-helpers.cjs')
 
+test('MiMo and OpenCode cannot wait for terminal-only plan or question dialogs', () => {
+  for (const kind of ['mimo', 'opencode']) {
+    for (const sandbox of ['read-only', 'workspace-write']) {
+      const env = childEnvironment({ kind }, '/tmp', { sandbox }, 'darwin')
+      const permissions = JSON.parse(env[kind === 'mimo' ? 'MIMOCODE_PERMISSION' : 'OPENCODE_PERMISSION'])
+      assert.equal(permissions.plan_exit, 'deny')
+      assert.equal(permissions.plan_enter, 'deny')
+      assert.equal(permissions.question, 'deny')
+      if (kind === 'opencode' && sandbox === 'read-only') {
+        assert.equal(permissions['*'], 'deny')
+        assert.equal(permissions.read, 'allow')
+        assert.equal(permissions.webfetch, 'allow')
+      } else assert.equal(permissions['*'], undefined)
+    }
+  }
+})
+
 function openClawChildEnvRuntime(directory, workdir) {
   return nativeOpenClawOptions({
     storageRoot: directory,

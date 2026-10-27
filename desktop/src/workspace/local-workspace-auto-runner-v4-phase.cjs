@@ -629,6 +629,11 @@ const v4PhaseMethods = {
         slot.status = 'stopped'
         slot.commitStatus = 'partial'
         slot.finishedAt = Date.now()
+        const error = item.error || item.invocation?.error
+        if (error?.runTrace) {
+          this.recordAgentInterruption(group.id, item.kind, error, threadRootId,
+            controller.stopReason === 'shutdown' ? 'interrupted' : 'stopped')
+        }
         continue
       }
       if (!result) {

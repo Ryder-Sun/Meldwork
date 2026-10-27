@@ -99,7 +99,7 @@ function pathSuffixLength(value) {
   const matches = [
     value.match(/file:\/\/\/[^\s"'`<>|,;)}\]]+$/i),
     value.match(/(?<![A-Za-z0-9:])(?:[A-Za-z]:[\\/]|\\\\)[^\s"'`<>|,;)}\]]+$/),
-    value.match(/(?<![A-Za-z0-9:/])\/+[^\s"'`<>|,;)}\]]+$/),
+    value.match(/(?<![\p{L}\p{N}:/])\/+[^\s"'`<>|,;)}\]]+$/u),
   ]
   return Math.max(...matches.map(match => match?.[0]?.length || 0))
 }
@@ -107,6 +107,9 @@ function pathSuffixLength(value) {
 function boundarySensitiveSuffixLength(value, secrets) {
   let retained = 0
   const retain = (length) => { retained = Math.max(retained, length || 0) }
+  // Keep a word boundary across chunks: a slash in the next chunk may be
+  // prose (云/端), not the start of an absolute filesystem path.
+  retain(value.match(/(?=[^\x00-\x7f])[\p{L}\p{N}]$/u)?.[0]?.length)
   for (const secret of secrets) {
     const limit = Math.min(value.length, secret.length - 1)
     for (let length = limit; length > retained; length -= 1) {
@@ -123,7 +126,7 @@ function boundarySensitiveSuffixLength(value, secrets) {
   }
   const pathLength = pathSuffixLength(value)
   if (pathLength) retain(pathLength)
-  retain(value.match(/(?<![A-Za-z0-9:/])\/+$/)?.[0]?.length)
+  retain(value.match(/(?<![\p{L}\p{N}:/])\/+$/u)?.[0]?.length)
 
   const matches = [
     value.match(/\bAKIA[0-9A-Z]{0,15}$/),
@@ -206,7 +209,7 @@ function sanitizeRuntimeEventText(value, childEnv, limit, singleLine = false, tr
     .replace(/-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----/gi, '[redacted private key]')
     .replace(/file:\/\/\/[^\s"'`<>|,;)}\]]+/gi, '[path]')
     .replace(/(?<![A-Za-z0-9:])(?:[A-Za-z]:[\\/]|\\\\)[^\s"'`<>|,;)}\]]+/g, '[path]')
-    .replace(/(?<![A-Za-z0-9:/])\/+[^\s"'`<>|,;)}\]]+/g, '[path]')
+    .replace(/(?<![\p{L}\p{N}:/])\/+[^\s"'`<>|,;)}\]]+/gu, '[path]')
     .replace(/(["']?)(?:[A-Za-z0-9_.-]*(?:api[_-]?key|access[_-]?key(?:[_-]?id)?|secret[_-]?access[_-]?key|access[_-]?token|refresh[_-]?token|auth[_-]?token|database[_-]?url|connection[_-]?string|dsn|token|secret|password|credential|authorization|private[_-]?key)[A-Za-z0-9_.-]*)\1\s*[:=]\s*(?:"[^"\r\n]*"|'[^'\r\n]*'|\[[^\]\r\n]*\]|[^\s,;}\]]+)/gi, 'credential=[redacted]')
     .replace(/\bAKIA[0-9A-Z]{16}\b/g, '[redacted]')
     .replace(/\bbearer\s+[A-Za-z0-9._~+\/-]+=*/gi, 'Bearer [redacted]')

@@ -232,6 +232,8 @@ export default {
     'agent.description.hermes': 'Flexible open-source reasoning for research, planning, and long-running tasks.',
     'agent.description.openclaw': 'Autonomous local workflows with persistent execution and managed task context.',
     'agent.description.workbuddy': 'Practical project assistance for understanding context, planning changes, and moving work forward.',
+    'agent.description.zcode': 'Local task execution using Zcode CLI configuration and resumable sessions.',
+    'agent.soul.zcode': 'Zcode uses its native model configuration to analyze tasks and work in the local workspace.',
     'agent.description.pi': 'Focused local task execution through Pi Agent native configuration.',
     'agent.description.kimi': 'Long-context reading, dense document analysis, planning, and complex workspace tasks.',
     'agent.description.mimo': 'Focused local execution for planning, analysis, implementation, and rapid iteration.',

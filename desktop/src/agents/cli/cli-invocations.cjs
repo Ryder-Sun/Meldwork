@@ -73,6 +73,18 @@ function invocation(kind, executable, workdir, sessionRef = '', options = {}) {
     }
   }
   if (kind === 'hermes') {
+    if (options.hermesStreamJsonAvailable === true
+        && (!sessionRef || options.sessionTransport !== 'acp')) {
+      return {
+        command: executable,
+        args: ['chat', '--format', 'stream-json',
+          ...(options.sandbox === 'workspace-write' ? ['--yolo'] : []),
+          ...(sessionRef ? ['--resume', sessionRef] : []),
+          ...(attachments[0] ? ['--image', attachments[0]] : []), '--query'],
+        promptArg: true,
+        eventTransport: 'stream-json',
+      }
+    }
     // Hermes uses the same native conversation identifier across its ACP and
     // legacy transports. Keep it when an attachment requires the legacy path.
     const legacySessionRef = sessionRef
@@ -155,6 +167,15 @@ function invocation(kind, executable, workdir, sessionRef = '', options = {}) {
       ],
       promptArg: true,
       eventTransport: 'stream-json',
+    }
+  }
+  if (kind === 'zcode') {
+    return {
+      command: executable,
+      args: ['--json', '--no-color', '--verbose', '--cwd', workdir,
+        '--mode', options.sandbox === 'workspace-write' ? 'edit' : 'plan',
+        ...(sessionRef ? ['--resume', sessionRef] : []), '--prompt'],
+      promptArg: true,
     }
   }
   if (kind === 'pi') {

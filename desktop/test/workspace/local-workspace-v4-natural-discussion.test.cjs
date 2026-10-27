@@ -12,6 +12,33 @@ function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
+test('stopping unlimited discussion persists partial proposal output before removing the live run', { timeout: 10000 }, async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const entered = deferred()
+  options.naturalAgentResponses = true
+  options.runAgent = async (_agent, _prompt, _workdir, runOptions) => {
+    runOptions.onEvent({ type: 'answer_delta', status: 'running', delta: '已输出的研究结果。' })
+    entered.resolve()
+    await new Promise((resolve, reject) => runOptions.signal.addEventListener('abort',
+      () => reject(new Error('LOCAL_AGENT_EXECUTION_STOPPED')), { once: true }))
+  }
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Partial proposal', agentKinds: ['codex', 'hermes'], workdir: directory })
+  const sending = workspace.sendMessage({ groupId: group.id, text: 'Research', mode: 'auto', protocol: 'v4',
+    targetKinds: group.agentKinds, discussionStyle: 'agent-led', unlimitedRounds: true })
+  await entered.promise
+  const controller = workspace.activeRuns.get(group.id)
+  workspace.stop(group.id, controller.runId)
+  await sending
+  await controller.promise
+  const messages = workspace.snapshot().messages.filter(m => m.system?.key === 'system.agentStopped')
+  assert.ok(messages.some(m => m.content.includes('已输出的研究结果。')), JSON.stringify(workspace.snapshot().messages))
+  const reopened = new LocalWorkspace(options)
+  assert.ok(reopened.snapshot().messages.some(m => m.content.includes('已输出的研究结果。')))
+})
+
 function decisionReply(text, status = 'completed', extra = {}) {
   return `${text}\n\n[[MELDWORK_COLLABORATION:${JSON.stringify({
     summary: 'Task progress judged by the delivery owner.',

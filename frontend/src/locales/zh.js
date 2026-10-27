@@ -232,6 +232,8 @@ export default {
     'agent.description.hermes': '适合开源推理、调研规划与持续时间较长的复杂任务。',
     'agent.description.openclaw': '适合自主本地工作流、持久执行与任务上下文管理。',
     'agent.description.workbuddy': '适合理解项目上下文、规划变更并务实地推动工作。',
+    'agent.description.zcode': '沿用 Zcode CLI 的本机模型配置，执行本地任务并续接会话。',
+    'agent.soul.zcode': 'Zcode 使用原生模型配置分析任务，在本地工作区内协作执行。',
     'agent.description.pi': '适合通过 Pi Agent 本机配置执行专注的本地任务。',
     'agent.description.kimi': '擅长长上下文阅读、密集文档分析、规划与复杂工作区任务。',
     'agent.description.mimo': '适合聚焦的本地规划、分析、实现与快速迭代。',

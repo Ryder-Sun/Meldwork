@@ -16,6 +16,7 @@ const AGENT_PROFILES = {
   hermes: { label: 'Hermes', commands: ['hermes'] },
   openclaw: { label: 'OpenClaw', commands: ['openclaw'] },
   workbuddy: { label: 'WorkBuddy', commands: ['codebuddy'] },
+  zcode: { label: 'Zcode', commands: ['zcode'] },
   pi: { label: 'Pi Agent', commands: ['pi', 'pi-agent', 'piagent'] },
   kimi: { label: 'Kimi', commands: ['kimi'] },
   mimo: { label: 'MiMo', commands: ['mimo'] },
@@ -425,6 +426,8 @@ async function probeAgentCapabilities(kind, executable, options = {}) {
     compatibilityState: 'compatible',
     incompatibilityReason: '',
     incompatibilityProbe: '',
+    ...(kind === 'hermes' && results.some(result => result.output?.includes('--format')
+      && result.output.includes('stream-json')) ? { streamJsonAvailable: true } : {}),
   }
 }
 
@@ -495,7 +498,10 @@ async function inspectAgentCandidate(kind, executable, options, childEnv) {
     executable,
     version,
     ...compatibility,
-    ...(kind === 'hermes' ? { acpAvailable } : {}),
+    ...(kind === 'hermes' ? {
+      acpAvailable,
+      ...(capabilityCompatibility.streamJsonAvailable ? { streamJsonAvailable: true } : {}),
+    } : {}),
   }
 }
 

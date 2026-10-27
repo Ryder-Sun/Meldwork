@@ -759,6 +759,7 @@ async function createAcpRuntime(input) {
       try { turn?.noteActivity?.() } catch { /* activity is best-effort */ }
       const sequence = runtime.replyState.pendingUpdateSequences.shift()
       if (!turn || !runtime.replyState.collecting) return
+      if (params.sessionId !== runtime.protocolSessionRef) return
       if (runtime.replyState.promptTerminalSequence != null
           && Number.isInteger(sequence)
           && sequence > runtime.replyState.promptTerminalSequence) return

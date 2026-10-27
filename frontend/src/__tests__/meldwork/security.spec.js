@@ -38,7 +38,7 @@ describe('renderer security policy', () => {
     expect(AGENTS.every(agent => agent.logo.startsWith('./agent-logos/'))).toBe(true)
     expect(AGENTS.some(agent => agent.kind === 'mimo')).toBe(true)
     expect(AGENTS.map(agent => agent.kind)).toEqual([
-      'codex', 'claude', 'hermes', 'workbuddy', 'openclaw', 'pi',
+      'codex', 'claude', 'hermes', 'workbuddy', 'openclaw', 'zcode', 'pi',
       'opencode', 'opencodereview', 'kimi', 'mimo', 'qwen',
     ])
     expect(AGENTS.at(-1)?.kind).toBe('qwen')

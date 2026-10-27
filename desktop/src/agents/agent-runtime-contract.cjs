@@ -80,6 +80,10 @@ const AGENT_RUNTIME_CAPABILITIES = Object.freeze({
     domains: ['general', 'software-development', 'document-production'],
     toolClasses: ['filesystem', 'shell'],
   }),
+  zcode: generalProfile({
+    domains: ['general', 'software-development', 'research'],
+    toolClasses: ['filesystem', 'shell'],
+  }),
   pi: generalProfile({
     domains: ['general', 'software-development'],
     toolClasses: ['filesystem', 'shell'],

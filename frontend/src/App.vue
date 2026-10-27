@@ -258,7 +258,7 @@ const shortcutDefinitions = Object.freeze([
   { labelKey: 'shortcut.openAgents', keys: '⌘ ,' },
 ])
 const READ_ONLY_ENFORCED_AGENT_KINDS = new Set([
-  'codex', 'hermes', 'openclaw', 'workbuddy', 'pi', 'kimi', 'mimo', 'claude', 'qwen', 'gemini',
+  'codex', 'hermes', 'openclaw', 'workbuddy', 'zcode', 'pi', 'kimi', 'mimo', 'claude', 'qwen', 'gemini',
   'opencode', 'opencodereview',
 ])
 const installCatalog = ref({ platform: '', agents: [] })

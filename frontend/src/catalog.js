@@ -15,6 +15,8 @@ export const AGENTS = Object.freeze([
   },
   { kind: 'workbuddy', label: 'WorkBuddy', logo: publicAsset('agent-logos/workbuddy.png'), imageLimit: 0, attachmentTypes: ['file'] },
   { kind: 'openclaw', label: 'OpenClaw', logo: publicAsset('agent-logos/openclaw-transparent.png'), imageLimit: 0, attachmentTypes: ['file'] },
+  // Official asset: https://zcode.z.ai/favicon-192x192.png?v=20260707-transparent
+  { kind: 'zcode', label: 'Zcode', logo: publicAsset('agent-logos/zcode.png'), imageLimit: 0, attachmentTypes: ['file'] },
   { kind: 'pi', label: 'Pi Agent', logo: publicAsset('agent-logos/pi.svg'), imageLimit: 0, attachmentTypes: ['file'] },
   { kind: 'opencode', label: 'OpenCode', logo: publicAsset('agent-logos/opencode.svg'), imageLimit: 4, attachmentTypes: ['file'] },
   { kind: 'opencodereview', label: 'OpenCodeReview', logo: publicAsset('agent-logos/opencodereview.svg'), imageLimit: 0 },

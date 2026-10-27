@@ -321,6 +321,9 @@ const v4ResultMethods = {
       failures.push({ kind, error })
       if (!controller.signal.aborted) {
         this.recordAgentFailure(group.id, kind, error, threadRootId, new Set())
+      } else if (error?.runTrace) {
+        this.recordAgentInterruption(group.id, kind, error, threadRootId,
+          controller.stopReason === 'shutdown' ? 'interrupted' : 'stopped')
       }
     }
 
@@ -355,6 +358,11 @@ const v4ResultMethods = {
           slot.status = 'stopped'
           slot.commitStatus = 'partial'
           slot.finishedAt = Date.now()
+          const error = invocation.error
+          if (error?.runTrace) {
+            this.recordAgentInterruption(group.id, kind, error, threadRootId,
+              controller.stopReason === 'shutdown' ? 'interrupted' : 'stopped')
+          }
           checkpoint()
           return
         }
@@ -483,6 +491,11 @@ const v4ResultMethods = {
         slot.status = 'stopped'
         slot.commitStatus = 'partial'
         slot.finishedAt = Date.now()
+        const error = item.error || item.invocation?.error
+        if (controller.signal.aborted && error?.runTrace) {
+          this.recordAgentInterruption(group.id, item.kind, error, threadRootId,
+            controller.stopReason === 'shutdown' ? 'interrupted' : 'stopped')
+        }
       }
       return { workReceipts: input.workReceipts, failure: null }
     }

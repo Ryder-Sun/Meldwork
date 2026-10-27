@@ -15,6 +15,11 @@ const GEMINI_TOOL_FIXTURE = path.join(
 )
 
 const PROFILE_EXPECTATIONS = {
+  zcode: {
+    profileId: 'zcode-prompt-json-v1', protocol: 'zcode-prompt-json', framing: 'document',
+    source: 'stdout', answerMode: 'final', tools: { start: false, update: false, result: false },
+    plan: false, reasoning: false, session: true, terminal: true,
+  },
   codex: {
     profileId: 'codex-app-server-jsonl-v1', protocol: 'codex-app-server', framing: 'jsonl',
     source: 'stdout', answerMode: 'delta', tools: { start: true, update: false, result: true },
@@ -111,6 +116,7 @@ test('ConnectorEventProfile registry declares the trusted protocol capabilities 
 
 test('every built-in invocation transport resolves its reusable profile and capability warning', () => {
   const cases = [
+    { kind: 'zcode', profileId: 'zcode-prompt-json-v1', limited: true },
     { kind: 'codex', profileId: 'codex-app-server-jsonl-v1', limited: false },
     { kind: 'hermes', profileId: 'acp-jsonrpc-v1', limited: false },
     {
