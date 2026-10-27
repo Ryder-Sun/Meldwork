@@ -13,12 +13,15 @@ API Key 或任意 Shell 执行能力。
 - Hermes
 - OpenClaw
 - WorkBuddy
+- Zcode
+- Pi Agent
 - Kimi Code
 - MiMo Code
 - Claude Code
 - Gemini CLI
 - OpenCode
 - Qwen Code
+- OpenCodeReview
 
 Agent 管理面板提供经过白名单约束的安装入口。安装命令和下载地址由主进程固定，不会根据页面
 输入执行任意命令。内置 Agent 通过各自支持的原生权限模式或 Meldwork 托管工具策略执行；无法
@@ -28,7 +31,7 @@ Agent 管理面板提供经过白名单约束的安装入口。安装命令和�
 
 ## 首次启动与本地 Agent 检测
 
-V1.0.3 GitHub 预发布使用 ad-hoc 临时签名，不使用 Apple Developer ID，也不提交 Apple 公证。
+V1.0.7 GitHub 预发布使用 ad-hoc 临时签名，不使用 Apple Developer ID，也不提交 Apple 公证。
 如果 macOS 首次启动时拦截候选应用，请打开
 “系统设置 → 隐私与安全性”，找到 Meldwork 的拦截提示，点击“仍要打开 / Open Anyway”，
 再确认启动。
@@ -66,34 +69,29 @@ Agent 原生支持的图片会按其数量限制直接传递。其他文件，�
 
 ## Provider 配置
 
-用户可以在客户端内填写一个 OpenAI-compatible Provider：
-
-```text
-provider: Provider 显示名称
-baseUrl: HTTPS 地址，或本机 loopback HTTP 地址
-model: 模型名称
-apiKey: API Key
-```
-
-API Key 仅通过 Electron `safeStorage` 加密保存到本机；操作系统安全存储不可用时拒绝落盘。
-Provider 不设品牌、服务地址或模型默认值，也不会从远端自动获取配置。配置后可供 Hermes、
-OpenClaw、WorkBuddy、Qwen 和 OpenCodeReview 使用；其他 Agent 沿用各自的本机鉴权和 Provider 配置。
+Agent 使用各自本机的原生鉴权、Provider 和默认模型配置。Meldwork 不要求统一 Provider，
+也不会将一个 Agent 的密钥注入其他 Agent。WorkBuddy 桌面账号的加密登录不能直接供独立
+CLI 解锁；可在 Meldwork 中选择桌面配置里已有且已配置鉴权的模型。
+Meldwork 仅保存模型标识，运行时由主进程读取原生配置，不向渲染层返回密钥。
+Zcode 沿用默认配置；若其默认 Provider 缺少 API Key，需要先修复本机原生配置。
 
 ## 本地 CLI 支持矩阵
 
 | Agent | 检测命令 | macOS 安装 | Windows 安装 | 用户 Provider |
 | --- | --- | --- | --- | --- |
 | Codex | `codex` | npm：`@openai/codex@latest` | npm：`@openai/codex@latest` | 不注入；沿用 Codex 本机配置 |
-| Hermes | `hermes` | 官方 `install.sh` | 官方 `install.ps1` | 支持 |
-| OpenClaw | `openclaw` | npm：`openclaw@latest` | npm：`openclaw@latest` | 支持，使用客户端隔离的托管配置 |
-| WorkBuddy | `codebuddy` | npm：`@tencent-ai/codebuddy-code@2.115.0` | npm：`@tencent-ai/codebuddy-code@2.115.0` | 实验性支持 |
+| Hermes | `hermes` | 官方 `install.sh` | 官方 `install.ps1` | 沿用本机配置 |
+| OpenClaw | `openclaw` | npm：`openclaw@latest` | npm：`openclaw@latest` | 沿用本机配置 |
+| WorkBuddy | `codebuddy` | npm：`@tencent-ai/codebuddy-code@2.115.0` | npm：`@tencent-ai/codebuddy-code@2.115.0` | 可选择桌面已配置模型 |
+| Zcode | `zcode` | 官方 CLI 安装 | 官方 CLI 安装 | 沿用默认配置 |
+| Pi Agent | `pi` | npm：`@mariozechner/pi-coding-agent` | npm：`@mariozechner/pi-coding-agent` | 沿用本机配置 |
 | Kimi Code | `kimi` | 官方 `install.sh` | 官方 `install.ps1` | 不注入；沿用 Kimi 本机配置 |
-| MiMo Code | `mimo` | npm：`@mimo-ai/cli@latest` | npm：`@mimo-ai/cli@latest` | 不注入；沿用 MiMo 本机配置，Meldwork 固定使用只读 `plan` Agent |
+| MiMo Code | `mimo` | npm：`@mimo-ai/cli@latest` | npm：`@mimo-ai/cli@latest` | 不注入；沿用 MiMo 本机配置，按授权使用 `plan` / `build` 模式 |
 | Claude Code | `claude` | npm：`@anthropic-ai/claude-code@latest` | npm：`@anthropic-ai/claude-code@latest` | 不注入；沿用 Claude 本机配置 |
 | Gemini CLI | `gemini` | npm：`@google/gemini-cli@latest` | npm：`@google/gemini-cli@latest` | 不注入；沿用 Gemini 本机配置 |
 | OpenCode | `opencode` | npm：`opencode-ai@latest` | npm：`opencode-ai@latest` | 不注入；沿用 OpenCode 本机配置 |
-| Qwen Code | `qwen` | npm：`@qwen-code/qwen-code@latest` | npm：`@qwen-code/qwen-code@latest` | 支持 |
-| OpenCodeReview | `ocr` | npm：`@alibaba-group/open-code-review@latest` | npm：`@alibaba-group/open-code-review@latest` | 支持 |
+| Qwen Code | `qwen` | npm：`@qwen-code/qwen-code@latest` | npm：`@qwen-code/qwen-code@latest` | 沿用本机配置 |
+| OpenCodeReview | `ocr` | npm：`@alibaba-group/open-code-review@latest` | npm：`@alibaba-group/open-code-review@latest` | 沿用本机配置 |
 
 macOS 会在当前 `PATH` 之外搜索 Volta、pnpm、fnm、asdf、mise、bun、
 `~/.local/bin`、`~/.kimi-code/bin`、`~/.mimocode/bin`、Homebrew 等常见目录。Windows 会额外搜索用户 npm、
@@ -137,7 +135,7 @@ npm run dist
 npm run dist:public
 ```
 
-`pack` 用于生成未打包应用并验证 Electron 产物；`dist` 生成 V1.0.3 GitHub 预发布候选使用的 ad-hoc 签名 DMG 和 ZIP。这些产物不具备 Developer ID 信任链且未公证，不能声称通过 Gatekeeper。
+`pack` 用于生成未打包应用并验证 Electron 产物；`dist` 生成 V1.0.7 GitHub 预发布候选使用的 ad-hoc 签名 DMG 和 ZIP。这些产物不具备 Developer ID 信任链且未公证，不能声称通过 Gatekeeper。
 
 `dist:public` 是未来正式签名公开发行的专用命令：它要求
 Developer ID 证书和完整公证凭据，强制代码签名，在签名后校验永久 Bundle ID、Team ID 与

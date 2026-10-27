@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.7 - 2026-10-27 (Meldwork-V1.0.7 prerelease)
+
+- Preserve streamed discussion replies across cancellation and reload; scope ACP notifications to the active session.
+- Support Hermes native stream JSON and avoid MiMo interactive plan prompts in headless runs.
+- Add Zcode with its official logo before Pi Agent, native default configuration, and explicit missing-key errors.
+- Let WorkBuddy use an explicitly selected model from its desktop configuration, without exposing credentials to the renderer.
+- Keep Chinese slash-separated text intact while retaining credential and local-path redaction.
+- Unify application, artifact, README, and website versions at 1.0.7.
+- License Meldwork's original source, documentation, and website under Apache-2.0: commercial use is permitted without separate authorization or license fees. Third-party notices remain applicable. Older entries below describe their historical release terms.
+- Native acceptance includes a real WorkBuddy response; six-Agent unlimited discussion cancellation and reload were checked with simulated adapters. Zcode's default provider still needs a valid API key; the observed OpenCode router's invalid `tool_calls` finish reason remains an upstream issue.
+- Apple silicon DMG and ZIP remain ad-hoc signed and unnotarized.
+
 ## 0.1.6 - 2026-10-17 (Meldwork-V1.0.6 prerelease)
 
 ### Agent Reliability
@@ -151,7 +163,7 @@
 - Sets the desktop package version to `0.1.2` with permanent Bundle ID `com.rydersun.meldwork`.
 - Produces Apple silicon DMG and ZIP prerelease artifacts using ad-hoc signing. This is not Apple Developer ID signing or notarization and may require Open Anyway on first launch.
 - Keeps `dist:public` as the fail-closed future formal-distribution path requiring a Developer ID identity, Hardened Runtime, complete Apple notarization credentials, and post-sign validation.
-- Uses the Meldwork Non-Commercial Source License; commercial use requires prior written permission.
+- This historical release used the Meldwork Non-Commercial Source License and required prior written permission for commercial use. Current releases use Apache-2.0 as stated above.
 
 ### Verification
 

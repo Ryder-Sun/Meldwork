@@ -7,7 +7,7 @@
    ScrollProgress, ScrollSpy, CardSwap.
    ============================================================ */
 
-/* Chinese pixel glyphs complement the existing Latin dot-matrix display face.
+/* Locally bundled Latin and Chinese pixel display glyphs.
    Fusion Pixel 12px proportional, 2026.10.16, OFL-1.1; licenses in assets/fonts/. */
 @font-face {
   font-family: "Meldwork Pixel CJK";
@@ -15,7 +15,6 @@
   font-weight: 400;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+3000-303F, U+3400-9FFF, U+FF00-FFEF;
 }
 
 /* ================= DESIGN TOKENS ================= */
@@ -46,7 +45,7 @@
   --glass-bg: rgba(12, 14, 17, 0.72);
   --glass-border: rgba(255, 255, 255, 0.06);
   --font-sans: "Inter", "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
-  --font-display: "BubbledotICG-FinePos", "Meldwork Pixel CJK", "Geist Pixel Circle", monospace;
+  --font-display: "Meldwork Pixel CJK", monospace;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --r-pill: 999px;

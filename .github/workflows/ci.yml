@@ -31,6 +31,9 @@ jobs:
       - name: Run unit tests
         run: npm test
 
+      - name: Check website and release licensing consistency
+        run: node --test ../meldwork-landing/test/landing.test.cjs
+
       - name: Build web application
         run: npm run build
 

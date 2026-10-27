@@ -8,6 +8,40 @@ const root = path.resolve(__dirname, '..')
 const html = readFileSync(path.join(root, 'index.html'), 'utf8')
 const scripts = ['i18n.js', 'glyph-embers.js', 'main.js'].map(file => readFileSync(path.join(root, file), 'utf8'))
 
+test('release metadata, downloads, official logo and commercial licensing stay consistent', () => {
+  const version = require('../../desktop/package.json').version
+  assert.equal(require('../../frontend/package.json').version, version)
+  assert.equal(require('../../desktop/package.json').license, 'Apache-2.0')
+  assert.equal(require('../../frontend/package.json').license, 'Apache-2.0')
+  assert.match(readFileSync(path.join(root, '..', 'LICENSE'), 'utf8'), /Apache License\s+Version 2\.0/)
+  for (const name of ['LICENSE', 'NOTICE', 'COMMERCIAL_USE.md']) {
+    assert.equal(readFileSync(path.join(root, name), 'utf8'), readFileSync(path.join(root, '..', name), 'utf8'))
+  }
+  for (const name of ['README.md', 'README.zh-CN.md', 'COMMERCIAL_USE.md']) {
+    const source = readFileSync(path.join(root, '..', name), 'utf8')
+    assert.match(source, /Apache/)
+    assert.doesNotMatch(source, /Non-Commercial|non-commercial purposes|Commercial use requires prior|禁止商用/)
+  }
+  assert.deepEqual(readFileSync(path.join(root, 'assets/agents/zcode.png')), readFileSync(path.join(root, '../frontend/public/agent-logos/zcode.png')))
+  for (const language of ['en', 'zh-CN']) {
+    const p = page({ language })
+    try {
+      const schema = JSON.parse(p.doc.querySelector('script[type="application/ld+json"]').textContent)['@graph'][0]
+      assert.equal(schema.softwareVersion, version)
+      assert.equal(schema.license, 'https://www.apache.org/licenses/LICENSE-2.0')
+      assert.match(p.doc.querySelector('.foot-meta').textContent, /Commercial use permitted|允许商用/)
+      assert.doesNotMatch(p.doc.body.textContent, /Non-Commercial|non-commercial purposes|Commercial use requires prior|禁止商用/)
+      for (const link of p.doc.querySelectorAll('a[href*="/releases/"]')) {
+        assert.ok(link.href.includes(`Meldwork-V${version}`), link.href)
+        if (link.href.includes('/download/')) assert.ok(link.href.endsWith(`Meldwork-${version}-arm64.dmg`), link.href)
+      }
+      const logos = [...p.doc.querySelectorAll('.logo-chip img')].map(el => el.getAttribute('src'))
+      assert.ok(logos.indexOf('assets/agents/zcode.png') >= 0)
+      assert.ok(logos.indexOf('assets/agents/zcode.png') < logos.indexOf('assets/agents/pi.svg'))
+    } finally { p.dom.window.close() }
+  }
+})
+
 function page({ language = 'en', saved, reduced = false, blockedStorage = false } = {}) {
   const dom = new JSDOM(html, { url: 'https://meldwork.test/', runScripts: 'outside-only', pretendToBeVisual: true })
   const { window } = dom

@@ -38,7 +38,7 @@ function terminalRun(ledger, runId) {
     return ['completed', 'partial', 'failed', 'stopped', 'round-limit'].includes(record?.status)
       ? record
       : null
-  }, `terminal Run ${runId}`, 10000)
+  }, `terminal Run ${runId}`, 30000)
 }
 
 function proposalReceipt(agentKind) {

@@ -15,7 +15,7 @@ Meldwork is a local-first multi-Agent collaboration workspace for the Agent tool
 You do not need to direct every round, but you still set the goal, grant permissions, and make key decisions. Missing information, permission requests, or tradeoffs may require your input. Workspace writes are opt-in; collaboration history, run state, and deliverables stay local so you can revisit the work and continue it.
 
 <p align="center">
-  <a href="https://github.com/Ryder-Sun/Meldwork/releases/download/Meldwork-V1.0.6/Meldwork-0.1.6-arm64.dmg"><strong>Download Meldwork V1.0.6 for Apple silicon macOS</strong></a>
+  <a href="https://github.com/Ryder-Sun/Meldwork/releases/download/Meldwork-V1.0.7/Meldwork-1.0.7-arm64.dmg"><strong>Download Meldwork V1.0.7 for Apple silicon macOS</strong></a>
   · <a href="architecture.md">Architecture</a>
   · <a href="LICENSE">License</a>
 </p>
@@ -60,20 +60,21 @@ Meldwork detects and invokes compatible locally installed Agent commands. The ca
 
 <table>
   <tr>
-    <td align="center" valign="top" width="16.66%"><img src="frontend/public/agent-logos/codex.svg" alt="Codex logo" width="32" height="32"><br><strong>Codex</strong></td>
-    <td align="center" valign="top" width="16.66%"><img src="frontend/public/agent-logos/hermes.png" alt="Hermes logo" width="32" height="32"><br><strong>Hermes</strong></td>
-    <td align="center" valign="top" width="16.66%"><img src="frontend/public/agent-logos/openclaw-transparent.png" alt="OpenClaw logo" width="32" height="32"><br><strong>OpenClaw</strong></td>
-    <td align="center" valign="top" width="16.66%"><img src="frontend/public/agent-logos/workbuddy.png" alt="WorkBuddy logo" width="32" height="32"><br><strong>WorkBuddy</strong></td>
-    <td align="center" valign="top" width="16.66%"><img src="frontend/public/agent-logos/pi.svg" alt="Pi Agent logo" width="32" height="32"><br><strong>Pi Agent</strong></td>
-    <td align="center" valign="top" width="16.66%"><img src="frontend/public/agent-logos/kimi.png" alt="Kimi Code logo" width="32" height="32"><br><strong>Kimi Code</strong></td>
+    <td align="center" valign="top"><img src="frontend/public/agent-logos/codex.svg" alt="Codex logo" width="32" height="32"><br><strong>Codex</strong></td>
+    <td align="center" valign="top"><img src="frontend/public/agent-logos/hermes.png" alt="Hermes logo" width="32" height="32"><br><strong>Hermes</strong></td>
+    <td align="center" valign="top"><img src="frontend/public/agent-logos/openclaw-transparent.png" alt="OpenClaw logo" width="32" height="32"><br><strong>OpenClaw</strong></td>
+    <td align="center" valign="top"><img src="frontend/public/agent-logos/workbuddy.png" alt="WorkBuddy logo" width="32" height="32"><br><strong>WorkBuddy</strong></td>
+    <td align="center" valign="top"><img src="frontend/public/agent-logos/zcode.png" alt="Zcode logo" width="32" height="32"><br><strong>Zcode</strong></td>
+    <td align="center" valign="top"><img src="frontend/public/agent-logos/pi.svg" alt="Pi Agent logo" width="32" height="32"><br><strong>Pi Agent</strong></td>
+    <td align="center" valign="top"><img src="frontend/public/agent-logos/kimi.png" alt="Kimi Code logo" width="32" height="32"><br><strong>Kimi Code</strong></td>
   </tr>
   <tr>
-    <td align="center" valign="top" width="16.66%"><img src="frontend/public/agent-logos/mimo.svg" alt="MiMo Code logo" width="32" height="32"><br><strong>MiMo Code</strong></td>
-    <td align="center" valign="top" width="16.66%"><img src="frontend/public/agent-logos/claude.png" alt="Claude Code logo" width="32" height="32"><br><strong>Claude Code</strong></td>
-    <td align="center" valign="top" width="16.66%"><img src="frontend/public/agent-logos/gemini.svg" alt="Gemini CLI logo" width="32" height="32"><br><strong>Gemini CLI</strong></td>
-    <td align="center" valign="top" width="16.66%"><img src="frontend/public/agent-logos/opencode.svg" alt="OpenCode logo" width="32" height="32"><br><strong>OpenCode</strong></td>
-    <td align="center" valign="top" width="16.66%"><img src="frontend/public/agent-logos/qwen.svg" alt="Qwen Code logo" width="32" height="32"><br><strong>Qwen Code</strong></td>
-    <td align="center" valign="top" width="16.66%"><img src="frontend/public/agent-logos/opencodereview.svg" alt="OpenCodeReview logo" width="32" height="32"><br><strong>OpenCodeReview</strong></td>
+    <td align="center" valign="top"><img src="frontend/public/agent-logos/mimo.svg" alt="MiMo Code logo" width="32" height="32"><br><strong>MiMo Code</strong></td>
+    <td align="center" valign="top"><img src="frontend/public/agent-logos/claude.png" alt="Claude Code logo" width="32" height="32"><br><strong>Claude Code</strong></td>
+    <td align="center" valign="top"><img src="frontend/public/agent-logos/gemini.svg" alt="Gemini CLI logo" width="32" height="32"><br><strong>Gemini CLI</strong></td>
+    <td align="center" valign="top"><img src="frontend/public/agent-logos/opencode.svg" alt="OpenCode logo" width="32" height="32"><br><strong>OpenCode</strong></td>
+    <td align="center" valign="top"><img src="frontend/public/agent-logos/qwen.svg" alt="Qwen Code logo" width="32" height="32"><br><strong>Qwen Code</strong></td>
+    <td align="center" valign="top"><img src="frontend/public/agent-logos/opencodereview.svg" alt="OpenCodeReview logo" width="32" height="32"><br><strong>OpenCodeReview</strong></td>
   </tr>
 </table>
 
@@ -85,9 +86,9 @@ Meldwork runs as a local Electron application. Conversations, group configuratio
 
 Selected Agents may send prompts, attachments, or Skills to the model provider configured in their own CLI. Knowledge access is explicit and bounded: the current implementation supports local Obsidian retrieval and CLI-owned Feishu or DingTalk access modes. Local-first describes where Meldwork stores and coordinates work; it does not promise that an Agent's model provider is offline.
 
-## Download V1.0.6
+## Download V1.0.7
 
-For Apple silicon macOS, download the [Meldwork V1.0.6 prerelease](https://github.com/Ryder-Sun/Meldwork/releases/tag/Meldwork-V1.0.6) and choose [`Meldwork-0.1.6-arm64.dmg`](https://github.com/Ryder-Sun/Meldwork/releases/download/Meldwork-V1.0.6/Meldwork-0.1.6-arm64.dmg). The release also includes a ZIP archive and SHA-256 manifest. Install at least one supported local Agent CLI before opening the app.
+For Apple silicon macOS, download the [Meldwork V1.0.7 prerelease](https://github.com/Ryder-Sun/Meldwork/releases/tag/Meldwork-V1.0.7) and choose [`Meldwork-1.0.7-arm64.dmg`](https://github.com/Ryder-Sun/Meldwork/releases/download/Meldwork-V1.0.7/Meldwork-1.0.7-arm64.dmg). The release also includes a ZIP archive and SHA-256 manifest. Install at least one supported local Agent CLI before opening the app.
 
 The preview artifacts are ad-hoc signed and not notarized with an Apple Developer ID. macOS may require **Open Anyway** under **System Settings → Privacy & Security** on first launch.
 
@@ -110,13 +111,11 @@ npm --prefix frontend run build:desktop
 npm --prefix desktop test
 ```
 
-## V1.0.6
+## V1.0.7
 
-V1.0.6 improves long-lived Agent recovery, keeps group discussions going through individual failures, and lets conversations run independently even in the same folder. It delivers attachments and knowledge sources to group Agents, restores WorkBuddy's bundled CLI launch, and tightens ACP and WorkBuddy permission checks.
+V1.0.7 preserves streamed replies when Auto Discussion is interrupted, handles Hermes native streaming and ACP session boundaries, and prevents MiMo headless runs from waiting on interactive plan prompts. Zcode joins the catalog before Pi Agent, with its official logo and native default configuration. WorkBuddy can reuse a configured desktop model selected in Meldwork.
 
-The interface starts without waiting for Agent detection, highlights conversations awaiting your decision, explains why an installed Agent is unavailable, and adds General settings with System, Light, and Dark appearance options.
-
-Release verification includes 357/357 frontend tests, 1,603/1,603 desktop tests, six deterministic evaluation cases with 18 results, web and desktop builds, packaging, DMG checksum and ZIP integrity checks, and code-signature verification. The packaged Apple silicon app launched with a fresh profile without main-process faults. Real Agent group execution, cancellation, and restart acceptance were not repeated for this release. The artifacts remain ad-hoc signed and unnotarized; live behavior still depends on the installed Agent CLI version, authentication, Provider, and capabilities.
+Electron acceptance covered interrupted six-Agent unlimited discussions with simulated adapters, persistence after reload, and a real WorkBuddy reply. CLI and UI regression tests cover output parsing, cancellation, authentication errors, and redaction. Native Agent behavior still depends on the CLI and its provider: Zcode's default provider needs a valid API key, and an OpenCode route returning an invalid `tool_calls` finish reason remains an upstream issue. Unlimited discussion does not bypass stalled-process detection.
 
 ## Documentation
 
@@ -127,4 +126,4 @@ Release verification includes 357/357 frontend tests, 1,603/1,603 desktop tests,
 
 ## License
 
-Meldwork is open source under the [Apache License 2.0](LICENSE). Commercial use, private use, modification, and redistribution are permitted under the license terms. The license does not grant rights to the Meldwork name, logo, or other brand assets; see [COMMERCIAL_USE.md](COMMERCIAL_USE.md).
+Meldwork is open source under the [Apache License 2.0](LICENSE). Commercial use, private use, modification, and redistribution are permitted under the license terms. No separate commercial authorization or license fee is required. Apache-2.0 does not grant trademark rights; see [COMMERCIAL_USE.md](COMMERCIAL_USE.md).

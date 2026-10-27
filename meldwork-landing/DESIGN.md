@@ -33,8 +33,8 @@ Light/dark mapping: marketing defaults to dark and supports a light-theme toggle
 
 Families:
 - UI: `"Inter", "Segoe UI", system-ui, sans-serif` (weights 400/500/600)
-- Display: `"BubbledotICG-FinePos", "Geist Pixel Circle", monospace` — retro dot-matrix, Latin only
-- Chinese display fallback: local `Meldwork Pixel CJK` (Fusion Pixel 12px proportional, OFL-1.1). Use it for headings and short state labels; keep body text in the system Chinese sans-serif stack. Chinese headings allow character wrapping; preserve Latin words as units.
+- Display: local `"Meldwork Pixel CJK", monospace` (Fusion Pixel 12px proportional, OFL-1.1), covering Latin and Chinese glyphs with the bundled license notices.
+- Use the local display font for headings and short state labels; keep body text in the system Chinese sans-serif stack. Chinese headings allow character wrapping; preserve Latin words as units.
 - Mono accents: same display stack for stat glyphs
 
 | Level | Size | Weight | Tracking | Line-height |
