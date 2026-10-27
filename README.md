@@ -24,22 +24,22 @@ npx serve .   # 或 python3 -m http.server
 | `meldwork-wordmark-v3-dark.svg` | frontend/public/logos | 产品弹窗品牌字标 |
 | `meldwork-favicon*.png` | frontend/public/logos | 站点图标 |
 | `screenshots/meldwork-group-collaboration.png` | assets/ | Open Graph 分享图及协作画廊 |
-| `agents/*` (12 个 CLI logo) | frontend/public/agent-logos | 信任条头像环（取 Codex / Claude / Gemini / Qwen / Kimi 5 枚） |
+| `agents/*` (13 个 CLI logo) | frontend/public/agent-logos | 信任条头像环（取 Codex / Claude / Gemini / Qwen / Kimi 5 枚） |
 | `screenshots/*` (4 张) | assets/ | Product 弹窗实拍画廊 |
 | `bg-keyframe.png` | AI 生成（Trace mark 视觉语言：珊瑚色工作线 + 点阵节点） | 背景层 + video poster |
 
 ## 设计决策
 
 - 配色取自产品暗色主题 token（`#121516` 底、`#93a0a5` 弱化文字）与 logo 珊瑚色 `#EF5A45`；导航激活的三点指示器刻意使用珊瑚色，呼应 Trace mark 的「人类采用点」。
-- 显示字体 BubbledotICG-FinePos（点阵复古风，OnlineWebFonts CDN）仅覆盖拉丁字形；中文标题自动降级为思源黑体 900，字距单独调整。
-- 统计条展示：12 个已支持 CLI、3 种协作模式、本地优先工作空间、1 个共享任务；Agent 模型调用仍可能访问各自配置的服务商。
+- 中英文标题采用本地 Fusion Pixel 字体，附带 OFL 许可证。
+- 统计条展示：13 个已支持 CLI、3 种协作模式、本地优先工作空间、1 个共享任务；Agent 模型调用仍可能访问各自配置的服务商。
 - 动效遵循 `prefers-reduced-motion` 降级；弹窗/移动菜单支持 Escape 与遮罩关闭并锁定背景滚动。
 
 ## 语言
 
 右上角可切换中文 / EN，默认跟随浏览器语言，选择保存在 `meldwork-landing-locale`。正文与富文本翻译使用 `index.html` 的 `data-zh` 属性，`i18n.js` 统一更新语言、辅助标签、页面标题、分享摘要和中文 FAQ 结构化数据。即使本地存储不可用，也可在当前页面切换。官网不依赖 Vue 或额外构建步骤。
 
-英文标题保留 BubbledotICG-FinePos，中文标题与状态标签搭配本地 Fusion Pixel 12px 等比例像素字体；正文使用 Inter 与系统中文无衬线字体。字体版本为 2026.10.16，来源为 [Fusion Pixel](https://github.com/TakWolf/fusion-pixel-font/releases/tag/2026.10.16)，字体及上游 OFL 声明保留在 `assets/fonts/fusion-pixel/`。
+中英文标题与状态标签使用本地 Fusion Pixel 12px 等比例像素字体；正文使用 Inter 与系统中文无衬线字体。字体版本为 2026.10.16，来源为 [Fusion Pixel](https://github.com/TakWolf/fusion-pixel-font/releases/tag/2026.10.16)，字体及上游 OFL 声明保留在 `assets/fonts/fusion-pixel/`。
 
 ## 案例卡片与颜色
 
@@ -74,3 +74,5 @@ assets/meldwork-bg.mp4
 ```
 
 `<video>` 层会自动覆盖静态层，无需改代码；视频加载失败时仍回退到静态关键帧。
+
+官网原创代码及文档采用 Apache-2.0，允许商用；第三方字体和 Agent 标志保留各自条款。见 LICENSE、NOTICE 和 COMMERCIAL_USE.md。

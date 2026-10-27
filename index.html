@@ -28,12 +28,13 @@
         "name": "Meldwork",
         "applicationCategory": "DeveloperApplication",
         "operatingSystem": "macOS (Apple silicon)",
-        "softwareVersion": "1.0.6",
+        "softwareVersion": "1.0.7",
+        "license": "https://www.apache.org/licenses/LICENSE-2.0",
         "description": "Meldwork is a local-first multi-Agent collaboration workspace for macOS. Selected Agents share context, discuss approaches, carry out authorized work, and check results with less manual coordination. Users set goals and permissions and step in when information or key decisions are needed.",
         "featureList": "Autonomous Agent collaboration, shared task context, peer contributions and reviews, authorized task execution, Concurrent Responses, Auto Discussion V4, opt-in workspace writes, user decisions when needed, local collaboration history, multimodal attachments, selected knowledge sources",
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
         "author": { "@type": "Organization", "name": "Meldwork", "url": "https://github.com/Ryder-Sun/Meldwork" },
-        "downloadUrl": "https://github.com/Ryder-Sun/Meldwork/releases/tag/Meldwork-V1.0.6",
+        "downloadUrl": "https://github.com/Ryder-Sun/Meldwork/releases/tag/Meldwork-V1.0.7",
         "softwareRequirements": "macOS with Apple silicon. At least one supported local Agent CLI installed (Codex, Claude Code, Gemini CLI, Hermes, OpenCode, or another listed Agent)."
       },
       {
@@ -52,7 +53,7 @@
           {
             "@type": "Question",
             "name": "Which General Agents does Meldwork support?",
-            "acceptedAnswer": { "@type": "Answer", "text": "Twelve agents today — Codex, Claude Code, Gemini CLI, Qwen Code, Kimi Code, MiMo Code, OpenCode, OpenCodeReview, Hermes, Pi Agent, OpenClaw, and WorkBuddy. Approved Agent Connectors can be added through the Agent Connector SDK; custom executables use the desktop custom-Agent path." }
+            "acceptedAnswer": { "@type": "Answer", "text": "Thirteen agents today — Codex, Claude Code, Gemini CLI, Qwen Code, Kimi Code, MiMo Code, OpenCode, OpenCodeReview, Hermes, Zcode, Pi Agent, OpenClaw, and WorkBuddy. Approved Agent Connectors can be added through the Agent Connector SDK; custom executables use the desktop custom-Agent path." }
           },
           {
             "@type": "Question",
@@ -72,12 +73,12 @@
           {
             "@type": "Question",
             "name": "Is Meldwork free? What's the license?",
-            "acceptedAnswer": { "@type": "Answer", "text": "Open source under the Apache License 2.0. Commercial use, private use, modification, and redistribution are permitted under the license terms. The license does not grant rights to the Meldwork name or logo." }
+            "acceptedAnswer": { "@type": "Answer", "text": "Open source under the Apache License 2.0. Commercial use, private use, modification, and redistribution are permitted under the license terms. No separate commercial authorization or license fee is required. Apache-2.0 does not grant trademark rights." }
           },
           {
             "@type": "Question",
             "name": "Does Meldwork work on Intel macOS, Windows, or Linux?",
-            "acceptedAnswer": { "@type": "Answer", "text": "The current V1.0.6 preview targets Apple silicon macOS (ad-hoc signed, not notarized — open Open Anyway in System Settings → Privacy & Security on first launch). Cross-platform builds are on the roadmap; the app is Electron so the same source compiles everywhere once those targets land." }
+            "acceptedAnswer": { "@type": "Answer", "text": "The current V1.0.7 preview targets Apple silicon macOS (ad-hoc signed, not notarized — open Open Anyway in System Settings → Privacy & Security on first launch). Cross-platform builds are on the roadmap; the app is Electron so the same source compiles everywhere once those targets land." }
           }
         ]
       },
@@ -102,9 +103,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link href="https://db.onlinewebfonts.com/c/8cb707a9b8a73f8a7403336b861c3074?family=BubbledotICG-FinePos" rel="stylesheet" />
 
-  <link rel="stylesheet" href="styles.css?v=20261021.6" />
+  <link rel="stylesheet" href="styles.css?v=20261027.1" />
 </head>
 <body>
 
@@ -126,8 +126,8 @@
       <a href="#compare" class="nav-link" data-spy="compare"><span data-zh="产品特点">How it differs</span></a>
       <a href="#faq" class="nav-link" data-spy="faq"><span data-zh="常见问题">FAQ</span></a>
     </nav>
-    <a class="cta-dark magnet" href="https://github.com/Ryder-Sun/Meldwork/releases/tag/Meldwork-V1.0.6" target="_blank" rel="noopener" data-zh="&lt;span class=&quot;cta-status&quot;&gt;&lt;/span&gt; 下载 V1.0.6">
-      <span class="cta-status"></span> Download V1.0.6
+    <a class="cta-dark magnet" href="https://github.com/Ryder-Sun/Meldwork/releases/tag/Meldwork-V1.0.7" target="_blank" rel="noopener" data-zh="&lt;span class=&quot;cta-status&quot;&gt;&lt;/span&gt; 下载 V1.0.7">
+      <span class="cta-status"></span> Download V1.0.7
     </a>
     <button type="button" class="language-toggle" id="languageToggle" aria-label="Switch to Chinese">中 / EN</button>
     <button type="button" class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
@@ -147,7 +147,7 @@
     <a href="#scenario" class="m-link"><span data-zh="真实协作">In a run</span></a>
     <a href="#compare" class="m-link"><span data-zh="产品特点">How it differs</span></a>
     <a href="#faq" class="m-link"><span data-zh="常见问题">FAQ</span></a>
-    <a href="https://github.com/Ryder-Sun/Meldwork/releases/tag/Meldwork-V1.0.6" target="_blank" rel="noopener" class="m-link m-signin"><span data-zh="下载 V1.0.6">Download V1.0.6</span></a>
+    <a href="https://github.com/Ryder-Sun/Meldwork/releases/tag/Meldwork-V1.0.7" target="_blank" rel="noopener" class="m-link m-signin"><span data-zh="下载 V1.0.7">Download V1.0.7</span></a>
   </nav>
 
   <!-- ================= HERO ================= -->
@@ -176,9 +176,9 @@
       <p class="subhead" data-zh="Meldwork 是一个&lt;strong&gt;本地优先的多 Agent 协作工作空间&lt;/strong&gt;。让你已有的 Agent 共享上下文、讨论方案、在授权范围内执行并检查成果，减少你在它们之间转述和协调的工作。设定目标和权限，在需要补充信息或关键决策时介入。">Meldwork is a <strong>local-first multi-Agent collaboration workspace</strong>. Your existing Agents share context, discuss approaches, carry out authorized work, and check results — with less relaying and coordinating from you. Set the goal and permissions, then step in when they need information or a key decision.</p>
 
       <div class="cta-row">
-        <a class="cta-primary magnet" href="https://github.com/Ryder-Sun/Meldwork/releases/download/Meldwork-V1.0.6/Meldwork-0.1.6-arm64.dmg">
+        <a class="cta-primary magnet" href="https://github.com/Ryder-Sun/Meldwork/releases/download/Meldwork-V1.0.7/Meldwork-1.0.7-arm64.dmg">
           <span class="cta-label" data-zh="下载 macOS 版">Download for macOS</span>
-          <span class="cta-meta" data-zh="V1.0.6 · Apple 芯片">V1.0.6 · Apple silicon</span>
+          <span class="cta-meta" data-zh="V1.0.7 · Apple 芯片">V1.0.7 · Apple silicon</span>
         </a>
         <a class="cta-ghost" href="https://github.com/Ryder-Sun/Meldwork" target="_blank" rel="noopener" data-zh="在 GitHub 查看 &lt;span aria-hidden=&quot;true&quot;&gt;↗&lt;/span&gt;">View on GitHub <span aria-hidden="true">↗</span></a>
       </div>
@@ -199,7 +199,7 @@
     <div class="hero-stats" id="stats">
       <div class="stat">
         <span class="stat-glyph">&gt;</span>
-        <span class="stat-value"><span class="count" data-target="12" data-decimals="0">0</span><span class="stat-suffix">+</span></span>
+        <span class="stat-value"><span class="count" data-target="13" data-decimals="0">0</span><span class="stat-suffix">+</span></span>
         <span class="stat-label" data-zh="已支持的 Agent CLI">Supported Agent CLIs</span>
       </div>
       <div class="stat">
@@ -233,6 +233,7 @@
         <span class="logo-chip"><img src="assets/agents/hermes.svg" alt="" />Hermes</span>
         <span class="logo-chip"><img src="assets/agents/openclaw-transparent.png" alt="" />OpenClaw</span>
         <span class="logo-chip"><img src="assets/agents/workbuddy.png" alt="" />WorkBuddy</span>
+        <span class="logo-chip"><img src="assets/agents/zcode.png" alt="" />Zcode</span>
         <span class="logo-chip"><img src="assets/agents/pi.svg" alt="" />Pi Agent</span>
         <span class="logo-chip"><img src="assets/agents/kimi.png" alt="" />Kimi Code</span>
         <span class="logo-chip"><img src="assets/agents/mimo.svg" alt="" />MiMo Code</span>
@@ -255,8 +256,8 @@
       </article>
       <article class="geo-tile geo-tile--wide spotlight reveal" data-reveal style="--d:0.08s">
         <span class="geo-kicker" data-zh="支持的 Agent">Supported agents</span>
-        <span class="geo-num">12<em>+</em></span>
-        <p class="geo-fact-value" data-zh="Codex、Claude Code、Gemini CLI、Qwen Code、Kimi Code、MiMo Code、OpenCode、OpenCodeReview、Hermes、Pi Agent、OpenClaw、WorkBuddy，直接检测本机安装。">Codex, Claude Code, Gemini CLI, Qwen Code, Kimi Code, MiMo Code, OpenCode, OpenCodeReview, Hermes, Pi Agent, OpenClaw, WorkBuddy — detected natively on your machine.</p>
+        <span class="geo-num">13<em>+</em></span>
+        <p class="geo-fact-value" data-zh="Codex、Claude Code、Gemini CLI、Qwen Code、Kimi Code、MiMo Code、OpenCode、OpenCodeReview、Hermes、Zcode、Pi Agent、OpenClaw、WorkBuddy，直接检测本机安装。">Codex, Claude Code, Gemini CLI, Qwen Code, Kimi Code, MiMo Code, OpenCode, OpenCodeReview, Hermes, Zcode, Pi Agent, OpenClaw, WorkBuddy — detected natively on your machine.</p>
       </article>
       <article class="geo-tile spotlight reveal" data-reveal style="--d:0.16s">
         <span class="geo-kicker" data-zh="协作模式">Modes</span>
@@ -573,7 +574,7 @@
       <div class="cmp-row" role="row">
         <div role="cell" class="cmp-cat" data-zh="自建编排流程">Custom orchestration</div>
         <div role="cell" data-zh="自行构建与维护任务路由和协作逻辑。">Build and maintain your own task routing and collaboration logic.</div>
-        <div role="cell" data-zh="开箱即用的桌面协作流程，支持 12 种以上不同的 CLI，无需组装编排框架。">A ready-to-use desktop workflow across 12+ heterogeneous CLIs — no orchestration framework to assemble.</div>
+        <div role="cell" data-zh="开箱即用的桌面协作流程，支持 13 种以上不同的 CLI，无需组装编排框架。">A ready-to-use desktop workflow across 13+ heterogeneous CLIs — no orchestration framework to assemble.</div>
       </div>
     </div>
   </section>
@@ -637,7 +638,7 @@
             <span class="acc-icon" aria-hidden="true"></span>
           </button>
           <div class="acc-panel">
-            <p data-zh="目前包括 Codex、Claude Code、Gemini CLI、Qwen Code、Kimi Code、MiMo Code、OpenCode、OpenCodeReview、Hermes、Pi Agent、OpenClaw 和 WorkBuddy。可通过 Agent Connector SDK 添加已批准的连接器，也可使用桌面端的自定义 Agent 入口。">Twelve today — Codex, Claude Code, Gemini CLI, Qwen Code, Kimi Code, MiMo Code, OpenCode, OpenCodeReview, Hermes, Pi Agent, OpenClaw, and WorkBuddy. Approved Agent Connectors can be added through the Agent Connector SDK; custom executables use the desktop custom-Agent path.</p>
+            <p data-zh="目前包括 Codex、Claude Code、Gemini CLI、Qwen Code、Kimi Code、MiMo Code、OpenCode、OpenCodeReview、Hermes、Zcode、Pi Agent、OpenClaw 和 WorkBuddy。可通过 Agent Connector SDK 添加已批准的连接器，也可使用桌面端的自定义 Agent 入口。">Thirteen today — Codex, Claude Code, Gemini CLI, Qwen Code, Kimi Code, MiMo Code, OpenCode, OpenCodeReview, Hermes, Zcode, Pi Agent, OpenClaw, and WorkBuddy. Approved Agent Connectors can be added through the Agent Connector SDK; custom executables use the desktop custom-Agent path.</p>
           </div>
         </li>
         <li class="acc-item reveal" data-reveal style="--d:0.12s">
@@ -673,7 +674,7 @@
             <span class="acc-icon" aria-hidden="true"></span>
           </button>
           <div class="acc-panel">
-            <p data-zh="按 Apache License 2.0 开源。商业使用、私人使用、修改和再分发均依照许可证条款进行。许可证不授予 Meldwork 名称或标志的使用权，详见 &lt;a href=&quot;https://github.com/Ryder-Sun/Meldwork/blob/main/COMMERCIAL_USE.md&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot;&gt;商业使用说明 ↗&lt;/a&gt;。">Open source under the Apache License 2.0. Commercial use, private use, modification, and redistribution are permitted under the license terms. The license does not grant rights to the Meldwork name or logo — see <a href="https://github.com/Ryder-Sun/Meldwork/blob/main/COMMERCIAL_USE.md" target="_blank" rel="noopener">COMMERCIAL_USE.md ↗</a>.</p>
+            <p data-zh="按 Apache License 2.0 开源。商业使用、私人使用、修改和再分发均依照许可证条款进行。商用无需另行授权或支付许可费。Apache-2.0 不授予商标权，详见 &lt;a href=&quot;https://github.com/Ryder-Sun/Meldwork/blob/main/COMMERCIAL_USE.md&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot;&gt;商业使用说明 ↗&lt;/a&gt;。">Open source under the Apache License 2.0. Commercial use, private use, modification, and redistribution are permitted under the license terms. No separate commercial authorization or license fee is required. Apache-2.0 does not grant trademark rights — see <a href="https://github.com/Ryder-Sun/Meldwork/blob/main/COMMERCIAL_USE.md" target="_blank" rel="noopener">COMMERCIAL_USE.md ↗</a>.</p>
           </div>
         </li>
         <li class="acc-item reveal" data-reveal style="--d:0.3s">
@@ -682,7 +683,7 @@
             <span class="acc-icon" aria-hidden="true"></span>
           </button>
           <div class="acc-panel">
-            <p data-zh="当前 V1.0.6 预览版面向 Apple 芯片 macOS，采用临时签名且未公证，首次启动可能需在&lt;em&gt;系统设置 → 隐私与安全性&lt;/em&gt;选择&lt;em&gt;仍要打开&lt;/em&gt;。跨平台构建已列入计划，应用基于 Electron，后续将逐步提供相应目标。">The current V1.0.6 preview targets Apple silicon macOS (ad-hoc signed, not notarized — open <em>Open Anyway</em> in <em>System Settings → Privacy &amp; Security</em> on first launch). Cross-platform builds are on the roadmap; the app is Electron so the same source compiles everywhere once those targets land.</p>
+            <p data-zh="当前 V1.0.7 预览版面向 Apple 芯片 macOS，采用临时签名且未公证，首次启动可能需在&lt;em&gt;系统设置 → 隐私与安全性&lt;/em&gt;选择&lt;em&gt;仍要打开&lt;/em&gt;。跨平台构建已列入计划，应用基于 Electron，后续将逐步提供相应目标。">The current V1.0.7 preview targets Apple silicon macOS (ad-hoc signed, not notarized — open <em>Open Anyway</em> in <em>System Settings → Privacy &amp; Security</em> on first launch). Cross-platform builds are on the roadmap; the app is Electron so the same source compiles everywhere once those targets land.</p>
           </div>
         </li>
       </ul>
@@ -699,24 +700,24 @@
   <!-- ================= CTA / FOOTER ================= -->
   <footer class="cta-final" id="download">
     <h2 class="final-title" data-split data-zh="提出目标，让 Agent 们协作完成。">Set the goal. Let Agents work together.</h2>
-    <p class="final-sub" data-zh="V1.0.6 改进 Agent 恢复能力，让群组在个别成员失败时继续讨论，完善附件和知识源传递，并标记等待你决策的会话。&lt;a href=&quot;https://github.com/Ryder-Sun/Meldwork/releases/tag/Meldwork-V1.0.6&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot;&gt;查看发布说明 ↗&lt;/a&gt;">V1.0.6 improves Agent recovery, keeps group discussions going through individual failures, delivers group attachments and knowledge sources, and highlights conversations awaiting your decision. <a href="https://github.com/Ryder-Sun/Meldwork/releases/tag/Meldwork-V1.0.6" target="_blank" rel="noopener">Read the release notes ↗</a></p>
+    <p class="final-sub" data-zh="V1.0.7 保留中断后的讨论输出、改进原生流式处理、新增 Zcode，并复用 WorkBuddy 已配置模型。&lt;a href=&quot;https://github.com/Ryder-Sun/Meldwork/releases/tag/Meldwork-V1.0.7&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot;&gt;查看发布说明 ↗&lt;/a&gt;">V1.0.7 preserves interrupted discussion output, improves native streaming, adds Zcode, and reuses configured WorkBuddy models. <a href="https://github.com/Ryder-Sun/Meldwork/releases/tag/Meldwork-V1.0.7" target="_blank" rel="noopener">Read the release notes ↗</a></p>
     <div class="cta-row">
-      <a class="cta-primary magnet" href="https://github.com/Ryder-Sun/Meldwork/releases/download/Meldwork-V1.0.6/Meldwork-0.1.6-arm64.dmg">
-        <span class="cta-label" data-zh="下载 V1.0.6">Download V1.0.6</span>
-        <span class="cta-meta" data-zh="Apple 芯片 · 123 MB">Apple silicon · 123 MB</span>
+      <a class="cta-primary magnet" href="https://github.com/Ryder-Sun/Meldwork/releases/download/Meldwork-V1.0.7/Meldwork-1.0.7-arm64.dmg">
+        <span class="cta-label" data-zh="下载 V1.0.7">Download V1.0.7</span>
+        <span class="cta-meta" data-zh="DMG · Apple 芯片">DMG · Apple silicon</span>
       </a>
       <a class="cta-ghost" href="https://github.com/Ryder-Sun/Meldwork#readme" target="_blank" rel="noopener" data-zh="阅读中文说明 &lt;span aria-hidden=&quot;true&quot;&gt;↗&lt;/span&gt;">Read the README <span aria-hidden="true">↗</span></a>
     </div>
     <div class="foot-meta">
       <img class="foot-wordmark" src="assets/meldwork-wordmark-v3-dark.svg" alt="Meldwork" data-theme-src="assets/meldwork-wordmark-v3.svg" />
-      <span data-zh="开源 · Apache License 2.0">Open source · Apache License 2.0</span>
+      <span data-zh="允许商用 · &lt;a href=&quot;LICENSE&quot;&gt;Apache-2.0&lt;/a&gt;">Commercial use permitted · <a href="LICENSE">Apache-2.0</a></span>
       <span data-zh="本地优先 · Electron · macOS 预览版">Local-first · Electron · macOS preview</span>
       <a class="foot-link" href="https://github.com/Ryder-Sun/Meldwork" target="_blank" rel="noopener">github.com/Ryder-Sun/Meldwork</a>
     </div>
   </footer>
 
-  <script src="i18n.js?v=20261021.3" defer></script>
-  <script src="glyph-embers.js?v=20261021.5" defer></script>
-  <script src="main.js?v=20261021.3" defer></script>
+  <script src="i18n.js?v=20261027.1" defer></script>
+  <script src="glyph-embers.js?v=20261027.1" defer></script>
+  <script src="main.js?v=20261027.1" defer></script>
 </body>
 </html>
