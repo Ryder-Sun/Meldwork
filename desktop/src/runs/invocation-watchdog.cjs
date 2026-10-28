@@ -22,6 +22,9 @@ function positiveFinite(value) {
 function createInvocationWatchdog({
   timeoutMs,
   toolTimeoutMs,
+  maxDurationMs,
+  answerIdleMs,
+  maxToolCalls,
   strict = false,
   isStopped = () => false,
   onTimeout = () => {},
@@ -30,9 +33,16 @@ function createInvocationWatchdog({
   const enabled = positiveFinite(timeoutMs)
   const startedAt = clock.now()
   const startupDeadlineAt = strict && enabled ? startedAt + timeoutMs : Number.POSITIVE_INFINITY
+  let hardDeadlineAt = positiveFinite(maxDurationMs)
+    ? startedAt + maxDurationMs : Number.POSITIVE_INFINITY
+  const toolCallLimit = positiveFinite(maxToolCalls) ? Math.floor(maxToolCalls) : 0
+  const toolCallIds = new Set()
+  const activeToolIds = new Set()
   let lastProgressAt = startedAt
   let lastSubstantiveAt = startedAt
+  let hasAnswer = false
   let paused = false
+  let pausedAt = null
   let established = false
   let toolActive = false
   let closed = false
@@ -49,10 +59,12 @@ function createInvocationWatchdog({
   }
 
   function arm() {
-    if (timer || paused || isStopped() || !enabled) return
+    if (timer || paused || isStopped() || (!enabled && !positiveFinite(maxDurationMs))) return
     const now = clock.now()
     const inactivityWindowMs = toolActive ? toolTimeoutMs : timeoutMs
-    const inactivityRemainingMs = Math.max(0, inactivityWindowMs - (now - lastProgressAt))
+    const inactivityRemainingMs = enabled
+      ? Math.max(0, inactivityWindowMs - (now - lastProgressAt))
+      : Number.POSITIVE_INFINITY
     const startupRemainingMs = Math.max(
       0, (established ? Number.POSITIVE_INFINITY : startupDeadlineAt) - now,
     )
@@ -60,7 +72,14 @@ function createInvocationWatchdog({
       ? Number.POSITIVE_INFINITY
       : (toolActive ? toolTimeoutMs : timeoutMs * 3)
     const stallRemainingMs = Math.max(0, stallWindowMs - (now - lastSubstantiveAt))
-    const remainingMs = Math.min(inactivityRemainingMs, startupRemainingMs, stallRemainingMs)
+    const hardRemainingMs = Math.max(0, hardDeadlineAt - now)
+    const answerIdleRemainingMs = hasAnswer && !toolActive && positiveFinite(answerIdleMs)
+      ? Math.max(0, answerIdleMs - (now - lastSubstantiveAt))
+      : Number.POSITIVE_INFINITY
+    const remainingMs = Math.min(
+      inactivityRemainingMs, startupRemainingMs, stallRemainingMs,
+      hardRemainingMs, answerIdleRemainingMs,
+    )
     timer = clock.setTimeout(() => {
       timer = null
       if (paused || isStopped()) return
@@ -96,6 +115,10 @@ function createInvocationWatchdog({
     get timedOut() { return timedOut },
     get error() { return timeoutError },
     progress,
+    answer() {
+      hasAnswer = true
+      progress()
+    },
     // The process is alive but has not said anything yet (stdout/stderr bytes,
     // ACP traffic): lift the startup deadline and refresh the inactivity
     // window outside tool calls.
@@ -111,20 +134,48 @@ function createInvocationWatchdog({
       established = true
       rearm()
     },
-    toolStarted() {
+    toolStarted(toolCallId = '') {
+      const id = String(toolCallId || '')
+      if (id && !toolCallIds.has(id)) {
+        toolCallIds.add(id)
+        if (toolCallLimit && toolCallIds.size > toolCallLimit) {
+          timedOut = true
+          timeoutError = new Error('LOCAL_AGENT_TOOL_LIMIT')
+          disarm()
+          onTimeout(timeoutError)
+          rejectTimeout(timeoutError)
+          return false
+        }
+      }
+      if (id) activeToolIds.add(id)
+      toolActive = true
+      progress()
+      return true
+    },
+    toolProgress() {
       toolActive = true
       progress()
     },
-    toolFinished() {
-      toolActive = false
+    toolFinished(toolCallId = '') {
+      const id = String(toolCallId || '')
+      if (id) activeToolIds.delete(id)
+      else activeToolIds.clear()
+      toolActive = id ? activeToolIds.size > 0 : false
       progress()
     },
     // Waiting for a person (Human Gate) is not the Agent being quiet.
     pause() {
       paused = true
+      pausedAt = clock.now()
       disarm()
     },
     resume() {
+      const pausedMs = pausedAt == null ? 0 : Math.max(0, clock.now() - pausedAt)
+      if (Number.isFinite(hardDeadlineAt)) {
+        hardDeadlineAt += pausedMs
+      }
+      lastSubstantiveAt += pausedMs
+      pausedAt = null
       paused = false
       lastProgressAt = clock.now()
       arm()

@@ -93,6 +93,7 @@ export const DESKTOP_ERROR_MESSAGE_KEYS = Object.freeze({
   LOCAL_AUTO_THREAD_REQUIRED: 'error.autoThreadRequired',
   LOCAL_AGENT_EXECUTION_STOPPED: 'error.executionStopped',
   LOCAL_AGENT_TIMEOUT: 'error.agentTimeout',
+  LOCAL_AGENT_TOOL_LIMIT: 'error.agentToolLimit',
   LOCAL_CLI_WRAPPER_UNSUPPORTED: 'error.cliWrapperUnsupported',
   CODEX_SANDBOX_UNSUPPORTED: 'error.codexSandboxUnsupported',
   LOCAL_AGENT_KIND_UNSUPPORTED: 'error.agentKindUnsupported',

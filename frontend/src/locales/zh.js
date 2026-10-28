@@ -880,6 +880,7 @@ export default {
     'error.autoThreadRequired': '请先发送讨论主题，再开始自动讨论。',
     'error.executionStopped': 'Agent 执行已停止。',
     'error.agentTimeout': '该 Agent 响应超时，请重试或新建会话后继续。',
+    'error.agentToolLimit': '该 Agent 在单次回复中调用工具过多，本次调用已停止，已收到的内容已保留。',
     'error.cliWrapperUnsupported': '当前不支持该 Agent 启动程序。',
     'error.codexSandboxUnsupported': '当前不支持所请求的 Codex 权限模式。',
     'error.agentKindUnsupported': '当前不支持该本地 Agent 类型。',

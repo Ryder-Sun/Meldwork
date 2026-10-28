@@ -27,6 +27,11 @@ const {
 const { normalizeOutcomeRefs, normalizeSessionMeta } = require('../runs/run-harness.cjs')
 const { createInvocationWatchdog } = require('../runs/invocation-watchdog.cjs')
 const { processRunScheduler } = require('../runs/run-scheduler.cjs')
+const {
+  DEFAULT_AUTO_AGENT_INVOCATION_MAX_MS,
+  DEFAULT_AUTO_AGENT_ANSWER_IDLE_MS,
+  DEFAULT_AUTO_AGENT_TOOL_CALL_LIMIT,
+} = require('./local-workspace-runtime-contracts.cjs')
 const { assertLocalSkillExecution } = require('../skills/local-skill-contract.cjs')
 const {
   defaultAgentLabel,
@@ -553,6 +558,7 @@ class LocalWorkspaceAgentInvocation {
     const pendingPermissionCallbacks = new Set()
     let resumedPermissionUsed = false
     let resumedPermissionError = null
+    let anonymousToolCallSequence = 0
     const startedAt = Date.now()
     if (signal) {
       parentAbortPromise = new Promise((_, reject) => {
@@ -573,6 +579,15 @@ class LocalWorkspaceAgentInvocation {
       timeoutMs: this.runAgentTimeoutMs,
       toolTimeoutMs: this.runAgentToolTimeoutMs,
       strict: mode === 'auto',
+      maxDurationMs: mode === 'auto' && context.v4 === true
+        && ['proposal', 'discussion'].includes(context.phase)
+        ? DEFAULT_AUTO_AGENT_INVOCATION_MAX_MS : 0,
+      answerIdleMs: mode === 'auto' && context.v4 === true
+        && ['proposal', 'discussion'].includes(context.phase)
+        ? DEFAULT_AUTO_AGENT_ANSWER_IDLE_MS : 0,
+      maxToolCalls: mode === 'auto' && context.v4 === true
+        && ['proposal', 'discussion'].includes(context.phase)
+        ? DEFAULT_AUTO_AGENT_TOOL_CALL_LIMIT : 0,
       isStopped: () => parentAbortObserved || Boolean(signal?.aborted)
         || agentController.signal.aborted,
       onTimeout: () => agentController.abort(),
@@ -640,12 +655,19 @@ class LocalWorkspaceAgentInvocation {
       const eventStatus = String(event.status || '').toLowerCase()
       if (['tool_start', 'tool_update'].includes(eventType)
           && ['queued', 'running', 'waiting', 'in_progress', 'streaming'].includes(eventStatus)) {
-        watchdog.toolStarted()
+        const toolId = String(event.id || '')
+        const accepted = toolId
+          ? watchdog.toolStarted(toolId)
+          : (eventType === 'tool_start'
+            ? watchdog.toolStarted(`anonymous-${++anonymousToolCallSequence}`)
+            : (watchdog.toolProgress(), true))
+        if (!accepted) return
       } else if (eventType === 'tool_result_summary'
           || (eventType === 'status' && ['completed', 'failed', 'stopped', 'timeout', 'interrupted']
             .includes(eventStatus))) {
-        watchdog.toolFinished()
+        watchdog.toolFinished(event.id)
       }
+      if (eventType === 'answer_delta' && event.delta) watchdog.answer()
       this.emitRunEvent(event)
       this.armAgentSilence(activeRun, kind, round, harnessRun.agentRunId)
       if (event.type !== 'answer_delta' || event.seq % 8 === 0) {
