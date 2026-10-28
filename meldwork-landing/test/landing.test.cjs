@@ -92,11 +92,17 @@ function page({ language = 'en', saved, reduced = false, blockedStorage = false 
     const observer = observers.findLast(entry => entry.targets.includes(scenario))
     observer.callback([{ target: scenario, isIntersecting: value }])
   }
-  function tick() {
-    const timer = [...timers.entries()].find(([, value]) => value.delay >= 7000)
-    assert.ok(timer, 'a reading-paced playback timer should exist')
+  function pulse() {
+    const timer = [...timers.entries()].find(([, value]) => value.delay === 35) ||
+      [...timers.entries()].find(([, value]) => [1300, 1600, 1800, 4200].includes(value.delay))
+    assert.ok(timer, 'a playback timer should exist')
     timers.delete(timer[0])
     timer[1].callback()
+  }
+  function tick() {
+    const initial = scenario.querySelector('[aria-current="step"]').dataset.step
+    let guard = 0
+    do { pulse(); assert.ok(++guard < 300) } while (scenario.querySelector('[aria-current="step"]').dataset.step === initial)
   }
   function runFrame(now) {
     const pending = [...frames.values()]
@@ -106,7 +112,7 @@ function page({ language = 'en', saved, reduced = false, blockedStorage = false 
   function setMotion(value) {
     mediaQueries.forEach(query => { query.matches = value; query.onChange?.() })
   }
-  return { dom, window, doc, scenario, inView, tick, timers, runFrame, setMotion,
+  return { dom, window, doc, scenario, inView, tick, pulse, timers, runFrame, setMotion,
     emberDraws: () => emberDraws, glyphSamples: () => glyphSamples }
 }
 
@@ -147,7 +153,7 @@ test('unavailable storage still permits language switching', () => {
 test('full-page copy has Chinese alternatives while links and emphasis survive switching', () => {
   const p = page()
   try {
-    for (const el of p.doc.querySelectorAll('h1 .hl-line,h2,h3,p,.cta-ghost,.nav-link span,.m-link span,.stat-label,.meta-pill,.meta-name,.seg-btn,.t-time,.t-role,.cs-caption,.cmp-row > div,.bnd-col li,.acc-trigger > span:first-child,.foot-meta > span')) {
+    for (const el of p.doc.querySelectorAll('h1 .hl-line,h2,h3,p:not([data-run-status]),.cta-ghost,.nav-link span,.m-link span,.stat-label,.meta-pill,.meta-name,.seg-btn,.t-time,.t-role,.cs-caption,.cmp-row > div,.bnd-col li,.acc-trigger > span:first-child,.foot-meta > span')) {
       assert.ok(el.hasAttribute('data-zh') || el.closest('[data-zh]'), el.outerHTML)
     }
     const linkCount = p.doc.querySelectorAll('a').length
@@ -170,7 +176,7 @@ test('manual playback pauses and language switches preserve the current contribu
     assert.equal(p.scenario.dataset.playback, 'paused')
     p.window.meldworkI18n.setLocale('zh')
     assert.equal(p.scenario.querySelector('[aria-current="step"]').dataset.step, '2')
-    assert.equal(p.doc.querySelector('[data-round]').textContent, '第 2 轮 · 评审')
+    assert.equal(p.doc.querySelector('[data-round]').textContent, '第 1 轮 · 分析')
     assert.equal(p.doc.querySelector('[data-pause]').textContent, '继续播放')
     p.doc.querySelector('[data-pause]').click()
     assert.equal(p.scenario.dataset.playback, 'playing')
@@ -179,26 +185,61 @@ test('manual playback pauses and language switches preserve the current contribu
   } finally { p.dom.window.close() }
 })
 
-test('autoplay stops at the last contribution and replay starts from the beginning', () => {
+test('autoplay types each contribution and loops after the synthesis', () => {
   const p = page()
   try {
     p.inView(true)
+    const first = p.scenario.querySelector('[data-step="0"] p')
+    assert.equal(first.textContent, '')
+    p.pulse()
+    assert.ok(first.textContent.length > 0 && first.textContent.length < 20)
     for (let i = 0; i < 4; i++) p.tick()
     assert.equal(p.doc.querySelector('[data-status]').textContent, '5 / 5')
-    assert.equal(p.scenario.dataset.playback, 'paused')
-    assert.equal(p.doc.querySelector('[data-pause]').textContent, 'Replay')
-    p.doc.querySelector('[data-pause]').click()
+    assert.equal(p.scenario.dataset.playback, 'playing')
+    p.tick()
     assert.equal(p.doc.querySelector('[data-status]').textContent, '1 / 5')
+    assert.equal(first.textContent, '')
   } finally { p.dom.window.close() }
 })
 
-test('hover and document visibility suspend playback without losing progress', () => {
+test('mentions precede thinking and both Agents respond in order', () => {
+  const p = page()
+  try {
+    p.inView(true)
+    const steps = [...p.scenario.querySelectorAll('.t-step')]
+    const seats = [...p.scenario.querySelectorAll('[data-agent]')]
+    p.tick()
+    assert.deepEqual(seats.map(seat => seat.dataset.state), ['working', 'waiting', 'waiting'])
+    assert.equal(steps[1].querySelector('p').textContent, '')
+    while (p.scenario.dataset.phase === 'typing') p.pulse()
+    assert.match(steps[1].textContent, /@Hermes/)
+    assert.match(steps[1].textContent, /@OpenCodeReview/)
+    assert.deepEqual(seats.map(seat => seat.dataset.state), ['waiting', 'thinking', 'thinking'])
+    p.pulse()
+    assert.deepEqual(seats.map(seat => seat.dataset.state), ['waiting', 'working', 'working'])
+    p.tick()
+    assert.deepEqual(steps.map(step => step.hidden), [false, false, false, true, true])
+    assert.match(steps[2].textContent, /Hermes/)
+    p.tick()
+    assert.deepEqual(seats.map(seat => seat.dataset.state), ['waiting', 'done', 'working'])
+    assert.match(steps[3].textContent, /OpenCodeReview/)
+    p.doc.querySelector('[data-mode="order"]').click()
+    assert.ok(steps.every(step => !step.hidden))
+    p.window.meldworkI18n.setLocale('zh')
+    assert.match(steps[1].textContent, /@Hermes/)
+    assert.doesNotMatch(p.doc.body.textContent, /自动讨论\s*V4|Auto Discussion\s*V4/)
+    assert.equal(p.doc.querySelector('#capabilities'), null)
+    assert.equal(p.doc.querySelector('a[href="#capabilities"]'), null)
+  } finally { p.dom.window.close() }
+})
+
+test('hover keeps playback running while document visibility suspends it', () => {
   const p = page()
   try {
     p.inView(true)
     p.tick()
     p.scenario.dispatchEvent(new p.window.MouseEvent('mouseenter'))
-    assert.equal(p.scenario.dataset.playback, 'paused')
+    assert.equal(p.scenario.dataset.playback, 'playing')
     p.scenario.dispatchEvent(new p.window.MouseEvent('mouseleave'))
     assert.equal(p.scenario.dataset.playback, 'playing')
     Object.defineProperty(p.doc, 'hidden', { value: true, configurable: true })
@@ -211,12 +252,12 @@ test('hover and document visibility suspend playback without losing progress', (
   } finally { p.dom.window.close() }
 })
 
-test('keyboard navigation, focus pause and transcript mode keep playback under user control', () => {
+test('keyboard navigation, focus and transcript mode keep playback under user control', () => {
   const p = page()
   try {
     p.inView(true)
     p.doc.querySelector('[data-next]').focus()
-    assert.equal(p.scenario.dataset.playback, 'paused')
+    assert.equal(p.scenario.dataset.playback, 'playing')
     p.scenario.dispatchEvent(new p.window.KeyboardEvent('keydown', { key: 'End', bubbles: true }))
     assert.equal(p.doc.querySelector('[data-status]').textContent, '5 / 5')
     p.doc.querySelector('[data-mode="order"]').click()
@@ -233,7 +274,7 @@ test('reduced motion defaults to a readable transcript without automatic playbac
     assert.ok(p.scenario.classList.contains('is-order'))
     p.doc.querySelector('[data-mode="auto"]').click()
     assert.equal(p.scenario.dataset.playback, 'paused')
-    assert.equal([...p.timers.values()].some(value => value.delay >= 7000), false)
+    assert.equal([...p.timers.values()].some(value => value.delay >= 2800), false)
   } finally { p.dom.window.close() }
 })
 

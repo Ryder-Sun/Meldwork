@@ -327,66 +327,109 @@
     var total = steps.length;
     var current = 0;
     var isInView = false;
-    var hovered = false;
-    var focused = false;
     var paused = false;
     var autoTimer = null;
     var scnMode = reduced ? "order" : "auto";
-    var railFill = scenario.querySelector("[data-rail]");
+    var feed = scenario.querySelector("[data-timeline]");
+    var seats = scenario.querySelectorAll("[data-agent]");
     var railStatus = scenario.querySelector("[data-status]");
     var roundLabel = scenario.querySelector("[data-round]");
     var pauseButton = scenario.querySelector("[data-pause]");
+    var runStatus = scenario.querySelector("[data-run-status]");
     var segBtns = scenario.querySelectorAll(".seg-btn");
-    var roundNames = ["Round 1 · Propose", "Round 1 · Critique", "Round 2 · Review",
-      "Round 2 · Reconcile", "Adoption · Human Gate"];
+    var roundNames = ["Task", "Round 1 · Request", "Round 1 · Analysis", "Round 1 · Review", "Round 2 · Synthesis"];
+    var runningNames = ["Codex is working…", "Hermes and OpenCodeReview are working…",
+      "OpenCodeReview is working…", "Codex is bringing the feedback together…", "Codex is bringing the feedback together…"];
+    var paragraphs = Array.from(steps, function (step) { return step.querySelector("p"); });
+    var originals = paragraphs.map(function (p) { return { en: p.innerHTML, zh: p.dataset.zh }; });
+    var typed = 0;
+    var stage = "typing";
     function translate(text) { return win.meldworkI18n.t(text); }
-
-    function setStep(idx) {
+    function markup(i) { return originals[i][doc.documentElement.lang === "zh-CN" ? "zh" : "en"]; }
+    function renderText(i, count) {
+      var p = paragraphs[i];
+      p.innerHTML = markup(i);
+      var walker = doc.createTreeWalker(p, NodeFilter.SHOW_TEXT);
+      var nodes = [];
+      while (walker.nextNode()) nodes.push(walker.currentNode);
+      nodes.forEach(function (node) {
+        var chars = Array.from(node.nodeValue);
+        node.nodeValue = chars.slice(0, count).join("");
+        count = Math.max(0, count - chars.length);
+      });
+    }
+    function textLength(i) {
+      var template = doc.createElement("template");
+      template.innerHTML = markup(i);
+      return Array.from(template.content.textContent).length;
+    }
+    function setStep(idx, animate) {
       current = Math.max(0, Math.min(total - 1, idx));
+      typed = animate ? 0 : textLength(current);
+      stage = animate ? "typing" : "reading";
+      render();
+    }
+    function render() {
       steps.forEach(function (step, i) {
         step.classList.toggle("is-visible", i <= current);
         step.classList.toggle("is-active", i === current);
+        step.hidden = scnMode !== "order" && i > current;
         if (i === current) step.setAttribute("aria-current", "step");
         else step.removeAttribute("aria-current");
+        renderText(i, scnMode === "order" || i !== current ? textLength(i) : typed);
       });
-      var node = steps[current].querySelector(".t-node");
-      if (railFill) railFill.style.height = (steps[current].offsetTop + node.offsetTop + node.offsetHeight / 2) + "px";
-      if (railStatus) railStatus.textContent = (current + 1) + " / " + total;
-      if (roundLabel) roundLabel.textContent = translate(roundNames[current]);
+      var states = [["Working", "Waiting", "Waiting"], ["Working", "Waiting", "Waiting"],
+        ["Waiting", "Working", "Working"], ["Waiting", "Done", "Working"], ["Working", "Done", "Done"]][current].slice();
+      if (current === 1 && stage !== "typing") states = ["Waiting", stage === "thinking" ? "Thinking" : "Working", stage === "thinking" ? "Thinking" : "Working"];
+      if (current === 2 && stage !== "typing") states[1] = "Done";
+      if (current === 3 && stage !== "typing") states = ["Working", "Done", "Done"];
+      if (current === 4 && stage !== "typing") states = ["Done", "Done", "Done"];
+      if (scnMode === "order") states = ["Done", "Done", "Done"];
+      seats.forEach(function (seat, i) {
+        seat.dataset.state = states[i].toLowerCase();
+        seat.querySelector("[data-agent-status]").textContent = translate(states[i]);
+      });
+      scenario.dataset.phase = stage;
+      feed.scrollTop = scnMode === "order" ? 0 : feed.scrollHeight;
+      railStatus.textContent = (current + 1) + " / " + total;
+      roundLabel.textContent = translate(roundNames[current]);
       scenario.querySelector("[data-prev]").disabled = current === 0;
       scenario.querySelector("[data-next]").disabled = current === total - 1;
-      pauseButton.textContent = translate(current === total - 1 ? "Replay" : paused ? "Resume" : "Pause");
+      pauseButton.textContent = translate(paused ? "Resume" : "Pause");
       pauseButton.setAttribute("aria-pressed", String(paused));
     }
     function stopAuto() {
       clearTimeout(autoTimer);
       autoTimer = null;
       scenario.dataset.playback = "paused";
+      runStatus.hidden = true;
     }
     function scheduleNext() {
       stopAuto();
-      if (!isInView || hovered || focused || paused || reduced || doc.hidden || scnMode !== "auto" || current === total - 1) return;
+      if (!isInView || paused || reduced || doc.hidden || scnMode !== "auto") return;
       scenario.dataset.playback = "playing";
-      // Allow time to read each contribution. Language switches preserve the step.
-      var length = steps[current].querySelector("p").textContent.length;
-      var delay = doc.documentElement.lang === "zh-CN" ? Math.max(7000, length * 90) : Math.max(7000, length * 32);
-      autoTimer = setTimeout(function () { setStep(current + 1); scheduleNext(); }, delay);
+      runStatus.textContent = translate(current === 1 && stage === "typing" ? "Codex is working…" :
+        current === 1 && stage === "thinking" ? "Hermes and OpenCodeReview are thinking…" : runningNames[current]);
+      runStatus.hidden = false;
+      var delay = stage === "typing" ? 35 : stage === "thinking" ? 1300 : current === total - 1 ? 4200 : current === 1 ? 1800 : 1600;
+      autoTimer = setTimeout(function () {
+        if (stage === "typing") {
+          typed = Math.min(textLength(current), typed + (doc.documentElement.lang === "zh-CN" ? 1 : 2));
+          if (typed >= textLength(current)) stage = current === 1 ? "thinking" : "reading";
+          render();
+        } else if (stage === "thinking") {
+          stage = "reading";
+          render();
+        } else {
+          setStep(current === total - 1 ? 0 : current + 1, true);
+        }
+        scheduleNext();
+      }, delay);
     }
-    function manualStep(idx) { paused = true; setStep(idx); scheduleNext(); }
+    function manualStep(idx) { paused = true; setStep(idx, false); scheduleNext(); }
     scenario.querySelector("[data-prev]").addEventListener("click", function () { manualStep(current - 1); });
     scenario.querySelector("[data-next]").addEventListener("click", function () { manualStep(current + 1); });
-    pauseButton.addEventListener("click", function () {
-      if (current === total - 1) { paused = false; setStep(0); }
-      else { paused = !paused; setStep(current); }
-      scheduleNext();
-    });
-    scenario.addEventListener("mouseenter", function () { hovered = true; stopAuto(); });
-    scenario.addEventListener("mouseleave", function () { hovered = false; scheduleNext(); });
-    scenario.addEventListener("focusin", function () { focused = true; stopAuto(); });
-    scenario.addEventListener("focusout", function (event) {
-      focused = scenario.contains(event.relatedTarget);
-      scheduleNext();
-    });
+    pauseButton.addEventListener("click", function () { paused = !paused; render(); scheduleNext(); });
     scenario.addEventListener("keydown", function (event) {
       if (scnMode !== "auto" || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
       event.preventDefault();
@@ -400,17 +443,18 @@
         button.classList.toggle("is-on", selected);
         button.setAttribute("aria-pressed", String(selected));
       });
-      setStep(current);
+      if (mode === "auto") setStep(current, !paused && !reduced);
+      else render();
       scheduleNext();
     }
     segBtns.forEach(function (button) {
       button.addEventListener("click", function () { setMode(button.dataset.mode); });
     });
     doc.addEventListener("visibilitychange", scheduleNext);
-    doc.addEventListener("meldwork:localechange", function () { setStep(current); scheduleNext(); });
-    if ("ResizeObserver" in win) {
-      new ResizeObserver(function () { setStep(current); }).observe(scenario.querySelector(".timeline"));
-    }
+    doc.addEventListener("meldwork:localechange", function () {
+      typed = stage === "typing" ? Math.min(typed, textLength(current)) : textLength(current);
+      render(); scheduleNext();
+    });
     if ("IntersectionObserver" in win) {
       new IntersectionObserver(function (entries) {
         isInView = entries[0].isIntersecting;

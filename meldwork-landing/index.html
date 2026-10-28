@@ -31,7 +31,7 @@
         "softwareVersion": "1.0.8",
         "license": "https://www.apache.org/licenses/LICENSE-2.0",
         "description": "Meldwork is a local-first multi-Agent collaboration workspace for macOS. Selected Agents share context, discuss approaches, carry out authorized work, and check results with less manual coordination. Users set goals and permissions and step in when information or key decisions are needed.",
-        "featureList": "Autonomous Agent collaboration, shared task context, peer contributions and reviews, authorized task execution, Concurrent Responses, Auto Discussion V4, opt-in workspace writes, user decisions when needed, local collaboration history, multimodal attachments, selected knowledge sources",
+        "featureList": "Autonomous Agent collaboration, shared task context, peer contributions and reviews, authorized task execution, Concurrent Responses, Auto Discussion, opt-in workspace writes, user decisions when needed, local collaboration history, multimodal attachments, selected knowledge sources",
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
         "author": { "@type": "Organization", "name": "Meldwork", "url": "https://github.com/Ryder-Sun/Meldwork" },
         "downloadUrl": "https://github.com/Ryder-Sun/Meldwork/releases/tag/Meldwork-V1.0.8",
@@ -62,7 +62,7 @@
           },
           {
             "@type": "Question",
-            "name": "What does Auto Discussion V4 actually do?",
+            "name": "What does Auto Discussion actually do?",
             "acceptedAnswer": { "@type": "Answer", "text": "Selected Agents start with independent proposals, then discuss differences, request peer contributions, carry out authorized work, and check deliverables. A delivery owner judges progress and whether more work or a user decision is needed. You do not need to direct every round, but missing information, permissions, or key decisions can still require your input." }
           },
           {
@@ -104,7 +104,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="styles.css?v=20261027.1" />
+  <link rel="stylesheet" href="styles.css?v=20261028.4" />
 </head>
 <body>
 
@@ -121,7 +121,6 @@
     <nav class="nav-pill" aria-label="Primary">
       <a href="#workflow" class="nav-link" data-spy="workflow"><span data-zh="工作流程">Workflow</span></a>
       <a href="#modes" class="nav-link" data-spy="modes"><span data-zh="协作模式">Modes</span></a>
-      <a href="#capabilities" class="nav-link" data-spy="capabilities"><span data-zh="产品能力">Capabilities</span></a>
       <a href="#scenario" class="nav-link" data-spy="scenario"><span data-zh="真实协作">In a run</span></a>
       <a href="#compare" class="nav-link" data-spy="compare"><span data-zh="产品特点">How it differs</span></a>
       <a href="#faq" class="nav-link" data-spy="faq"><span data-zh="常见问题">FAQ</span></a>
@@ -143,7 +142,6 @@
   <nav class="mobile-menu" id="mobileMenu" hidden aria-label="Mobile">
     <a href="#workflow" class="m-link"><span data-zh="工作流程">Workflow</span></a>
     <a href="#modes" class="m-link"><span data-zh="协作模式">Modes</span></a>
-    <a href="#capabilities" class="m-link"><span data-zh="产品能力">Capabilities</span></a>
     <a href="#scenario" class="m-link"><span data-zh="真实协作">In a run</span></a>
     <a href="#compare" class="m-link"><span data-zh="产品特点">How it differs</span></a>
     <a href="#faq" class="m-link"><span data-zh="常见问题">FAQ</span></a>
@@ -262,7 +260,7 @@
       <article class="geo-tile spotlight reveal" data-reveal style="--d:0.16s">
         <span class="geo-kicker" data-zh="协作模式">Modes</span>
         <span class="geo-num">3</span>
-        <p class="geo-fact-value" data-zh="直接会话 · 并发回复 · 自动讨论 V4">Direct · Concurrent Responses · Auto Discussion V4</p>
+        <p class="geo-fact-value" data-zh="直接会话 · 并发回复 · 自动讨论">Direct · Concurrent Responses · Auto Discussion</p>
       </article>
       <article class="geo-tile geo-tile--wide spotlight reveal" data-reveal style="--d:0.24s">
         <span class="geo-kicker" data-zh="共同推进">Working together</span>
@@ -341,61 +339,27 @@
       </article>
       <article class="mode-card spotlight reveal" data-reveal style="--d:0.24s">
         <span class="mode-glyph-wrap"><span class="mode-glyph">#</span></span>
-        <h3 data-zh="自动讨论 V4">Auto Discussion V4</h3>
+        <h3 data-zh="自动讨论">Auto Discussion</h3>
         <p data-zh="Agent 提出方案、讨论分歧、请求同伴贡献，执行授权工作并检查成果。">Agents propose, discuss differences, request peer contributions, carry out authorized work, and check results.</p>
         <span class="mode-best" data-zh="适合希望减少人工协调的多步骤任务。">Best for multi-step work with less manual coordination.</span>
       </article>
     </div>
   </section>
 
-  <!-- ================= CAPABILITIES ================= -->
-  <section class="section capabilities" id="capabilities">
-    <p class="eyebrow reveal" data-reveal data-zh="让协作持续推进">WHAT SUPPORTS THE WORK</p>
-    <h2 class="section-title reveal" data-reveal data-zh="少一些协调，让工作继续向前。">Less coordinating. More work moving forward.</h2>
-    <p class="section-sub reveal" data-reveal data-zh="共享上下文与同伴贡献帮助 Agent 推进任务，边界和关键决策仍由你掌握。">Shared context and peer contributions help Agents advance the task. You keep control of the boundaries and key decisions.</p>
-    <div class="cap-grid">
-      <article class="cap-card spotlight tilt reveal" data-reveal style="--d:0s">
-        <div class="cap-icon"><span class="cap-gate"></span></div>
-        <h3 data-zh="由你设定边界">You Set the Boundaries</h3>
-        <p data-zh="选择目标与权限。工作区写入需主动授权；信息缺失或需要关键决策时，任务会交回给你。">Choose the goal and permissions. Workspace writes are opt-in; requests for information or key decisions come back to you.</p>
-        <span class="cap-tag" data-zh="需要时作出决策">Decide when needed</span>
-      </article>
-      <article class="cap-card spotlight tilt reveal" data-reveal style="--d:0.08s">
-        <div class="cap-icon"><span class="cap-snap"></span></div>
-        <h3 data-zh="共享上下文">Shared Context</h3>
-        <p data-zh="Agent 从同一份任务快照开始，并在讨论推进时接收同伴的贡献。">Agents start from the same task snapshot and receive peer contributions as discussion progresses.</p>
-        <span class="cap-tag" data-zh="减少上下文转述">Less context relaying</span>
-      </article>
-      <article class="cap-card spotlight tilt reveal" data-reveal style="--d:0.16s">
-        <div class="cap-icon"><span class="cap-trail"></span></div>
-        <h3 data-zh="Agent 自主推进">Agents Advance the Work</h3>
-        <p data-zh="Agent 请求同伴补充、接续授权工作并检查交付物。需要时可回看回复与运行状态。">Agents request peer input, continue authorized work, and review deliverables. Revisit replies and run status when you need to.</p>
-        <span class="cap-tag" data-zh="贡献、检查、完善">Contribute, check, refine</span>
-      </article>
-      <article class="cap-card spotlight tilt reveal" data-reveal style="--d:0.24s">
-        <div class="cap-icon"><span class="cap-lock"></span></div>
-        <h3 data-zh="本地优先">Local-first Boundary</h3>
-        <p data-zh="在你的电脑上运行 Electron 工作空间，对话保存在本地，无需远程 Agent 集群。">Electron work cell on your machine. No remote Agent fleet. Conversations stay local.</p>
-        <span class="cap-tag" data-zh="已有 CLI，本地记录">Your CLI, your data</span>
-      </article>
-    </div>
-  </section>
-
   <!-- ================= SCENARIO (animated stepper) ================= -->
   <section class="section scenario" id="scenario">
-    <p class="eyebrow reveal" data-reveal data-zh="一次真实协作">INSIDE A REAL RUN</p>
-    <h2 class="section-title reveal" data-reveal data-zh="一次发布评审，从提案到用户决策。">A release review, from proposals to a user decision.</h2>
-    <p class="section-sub reveal" data-reveal data-zh="V1.0.3 历史会话摘录：Codex、Hermes 和 OpenCodeReview 讨论内测发布，用户介入关键取舍。这段案例展示讨论与人工决策，不代表完整的自动执行任务。">Historical V1.0.3 session excerpts: Codex, Hermes, and OpenCodeReview discussed a private-beta release, with the user steering a key tradeoff. This example shows discussion and human input, rather than an end-to-end execution task.</p>
+    <p class="eyebrow reveal" data-reveal data-zh="一次协作演示">INSIDE AUTO DISCUSSION</p>
+    <h2 class="section-title reveal" data-reveal data-zh="把任务交给一个协作小组。">Give the task a team.</h2>
+    <p class="section-sub reveal" data-reveal data-zh="从 @ 同伴、并行分析到汇总建议，看看 Agent 如何接续推进一次代码评审。">From a mention to a shared plan. Watch Agents take a code review forward.</p>
 
     <div class="scenario-stage reveal" data-reveal data-scenario>
       <div class="mac-titlebar">
-        <span class="mac-lights" aria-hidden="true"><i class="light-r"></i><i class="light-y"></i><i class="light-g"></i></span>
         <div class="scenario-meta">
-          <span class="meta-pill" data-zh="&lt;span class=&quot;meta-dot&quot;&gt;&lt;/span&gt; 自动讨论 V4"><span class="meta-dot"></span> Auto Discussion V4</span>
-          <span class="meta-name" data-zh="发布准备评审小组">Launch Readiness Council</span>
+          <span class="meta-pill" data-zh="&lt;span class=&quot;meta-dot&quot;&gt;&lt;/span&gt; 自动讨论"><span class="meta-dot"></span> Auto Discussion</span>
+          <span class="meta-name" data-zh="代码变更评审">Code Change Review</span>
         </div>
         <div class="titlebar-right">
-          <span class="meta-round" data-round data-zh="第 1 轮 · 提案">Round 1 · Propose</span>
+          <span class="meta-round" data-round data-zh="任务">Task</span>
           <div class="seg-control" role="group" aria-label="Playback mode">
             <button type="button" class="seg-btn is-on" data-mode="auto" aria-pressed="true" data-zh="自动播放">Auto</button>
             <button type="button" class="seg-btn" data-mode="order" aria-pressed="false" data-zh="完整记录">Sequence</button>
@@ -404,60 +368,47 @@
       </div>
 
       <div class="scenario-body">
+        <aside class="agent-roster" aria-label="Agent activity">
+          <span class="roster-label" data-zh="参与协作">THE TEAM</span>
+          <div class="agent-seat" data-agent="codex"><img src="assets/agents/codex.svg" alt="" /><div><strong>Codex</strong><span data-zh="协调与汇总">Coordinate &amp; synthesize</span></div><small data-agent-status></small><i aria-hidden="true"></i></div>
+          <div class="agent-seat" data-agent="hermes"><img src="assets/agents/hermes.svg" alt="" /><div><strong>Hermes</strong><span data-zh="需求与边界">Requirements &amp; edge cases</span></div><small data-agent-status></small><i aria-hidden="true"></i></div>
+          <div class="agent-seat" data-agent="review"><img src="assets/agents/opencodereview.svg" alt="" /><div><strong>OpenCodeReview</strong><span data-zh="实现与测试">Implementation &amp; tests</span></div><small data-agent-status></small><i aria-hidden="true"></i></div>
+          <div class="demo-note" data-zh="协作流程示意&lt;br&gt;实际分工由任务和参与的 Agent 决定。">Illustrative workflow<br>Actual collaboration depends on the task and participating Agents.</div>
+        </aside>
+        <div class="conversation-panel">
+        <div class="task-brief"><span data-zh="你的任务">YOUR TASK</span><p data-zh="评审这次代码变更，找出风险并提出改进建议。">Review this code change. Find risks and suggest improvements.</p></div>
         <div class="timeline-track" data-timeline>
-          <div class="timeline-rail" aria-hidden="true">
-            <span class="rail-line"></span>
-            <span class="rail-progress" data-rail></span>
-          </div>
           <ol class="timeline" data-timeline-list>
             <li class="t-step is-active" data-step="0">
-              <span class="t-node" data-node></span>
-              <span class="t-time" data-zh="第 1 轮 · 05:34">R1 · 05:34</span>
-              <div class="t-bubble t-bubble-codex">
-                <header><img src="assets/agents/codex.svg" alt="" /><strong>Codex</strong><span class="t-role" data-zh="方案提议">Proposal</span></header>
-                <p data-zh="先发布&lt;strong&gt;仅限受邀用户的内测版&lt;/strong&gt;，只承诺一件事：用户在不同 Agent 之间切换时，同一个任务仍能连贯推进。暂不宣传工作流自动化、通用兼容或已具备公开发行条件。">Ship a <strong>private, invitation-only preview</strong> with one promise: keep a real task coherent while users move between Agents. Don't market workflow automation, universal compatibility, or public distribution readiness yet.</p>
-              </div>
+              <div class="t-bubble t-bubble-you"><header><img src="assets/agents/codex.svg" alt="" /><strong>Codex</strong><span class="t-role" data-zh="开始分析">Starting</span></header>
+                <p data-zh="我先梳理变更，再请两位同伴分别检查边界情况和实现。">I’ll map the change and bring in two peers to check edge cases and implementation.</p></div>
             </li>
             <li class="t-step" data-step="1">
-              <span class="t-node" data-node></span>
-              <span class="t-time" data-zh="第 1 轮 · 05:38">R1 · 05:38</span>
-              <div class="t-bubble t-bubble-hermes">
-                <header><img src="assets/agents/hermes.svg" alt="" /><strong>Hermes</strong><span class="t-role" data-zh="依据质询">Evidence challenge</span></header>
-                <p data-zh="内测应当&lt;strong&gt;验证行为&lt;/strong&gt;，而非热情。观察用户是否继续同一任务、是否有明确理由引入第二个 Agent，以及是否在接受结果前回看过程。没有这些信号，产品定位仍有待验证。">The beta should <strong>test behavior</strong>, not enthusiasm. Measure whether users resume the same task, bring in a second Agent for a clear reason, and use the trace before accepting a result. Without those signals, the category story is still unproven.</p>
-              </div>
+              <div class="t-bubble t-bubble-codex"><header><img src="assets/agents/codex.svg" alt="" /><strong>Codex</strong><span class="t-role" data-zh="请求同伴">Peer request</span></header>
+                <p data-zh="&lt;strong&gt;@Hermes&lt;/strong&gt; 请检查需求与边界情况；&lt;strong&gt;@OpenCodeReview&lt;/strong&gt; 请评审实现和测试。"><strong>@Hermes</strong>, check requirements and edge cases. <strong>@OpenCodeReview</strong>, review the implementation and tests.</p></div>
             </li>
             <li class="t-step" data-step="2">
-              <span class="t-node" data-node></span>
-              <span class="t-time" data-zh="第 2 轮 · 05:44">R2 · 05:44</span>
-              <div class="t-bubble t-bubble-ocr">
-                <header><img src="assets/agents/opencodereview.svg" alt="" /><strong>OpenCodeReview</strong><span class="t-role" data-zh="工程评审">Engineering review</span></header>
-                <p data-zh="MVP &lt;strong&gt;已能支持受控评估&lt;/strong&gt;，但还不适合公开下载。测试和打包通过，阻碍在于可信的 macOS 签名与公证。首版继续保持内测，并明确标出不支持的平台。">The MVP <strong>is</strong> stable enough for a controlled evaluation, but not for a public download. Tests and packaging pass; the blocker is trusted macOS signing and notarization. Keep the first release private and label unsupported platforms explicitly.</p>
-              </div>
+              <div class="t-bubble t-bubble-hermes"><header><img src="assets/agents/hermes.svg" alt="" /><strong>Hermes</strong><span class="t-role" data-zh="边界分析">Edge cases</span></header>
+                <p data-zh="建议补充空输入和失败重试的处理，避免异常情况下任务停滞。">Check empty input and retry behavior so the task can recover from failures.</p></div>
             </li>
             <li class="t-step" data-step="3">
-              <span class="t-node" data-node></span>
-              <span class="t-time" data-zh="第 2 轮 · 05:52">R2 · 05:52</span>
-              <div class="t-bubble t-bubble-you">
-                <header><span class="you-dot" aria-hidden="true">Y</span><strong data-zh="你">You</strong><span class="t-role" data-zh="协调分歧">Reconciliation</span></header>
-                <p data-zh="第 2 轮：协调分歧。只保留本周能验证的决定，并给出&lt;strong&gt;一项验收条件&lt;/strong&gt;。">Round 2: reconcile the disagreement. Keep only decisions we can verify this week and give me <strong>one acceptance gate</strong>.</p>
-              </div>
+              <div class="t-bubble t-bubble-ocr"><header><img src="assets/agents/opencodereview.svg" alt="" /><strong>OpenCodeReview</strong><span class="t-role" data-zh="实现评审">Implementation review</span></header>
+                <p data-zh="实现方向可行；建议增加失败重试的测试，并检查错误信息是否清晰。">The approach looks viable. Add a retry test and check that errors are clear.</p></div>
             </li>
             <li class="t-step" data-step="4">
-              <span class="t-node" data-node></span>
-              <span class="t-time" data-zh="用户决策">Adoption</span>
-              <div class="t-bubble t-bubble-gate">
-                <header><span class="gate-dot"></span><strong data-zh="人工决策">Human Gate</strong><span class="t-role" data-zh="最终决定">Decision</span></header>
-                <p data-zh="V1.0.3 仅向内测用户发布，&lt;strong&gt;暂不公开发行。&lt;/strong&gt;待 Developer ID 签名与公证在干净的 Mac 环境通过后重新评估。">Ship V1.0.3 to the private preview only. <strong>No-Go for public release.</strong> Reopen after Developer ID signing and notarization pass on a clean Mac.</p>
-              </div>
+              <div class="t-bubble t-bubble-codex"><header><img src="assets/agents/codex.svg" alt="" /><strong>Codex</strong><span class="t-role" data-zh="下一步">Next steps</span></header>
+                <p data-zh="汇总建议：补齐空输入处理、失败重试测试和错误提示，再由你检查结果。">Next: cover empty input, add a retry test, and improve error messages for your review.</p></div>
             </li>
           </ol>
         </div>
 
+        <div class="activity-slot"><p class="run-status" data-run-status role="status" hidden></p></div>
         <div class="scenario-controls">
           <button type="button" class="rail-btn" data-prev aria-label="Previous step">‹</button>
           <span class="rail-status" data-status>1 / 5</span>
           <button type="button" class="rail-btn" data-next aria-label="Next step">›</button>
           <button type="button" class="playback-toggle" data-pause aria-pressed="false">Pause</button>
+        </div>
         </div>
       </div>
     </div>
@@ -478,7 +429,7 @@
           <p data-zh="Agent 在同一个任务上下文中比较思路，检查彼此的贡献。">Agents compare approaches and check each other's contributions in the same task context.</p>
         </div>
         <div class="cs-info-item" data-cs-info="2">
-          <h3 data-zh="自动讨论 V4">Auto Discussion V4</h3>
+          <h3 data-zh="自动讨论">Auto Discussion</h3>
           <p data-zh="Agent 分轮讨论、请求同伴贡献并推进授权工作。需要你作出决策时再介入。">Agents discuss, request contributions, and advance authorized work across rounds. Step in when a decision needs you.</p>
         </div>
         <div class="cs-info-item" data-cs-info="3">
@@ -497,8 +448,8 @@
             <div class="cs-caption" data-zh="多 Agent 评审">Multi-agent review</div>
           </div>
           <div class="cs-card" data-card-idx="2">
-            <img src="assets/screenshots/meldwork-group-collaboration.png" alt="Auto Discussion V4 group collaboration" loading="lazy" />
-            <div class="cs-caption" data-zh="自动讨论 V4">Auto Discussion V4</div>
+            <img src="assets/screenshots/meldwork-group-collaboration.png" alt="Auto Discussion group collaboration" loading="lazy" />
+            <div class="cs-caption" data-zh="自动讨论">Auto Discussion</div>
           </div>
           <div class="cs-card" data-card-idx="3">
             <img src="assets/screenshots/meldwork-direct-multimodal.png" alt="Direct multimodal session with local files" loading="lazy" />
@@ -643,7 +594,7 @@
         </li>
         <li class="acc-item reveal" data-reveal style="--d:0.12s">
           <button type="button" class="acc-trigger" aria-expanded="false">
-            <span data-zh="自动讨论 V4 如何工作？">What does Auto Discussion V4 actually do?</span>
+            <span data-zh="自动讨论 如何工作？">What does Auto Discussion actually do?</span>
             <span class="acc-icon" aria-hidden="true"></span>
           </button>
           <div class="acc-panel">
@@ -716,8 +667,8 @@
     </div>
   </footer>
 
-  <script src="i18n.js?v=20261027.1" defer></script>
+  <script src="i18n.js?v=20261028.4" defer></script>
   <script src="glyph-embers.js?v=20261027.1" defer></script>
-  <script src="main.js?v=20261027.1" defer></script>
+  <script src="main.js?v=20261028.4" defer></script>
 </body>
 </html>
