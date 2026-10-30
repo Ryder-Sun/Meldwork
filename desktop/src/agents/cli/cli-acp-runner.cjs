@@ -24,6 +24,7 @@ const {
 const { createAcpOutboundPayload } = require('../../collaboration/outbound-payload.cjs')
 const { redactSecrets } = require('../../security/secret-redaction.cjs')
 const { createOutputRepetitionGuard } = require('./cli-output-repetition.cjs')
+const { createTurnCompletion } = require('./cli-turn-completion.cjs')
 const { terminalPlanRejection } = require('../agent-permission-policy.cjs')
 
 const ACP_CANCEL_GRACE_MS = 250
@@ -750,6 +751,7 @@ async function createAcpRuntime(input) {
   const client = {
     async requestPermission(params) {
       const turn = runtime.activeTurn
+      if (turn?.completion?.completed) return { outcome: { outcome: 'cancelled' } }
       if (runtime.agent.kind === 'mimo' && runtime.replyState.promptTerminalSequence != null) {
         runtime.replyState.permissionPendingAtPromptTerminal = true
         return { outcome: { outcome: 'cancelled' } }
@@ -778,12 +780,24 @@ async function createAcpRuntime(input) {
       if (params.update?.sessionUpdate === 'agent_message_chunk' && params.update.messageId) {
         turn.lastMessageId = params.update.messageId
       }
-      if (turn.repetitionGuard?.(params.update)) {
+      let update = params.update
+      if (['tool_call', 'tool_call_update'].includes(update?.sessionUpdate)) {
+        if (['completed', 'failed'].includes(update.status)) turn.openTools.delete(update.toolCallId)
+        else if (update.status || update.sessionUpdate === 'tool_call') turn.openTools.add(update.toolCallId)
+      }
+      if (turn.completion && update?.sessionUpdate === 'agent_message_chunk'
+          && update.content?.type === 'text') {
+        const next = turn.completion.push(update.content.text,
+          turn.openTools.size === 0 && turn.pendingPermissionCallbacks.size === 0)
+        update = { ...update, content: { ...update.content, text: next.delta } }
+        if (next.completed) turn.finishContribution()
+      }
+      if (turn.repetitionGuard?.(update)) {
         turn.stopRepeatedOutput()
         return
       }
-      turn.structuredOutput.ingest?.(params)
-      for (const event of turn.profile.mapEvent(params.update, turn.runtimeState)) {
+      turn.structuredOutput.ingest?.({ ...params, update })
+      for (const event of turn.profile.mapEvent(update, turn.runtimeState)) {
         turn.runtimeEvents.emit(event)
       }
     },
@@ -883,6 +897,8 @@ async function runAcpTurn(runtime, prompt, options, spec, profile) {
     try { options.onActivity?.() } catch { /* activity is best-effort */ }
   }
   const runtimeEvents = createRuntimeEventEmitter({ ...options, onActivity: noteActivity }, runtime.childEnv)
+  const completion = options.turnCompletion === true ? createTurnCompletion() : null
+  if (completion) prompt = `${prompt}\n\n${completion.instruction}`
   const capabilityWarning = connectorLimitedRuntimeEvent(runtime.agent.kind, profile)
   if (capabilityWarning) runtimeEvents.emit(capabilityWarning)
   const turn = {
@@ -897,6 +913,8 @@ async function runAcpTurn(runtime, prompt, options, spec, profile) {
     noteActivity,
     outboundPayloadFailed: false,
     pendingPermissionCallbacks: new Set(),
+    completion,
+    openTools: new Set(),
     repetitionGuard: ['opencode', 'mimo', 'hermes'].includes(runtime.agent.kind) ? createOutputRepetitionGuard() : null,
   }
   runtime.activeTurn = turn
@@ -924,6 +942,8 @@ async function runAcpTurn(runtime, prompt, options, spec, profile) {
   let timeoutRequested = false
   let cancelPromise = Promise.resolve()
   let rejectAbort
+  let resolveContribution
+  const contribution = new Promise(resolve => { resolveContribution = resolve })
   const abortPromise = new Promise((_, reject) => { rejectAbort = reject })
   const abort = (error = agentExecutionError('LOCAL_AGENT_EXECUTION_STOPPED')) => {
     if (abortRequested) return
@@ -941,6 +961,10 @@ async function runAcpTurn(runtime, prompt, options, spec, profile) {
     runtime.replyState.collecting = false
     abort(agentExecutionError('LOCAL_AGENT_REPEATED_OUTPUT',
       'The Agent repeated the same response without tool progress; the native turn was cancelled.'))
+  }
+  turn.finishContribution = () => {
+    runtime.replyState.collecting = false
+    resolveContribution({ stopReason: 'end_turn' })
   }
   const operation = promise => Promise.race([promise, abortPromise, runtime.failurePromise])
   const timeout = setTimeout(() => {
@@ -994,7 +1018,15 @@ async function runAcpTurn(runtime, prompt, options, spec, profile) {
         prompt: [{ type: 'text', text: prompt }, ...imageBlocks],
       }))
       promptRequest.catch(() => {})
-      promptResult = await operation(promptRequest)
+      promptResult = await operation(Promise.race([promptRequest, contribution]))
+      if (completion?.completed) {
+        await operation(settleWithin(Promise.resolve(runtime.connection.cancel({ sessionId: protocolSessionRef }))
+          .catch(() => {}), ACP_CANCEL_GRACE_MS))
+        let settled = false
+        await operation(settleWithin(promptRequest.then(() => { settled = true }, () => { settled = true }),
+          ACP_CANCEL_SETTLE_MS))
+        if (!settled) runtime.contributionNeedsClose = true
+      }
       if (runtime.agent.kind === 'mimo' && turn.lastMessageId) {
         await operation(new Promise(resolve => setTimeout(resolve, MIMO_TERMINAL_DRAIN_MS)))
       }
@@ -1143,6 +1175,10 @@ async function runPersistentAcpAgent(agent, prompt, workdir, options, spec, prof
       throw error
     } finally {
       runtime.active = false
+      if (runtime.contributionNeedsClose) {
+        acpSessionRuntimes.delete(key)
+        await closeAcpRuntime(runtime)
+      }
       runtime.lastUsedAt = Date.now()
       await evictIdleAcpRuntimes()
     }

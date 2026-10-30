@@ -891,6 +891,8 @@ class LocalWorkspaceAgentInvocation {
         return prompt
       }
       const runOptions = {
+        turnCompletion: context.v4 === true
+          && (context.allowMissingProposalReceipt === true || context.allowMissingV4Receipt === true),
         sessionRef: session.ref,
         ...(Number.isInteger(context.executionSequence)
           ? { executionSequence: context.executionSequence }
