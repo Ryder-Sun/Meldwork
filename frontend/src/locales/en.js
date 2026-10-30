@@ -881,6 +881,7 @@ export default {
     'error.autoThreadRequired': 'Send a topic before starting an automatic discussion.',
     'error.executionStopped': 'Agent execution stopped.',
     'error.agentTimeout': 'This Agent took too long to respond. Try again or start a new conversation.',
+    'error.agentToolLimit': 'This Agent exceeded the per-turn tool call limit. The call was stopped and any output received was preserved.',
     'error.cliWrapperUnsupported': 'This Agent launcher is not supported.',
     'error.codexSandboxUnsupported': 'The requested Codex permission mode is not supported.',
     'error.agentKindUnsupported': 'This local Agent type is not supported.',
