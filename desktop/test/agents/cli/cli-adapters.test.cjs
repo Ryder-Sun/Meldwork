@@ -373,28 +373,30 @@ process.exit(2)
   })
 
   await t.test('cancellation', async () => {
-    const readyFile = path.join(directory, 'cancel-ready')
     const cli = executable(directory, 'codex-open-tool-cancel.cjs', `
-const fs = require('node:fs')
 process.stdout.write(JSON.stringify({
   type: 'item.started',
   item: { id: 'legacy-stopped-tool', type: 'command_execution', command: 'pwd', status: 'in_progress' },
 }) + '\\n')
-fs.writeFileSync(process.env.MELDWORK_TEST_READY_FILE, 'ready')
 setInterval(() => {}, 1000)
 `)
     const controller = new AbortController()
+    t.after(() => controller.abort())
     const events = []
+    let reportToolStarted
+    const toolStarted = new Promise(resolve => { reportToolStarted = resolve })
     const result = runAgent(
       { kind: 'codex', executable: cli, name: 'Codex' },
       'stop after starting a tool', directory,
       {
         signal: controller.signal,
-        env: { MELDWORK_TEST_READY_FILE: readyFile },
-        onEvent: event => events.push(event),
+        onEvent: event => {
+          events.push(event)
+          if (event.type === 'tool_start' && event.id === 'legacy-stopped-tool') reportToolStarted()
+        },
       },
     )
-    await readWhenReady(readyFile)
+    await within(toolStarted)
 
     controller.abort()
 
