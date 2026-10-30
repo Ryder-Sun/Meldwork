@@ -59,6 +59,8 @@ describe('Meldwork workbench', () => {
     expect(wrapper.get('.agent-discovery-overlay').text()).toContain('Agent CLI')
     expect(wrapper.find('.pixel-blast-container').exists()).toBe(true)
     expect(wrapper.get('.agent-discovery-overlay').find('.wave-physics-loader').exists()).toBe(true)
+    expect(wrapper.get('.agent-discovery-overlay').findAll('.wave-physics-loader')).toHaveLength(1)
+    expect(wrapper.find('.agent-discovery-progress').exists()).toBe(false)
     expect(wrapper.get('.workspace-pane').attributes()).toHaveProperty('inert')
     expect(wrapper.get('.sidebar').attributes()).toHaveProperty('inert')
 

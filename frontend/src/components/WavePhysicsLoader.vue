@@ -1,5 +1,5 @@
 <template>
-  <div class="wave-physics-loader" aria-hidden="true">
+  <div class="wave-physics-loader" :data-theme="theme" aria-hidden="true">
     <div class="wave-physics-track">
       <span
         v-for="bar in bars"
@@ -21,33 +21,22 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
-const props = defineProps({
+defineProps({
   theme: { type: String, default: 'light' },
 })
 
 const numBars = 15
-const barWidth = 12
-const barGap = 8
+const barWidth = 8
+const barGap = 5
 const barTotalWidth = barWidth + barGap
 const B = 4
-const maxBounce = 60
-const baseBarH = 16
-const wavePeakH = 48
+const maxBounce = 24
+const baseBarH = 8
+const wavePeakH = 24
 const duration = 4000
 
 const progress = ref(0.5)
 let animationFrame = 0
-
-function interpolate(start, end, value) {
-  return Math.round(start + (end - start) * value)
-}
-
-function barColor(theme, waveValue) {
-  if (theme === 'dark') {
-    return `rgb(${interpolate(39, 228, waveValue)} ${interpolate(39, 228, waveValue)} ${interpolate(42, 231, waveValue)})`
-  }
-  return `rgb(${interpolate(228, 39, waveValue)} ${interpolate(228, 39, waveValue)} ${interpolate(231, 42, waveValue)})`
-}
 
 function frameAt(t) {
   const xFrac = t < 0.5 ? t / 0.5 : (1 - t) / 0.5
@@ -57,7 +46,7 @@ function frameAt(t) {
 
   const bounceH = 4 * bounceF * (1 - bounceF)
   const heightFactor = Math.max(0, 1 - bounceH * 2)
-  const ballIndent = heightFactor * 20
+  const ballIndent = heightFactor * 10
   const ballY = (baseBarH + wavePeakH - ballIndent) + bounceH * maxBounce
 
   const bars = Array.from({ length: numBars }, (_unused, index) => {
@@ -68,13 +57,13 @@ function frameAt(t) {
     let indent = 0
     if (dist < 1.5) {
       const indentDist = Math.cos((dist / 1.5) * (Math.PI / 2))
-      indent = indentDist * heightFactor * 20
+      indent = indentDist * heightFactor * 10
     }
 
-    const barHeight = Math.max(4, baseBarH + waveValue * wavePeakH - indent)
+    const barHeight = Math.max(3, baseBarH + waveValue * wavePeakH - indent)
 
     return {
-      color: barColor(props.theme, waveValue),
+      color: `color-mix(in srgb, var(--accent) ${Math.round(waveValue * 100)}%, var(--accent-soft))`,
       height: `${barHeight}px`,
       index,
     }
@@ -83,7 +72,7 @@ function frameAt(t) {
   return {
     bars,
     ball: {
-      color: props.theme === 'dark' ? 'rgb(244, 244, 245)' : 'rgb(24, 24, 27)',
+      color: 'var(--accent)',
       scaleX: 1 + heightFactor * 0.25,
       scaleY: 1 - heightFactor * 0.3,
       x: `${ballIndex * barTotalWidth}px`,
@@ -126,16 +115,16 @@ onBeforeUnmount(() => {
 
 .wave-physics-track {
   position: relative;
-  width: 292px;
-  height: 192px;
+  width: 190px;
+  height: 72px;
   display: flex;
   align-items: flex-end;
   justify-content: flex-start;
-  gap: 8px;
+  gap: 5px;
 }
 
 .wave-physics-bar {
-  width: 12px;
+  width: 8px;
   border-radius: 999px;
   transform-origin: bottom center;
   will-change: height, background-color;
@@ -145,20 +134,12 @@ onBeforeUnmount(() => {
   position: absolute;
   left: 0;
   bottom: 0;
-  width: 12px;
-  height: 12px;
+  width: 8px;
+  height: 8px;
   border-radius: 999px;
   transform-origin: bottom center;
   box-shadow: 0 1px 3px color-mix(in srgb, currentColor 24%, transparent);
   will-change: transform, background-color;
-}
-
-@media (max-width: 640px) {
-  .wave-physics-track {
-    width: 260px;
-    transform: scale(0.9);
-    transform-origin: center;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
