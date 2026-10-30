@@ -17,14 +17,18 @@ afterEach(() => {
 })
 
 describe('first-run onboarding', () => {
-  it('can be skipped with a visible button while Agent detection is still running', async () => {
+  it('shows detection loading first, then allows skipping onboarding', async () => {
     vi.spyOn(window.history, 'back').mockImplementation(() => {})
     const pendingDetection = deferred()
     const { wrapper } = await mountApp(({ bridge }) => {
       bridge.localWorkspace.refreshAgents.mockReturnValueOnce(pendingDetection.promise)
     })
 
-    expect(wrapper.get('.onboarding-primary').attributes()).toHaveProperty('disabled')
+    expect(wrapper.get('.agent-discovery-overlay').find('.wave-physics-loader').exists()).toBe(true)
+    expect(wrapper.find('.onboarding-dialog').exists()).toBe(false)
+    pendingDetection.resolve(undefined)
+    await flushPromises()
+    expect(wrapper.find('.agent-discovery-overlay').exists()).toBe(false)
     const skip = wrapper.get('.onboarding-skip')
     expect(skip.text()).toBe('Skip')
     await skip.trigger('click')
@@ -32,10 +36,7 @@ describe('first-run onboarding', () => {
 
     expect(wrapper.find('.onboarding-dialog').exists()).toBe(false)
     expect(localStorage.getItem('meldwork-onboarding-seen-v1')).toBe('1')
-    // Detection carries on in the background and the window is usable.
     expect(wrapper.get('.sidebar').attributes()).not.toHaveProperty('inert')
-    pendingDetection.resolve(undefined)
-    await flushPromises()
     wrapper.unmount()
   })
 

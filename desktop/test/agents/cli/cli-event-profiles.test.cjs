@@ -132,7 +132,7 @@ test('every built-in invocation transport resolves its reusable profile and capa
     { kind: 'kimi', profileId: 'acp-jsonrpc-v1', limited: false },
     {
       kind: 'kimi', options: { sandbox: 'workspace-write' },
-      profileId: 'assistant-jsonl-v1', limited: true,
+      profileId: 'acp-jsonrpc-v1', limited: false,
     },
     { kind: 'mimo', profileId: 'acp-jsonrpc-v1', limited: false },
     {

@@ -40,6 +40,8 @@ function invalidSessionFailure(detail) {
   // A resumed native session that no longer fits the model context cannot be
   // continued; rebuilding it with compact continuation context is the fix.
   if (isContextOverflow(text)) return true
+  if (/^(?:Error: )?Resume retains gateway session policy; creation overrides are unsupported on resume\./m.test(text)
+      && /--yolo differs from this session's launch/.test(text)) return true
   // Runtime crashes ("thread 'main' panicked ... invalid ...") and parser
   // errors mention threads or invalid input without saying anything about the
   // stored session. Discarding a healthy session for them loses context.

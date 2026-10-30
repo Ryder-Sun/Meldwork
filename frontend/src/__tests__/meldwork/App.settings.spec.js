@@ -81,27 +81,23 @@ describe('Meldwork workbench', () => {
       bridge.localWorkspace.refreshAgents.mockReturnValueOnce(pendingDetection)
     })
 
-    expect(wrapper.get('.onboarding-dialog').attributes('aria-modal')).toBe('true')
-    expect(wrapper.findAll('.onboarding-dot')).toHaveLength(5)
-    expect(wrapper.get('.onboarding-slide img').attributes('src')).toContain('discover-local-agents-meldwork.png')
-    expect(wrapper.get('.onboarding-primary').attributes()).toHaveProperty('disabled')
-    expect(wrapper.get('.onboarding-primary').text()).toContain('Detecting local Agents')
-    expect(document.activeElement).toBe(wrapper.get('.onboarding-dialog').element)
+    expect(wrapper.find('.onboarding-dialog').exists()).toBe(false)
+    expect(wrapper.get('.agent-discovery-overlay').find('.wave-physics-loader').exists()).toBe(true)
     expect(wrapper.get('.sidebar').attributes()).toHaveProperty('inert')
     expect(wrapper.get('.workspace-pane').attributes()).toHaveProperty('inert')
-
-    await wrapper.findAll('.onboarding-dot')[1].trigger('click')
-    expect(wrapper.get('.onboarding-slide img').attributes('src')).toContain('agent-collaboration.png')
-    expect(wrapper.findAll('.onboarding-dot')[1].attributes('aria-current')).toBe('step')
-    expect(wrapper.get('.onboarding-primary').attributes()).toHaveProperty('disabled')
-    expect(wrapper.get('.onboarding-primary').text()).toContain('Detecting local Agents')
 
     finishDetection(structuredClone(state))
     await flushPromises()
 
-    expect(wrapper.get('.onboarding-slide img').attributes('src')).toContain('agent-collaboration.png')
+    expect(wrapper.find('.agent-discovery-overlay').exists()).toBe(false)
+    expect(wrapper.get('.onboarding-dialog').attributes('aria-modal')).toBe('true')
+    expect(wrapper.findAll('.onboarding-dot')).toHaveLength(5)
+    expect(wrapper.get('.onboarding-slide img').attributes('src')).toContain('discover-local-agents-meldwork.png')
+    expect(document.activeElement).toBe(wrapper.get('.onboarding-dialog').element)
     expect(wrapper.get('.onboarding-primary').attributes()).not.toHaveProperty('disabled')
     expect(wrapper.get('.onboarding-primary').text()).toContain('Get started')
+
+    await wrapper.findAll('.onboarding-dot')[1].trigger('click')
 
     await vi.advanceTimersByTimeAsync(3_200)
     await flushPromises()

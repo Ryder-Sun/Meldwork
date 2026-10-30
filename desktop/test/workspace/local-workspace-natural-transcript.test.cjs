@@ -12,9 +12,9 @@ test('Natural proposal distinguishes its read-only deliverable from subsequent a
     const input = { group: {}, kind, snapshot: { taskText: 'Write result.txt' }, naturalResponse: true }
     const proposal = v4Prompt({ ...input, phase: 'proposal' })
     assert.match(proposal, /This invocation is read-only/u)
-    assert.match(proposal, /Its deliverable is your initial analysis and proposed next actions/u)
-    assert.match(proposal, /Do not attempt or delegate writes/u)
-    assert.doesNotMatch(v4Prompt({ ...input, phase: 'discussion' }), /Its deliverable is your initial analysis/u)
+    assert.match(proposal, /Deliver the actual answer or complete implementation draft/u)
+    assert.match(proposal, /Shared workspace edits happen in the subsequent discussion/u)
+    assert.doesNotMatch(v4Prompt({ ...input, phase: 'discussion' }), /independent first-round deliverable/u)
   }
 })
 

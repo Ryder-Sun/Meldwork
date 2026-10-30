@@ -1,5 +1,8 @@
 // Detect a runaway native turn, rather than deduplicating its visible answer.
-// Only consecutive long repetitions count; real tool activity resets the window.
+// Exact repetitions and sustained paraphrased closing acknowledgements count;
+// real tool activity resets the window.
+const CLOSING_ACKNOWLEDGEMENT = /^(?:(?:确认(?:收到)?|收到|本轮).{0,100}(?:收尾|结束|完成|定稿|后续轮次|按.{0,16}分工).{0,30}|确认|收到|确认收到|(?:confirmed|acknowledged|done)(?:[,:;].{0,100})?)$/iu
+
 function createOutputRepetitionGuard() {
   let text = ''
   let unchecked = 0
@@ -18,6 +21,8 @@ function createOutputRepetitionGuard() {
     unchecked += chunk.length
     if (unchecked < 32 || text.length < 64) return false
     unchecked = 0
+    const clauses = text.split(/[。！？.!?]+/u).filter(Boolean).slice(-12)
+    if (clauses.filter(clause => CLOSING_ACKNOWLEDGEMENT.test(clause)).length >= 8) return true
     if (new Set(text).size < 6) return false
     const anchor = text.slice(-8)
     let previous = text.lastIndexOf(anchor, text.length - 16)

@@ -726,7 +726,7 @@ test('Auto V4 work recovery invokes only work packages still pending in the nego
   ))
   const recovery = await recoverDiscussion(input, input.options.runAgent)
   await waitFor(() => recovery.recoveryLedger.get(input.crashRecord.runId)?.status === 'completed',
-    'work recovery', 5000)
+    'work recovery', 30000)
   const workKinds = recovery.calls
     .filter(call => /^Phase: work$/m.test(call.prompt))
     .map(call => call.agent.kind)

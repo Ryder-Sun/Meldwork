@@ -640,11 +640,11 @@ class LocalWorkspaceAgentInvocation {
       const eventStatus = String(event.status || '').toLowerCase()
       if (['tool_start', 'tool_update'].includes(eventType)
           && ['queued', 'running', 'waiting', 'in_progress', 'streaming'].includes(eventStatus)) {
-        watchdog.toolStarted()
+        watchdog.toolStarted(event.id)
       } else if (eventType === 'tool_result_summary'
           || (eventType === 'status' && ['completed', 'failed', 'stopped', 'timeout', 'interrupted']
             .includes(eventStatus))) {
-        watchdog.toolFinished()
+        watchdog.toolFinished(event.id)
       }
       this.emitRunEvent(event)
       this.armAgentSilence(activeRun, kind, round, harnessRun.agentRunId)
@@ -974,8 +974,8 @@ class LocalWorkspaceAgentInvocation {
           return pending
         },
         sessionTransport: session.transport,
-        ...(kind === 'workbuddy' && Number.isInteger(context.maxInternalTurns)
-          ? { maxTurns: context.maxInternalTurns }
+        ...(kind === 'workbuddy' && (mode === 'auto' || Number.isInteger(context.maxInternalTurns))
+          ? { maxTurns: mode === 'auto' ? 0 : context.maxInternalTurns }
           : {}),
         attachments: isolated ? [] : (stagedInputs?.nativeImagePaths || []),
         // ACP runtimes are shared by the stable group/task session key. OpenClaw

@@ -102,6 +102,7 @@ const v4DiscussionMethods = {
           writerKind,
         })
     if (existing && this.naturalAgentResponses && !coordinationPlan && !synthesisBinding
+        && controller.discussionStyle !== 'agent-led'
         && (snapshot.writerKind || '') !== writerKind) {
       throw new Error('LOCAL_RUN_COLLABORATION_SCOPE_INVALID')
     }

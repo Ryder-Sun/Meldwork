@@ -7,12 +7,13 @@ const IMAGE_ATTACHMENT_LIMITS = Object.freeze({
   opencode: 4,
 })
 const DEFAULT_INTERNAL_TURN_LIMITS = Object.freeze({
-  // Meldwork already owns the outer discussion rounds. Keep WorkBuddy's
-  // nested tool loop bounded so one participant cannot dominate a round.
+  // Preserve the default for independent replies. Automatic discussions pass
+  // an explicit zero to let the native tool loop finish its work.
   workbuddy: 8,
 })
 
 function internalTurnLimit(kind, requested) {
+  if (requested === 0) return 0
   const value = Number(requested)
   if (Number.isInteger(value) && value >= 1 && value <= 50) return value
   return DEFAULT_INTERNAL_TURN_LIMITS[kind]
@@ -74,6 +75,8 @@ function invocation(kind, executable, workdir, sessionRef = '', options = {}) {
   }
   if (kind === 'hermes') {
     if (options.hermesStreamJsonAvailable === true
+        && (options.hermesAcpAvailable === false || options.invocationTransport === 'stream-json'
+          || (sessionRef && options.sessionTransport !== 'acp'))
         && (!sessionRef || options.sessionTransport !== 'acp')) {
       return {
         command: executable,
@@ -193,26 +196,13 @@ function invocation(kind, executable, workdir, sessionRef = '', options = {}) {
     }
   }
   if (kind === 'kimi') {
-    if (options.sandbox !== 'workspace-write') {
-      return {
-        command: executable,
-        args: ['acp'],
-        // Native plan mode requires a plan/approval cycle even for a query.
-        // Manual mode keeps writes behind the ACP permission callback.
-        acpMode: 'default',
-        eventTransport: 'acp',
-      }
-    }
+    // Kimi rejects --auto together with --prompt. Use the permission-aware
+    // ACP transport for both modes instead of bypassing approval with --yolo.
     return {
       command: executable,
-      args: [
-        '--output-format', 'stream-json',
-        '--auto',
-        ...(sessionRef ? ['--session', sessionRef] : []),
-        '--prompt',
-      ],
-      promptArg: true,
-      eventTransport: 'stream-json',
+      args: ['acp'],
+      acpMode: 'default',
+      eventTransport: 'acp',
     }
   }
   if (kind === 'mimo') {

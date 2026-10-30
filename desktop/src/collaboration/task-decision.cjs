@@ -3,7 +3,7 @@ const { redactSecrets } = require('../security/secret-redaction.cjs')
 function parseTaskDecision(input) {
   const invalid = () => { throw new Error('LOCAL_RUN_TASK_DECISION_INVALID') }
   if (!input || typeof input !== 'object' || Array.isArray(input)
-      || Object.keys(input).some(key => !['status', 'reason', 'deliverables', 'handoffTo', 'nextKinds'].includes(key))
+      || Object.keys(input).some(key => !['status', 'reason', 'deliverables', 'handoffTo', 'nextKinds', 'reviewedVersion'].includes(key))
       || !['completed', 'continue', 'blocked', 'needs-human'].includes(input.status)) invalid()
   const text = (value, limit) => {
     if (typeof value !== 'string' || !value.trim() || value.length > limit
@@ -24,10 +24,13 @@ function parseTaskDecision(input) {
       || (input.nextKinds.length > 0 && input.status !== 'continue'))) invalid()
   const nextKinds = input.nextKinds?.map(kind => kind.toLowerCase())
   if (nextKinds && new Set(nextKinds).size !== nextKinds.length) invalid()
+  if (input.reviewedVersion != null && (typeof input.reviewedVersion !== 'string'
+      || !/^[a-f0-9]{64}$/.test(input.reviewedVersion))) invalid()
   return {
     status: input.status, reason, deliverables,
     ...(input.handoffTo != null ? { handoffTo: input.handoffTo } : {}),
     ...(nextKinds ? { nextKinds } : {}),
+    ...(input.reviewedVersion != null ? { reviewedVersion: input.reviewedVersion } : {}),
   }
 }
 
@@ -78,6 +81,7 @@ function normalizeTaskDecision(input, options = {}) {
     ...(input.nextKinds != null
       ? { nextKinds: status === 'continue' ? nextKinds.slice(0, 32) : [] }
       : {}),
+    ...(input.reviewedVersion != null ? { reviewedVersion: input.reviewedVersion } : {}),
   }
 }
 

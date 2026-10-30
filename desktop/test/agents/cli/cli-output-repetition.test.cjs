@@ -42,6 +42,25 @@ test('independent turns do not share repetition state', () => {
   for (let index = 0; index < 8; index++) assert.equal(createOutputRepetitionGuard()(update(answer.repeat(2))), false)
 })
 
+test('detects the reported paraphrased closing loop without requiring identical sentences', () => {
+  const closing = ['收到，本轮调研交付已收尾。', '确认，本轮调研正式收尾。',
+    '本轮调研交付完成。', '后续轮次按既定分工执行。', '确认，本轮调研结束。',
+    '本轮调研已正式结束。', '确认。'].join('')
+  for (const size of [1, 7, 83, 257]) {
+    const guard = createOutputRepetitionGuard()
+    const text = `完整研究报告和证据已经提供。${closing.repeat(8)}`
+    let detected = false
+    for (let offset = 0; offset < text.length && !detected; offset += size) detected = guard(update(text.slice(offset, offset + size)))
+    assert.equal(detected, true, `chunk size ${size}`)
+  }
+})
+
+test('a closing paragraph and a numbered phrase collection are not a native loop', () => {
+  const samples = ['报告覆盖六个赛道。确认，本轮调研结束。后续核验请参考附录。',
+    Array.from({ length: 20 }, (_, index) => `条目${index}：确认，本轮调研结束。`).join('')]
+  for (const text of samples) assert.equal(createOutputRepetitionGuard()(update(text)), false)
+})
+
 test('detects MiMo short acknowledgements and native JSON-stream answer deltas', () => {
   for (const phrase of ['已确认，随时待命。', 'MELDWORK_OK']) {
     const guard = createOutputRepetitionGuard()

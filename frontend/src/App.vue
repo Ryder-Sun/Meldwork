@@ -49,6 +49,7 @@
                 <span>{{ t('agentDiscovery.status') }}</span>
               </div>
             </div>
+            <WavePhysicsLoader :theme="theme" />
           </div>
         </section>
       </transition>
@@ -958,12 +959,9 @@ const { booting, bridgeMissing } = useDesktopWorkspaceLifecycle({
     if (!onboardingCompleted.value && hasPersistedWorkspaceActivity(snapshot.value)) {
       completeOnboarding({ fromHistory: true })
     }
-    if (!onboardingCompleted.value) {
-      openOnboarding()
-    } else {
-      agentDiscoveryPending.value = true
-      void refreshAgents().finally(() => { agentDiscoveryPending.value = false })
-    }
+    agentDiscoveryPending.value = true
+    const discovery = !onboardingCompleted.value ? openOnboarding() : refreshAgents()
+    void discovery.finally(() => { agentDiscoveryPending.value = false })
     void loadKnowledgeBaseStatuses()
   },
   beforeBoot: () => {

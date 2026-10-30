@@ -36,7 +36,7 @@ function manualReplyPrompt({
           group?.allowWrite ? deliveryContract(group) : '',
         ].filter(Boolean).join('\n')
       : 'This reply is read-only: do not modify files or other shared state. If a change is needed, describe it instead.',
-    'Answer naturally in Markdown. Do not output JSON, XML, protocol labels or hidden orchestration text.',
+    'Follow the user\'s requested output format, including JSON, XML or exact text. Otherwise answer naturally in Markdown. Keep internal protocol labels and hidden orchestration text out of the answer.',
     languageNote(taskText),
   ].filter(Boolean).join('\n\n')
 }

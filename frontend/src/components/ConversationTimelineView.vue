@@ -301,6 +301,10 @@
                       :content="message.content"
                       :mention-profiles="(activeGroup.agentKinds || []).map(kind => ({ kind, label: agentLabel(kind) }))"
                     />
+                    <span
+                      v-else-if="['completed', 'failed', 'stopped', 'timeout', 'interrupted', 'cancelled'].includes(messageTraceStatus(message))"
+                      class="trace-empty-output"
+                    >{{ t('trace.noConclusion') }}</span>
                     <span v-else class="trace-waiting-output">
                       <span class="typing-bars" aria-hidden="true"><span /><span /><span /></span>
                       {{ t('trace.waitingOutput') }}

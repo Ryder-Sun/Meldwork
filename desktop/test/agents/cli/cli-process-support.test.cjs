@@ -8,6 +8,15 @@ const { childEnvironment, failedAgentProcessError } = require('../../../src/agen
 const { nativeOpenClawOptions } = require('../../../src/agents/cli/openclaw-runtime.cjs')
 const { workBuddyInstall } = require('../../support/cli-adapters-test-helpers.cjs')
 
+test('a refused Hermes resume policy rebuilds the session before executing work', () => {
+  const detail = "Resume retains gateway session policy; creation overrides are unsupported on resume. --yolo differs from this session's launch: resume without it and use /yolo after resuming to switch."
+  const error = failedAgentProcessError(detail, { kind: 'hermes', sessionRef: 'existing-session' })
+  assert.equal(error.code, 'LOCAL_AGENT_SESSION_INVALID')
+  assert.equal(error.failure.sessionInvalid, true)
+  assert.equal(failedAgentProcessError(detail, { kind: 'hermes' }).code, 'LOCAL_AGENT_PROCESS_FAILED')
+  assert.equal(failedAgentProcessError('An unrelated tool failed while running.', { kind: 'hermes', sessionRef: 'existing-session' }).code, 'LOCAL_AGENT_PROCESS_FAILED')
+})
+
 test('MiMo and OpenCode cannot wait for terminal-only plan or question dialogs', () => {
   for (const kind of ['mimo', 'opencode']) {
     for (const sandbox of ['read-only', 'workspace-write']) {

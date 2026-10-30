@@ -12,6 +12,7 @@ const { v4SynthesisMethods } = require('./local-workspace-auto-runner-v4-synthes
 const { v4ContextMethods } = require('./local-workspace-auto-runner-v4-context.cjs')
 const { v4DeliveryMethods } = require('./local-workspace-auto-runner-v4-delivery.cjs')
 const { naturalDiscussionMethods } = require('./local-workspace-auto-runner-natural-discussion.cjs')
+const { naturalConsensusMethods } = require('./local-workspace-auto-runner-natural-consensus.cjs')
 const { v4ResultMethods } = require('./local-workspace-auto-runner-v4-results.cjs')
 const { v4PhaseMethods } = require('./local-workspace-auto-runner-v4-phase.cjs')
 const { v4DiscussionMethods } = require('./local-workspace-auto-runner-v4-discussion.cjs')
@@ -275,6 +276,7 @@ Object.assign(
   v4ContextMethods,
   v4DeliveryMethods,
   naturalDiscussionMethods,
+  naturalConsensusMethods,
   v4ResultMethods,
   v4PhaseMethods,
   v4DiscussionMethods,

@@ -46,8 +46,24 @@ test('Chinese slash-separated prose is preserved while standalone paths remain h
   assert.equal(rendered, '融资 A 轮/A+ 轮，云/端，玩偶/教育。 文件 [path] 结束。')
 })
 
+test('Hermes uses ACP mode changes across read-only, writer and confirmation turns', () => {
+  for (const [sandbox, sessionRef, mode] of [
+    ['read-only', '', 'default'],
+    ['workspace-write', 'hermes-session', 'accept_edits'],
+    ['read-only', 'hermes-session', 'default'],
+  ]) {
+    const spec = invocation('hermes', '/bin/hermes', '/tmp', sessionRef, {
+      sandbox, hermesStreamJsonAvailable: true, hermesAcpAvailable: true,
+      ...(sessionRef ? { sessionTransport: 'acp' } : {}),
+    })
+    assert.equal(spec.eventTransport, 'acp')
+    assert.deepEqual(spec.args, ['acp'])
+    assert.equal(spec.acpMode, mode)
+  }
+})
+
 test('Hermes native streaming keeps deltas, tools, final text and session identity', async () => {
-  const spec = invocation('hermes', '/bin/hermes', '/tmp', '', { hermesStreamJsonAvailable: true })
+  const spec = invocation('hermes', '/bin/hermes', '/tmp', '', { hermesStreamJsonAvailable: true, hermesAcpAvailable: false })
   assert.equal(spec.eventTransport, 'stream-json')
   assert.deepEqual(spec.args, ['chat', '--format', 'stream-json', '--query'])
   const profile = resolveConnectorEventProfile('hermes', { transport: 'stream-json' })
@@ -91,7 +107,7 @@ const output = ${JSON.stringify(kind === 'zcode'
 for (const record of output) process.stdout.write(JSON.stringify(record) + '\\n')
 `)
     const events = []
-    const result = await within(runAgent({ kind, executable: cli, streamJsonAvailable: true },
+    const result = await within(runAgent({ kind, executable: cli, streamJsonAvailable: true, acpAvailable: false },
       'hello', directory, { onEvent: e => events.push(e) }), 5000)
     assert.equal(result.text, '中文结果')
     assert.equal(result.outcome, 'completed')

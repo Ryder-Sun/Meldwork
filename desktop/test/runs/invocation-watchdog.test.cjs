@@ -118,6 +118,47 @@ test('a running tool uses the longer window and its own liveness does not extend
   assert.equal(finished.watchdog.timedOut, false)
 })
 
+test('a finished parallel tool does not shorten the remaining tools inactivity window', () => {
+  const { clock, watchdog } = watchdogFor({ strict: true })
+  watchdog.establish()
+  watchdog.toolStarted('first')
+  watchdog.toolStarted('second')
+  watchdog.toolFinished('first')
+  clock.advance(2000)
+  assert.equal(watchdog.timedOut, false)
+  watchdog.toolFinished('second')
+  clock.advance(999)
+  assert.equal(watchdog.timedOut, false)
+  clock.advance(1)
+  assert.equal(watchdog.timedOut, true)
+})
+
+test('active automatic work exceeds six minutes and twelve tools without an implicit cap', () => {
+  const { clock, watchdog } = watchdogFor({ timeoutMs: 600000, toolTimeoutMs: 1200000, strict: true })
+  watchdog.establish()
+  for (let index = 0; index < 20; index++) {
+    watchdog.toolStarted(`tool-${index}`)
+    clock.advance(24000)
+    watchdog.toolFinished(`tool-${index}`)
+    assert.equal(watchdog.timedOut, false)
+  }
+  watchdog.progress()
+  clock.advance(61000)
+  assert.equal(watchdog.timedOut, false)
+  watchdog.close()
+})
+
+test('human waiting time is excluded from the strict no-progress window', () => {
+  const { clock, watchdog } = watchdogFor({ strict: true })
+  watchdog.establish()
+  watchdog.pause()
+  clock.advance(60000)
+  watchdog.resume()
+  clock.advance(999)
+  assert.equal(watchdog.timedOut, false)
+  watchdog.close()
+})
+
 test('waiting for a person pauses the watchdog and resuming restarts the window', () => {
   const { clock, watchdog } = watchdogFor()
   watchdog.pause()

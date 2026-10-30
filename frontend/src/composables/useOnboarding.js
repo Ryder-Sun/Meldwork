@@ -105,17 +105,17 @@ export function useOnboarding({ refreshAgents }) {
     startOnboardingPlayback()
   }
 
-  function beginOnboardingDetection() {
+  async function openOnboarding() {
     onboardingDetecting.value = true
-    void refreshAgents().finally(() => { onboardingDetecting.value = false })
-  }
-
-  function openOnboarding() {
+    try {
+      await refreshAgents()
+    } finally {
+      onboardingDetecting.value = false
+    }
     onboardingIndex.value = 0
     onboardingPlaybackComplete.value = false
     onboardingVisible.value = true
     startOnboardingPlayback()
-    beginOnboardingDetection()
   }
 
   return {

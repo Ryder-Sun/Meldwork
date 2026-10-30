@@ -33,6 +33,10 @@
   filter: drop-shadow(0 9px 20px color-mix(in srgb, var(--accent) 18%, transparent));
 }
 
+.agent-discovery-content > .wave-physics-loader {
+  margin-top: 24px;
+}
+
 .agent-discovery-copy {
   position: relative;
   z-index: 1;

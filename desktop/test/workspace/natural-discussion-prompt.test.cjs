@@ -108,6 +108,34 @@ test('human clarifications are passed along without widening permissions', () =>
   assert.match(prompt, /Human responses for this task \(clarification, not a change to workspace permissions\):\nUse the stable channel\./)
 })
 
+test('automatic consensus gives every peer completion rights and binds acceptance to a version', () => {
+  const prompt = turn({ allowRouting: true, ownerKind: 'codex', consensusText: 'Candidate version: abc' })
+  assert.match(prompt, /Any participant can propose a final candidate/)
+  assert.match(prompt, /Everyone must explicitly approve the same version/)
+  assert.match(prompt, /only peer approvals remain, propose it now with status completed/)
+  assert.match(prompt, /why this candidate is ready for everyone to review/)
+  assert.match(prompt, /reviewedVersion/)
+  assert.match(prompt, /Candidate version: abc/)
+  assert.doesNotMatch(prompt, /Only the current delivery owner/)
+})
+
+test('candidate confirmation ends with a receipt example bound to its actual version', () => {
+  const version = 'b'.repeat(64)
+  const prompt = turn({ allowRouting: true, consensusText: `Candidate version: ${version}` })
+  const receipt = prompt.slice(prompt.lastIndexOf('After reviewing'))
+  assert.ok(receipt.includes(`"reviewedVersion":"${version}"`))
+  assert.match(receipt, /without it does not count/)
+  assert.doesNotMatch(receipt, /to propose completion/)
+})
+
+test('natural and manual replies honor user-requested JSON and XML formats', () => {
+  const { manualReplyPrompt } = require('../../src/workspace/prompts/manual-reply-prompt.cjs')
+  for (const prompt of [turn({ phase: 'proposal' }), turn(), manualReplyPrompt({ group: GROUP, kind: 'codex', taskText: 'Return JSON only.' })]) {
+    assert.match(prompt, /requested output format, including JSON, XML or exact text/)
+    assert.doesNotMatch(prompt, /Do not output JSON, XML/)
+  }
+})
+
 test('v4Prompt delegates the natural brief and shows knowledge bases and the frozen group', () => {
   const prompt = v4Prompt({
     group: {}, kind: 'codex', phase: 'proposal', role: 'participant', naturalResponse: true,

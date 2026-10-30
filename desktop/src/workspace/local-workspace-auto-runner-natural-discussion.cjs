@@ -104,7 +104,12 @@ const naturalDiscussionMethods = {
     const unseen = entries.filter(entry => !seen.has([
       entry.agentKind, entry.phase, entry.id, entry.hash,
     ].join('\u0000')))
-    const packed = packNaturalDiscussionTranscript(unseen, {
+    const fullOpening = controller.discussionStyle === 'agent-led' && controller.currentRound === 2
+      ? entries.filter(entry => entry.phase === 'proposal') : null
+    const packed = fullOpening ? {
+      text: fullOpening.map(entry => `Round 1 - @${entry.agentKind} [${entry.id}]\n${entry.text}`).join('\n\n'),
+      completeMessageIds: fullOpening.filter(entry => !entry.partial).map(entry => entry.id),
+    } : packNaturalDiscussionTranscript(unseen, {
       withEntries: true,
       prefix: unseen.length < entries.length
         ? 'Previously delivered turns are not repeated here. They were supplied to this native session; ask peers to restate missing evidence if your current context is incomplete. Their omission does not imply agreement or task completion.'
@@ -240,6 +245,7 @@ const naturalDiscussionMethods = {
       writerKind: options.writerKind,
       ownerKind: options.ownerKind,
       allowRouting: options.allowRouting === true,
+      consensusText: options.consensusText || '',
     })
   },
 
@@ -356,7 +362,7 @@ const naturalDiscussionMethods = {
 
   async runV4AgentLedDiscussion(group, controller, threadRootId, context, input) {
     const {
-      targetKinds, activeKinds: initialActiveKinds, writerKind, batchId,
+      targetKinds, activeKinds: initialActiveKinds, batchId,
       snapshot, snapshotRecord, snapshotHash, slots: initialSlots, receiptRecords,
       latestFor, runPhase, checkpointPhase, removePhaseFailures, addRoundLimitNotice,
     } = input
@@ -393,9 +399,9 @@ const naturalDiscussionMethods = {
         if (this.v4NaturalStopRepeatingDiscussion(
           group, controller, threadRootId, round, activeKinds,
         )) return 'partial'
-        const outcome = await this.v4NaturalRoundOutcome(group, controller, threadRootId, round, activeKinds)
+        const outcome = await this.v4NaturalAgentLedOutcome(group, controller, threadRootId, round, activeKinds)
         if (outcome.status) return outcome.status
-        nextKinds = outcome.nextKinds
+        nextKinds = outcome.nextKinds.length ? outcome.nextKinds : [outcome.fallbackKind]
         if (!controller.unlimitedRounds && round >= (controller.maxRounds || 6)) {
           addRoundLimitNotice()
           return 'round-limit'
@@ -404,20 +410,22 @@ const naturalDiscussionMethods = {
       }
     } else {
       round = 2
-      // The first discussion round is a full participant round: every selected
-      // Agent reacts to the proposal set before the delivery owner reviews and
-      // judges completion, so a group run cannot collapse to owner-only turns.
-      nextKinds = [...activeKinds]
+      nextKinds = [activeKinds[0]]
     }
 
     while (!controller.signal.aborted) {
       controller.currentRound = round
+      const kind = nextKinds[0]
+      const remainingKinds = nextKinds.slice(1)
+      const candidate = this.v4NaturalConsensus(group, controller, threadRootId)
+      const turnWriterKind = !candidate && group.allowWrite === true && this.canWriteWorkspace(kind)
+        ? kind : ''
       const dispatch = await this.runV4Phase(group, controller, threadRootId, context, {
         phase: 'discussion',
-        activeKinds: nextKinds,
+        activeKinds: [kind],
         targetKinds,
         participantKinds: activeKinds,
-        writerKind,
+        writerKind: turnWriterKind,
         batchId,
         snapshot,
         snapshotRecord,
@@ -428,10 +436,10 @@ const naturalDiscussionMethods = {
         coordinationPlan: null,
         workReceipts: [],
         operationIds: this.v4NaturalDiscussionOperationIds(
-          controller, slots, nextKinds, round,
+          controller, slots, [kind], round,
         ),
         pendingKinds: nextKinds,
-        remainingKinds: [],
+        remainingKinds,
         sessionPolicy: null,
         resumedGate: input.resumedGate,
         disableDeliveryPrompt: true,
@@ -442,8 +450,8 @@ const naturalDiscussionMethods = {
             skillHints: context.rootSkillsByKind.get(kind) || [],
             knowledgeBaseHints: context.rootKnowledgeBasesByKind.get(kind) || [],
             allowRouting: true,
-            ownerKind: this.v4NaturalOwner(group, controller, threadRootId, activeKinds),
-            writerKind,
+            writerKind: turnWriterKind,
+            consensusText: this.v4NaturalConsensusPrompt(group, controller, threadRootId),
           },
         ),
       })
@@ -457,9 +465,15 @@ const naturalDiscussionMethods = {
       if (this.v4NaturalStopRepeatingDiscussion(
         group, controller, threadRootId, round, activeKinds,
       )) return 'partial'
-      const outcome = await this.v4NaturalRoundOutcome(group, controller, threadRootId, round, activeKinds)
+      const outcome = await this.v4NaturalAgentLedOutcome(group, controller, threadRootId, round, activeKinds)
       if (outcome.status) return outcome.status
-      nextKinds = outcome.nextKinds
+      // A new candidate starts its own confirmation queue. An objection
+      // cancels pending approvals; otherwise preserve outstanding invitations.
+      nextKinds = this.v4NaturalConsensus(group, controller, threadRootId) || candidate
+        ? outcome.nextKinds
+        : [...new Set([...outcome.nextKinds, ...remainingKinds])]
+      nextKinds = nextKinds.filter(agentKind => activeKinds.includes(agentKind))
+      if (!nextKinds.length) nextKinds = [outcome.fallbackKind || activeKinds[0]]
       if (!controller.unlimitedRounds && round >= (controller.maxRounds || 6)) {
         addRoundLimitNotice()
         return 'round-limit'

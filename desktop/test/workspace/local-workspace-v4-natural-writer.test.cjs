@@ -7,9 +7,11 @@ const { RunLedger } = require('../../src/runs/run-ledger.cjs')
 const { parseOrchestrationV4 } = require('../../src/collaboration/orchestration-v4-records.cjs')
 const { fixture } = require('../support/local-workspace-test-helpers.cjs')
 
-function reply(text) {
+function reply(text, prompt = '') {
+  const reviewedVersion = prompt.match(/Candidate version: ([a-f0-9]{64})/)?.[1]
   return `${text}\n\n[[MELDWORK_COLLABORATION:${JSON.stringify({ summary: text,
-    taskDecision: { status: 'completed', reason: text, deliverables: ['result.txt read back as OK'] },
+    taskDecision: { status: 'completed', reason: text, deliverables: ['result.txt read back as OK'],
+      ...(reviewedVersion ? { reviewedVersion } : {}) },
   })}]]`
 }
 
@@ -41,7 +43,7 @@ for (const discussionStyle of ['sequential', 'agent-led']) {
         fs.writeFileSync(path.join(workdir, 'result.txt'), 'OK')
         assert.equal(fs.readFileSync(path.join(workdir, 'result.txt'), 'utf8'), 'OK')
       }
-      return { text: discussion ? reply('The file was checked.') : 'I will inspect the requested result.', sessionRef: `${agent.kind}-session` }
+      return { text: discussion ? reply('The file was checked.', prompt) : 'I will inspect the requested result.', sessionRef: `${agent.kind}-session` }
     }
     const workspace = new LocalWorkspace(options)
     await workspace.refreshAgents()
@@ -59,8 +61,10 @@ for (const discussionStyle of ['sequential', 'agent-led']) {
     }
     for (const mutate of [
       cursor => { cursor.discussionWriterKind = 'not-a-participant' },
-      cursor => { cursor.discussionWriterKind = 'hermes' },
-      cursor => { delete cursor.discussionWriterKind },
+      ...(discussionStyle === 'sequential' ? [
+        cursor => { cursor.discussionWriterKind = 'hermes' },
+        cursor => { delete cursor.discussionWriterKind },
+      ] : [cursor => { cursor.slots[0].permission = 'workspace-write' }]),
       cursor => { cursor.plan.assignments[0].readOnly = !cursor.plan.assignments[0].readOnly },
     ]) {
       const tampered = structuredClone(record.orchestration)
@@ -86,12 +90,12 @@ for (const writerKind of ['hermes', '']) {
     options.runAgent = async (agent, prompt, _workdir, runOptions) => {
       const discussion = prompt.includes('Continue from the available peer responses')
       calls.push({ kind: agent.kind, discussion, sandbox: runOptions.sandbox })
-      if (discussion && writerKind && agent.kind !== writerKind) {
+      if (discussion && writerKind && agent.kind !== writerKind && !prompt.includes('Candidate version:')) {
         return { text: `The writable participant should deliver the update.\n\n[[MELDWORK_COLLABORATION:${JSON.stringify({ summary: 'Writer needed.',
-          taskDecision: { status: 'continue', reason: 'Hand over delivery to the writable participant.', deliverables: [], handoffTo: writerKind },
+          taskDecision: { status: 'continue', reason: 'Hand over delivery to the writable participant.', deliverables: [], handoffTo: writerKind, nextKinds: [writerKind] },
         })}]]`, sessionRef: `${agent.kind}-session` }
       }
-      return { text: discussion ? reply('Result checked.') : 'Initial proposal.', sessionRef: `${agent.kind}-session` }
+      return { text: discussion ? reply('Result checked.', prompt) : 'Initial proposal.', sessionRef: `${agent.kind}-session` }
     }
     const workspace = new LocalWorkspace(options)
     t.after(() => workspace.stopAll())

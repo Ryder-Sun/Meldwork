@@ -338,7 +338,9 @@ async function runAgent(agent, prompt, workdir, options = {}) {
       const terminal = (
         (['workbuddy', 'claude', 'qwen'].includes(agent.kind) && event.type === 'result')
         || (agent.kind === 'hermes' && spec.eventTransport === 'stream-json' && event.type === 'result')
-        || (agent.kind === 'pi' && event.type === 'agent_end')
+        || (agent.kind === 'pi' && (event.type === 'agent_settled'
+          || (event.type === 'agent_end'
+            && !Object.hasOwn(event, 'willRetry') && !Object.hasOwn(event, 'willContinue'))))
         || (agent.kind === 'codex' && event.type === 'turn.completed')
         || (['mimo', 'opencode'].includes(agent.kind) && event.type === 'step_finish'
           && !stepFinishContinues(event))
@@ -467,7 +469,7 @@ async function runAgent(agent, prompt, workdir, options = {}) {
           && ['completed', 'partial'].includes(result.outcome)
         if (code !== 0 && !usableNonZeroResult) {
           const detail = redactChildSecrets(
-            [rawStderr, structuredDetail].filter(Boolean).join('\n'),
+            [result?.error, rawStderr, structuredDetail].filter(Boolean).join('\n'),
             childEnv,
           )
           rejectTerminal(failedAgentProcessError(detail, {

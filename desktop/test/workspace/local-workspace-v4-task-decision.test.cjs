@@ -6,9 +6,9 @@ const { LocalWorkspace } = require('../../src/workspace/local-workspace.cjs')
 const { RunLedger } = require('../../src/runs/run-ledger.cjs')
 const { fixture } = require('../support/local-workspace-test-helpers.cjs')
 
-function reply(status, reason) {
+function reply(status, reason, extra = {}) {
   return `${reason}\n[[MELDWORK_COLLABORATION:${JSON.stringify({ summary: reason, taskDecision: {
-    status, reason, deliverables: status === 'completed' ? ['The requested answer.'] : [], nextKinds: [],
+    status, reason, deliverables: status === 'completed' ? ['The requested answer.'] : [], nextKinds: [], ...extra,
   } })}]]`
 }
 
@@ -22,16 +22,18 @@ async function until(read, timeout = 10000) {
   throw new Error('TEST_TASK_DECISION_TIMEOUT')
 }
 
-async function start(t, style = 'agent-led') {
+async function start(t, style = 'agent-led', peerDecision = false) {
   const { directory, options } = fixture()
   const storagePath = path.join(directory, 'run-ledger.json')
   const calls = []
   const runAgent = async (agent, prompt, _workdir, input) => {
     const phase = prompt.includes('Work independently on the user task') ? 'proposal' : 'discussion'
+    const version = prompt.match(/Candidate version: ([a-f0-9]{64})/)?.[1]
     calls.push({ kind: agent.kind, phase, prompt, sessionRef: input.sessionRef })
     return { outcome: 'completed', sessionRef: input.sessionRef || 'human-task-session',
       text: phase === 'proposal' ? 'I need the user to choose the target.'
-        : prompt.includes('USER_CHOICE_B') ? reply('completed', 'The answer uses USER_CHOICE_B.')
+        : prompt.includes('USER_CHOICE_B') ? reply('completed', 'The answer uses USER_CHOICE_B.', version ? { reviewedVersion: version } : {})
+          : peerDecision && agent.kind === 'codex' ? reply('continue', 'Hermes should ask for the missing input.', { nextKinds: ['hermes'] })
           : reply('needs-human', 'Which target should be used?') }
   }
   const workspaceOptions = { ...options, naturalAgentResponses: true, runAgent }
@@ -43,13 +45,26 @@ async function start(t, style = 'agent-led') {
     fs.rmSync(directory, { recursive: true, force: true })
   })
   await workspace.refreshAgents()
-  const group = workspace.createGroup({ name: 'Human task decision', agentKinds: ['codex'], workdir: directory, allowWrite: false })
+  const group = workspace.createGroup({ name: 'Human task decision', agentKinds: peerDecision ? ['codex', 'hermes'] : ['codex'], workdir: directory, allowWrite: false })
   await workspace.sendMessage({ groupId: group.id, text: 'Answer after I choose the target.',
-    mode: 'auto', protocol: 'v4', discussionStyle: style, targetKinds: ['codex'], maxRounds: 5 })
+    mode: 'auto', protocol: 'v4', discussionStyle: style, targetKinds: group.agentKinds, maxRounds: 6 })
   const controller = workspace.activeRuns.get(group.id)
   const gate = await until(() => workspace.listHumanGates({ pendingOnly: true })[0])
   return { workspace, workspaceOptions, workspaces, ledger, storagePath, group, controller, gate, calls }
 }
+
+test('an invited automatic participant can request human input without becoming the owner', async t => {
+  const { workspace, ledger, controller, gate } = await start(t, 'agent-led', true)
+  assert.equal(gate.agentKind, 'hermes')
+  const request = workspace.humanGateStore.request(gate.gateId)
+  assert.equal(workspace.canResumeV4TaskDecision(ledger.get(controller.runId), gate, request), true)
+  assert.equal(workspace.canResumeV4TaskDecision(ledger.get(controller.runId), { ...gate, agentKind: 'codex' }, request), false)
+  workspace.decideHumanGate(gate.gateId, { optionId: 'respond', response: 'USER_CHOICE_B' })
+  await controller.promise
+  assert.equal(ledger.get(controller.runId).status, 'completed')
+  const candidate = workspace.autoRunner.v4NaturalConsensus(workspace.state.groups.find(group => group.id === controller.groupId), controller, controller.threadRootId)
+  assert.deepEqual([...candidate.approvedKinds], ['hermes', 'codex'])
+})
 
 for (const style of ['agent-led', 'sequential']) {
   test(`Natural ${style} needs-human waits for input and continues the same task`, async t => {

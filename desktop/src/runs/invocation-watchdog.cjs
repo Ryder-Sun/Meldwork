@@ -35,6 +35,7 @@ function createInvocationWatchdog({
   let paused = false
   let established = false
   let toolActive = false
+  const activeToolIds = new Set()
   let closed = false
   let timedOut = false
   let timeoutError = null
@@ -111,12 +112,15 @@ function createInvocationWatchdog({
       established = true
       rearm()
     },
-    toolStarted() {
+    toolStarted(toolCallId = '') {
+      if (toolCallId) activeToolIds.add(String(toolCallId))
       toolActive = true
       progress()
     },
-    toolFinished() {
-      toolActive = false
+    toolFinished(toolCallId = '') {
+      if (toolCallId) activeToolIds.delete(String(toolCallId))
+      else activeToolIds.clear()
+      toolActive = activeToolIds.size > 0
       progress()
     },
     // Waiting for a person (Human Gate) is not the Agent being quiet.
@@ -127,6 +131,7 @@ function createInvocationWatchdog({
     resume() {
       paused = false
       lastProgressAt = clock.now()
+      lastSubstantiveAt = lastProgressAt
       arm()
     },
     close() {

@@ -257,14 +257,16 @@ function ingestStructuredEvent(state, event) {
       state.outcome = stepFinishOutcome(event.message?.stopReason || event.stopReason || 'stop')
     }
     if (event.type === 'agent_end') {
+      state.piContinuing = event.willRetry === true || event.willContinue === true
       const lastAssistant = event.messages?.findLast(message => message?.role === 'assistant')
       if (lastAssistant?.stopReason) state.outcome = stepFinishOutcome(lastAssistant.stopReason)
       else if (!state.outcome) state.outcome = 'completed'
-      if (state.outcome === 'completed' && event.willRetry !== true) {
+      if (state.outcome === 'completed' && !state.piContinuing) {
         state.failure = null
         state.diagnostic = ''
       }
     }
+    if (event.type === 'agent_settled') state.piContinuing = false
     if (state.outcome === 'failed') markStructuredFailure(state)
     return
   }
@@ -428,7 +430,8 @@ function finalizeStructuredState(state, context = {}) {
   }
 
   if (!state.seen && !state.text && !state.outcome) return null
-  const outcome = state.outcome || (state.text ? 'partial' : 'failed')
+  const outcome = state.kind === 'pi' && state.piContinuing && state.outcome === 'completed'
+    ? 'partial' : state.outcome || (state.text ? 'partial' : 'failed')
   const result = {
     text: state.kind === 'pi'
       ? stripPiPromptEcho(state.text, context.prompt)
@@ -864,6 +867,8 @@ function classifyCliOutcome(kind, stdout) {
   }
   if (kind === 'pi') {
     const terminal = events.findLast(event => event?.type === 'turn_end' || event?.type === 'agent_end')
+    if ((terminal?.willRetry === true || terminal?.willContinue === true)
+        && events.at(-1)?.type !== 'agent_settled') return { outcome: 'partial' }
     const lastAssistant = terminal?.messages?.findLast(message => message?.role === 'assistant')
     const previousTurn = events.findLast(event => event?.type === 'turn_end')
     const reason = terminal?.message?.stopReason || terminal?.stopReason || lastAssistant?.stopReason

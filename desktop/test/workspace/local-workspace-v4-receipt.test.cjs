@@ -345,7 +345,7 @@ test('Natural V4 prompts carry task context without exposing the receipt templat
   })
 
   assert.match(prompt, /Compare the available skills/)
-  assert.match(prompt, /Answer the user naturally in Markdown/)
+  assert.match(prompt, /requested output format, including JSON, XML or exact text/)
   assert.doesNotMatch(
     prompt,
     /current collaboration phase|your role|Receipt JSON shape|MELDWORK_COLLABORATION|MELDWORK_V4_FROZEN_SNAPSHOT_V1/i,

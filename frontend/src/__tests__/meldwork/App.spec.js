@@ -58,6 +58,7 @@ describe('Meldwork workbench', () => {
     expect(wrapper.get('.agent-discovery-overlay').attributes('role')).toBe('status')
     expect(wrapper.get('.agent-discovery-overlay').text()).toContain('Agent CLI')
     expect(wrapper.find('.pixel-blast-container').exists()).toBe(true)
+    expect(wrapper.get('.agent-discovery-overlay').find('.wave-physics-loader').exists()).toBe(true)
     expect(wrapper.get('.workspace-pane').attributes()).toHaveProperty('inert')
     expect(wrapper.get('.sidebar').attributes()).toHaveProperty('inert')
 
@@ -72,6 +73,24 @@ describe('Meldwork workbench', () => {
     expect(wrapper.get('.sidebar').attributes()).not.toHaveProperty('inert')
     expect(wrapper.find('.sidebar-discovery').exists()).toBe(false)
     expect(wrapper.get('.home-workspace-state').text()).not.toBe('Detecting local Agents')
+    wrapper.unmount()
+  })
+
+  it('keeps a loading animation visible while the initial snapshot is pending', async () => {
+    const fixture = createBridge()
+    const pendingSnapshot = deferred()
+    const pendingRefresh = deferred()
+    fixture.bridge.localWorkspace.get.mockReturnValueOnce(pendingSnapshot.promise)
+    fixture.bridge.localWorkspace.refreshAgents.mockReturnValueOnce(pendingRefresh.promise)
+    window.meldworkDesktop = fixture.bridge
+    const wrapper = mount(App, { attachTo: document.body })
+    expect(wrapper.get('.boot-state').find('.wave-physics-loader').exists()).toBe(true)
+    pendingSnapshot.resolve(structuredClone(fixture.state))
+    await flushPromises()
+    expect(wrapper.get('.agent-discovery-overlay').find('.wave-physics-loader').exists()).toBe(true)
+    pendingRefresh.resolve(structuredClone(fixture.state))
+    await flushPromises()
+    expect(wrapper.find('.agent-discovery-overlay').exists()).toBe(false)
     wrapper.unmount()
   })
 

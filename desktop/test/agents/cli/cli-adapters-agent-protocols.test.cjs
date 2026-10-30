@@ -70,6 +70,23 @@ function wireFingerprint(value) {
   }
 }
 
+function kimiAcpSource(expression, missingSession = false) {
+  return `
+const send = value => process.stdout.write(JSON.stringify(value) + '\\n')
+require('node:readline').createInterface({ input: process.stdin }).on('line', line => {
+  const message = JSON.parse(line), sessionId = 'kimi-session'
+  if (message.method === 'initialize') send({ jsonrpc: '2.0', id: message.id, result: { protocolVersion: 1 } })
+  else if (message.method === 'session/new') send({ jsonrpc: '2.0', id: message.id, result: { sessionId } })
+  else if (message.method === 'session/resume' && ${missingSession}) send({ jsonrpc: '2.0', id: message.id, error: { code: -32001, message: 'Saved session was not found or has expired.' } })
+  else if (message.method === 'session/set_mode' || message.method === 'session/resume') send({ jsonrpc: '2.0', id: message.id, result: {} })
+  else if (message.method === 'session/prompt') {
+    send({ jsonrpc: '2.0', method: 'session/update', params: { sessionId, update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: ${expression} } } } })
+    send({ jsonrpc: '2.0', id: message.id, result: { stopReason: 'end_turn' } })
+  }
+})
+`
+}
+
 function permissionRequestExecutable(directory) {
   return executable(directory, 'kimi-acp-permission.cjs', `
 const readline = require('node:readline')
@@ -180,7 +197,7 @@ test('WorkBuddy JSON output returns the final reply and session id', () => {
   })
 })
 
-test('Kimi uses ACP manual mode by default and prompt mode only after write authorization', () => {
+test('Kimi uses permission-aware ACP for both read-only and write-authorized turns', () => {
   const chat = invocation('kimi', '/tmp/kimi', '/tmp/work')
   assert.deepEqual(chat.args, ['acp'])
   assert.equal(chat.acpMode, 'default')
@@ -193,11 +210,11 @@ test('Kimi uses ACP manual mode by default and prompt mode only after write auth
   const writable = invocation('kimi', '/tmp/kimi', '/tmp/work', 'kimi-session', {
     sandbox: 'workspace-write',
   })
-  assert.deepEqual(writable.args, [
-    '--output-format', 'stream-json', '--auto', '--session', 'kimi-session', '--prompt',
-  ])
+  assert.deepEqual(writable.args, ['acp'])
+  assert.equal(writable.eventTransport, 'acp')
+  assert.equal(writable.acpMode, 'default')
   assert.equal(writable.args.includes('--plan'), false)
-  assert.equal(writable.args.includes('--auto'), true)
+  assert.equal(writable.args.includes('--auto'), false)
 })
 
 test('Kimi stream JSON output returns assistant text and the native session id', () => {
@@ -1192,6 +1209,31 @@ test('Pi agent_end preserves failed, cancelled and incomplete assistant outcomes
   }
 })
 
+test('Hermes preserves its structured failure when stderr only identifies the session', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-error-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const cli = executable(directory, 'hermes-error.cjs', `
+console.log(JSON.stringify({ type: 'result', session_id: 'native-session', exit_code: 1, text: '', error: 'Model context window is too small.' }))
+console.error('Session: native-session')
+process.exitCode = 1
+`)
+  await assert.rejects(runAgent({ kind: 'hermes', executable: cli, streamJsonAvailable: true, acpAvailable: false }, 'answer', directory), error => {
+    assert.equal(error.code, 'LOCAL_AGENT_PROCESS_FAILED')
+    assert.match(error.diagnostic, /Model context window is too small/)
+    return true
+  })
+})
+
+test('Pi never accepts a continuing agent_end as a completed result', () => {
+  for (const flag of ['willRetry', 'willContinue']) {
+    const raw = [
+      { type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'Intermediate answer' } },
+      { type: 'agent_end', messages: [{ role: 'assistant', stopReason: 'stop' }], [flag]: true },
+    ].map(event => JSON.stringify(event)).join('\n')
+    assert.equal(profileOutput('pi', raw).outcome, 'partial', flag)
+  }
+})
+
 test('Pi clears a recoverable attempt failure after its internal retry completes', () => {
   const raw = [
     { type: 'session', id: 'pi-retry-session' },
@@ -1911,6 +1953,29 @@ process.stdout.write(JSON.stringify({ type: 'agent_end' }) + '\\n')
   assert.equal(result.outcome, 'completed')
 })
 
+for (const flag of ['willRetry', 'willContinue']) test(`Pi waits for its settled event across ${flag} attempts`, async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-pi-retry-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const cli = executable(directory, 'pi-retry.cjs', `
+const send = value => console.log(JSON.stringify(value))
+send({ type: 'session', id: 'pi-retry-session' })
+send({ type: 'agent_end', messages: [{ role: 'assistant', stopReason: 'error' }], ${flag}: true })
+setTimeout(() => {
+  send({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'Recovered final answer.' } })
+  send({ type: 'agent_end', messages: [{ role: 'assistant', stopReason: 'stop' }], ${flag}: false })
+  setTimeout(() => {
+    require('node:fs').writeFileSync(${JSON.stringify(path.join(directory, 'settled'))}, 'yes')
+    send({ type: 'agent_settled' })
+  }, 400)
+}, 400)
+setInterval(() => {}, 1000)
+`)
+  const result = await runAgent({ kind: 'pi', executable: cli }, 'finish the retry', directory)
+  assert.equal(result.outcome, 'completed')
+  assert.equal(result.text, 'Recovered final answer.')
+  assert.equal(fs.readFileSync(path.join(directory, 'settled'), 'utf8'), 'yes')
+})
+
 test('Pi keeps running after a tool turn until its agent loop ends', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-pi-tool-turn-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
@@ -2062,7 +2127,7 @@ process.exit(2)
       ...(kind === 'kimi' ? { sandbox: 'workspace-write' } : {}),
     }
     await assert.rejects(
-      runAgent({ kind, executable: cli, name: kind }, 'resume', directory, options),
+      runAgent({ kind, executable: kind === 'kimi' ? executable(directory, 'invalid-kimi-session.cjs', kimiAcpSource("''", true)) : cli, name: kind }, 'resume', directory, options),
       (error) => error.message === 'LOCAL_AGENT_SESSION_INVALID'
         && error.failure.sessionInvalid === true
         && error.failure.retryable === true,
@@ -2102,10 +2167,7 @@ test('supported local CLIs run in the selected workdir and return native session
     {
       kind: 'kimi',
       options: { sandbox: 'workspace-write' },
-      source: `process.stdout.write([
-        JSON.stringify({ role: 'assistant', content: process.cwd() }),
-        JSON.stringify({ type: 'session.resume_hint', session_id: 'kimi-session' }),
-      ].join('\\n'))`,
+      source: kimiAcpSource('process.cwd()'),
     },
     {
       kind: 'claude',
@@ -2196,7 +2258,8 @@ test('every conversational built-in Agent emits its answer through the shared ru
 
   for (const fixture of manifest.fixtures) {
     const raw = fs.readFileSync(path.join(OUTPUT_FIXTURE_DIRECTORY, fixture.file), 'utf8')
-    const cli = executable(directory, `${fixture.kind}-runtime-events.cjs`, `
+    const cli = executable(directory, `${fixture.kind}-runtime-events.cjs`, fixture.kind === 'kimi'
+      ? kimiAcpSource(JSON.stringify(parseKimiOutput(raw).text)) : `
 process.stdout.write(${JSON.stringify(raw)})
 `)
     const events = []
@@ -2412,13 +2475,11 @@ process.stdout.write(JSON.stringify({
 
 test('runAgent injects Provider secrets through the child environment only', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-cli-provider-'))
-  const cli = executable(directory, 'provider-env.cjs', `
-process.stdout.write([
+  const cli = executable(directory, 'provider-env.cjs', kimiAcpSource(`[
   process.env.KIMI_MODEL_NAME,
   process.env.KIMI_MODEL_BASE_URL,
   process.env.KIMI_MODEL_API_KEY,
-].join('|'))
-`)
+].join('|')`))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
 
   const result = await runAgent(

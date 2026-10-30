@@ -11,7 +11,7 @@ const v4NaturalDecisionMethods = {
     // A request for an absent or paused participant is dropped on its own;
     // it used to stop the whole discussion with a misleading message.
     const dropped = requested.filter(kind => !participants.includes(kind))
-    const kinds = participants.filter(kind => requested.includes(kind))
+    const kinds = requested.filter(kind => participants.includes(kind))
     return { status: kinds.length ? 'valid' : 'none', kinds, dropped }
   },
 
@@ -134,7 +134,7 @@ const v4NaturalDecisionMethods = {
         .filter(kind => kind !== message.agentKind)
     )))
     if (!selected.size) return []
-    return activeKinds.filter(kind => selected.has(kind))
+    return [...selected]
   },
 
   v4NaturalPriorPeerDiscussion(group, controller, threadRootId, round, owner) {
@@ -200,9 +200,19 @@ const v4NaturalDecisionMethods = {
           || messageRound > round || !this.v4NaturalMessageMatchesBinding(message, controller)) continue
       const contribution = this.v4NaturalMessageContent(message)
       if (contribution.partial) return false
-      const content = contribution.text
+      const text = contribution.text
         .replace(/@[A-Za-z0-9][A-Za-z0-9_-]*/gu, '')
         .replace(/\s+/gu, ' ').trim()
+      const files = []
+      for (const artifactId of message.trace?.context?.outcomeRefs?.artifactIds || []) {
+        try {
+          const { artifact, contentHash } = this.v4ArtifactIdentity(artifactId)
+          if (artifact.locationRef?.kind === 'workspace-relative') {
+            files.push([artifact.locationRef.path, contentHash])
+          }
+        } catch { return false }
+      }
+      const content = JSON.stringify([text, message.trace?.context?.taskDecision?.reviewedVersion || '', files.sort()])
       if (previous.has(message.agentKind) && previous.get(message.agentKind) !== content) return false
       if (messageRound >= firstRound) {
         observedRounds.add(messageRound)

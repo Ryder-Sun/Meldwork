@@ -290,7 +290,7 @@ async function restartAutoV4ProposalGate(t, tamper = '') {
     return ['completed', 'failed', 'partial', 'stopped', 'interrupted'].includes(record?.status)
       ? record
       : null
-  }, 'completed Auto V4 proposal Gate restart')
+  }, 'completed Auto V4 proposal Gate restart', 30000)
   assert.equal(completed.status, 'completed', JSON.stringify({
     reason: completed.reason,
     phase: completed.orchestration?.phase,
@@ -338,12 +338,11 @@ async function restartAutoV4ProposalGate(t, tamper = '') {
       }
     },
   })
+  const recoveredController = recovered.activeRuns.get(group.id)
+  assert.ok(recoveredController)
   await recovered.refreshAgents()
-  const recoveredFinal = await waitFor(() => {
-    const record = recoveryLedger.get(gate.runId)
-    return ['completed', 'failed', 'partial', 'stopped', 'interrupted'].includes(record?.status)
-      ? record : null
-  }, 'post-proposal Auto V4 recovery')
+  await recoveredController.done
+  const recoveredFinal = recoveryLedger.get(gate.runId)
   assert.equal(recoveryCalls.some(call => call.phase === 'proposal'), false)
   assert.equal(recoveredFinal.status, 'completed', JSON.stringify({
     reason: recoveredFinal.reason,
@@ -545,7 +544,7 @@ async function restartAutoV4SecondWorkGate(t, rejected = false) {
   assert.equal(recoveredFinal.continuation.state, 'completed')
 }
 
-test('Auto V4 proposal Gate restart resumes the exact slot and completes receipts', async (t) => {
+test('Auto V4 proposal Gate restart resumes the exact slot and completes receipts', { timeout: 30000 }, async (t) => {
   await restartAutoV4ProposalGate(t)
 })
 

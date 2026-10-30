@@ -7,7 +7,7 @@ const adapters = require('../../../src/agents/cli/cli-adapters.cjs')
 const { normalizeFailure } = require('../../../src/runs/failure-policy.cjs')
 const { executable, within, readWhenReady } = require('../../support/cli-adapters-test-helpers.cjs')
 
-for (const kind of ['opencode', 'mimo']) test(`${kind} native output loops are cancelled, preserve streamed text and never auto-retry as success`, async t => {
+for (const [kind, paraphrased] of [['opencode', false], ['mimo', false], ['opencode', true]]) test(`${kind} ${paraphrased ? 'paraphrased' : 'exact'} native output loops are cancelled, preserve streamed text and never auto-retry as success`, async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-acp-runaway-'))
   t.after(async () => { await adapters.shutdownAcpSessionRuntime(); fs.rmSync(directory, { recursive: true, force: true }) })
   const cancelled = path.join(directory, 'cancelled')
@@ -15,7 +15,9 @@ for (const kind of ['opencode', 'mimo']) test(`${kind} native output loops are c
 const fs = require('node:fs')
 if (process.argv.includes('--help')) { console.log('opencode acp'); process.exit(0) }
 const send = value => process.stdout.write(JSON.stringify(value) + '\\n')
-const text = '# 表决：赞成——全场一致通过\\n我投赞成票，确认讨论阶段完结。全场只读，工作区零改动。成果就绪，等待用户回复授权写入后按共识计划交付 AI 硬件创业公司调研报告全文以及一页执行摘要。'
+const text = ${JSON.stringify(paraphrased
+    ? '# 表决：赞成。收到，本轮调研交付已收尾。确认，本轮调研正式收尾。本轮调研交付完成。确认，本轮调研结束。本轮调研已正式结束。确认。'
+    : '# 表决：赞成——全场一致通过\n我投赞成票，确认讨论阶段完结。全场只读，工作区零改动。成果就绪，等待用户回复授权写入后按共识计划交付 AI 硬件创业公司调研报告全文以及一页执行摘要。')}
 let timer, request
 require('node:readline').createInterface({input:process.stdin}).on('line', line => {
   const message = JSON.parse(line), sessionId = 'native-loop-session'
@@ -55,7 +57,7 @@ process.on('SIGTERM', () => { require('node:fs').writeFileSync(${JSON.stringify(
 setInterval(() => console.log(JSON.stringify({type:'text',text:'已确认，随时待命。'})), 5)
 `)
   const events = []
-  await assert.rejects(within(adapters.runAgent({ kind: 'hermes', executable: cli, streamJsonAvailable: true }, 'one conclusion', directory, {
+  await assert.rejects(within(adapters.runAgent({ kind: 'hermes', executable: cli, streamJsonAvailable: true, acpAvailable: false }, 'one conclusion', directory, {
     onEvent: event => events.push(event),
   }), 10000), { code: 'LOCAL_AGENT_REPEATED_OUTPUT' })
   assert.equal(await readWhenReady(terminated), 'terminated')

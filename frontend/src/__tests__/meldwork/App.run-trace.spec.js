@@ -45,6 +45,30 @@ afterEach(() => {
 })
 
 describe('Meldwork workbench', () => {
+  it.each(['failed', 'stopped', 'completed', 'running'])('shows the actual empty reply state for %s', async status => {
+    const { wrapper } = await mountApp(({ state }) => {
+      state.groups.push({
+        id: 'empty-kimi', conversationType: 'direct', directAgentKind: 'kimi',
+        name: 'Kimi Code', topic: '', agentKinds: ['kimi'],
+        workdir: '/tmp/meldwork-workspace', allowWrite: true,
+        createdAt: '2026-07-29T08:00:00Z', updatedAt: '2026-07-29T08:02:00Z',
+      })
+      state.messages.push(
+        { id: 'empty-kimi-root', groupId: 'empty-kimi', role: 'user', content: 'Hello', createdAt: '2026-07-29T08:01:00Z' },
+        {
+          id: 'empty-kimi-reply', groupId: 'empty-kimi', role: 'agent', agentKind: 'kimi',
+          content: '', createdAt: '2026-07-29T08:02:00Z',
+          trace: { runId: 'empty-run', agentRunId: 'empty-agent-run', status, events: [] },
+        },
+      )
+    })
+    await wrapper.get('.direct-session-open').trigger('click')
+    const reply = wrapper.get('.message-row.agent')
+    expect(reply.find('.typing-bars').exists()).toBe(status === 'running')
+    expect(reply.text()).toContain(status === 'running' ? 'Waiting for the conclusion' : 'No conclusion returned')
+    wrapper.unmount()
+  })
+
   it('creates one live non-Codex tool row from trusted scope without a durable Run', async () => {
     const { wrapper, emitRunEvent } = await mountApp(({ state }) => {
       state.groups.push({
