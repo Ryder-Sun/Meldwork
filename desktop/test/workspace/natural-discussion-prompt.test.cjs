@@ -49,9 +49,10 @@ test('skills, knowledge bases and prior context reach the brief only when presen
   assert.doesNotMatch(bare, /Relevant prior context/)
 })
 
-test('a proposal is independent, read-only and carries no receipt', () => {
+test('a proposal is independent, uses authorized native tools and carries no receipt', () => {
   const prompt = turn({ phase: 'proposal' })
-  assert.match(prompt, /This invocation is read-only/)
+  assert.match(prompt, /user enabled workspace writes/i)
+  assert.match(prompt, /including network research, commands and configured plugins/)
   assert.match(prompt, /answering the same task independently/)
   assert.doesNotMatch(prompt, /MELDWORK_COLLABORATION/)
   assert.doesNotMatch(prompt, /delivery owner/)
@@ -91,7 +92,7 @@ test('the example receipt names a real peer only when the Agent may route', () =
 
 test('only the designated writer is told about the deliverable folder', () => {
   const writer = writerSection({ kind: 'codex', writerKind: 'codex', group: GROUP })
-  assert.match(writer, /designated workspace writer/)
+  assert.match(writer, /user enabled workspace writes/i)
   assert.match(writer, /\.meldwork-output\//)
   const peer = writerSection({ kind: 'hermes', writerKind: 'codex', group: GROUP })
   assert.match(peer, /Workspace writes are assigned to @codex/)

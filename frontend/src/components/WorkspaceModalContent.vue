@@ -65,6 +65,7 @@
   </form>
 
   <form v-else-if="modal === 'settings'" class="modal-body form-stack settings-form" @submit.prevent="saveGroupSettings">
+    <p v-if="settingsReadOnly" class="group-cloud-notice">{{ t('settings.runningReadOnly') }}</p>
     <div class="settings-primary-grid">
       <label>
         <span>{{ activeGroup?.conversationType === 'direct' ? t('settings.conversationName') : t('group.name') }}</span>
@@ -73,7 +74,7 @@
           v-model.trim="settingsForm.name"
           :placeholder="t('group.namePlaceholder')"
           maxlength="60"
-          :disabled="saving"
+          :disabled="saving || (settingsReadOnly && settingsIntent !== 'rename')"
         />
       </label>
       <label>
@@ -82,11 +83,11 @@
           v-model.trim="settingsForm.topic"
           :placeholder="t('group.topicPlaceholder')"
           maxlength="200"
-          :disabled="saving"
+          :disabled="saving || settingsReadOnly"
         />
       </label>
     </div>
-    <fieldset v-if="activeGroup?.conversationType !== 'direct'" class="settings-agent-fieldset" :disabled="saving">
+    <fieldset v-if="activeGroup?.conversationType !== 'direct'" class="settings-agent-fieldset" :disabled="saving || settingsReadOnly">
       <legend class="agent-choice-legend">
         <span>{{ t('group.agents') }}</span>
         <small>{{ t('group.selectedCount', { count: settingsForm.agentKinds.length }) }}</small>
@@ -120,14 +121,14 @@
       <span>{{ t('group.workspace') }}</span>
       <div class="input-action-row">
         <input v-model="settingsForm.workdir" :title="settingsForm.workdir" readonly />
-        <button class="secondary-button" type="button" :disabled="saving" @click="pickGroupDirectory('settings')">
+        <button class="secondary-button" type="button" :disabled="saving || settingsReadOnly" @click="pickGroupDirectory('settings')">
           <FolderOpenOutline />
           {{ t('group.pickFolder') }}
         </button>
       </div>
     </label>
     <label class="switch-row" :class="{ disabled: settingsSelectionIsCloudOnly }">
-      <input v-model="settingsForm.allowWrite" type="checkbox" :disabled="saving || settingsSelectionIsCloudOnly" />
+      <input v-model="settingsForm.allowWrite" type="checkbox" :disabled="saving || settingsReadOnly || settingsSelectionIsCloudOnly" />
       <span class="switch-control" />
       <span>{{ settingsSelectionIsCloudOnly ? t('group.cloudReadOnly') : t('group.allowWrite') }}</span>
     </label>
@@ -140,7 +141,7 @@
           type="button"
           :aria-expanded="String(deleteArmed)"
           aria-controls="settings-delete-confirmation"
-          :disabled="saving"
+          :disabled="saving || settingsReadOnly"
           @click="requestDeleteConfirmation"
         >
           <TrashOutline />
@@ -161,7 +162,7 @@
             <button class="secondary-button compact" type="button" :disabled="saving" @click="dismissDeleteConfirmation">
               {{ t('common.cancel') }}
             </button>
-            <button class="danger-button" type="button" :disabled="saving" @click="deleteConversation">
+            <button class="danger-button" type="button" :disabled="saving || settingsReadOnly" @click="deleteConversation">
               {{ t('settings.deleteConfirm') }}
             </button>
           </div>
@@ -169,7 +170,7 @@
       </div>
       <div class="modal-footer-actions">
         <button class="secondary-button" type="button" :disabled="saving" @click="closeModal">{{ t('common.cancel') }}</button>
-        <button class="primary-button" type="submit" :disabled="saving">
+        <button class="primary-button" type="submit" :disabled="saving || (settingsReadOnly && settingsIntent !== 'rename')">
           {{ saving ? t('common.saving') : t('settings.save') }}
         </button>
       </div>
@@ -387,6 +388,8 @@ const {
   selectedAgentDetail,
   setAgentSidebarVisibility,
   settingsForm,
+  settingsIntent,
+  settingsReadOnly,
   t,
 } = props.controller
 

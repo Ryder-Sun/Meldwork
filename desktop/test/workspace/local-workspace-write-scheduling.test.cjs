@@ -224,7 +224,7 @@ test('a conversation stuck on an Agent does not stop another conversation from u
   await first
 })
 
-test('Manual V4 retains parallel readers alongside its single writer and stable message order', { timeout: 10000 }, async (t) => {
+test('Manual V4 runs authorized writers in parallel and preserves stable message order', { timeout: 10000 }, async (t) => {
   const { directory, options } = fixture()
   const release = deferred()
   const allStarted = deferred()
@@ -252,8 +252,8 @@ test('Manual V4 retains parallel readers alongside its single writer and stable 
     protocol: 'v4', mode: 'manual', targetKinds: group.agentKinds,
   })
   await allStarted.promise
-  assert.deepEqual(calls.filter(call => call.sandbox === 'workspace-write').map(call => call.kind), ['codex'])
-  assert.equal(calls.filter(call => call.sandbox === 'read-only').length, 2)
+  assert.deepEqual(calls.filter(call => call.sandbox === 'workspace-write').map(call => call.kind), group.agentKinds)
+  assert.equal(calls.filter(call => call.sandbox === 'read-only').length, 0)
   release.resolve()
   await run
   const messages = workspace.snapshot().messages.filter(message => message.role === 'agent')

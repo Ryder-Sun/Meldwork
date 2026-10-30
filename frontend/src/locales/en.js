@@ -599,6 +599,7 @@ export default {
     'settings.title': 'Conversation settings',
     'settings.renameDirectTitle': 'Rename direct chat',
     'settings.renameGroupTitle': 'Rename group chat',
+    'settings.runningReadOnly': 'You can rename this conversation while it runs. Other settings are read-only.',
     'settings.conversationName': 'Conversation name',
     'settings.save': 'Save changes',
     'settings.delete': 'Delete conversation',

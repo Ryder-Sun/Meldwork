@@ -445,6 +445,9 @@ test('Manual V4 restart retains a settled slot and reruns only unfinished safe s
 
 test('Manual V4 recovery safely invokes a queued writer that never acquired a lease', async (t) => {
   const { directory, options } = fixture()
+  const detectAgents = options.detectAgents
+  options.detectAgents = async () => (await detectAgents()).map(agent => agent.kind === 'codex'
+    ? { ...agent, routingCapabilities: { permissionModes: ['read-only'] } } : agent)
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
   const ledger = new RunLedger({
     storagePath: path.join(directory, 'run-ledger.json'),
@@ -488,7 +491,7 @@ test('Manual V4 recovery safely invokes a queued writer that never acquired a le
   }, 'queued writer checkpoint')
   const writerKind = crashRecord.orchestration.commitState.writerKind
   const writerSlot = crashRecord.orchestration.slots.find(slot => slot.agentKind === writerKind)
-  assert.equal(writerKind, 'workbuddy')
+  assert.ok(['workbuddy', 'hermes'].includes(writerKind))
   assert.deepEqual(initialCalls, ['codex'])
 
   const recoveryStoragePath = path.join(directory, 'workspace-queued-writer.json')
@@ -549,18 +552,85 @@ test('Manual V4 recovery safely invokes a queued writer that never acquired a le
   for (const call of recoveryCalls) {
     const slot = crashRecord.orchestration.slots.find(item => item.agentKind === call.kind)
     assert.equal(call.operationId, slot.operationId)
-    assert.equal(call.sandbox, call.kind === writerKind ? 'workspace-write' : 'read-only')
+    assert.equal(call.sandbox, call.kind === 'codex' ? 'read-only' : 'workspace-write')
     assert.match(call.prompt, /Recover a writer that crashed while still queued\./)
     assert.match(
       call.prompt,
-      call.kind === writerKind ? /may change files for this message/ : /This reply is read-only/,
+      call.kind === 'codex' ? /This reply is read-only/ : /user enabled workspace writes/i,
     )
-    // Only the writer is told it may change files; every peer stays read-only.
-    assert.equal(/This reply is read-only/.test(call.prompt), call.kind !== writerKind)
+    assert.equal(/This reply is read-only/.test(call.prompt), call.kind === 'codex')
   }
   assert.deepEqual(final.orchestration.commitState.committedKinds, [
     'codex', 'workbuddy', 'hermes',
   ])
+})
+
+test('Manual V4 recovers multiple interrupted writers with separate approvals', async (t) => {
+  const { directory, options } = fixture()
+  const release = deferred()
+  const started = deferred()
+  t.after(() => {
+    release.resolve()
+    fs.rmSync(directory, { recursive: true, force: true })
+  })
+  const ledger = new RunLedger({ storagePath: path.join(directory, 'original-ledger.json') })
+  options.runLedger = ledger
+  options.runScheduler = new RunScheduler()
+  let count = 0
+  options.runAgent = async agent => {
+    if (++count === 3) started.resolve()
+    await release.promise
+    return { text: `${agent.kind} original response` }
+  }
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({
+    name: 'Interrupted native writers', agentKinds: ['codex', 'hermes', 'workbuddy'],
+    workdir: directory, allowWrite: true,
+  })
+  const send = workspace.sendMessage({
+    groupId: group.id, text: 'Write independent drafts.', mode: 'manual',
+    protocol: 'v4', targetKinds: group.agentKinds,
+  })
+  await started.promise
+  const crash = structuredClone(ledger.list(group.id)[0])
+  assert.equal(crash.orchestration.slots.filter(slot => slot.status === 'running').length, 3)
+  const recoveryPath = path.join(directory, 'recovery-workspace.json')
+  fs.copyFileSync(options.storagePath, recoveryPath)
+  release.resolve()
+  await workspace.stopAll()
+  await send
+  const recoveryLedger = new RunLedger({ storagePath: path.join(directory, 'recovery-ledger.json') })
+  recoveryLedger.checkpoint(crash)
+  const calls = []
+  const recovered = new LocalWorkspace({
+    ...options, storagePath: recoveryPath, runLedger: recoveryLedger,
+    runScheduler: new RunScheduler(),
+    runAgent: async (agent, _prompt, _cwd, runtime) => {
+      calls.push(agent.kind)
+      assert.equal(runtime.sandbox, 'workspace-write')
+      return { text: `${agent.kind} approved recovery`, outcome: 'completed' }
+    },
+  })
+  await recovered.refreshAgents()
+  const approved = []
+  for (let index = 0; index < 3; index++) {
+    const gate = await waitFor(() => recovered.listHumanGates({ pendingOnly: true })[0],
+      `interrupted writer approval ${index}`)
+    assert.deepEqual(calls, approved)
+    approved.push(recoveryLedger.get(crash.runId).continuation.agentKind)
+    recovered.decideHumanGate(gate.gateId, {
+      status: 'approved', optionId: 'retry-once', actorId: 'local-user',
+    })
+    await waitFor(() => calls.length === index + 1, `approved writer ${index}`)
+  }
+  const final = await waitFor(() => {
+    const run = recoveryLedger.get(crash.runId)
+    return run.status === 'completed' ? run : null
+  }, 'all interrupted writers recovered')
+  assert.deepEqual(calls, approved)
+  assert.equal(new Set(calls).size, 3)
+  assert.equal(final.orchestration.commitState.committedKinds.length, 3)
 })
 
 test('Manual V4 restart requires a new Gate after an approved retry lease crashes', async (t) => {
@@ -610,8 +680,8 @@ test('Manual V4 restart requires a new Gate after an approved retry lease crashe
   })
   await crashCheckpoint
   assert.ok(crashRecord)
-  const writerKind = crashRecord.orchestration.commitState.writerKind
-  const writerSlot = crashRecord.orchestration.slots.find(slot => slot.agentKind === writerKind)
+  const writerSlot = crashRecord.orchestration.slots.find(slot => slot.permission === 'workspace-write' && slot.status === 'running')
+  const writerKind = writerSlot.agentKind
   assert.equal(writerSlot.status, 'running')
   assert.equal(writerSlot.permission, 'workspace-write')
   assert.equal(writerSlot.attempt, 1)

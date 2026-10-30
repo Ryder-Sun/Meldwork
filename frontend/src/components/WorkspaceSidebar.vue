@@ -149,12 +149,10 @@
                 </span>
                 <span v-else class="direct-session-spacer" />
                 <button
-                  v-if="!isGroupRunning(group.id) || isSelectedConversation(group)"
                   class="direct-session-action"
                   type="button"
                   :title="t('nav.renameDirect', { name: groupName(group) })"
                   :aria-label="t('nav.renameDirect', { name: groupName(group) })"
-                  :disabled="isGroupRunning(group.id)"
                   @click="openConversationRename(group)"
                 >
                   <PencilOutline />
@@ -253,13 +251,12 @@
                   <CheckmarkCircleOutline aria-hidden="true" />
                 </span>
               </button>
-              <span v-if="!isGroupRunning(group.id) || isSelectedConversation(group)" class="group-conversation-actions">
+              <span class="group-conversation-actions">
                 <button
                   class="direct-session-action"
                   type="button"
                   :title="t('nav.renameGroup', { name: groupName(group) })"
                   :aria-label="t('nav.renameGroup', { name: groupName(group) })"
-                  :disabled="isGroupRunning(group.id)"
                   @click="openConversationRename(group)"
                 >
                   <PencilOutline />

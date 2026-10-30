@@ -1601,11 +1601,12 @@ function validateV4Relations(orchestration, targetKinds) {
       assignment.readOnly === false
     ))
     const validWriterBinding = writerKind
-      ? writableSlots.length === 1
-        && writableAssignments.length === 1
-        && writableSlots[0].agentKind === writerKind
-        && writableAssignments[0].agentKind === writerKind
-        && writableAssignments[0].slotId === writableSlots[0].slotId
+      ? writableSlots.some(slot => slot.agentKind === writerKind)
+        && writableSlots.length === writableAssignments.length
+        && writableSlots.every(slot => writableAssignments.some(assignment => (
+          assignment.slotId === slot.slotId && assignment.agentKind === slot.agentKind
+            && (writableSlots.length === 1 || assignment.role === 'writer')
+        )))
       : writableSlots.length === 0 && writableAssignments.length === 0
     if (!validWriterBinding) fail('ORCHESTRATION_V4_PERMISSION_INVALID')
   }
@@ -1618,12 +1619,15 @@ function validateV4Relations(orchestration, targetKinds) {
       || orchestration.coordinationPlan?.finalizerKind
       || orchestration.commitState.writerKind
       || orchestration.discussionWriterKind
-    if (writableSlots.length > 1 || writableSlots.some(slot => (
+    const nativeWrites = Boolean(orchestration.discussionWriterKind
+      && !orchestration.coordinationPlan && !orchestration.synthesisBinding
+      && ['proposal', 'discussion'].includes(orchestration.phase))
+    if (!nativeWrites && (writableSlots.length > 1 || writableSlots.some(slot => (
       slot.agentKind !== effectiveWriterKind
         || !['discussion', 'synthesis', 'human-gate'].includes(orchestration.phase)
         || (orchestration.phase === 'discussion' && !orchestration.discussionWriterKind)
-    ))) fail('ORCHESTRATION_V4_PERMISSION_INVALID')
-    for (const assignment of orchestration.phase === 'discussion' ? orchestration.plan.assignments : []) {
+    )))) fail('ORCHESTRATION_V4_PERMISSION_INVALID')
+    for (const assignment of ['proposal', 'discussion'].includes(orchestration.phase) ? orchestration.plan.assignments : []) {
       const slot = orchestration.slots.find(item => item.slotId === assignment.slotId)
       if (slot && assignment.readOnly !== (slot.permission !== 'workspace-write')) {
         fail('ORCHESTRATION_V4_PERMISSION_INVALID')

@@ -7,13 +7,17 @@ function entry(index, agentKind, text) {
   return { id: `message-${index}`, round: index + 1, agentKind, text }
 }
 
-test('Natural proposal distinguishes its read-only deliverable from subsequent authorized work', () => {
+test('Natural proposal follows the group write authorization while allowing network research', () => {
   for (const kind of ['codex', 'hermes', 'local-example']) {
     const input = { group: {}, kind, snapshot: { taskText: 'Write result.txt' }, naturalResponse: true }
     const proposal = v4Prompt({ ...input, phase: 'proposal' })
     assert.match(proposal, /This invocation is read-only/u)
     assert.match(proposal, /Deliver the actual answer or complete implementation draft/u)
-    assert.match(proposal, /Shared workspace edits happen in the subsequent discussion/u)
+    assert.match(proposal, /Network search and fetching remain allowed/u)
+    const writable = v4Prompt({ ...input, group: { allowWrite: true }, phase: 'proposal' })
+    assert.match(writable, /user enabled workspace writes/iu)
+    assert.match(writable, /including network research, commands and configured plugins/u)
+    assert.doesNotMatch(writable, /This invocation is read-only/u)
     assert.doesNotMatch(v4Prompt({ ...input, phase: 'discussion' }), /independent first-round deliverable/u)
   }
 })

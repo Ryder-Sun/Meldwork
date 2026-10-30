@@ -55,8 +55,8 @@ const v4PhaseMethods = {
         finishedAt: running ? null : (slot.finishedAt || now),
         commitStatus: running ? 'pending' : (slot.commitStatus || 'committed'),
         attempt: (Number.isSafeInteger(slot.attempt) ? slot.attempt : 0) + (running ? 1 : 0),
-        permission: allowWrite && slot.agentKind === writerKind
-          && (phase === 'synthesis' || (this.naturalAgentResponses && phase === 'discussion'))
+        permission: allowWrite && ((this.naturalAgentResponses && this.canWriteWorkspace(slot.agentKind))
+          || (slot.agentKind === writerKind && phase === 'synthesis'))
           ? 'workspace-write'
           : 'read-only',
         resultRefs: {
@@ -89,7 +89,8 @@ const v4PhaseMethods = {
   }) {
     const current = controller.orchestration
     const naturalWriterKind = this.naturalAgentResponses && ['proposal', 'discussion'].includes(phase)
-      && !coordinationPlan && !synthesisBinding ? writerKind : ''
+      && !coordinationPlan && !synthesisBinding
+      ? writerKind || current?.discussionWriterKind || '' : ''
     if (current?.version === 4
         && (current.phase !== phase || current.round !== controller.currentRound)) {
       this.assertV4PhaseCanAdvance(controller)
@@ -370,8 +371,9 @@ const v4PhaseMethods = {
             contextPackId: controller.contextPackId,
             snapshotSourceMessageIds,
             snapshotSourceEntries: snapshot.history,
-            permissionMode: 'read-only',
-            singleWriterKind: writerKind,
+            permissionMode: slot.permission,
+            singleWriterKind: this.naturalAgentResponses ? '' : writerKind,
+            independentProposal: this.naturalAgentResponses,
             parallelGraph: true,
             deferMessage: true,
             allowMissingProposalReceipt: true,
@@ -507,12 +509,8 @@ const v4PhaseMethods = {
             contextPackId: controller.contextPackId,
             snapshotSourceMessageIds,
             snapshotSourceEntries: snapshot.history,
-            permissionMode: group.allowWrite === true
-              && (phase === 'synthesis' || (this.naturalAgentResponses && phase === 'discussion'))
-              && kind === writerKind
-              ? 'workspace-write'
-              : 'read-only',
-            singleWriterKind: writerKind,
+            permissionMode: slot.permission,
+            singleWriterKind: this.naturalAgentResponses ? '' : writerKind,
             parallelGraph: true,
             deferMessage: true,
             allowMissingV4Receipt: this.naturalAgentResponses,

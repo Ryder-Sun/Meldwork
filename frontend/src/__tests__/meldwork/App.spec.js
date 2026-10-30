@@ -733,11 +733,13 @@ describe('Meldwork workbench', () => {
 
     const directRow = wrapper.get('.direct-session-row')
     expect(directRow.find('.run-mark .run-agent-bars').exists()).toBe(true)
-    expect(directRow.findAll('.direct-session-action')).toHaveLength(0)
+    expect(directRow.findAll('.direct-session-action')).toHaveLength(1)
+    expect(directRow.get('.direct-session-action').attributes()).not.toHaveProperty('disabled')
 
     const groupRow = wrapper.get('.group-conversation-row')
     expect(groupRow.find('.run-mark .run-agent-bars').exists()).toBe(true)
-    expect(groupRow.findAll('.direct-session-action')).toHaveLength(0)
+    expect(groupRow.get('.direct-session-action').attributes()).not.toHaveProperty('disabled')
+    expect(groupRow.get('.direct-session-action.danger').attributes()).toHaveProperty('disabled')
 
     await directRow.get('.direct-session-open').trigger('click')
     await flushPromises()
@@ -745,7 +747,7 @@ describe('Meldwork workbench', () => {
     expect(selectedDirectRow.find('.run-mark').exists()).toBe(false)
     const directActions = selectedDirectRow.findAll('.direct-session-action')
     expect(directActions).toHaveLength(2)
-    expect(directActions[0].attributes()).toHaveProperty('disabled')
+    expect(directActions[0].attributes()).not.toHaveProperty('disabled')
     expect(directActions[1].attributes()).toHaveProperty('disabled')
 
     await wrapper.get('.group-conversation-row .conversation-link').trigger('click')
@@ -754,7 +756,7 @@ describe('Meldwork workbench', () => {
     expect(selectedGroupRow.find('.run-mark').exists()).toBe(false)
     const groupActions = selectedGroupRow.findAll('.direct-session-action')
     expect(groupActions).toHaveLength(2)
-    expect(groupActions[0].attributes()).toHaveProperty('disabled')
+    expect(groupActions[0].attributes()).not.toHaveProperty('disabled')
     expect(groupActions[1].attributes()).toHaveProperty('disabled')
     wrapper.unmount()
   })
@@ -2040,10 +2042,6 @@ describe('Meldwork workbench', () => {
 
     expect(bridge.localWorkspace.updateGroup).toHaveBeenCalledWith('group-1', {
       name: 'Architecture review',
-      topic: 'Initial topic',
-      agentKinds: ['codex', 'hermes'],
-      workdir: '/tmp/meldwork-workspace',
-      allowWrite: true,
     })
     expect(wrapper.get('.conversation-header h1').text()).toBe('Architecture review')
 
@@ -2091,10 +2089,6 @@ describe('Meldwork workbench', () => {
 
     expect(bridge.localWorkspace.updateGroup).toHaveBeenCalledWith('direct-codex', {
       name: 'Code audit',
-      topic: 'Keep context',
-      agentKinds: ['codex'],
-      workdir: '/tmp/meldwork-workspace',
-      allowWrite: false,
     })
     expect(wrapper.get('.conversation-header h1').text()).toBe('Code audit')
     wrapper.unmount()

@@ -108,7 +108,14 @@ class LocalWorkspaceConversations {
 
   updateGroup(groupId, input) {
     const group = this.getGroup(groupId)
-    if (this.isGroupBusy(group.id)) throw new Error('LOCAL_GROUP_RUNNING')
+    if (this.isGroupBusy(group.id)) {
+      if (Object.keys(input).some(key => key !== 'name')) throw new Error('LOCAL_GROUP_RUNNING')
+      return this.commit(() => {
+        group.name = cleanText(input.name, 60) || group.name
+        group.updatedAt = this.now()
+        return group
+      })
+    }
     const nextName = input.name != null ? cleanText(input.name, 60) || group.name : group.name
     const nextTopic = input.topic != null ? cleanText(input.topic, 200) : group.topic
     const nextWorkdir = input.workdir != null

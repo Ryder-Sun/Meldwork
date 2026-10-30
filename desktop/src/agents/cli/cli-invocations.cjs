@@ -209,7 +209,7 @@ function invocation(kind, executable, workdir, sessionRef = '', options = {}) {
     if (!attachments.length && options.invocationTransport !== 'json') {
       return {
         command: executable,
-        args: ['acp', '--pure', '--cwd', workdir],
+        args: ['acp', '--cwd', workdir],
         acpMode: options.sandbox === 'workspace-write' ? 'build' : 'plan',
         eventTransport: 'acp',
         fallbackTransport: 'json',
@@ -219,7 +219,7 @@ function invocation(kind, executable, workdir, sessionRef = '', options = {}) {
     return {
       command: executable,
       args: [
-        'run', '--pure', '--agent', options.sandbox === 'workspace-write' ? 'build' : 'plan',
+        'run', '--agent', options.sandbox === 'workspace-write' ? 'build' : 'plan',
         '--format', 'json', '--dir', workdir,
         ...(sessionRef ? ['--session', sessionRef] : []),
       ],
@@ -268,7 +268,7 @@ function invocation(kind, executable, workdir, sessionRef = '', options = {}) {
     if (!attachments.length && options.invocationTransport !== 'json') {
       return {
         command: executable,
-        args: ['acp', '--pure', '--cwd', workdir],
+        args: ['acp', '--cwd', workdir],
         acpMode: options.sandbox === 'workspace-write' ? 'build' : 'plan',
         eventTransport: 'acp',
         fallbackTransport: 'json',

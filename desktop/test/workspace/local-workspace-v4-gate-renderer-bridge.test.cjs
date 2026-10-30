@@ -459,8 +459,10 @@ test('Manual V4 lease crash restart keeps its recovery Gate visible to the rende
   })
   await crashCheckpoint
   assert.ok(crashRecord)
-  const writerKind = crashRecord.orchestration.commitState.writerKind
-  const writerSlot = crashRecord.orchestration.slots.find(slot => slot.agentKind === writerKind)
+  const writerSlot = crashRecord.orchestration.slots.find(slot => (
+    slot.permission === 'workspace-write' && slot.status === 'running'
+  ))
+  const writerKind = writerSlot.agentKind
   assert.equal(writerSlot.status, 'running')
   assert.equal(writerSlot.permission, 'workspace-write')
 
@@ -497,9 +499,7 @@ test('Manual V4 lease crash restart keeps its recovery Gate visible to the rende
   delete missingBinding.continuation.publicAgentRunId
   assert.equal(recovered.canResumeHumanGateRecord(missingBinding, gate), false)
   const mismatchedBinding = structuredClone(durable)
-  mismatchedBinding.continuation.publicAgentRunId = mismatchedBinding.agentRuns.find(attempt => (
-    attempt.kind !== writerKind
-  )).agentRunId
+  mismatchedBinding.continuation.publicAgentRunId = 'agent-run-unbound-peer'
   assert.equal(recovered.canResumeHumanGateRecord(mismatchedBinding, gate), false)
   const duplicateBinding = structuredClone(durable)
   duplicateBinding.agentRuns.push(structuredClone(duplicateBinding.agentRuns.find(attempt => (

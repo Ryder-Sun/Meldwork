@@ -245,8 +245,12 @@ class LocalWorkspaceAgentInvocation {
     // makes an Agent in another conversation wait, including when both use the
     // same folder (most chats keep the default one). Writers inside one
     // conversation still take turns.
+    // Independent opening drafts retain parallel execution when the user
+    // enabled native write tools. Later shared deliverable turns serialize.
+    const proposalScope = context.independentProposal && context.phase === 'proposal'
+      ? `\u0000proposal\u0000${kind}` : ''
     const workspaceKey = createHash('sha256')
-      .update(`conversation\u0000${group.id}`)
+      .update(`conversation\u0000${group.id}${proposalScope}`)
       .digest('hex')
     const writerKind = cleanText(context.singleWriterKind || context.writerKind, 80)
     const permissionMode = group.allowWrite === true

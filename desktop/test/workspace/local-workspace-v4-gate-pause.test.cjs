@@ -654,7 +654,7 @@ test('Manual V4 restart approval resumes only the bound gated slot with its oper
       operationId: runOptions.operationId,
       sandbox: runOptions.sandbox,
     })
-    if (runOptions.sandbox === 'workspace-write') {
+    if (agent.kind === 'codex') {
       await runOptions.onSessionRef(`${agent.kind}-v4-gate-session`, { transport: 'acp' })
       const decision = await runOptions.onPermissionRequest(
         permissionRequest,
@@ -756,7 +756,7 @@ test('Manual V4 Gate restart runs untouched safe peers before the stable barrier
       operationId: runOptions.operationId,
       sandbox: runOptions.sandbox,
     })
-    if (runOptions.sandbox === 'workspace-write') {
+    if (agent.kind === 'codex') {
       await runOptions.onSessionRef(`${agent.kind}-capacity-one-session`, { transport: 'acp' })
       const decision = await runOptions.onPermissionRequest(
         permissionRequest,
@@ -830,6 +830,9 @@ test('Manual V4 Gate restart runs untouched safe peers before the stable barrier
 
 test('Manual V4 read-only Gate restart preserves a queued writer through the stable barrier', async (t) => {
   const { directory, options } = fixture()
+  const detectAgents = options.detectAgents
+  options.detectAgents = async () => (await detectAgents()).map(agent => agent.kind === 'codex'
+    ? { ...agent, routingCapabilities: { permissionModes: ['read-only'] } } : agent)
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
   const ledgerPath = path.join(directory, 'run-ledger.json')
   const ledger = new RunLedger({ storagePath: ledgerPath, now: () => Date.now() })
@@ -895,7 +898,7 @@ test('Manual V4 read-only Gate restart preserves a queued writer through the sta
   ))
   assert.equal(gate.agentKind, 'codex')
   assert.equal(gatedSlot.permission, 'read-only')
-  assert.equal(writerKind, 'workbuddy')
+  assert.ok(['workbuddy', 'hermes'].includes(writerKind))
   assert.equal(writerSlot.permission, 'workspace-write')
   assert.equal(writerSlot.status, 'queued')
   assert.deepEqual(invocations, [{
@@ -934,7 +937,7 @@ test('Manual V4 read-only Gate restart preserves a queued writer through the sta
   ])
   for (const call of invocations) {
     assert.equal(call.operationId, operations.get(call.kind))
-    assert.equal(call.sandbox, call.kind === writerKind ? 'workspace-write' : 'read-only')
+    assert.equal(call.sandbox, call.kind === 'codex' ? 'read-only' : 'workspace-write')
   }
   assert.deepEqual(terminal.orchestration.commitState.committedKinds, [
     'codex', 'workbuddy', 'hermes',
@@ -960,7 +963,7 @@ test('Manual V4 rejects approved Gate continuations with mismatched slot binding
       }
       options.runAgent = async (agent, _prompt, _workdir, runOptions) => {
         invocations.push(agent.kind)
-        if (runOptions.sandbox === 'workspace-write') {
+        if (agent.kind === 'codex') {
           await runOptions.onSessionRef(`${agent.kind}-binding-session`, { transport: 'acp' })
           await runOptions.onPermissionRequest(permissionRequest, { signal: runOptions.signal })
         }
@@ -1093,8 +1096,7 @@ test('Manual V4 requires a Gate before retrying an unknown writable outcome', as
   const beforeApproval = invocations.filter(call => call.kind === gate.agentKind)
   assert.equal(beforeApproval.length, 1)
   assert.equal(beforeApproval[0].sandbox, 'workspace-write')
-  assert.equal(invocations.filter(call => call.sandbox === 'workspace-write')
-    .every(call => call.kind === gate.agentKind), true)
+  assert.ok(invocations.every(call => call.sandbox === 'workspace-write'))
 
   workspace.decideHumanGate(gate.gateId, {
     status: 'approved', optionId: 'retry-once', actorId: 'local-user',
@@ -1106,7 +1108,7 @@ test('Manual V4 requires a Gate before retrying an unknown writable outcome', as
   assert.deepEqual(writerCalls.map(call => call.operationId), [request.operationId, request.operationId])
   for (const kind of ['codex', 'hermes', 'workbuddy'].filter(kind => kind !== gate.agentKind)) {
     assert.equal(invocations.filter(call => call.kind === kind).length, 1)
-    assert.equal(invocations.find(call => call.kind === kind).sandbox, 'read-only')
+    assert.equal(invocations.find(call => call.kind === kind).sandbox, 'workspace-write')
   }
   assert.deepEqual(ledger.get(gate.runId).orchestration.commitState.committedKinds, [
     'codex', 'hermes', 'workbuddy',

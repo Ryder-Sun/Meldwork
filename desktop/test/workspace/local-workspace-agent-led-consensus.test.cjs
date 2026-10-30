@@ -149,7 +149,54 @@ test('a failed participant is never silently counted as agreeing', async t => {
   assert.equal(result.record.status, 'partial')
 })
 
-test('the invited writable peer can take over edits and confirmations remain read-only', async t => {
+test('writable participants keep native tools in parallel proposals and version confirmations', async t => {
+  let entered = 0
+  let release
+  const barrier = new Promise(resolve => { release = resolve })
+  const result = await run(t, async ({ phase, kind, prompt, runOptions }) => {
+    assert.equal(runOptions.sandbox, 'workspace-write')
+    if (phase === 'proposal') {
+      if (++entered === 3) release()
+      await barrier
+      assert.match(prompt, /including network research, commands and configured plugins/)
+      return `${kind} independent result`
+    }
+    const version = versionFrom(prompt)
+    return reply('Complete result', 'completed', version ? { reviewedVersion: version } : {})
+  }, { allowWrite: true })
+  assert.equal(result.record.status, 'completed')
+  assert.equal(entered, 3)
+  assert.ok(result.calls.every(call => call.runOptions.sandbox === 'workspace-write'))
+})
+
+test('a native file edit during confirmation withdraws the candidate and requires fresh approvals', async t => {
+  const versions = []
+  let revised = false
+  const result = await run(t, ({ phase, prompt, workdir, runOptions }) => {
+    if (phase === 'proposal') return 'Independent result'
+    assert.equal(runOptions.sandbox, 'workspace-write')
+    const version = versionFrom(prompt)
+    const filename = path.join(workdir, '.meldwork-output', 'result.txt')
+    if (version) {
+      versions.push(version)
+      if (!revised) {
+        revised = true
+        fs.writeFileSync(filename, 'Version two')
+      }
+      return reply('Reviewed result', 'completed', { reviewedVersion: version })
+    }
+    fs.mkdirSync(path.dirname(filename), { recursive: true })
+    fs.writeFileSync(filename, revised ? 'Version two' : 'Version one')
+    return reply(revised ? 'Complete version two' : 'Complete version one', 'completed')
+  }, { allowWrite: true, unlimitedRounds: true })
+  assert.equal(result.record.status, 'completed')
+  assert.equal(new Set(versions).size, 2)
+  const candidate = result.workspace.autoRunner.v4NaturalConsensus(result.group, result.controller, result.controller.threadRootId)
+  assert.deepEqual([...candidate.approvedKinds].sort(), ['codex', 'hermes', 'workbuddy'])
+  assert.equal(candidate.text, 'Complete version two')
+})
+
+test('the invited writable peer can take over edits using the group authorization', async t => {
   const result = await run(t, ({ kind, phase, prompt, workdir, runOptions }) => {
     if (phase === 'proposal') return `${kind} result`
     const version = versionFrom(prompt)

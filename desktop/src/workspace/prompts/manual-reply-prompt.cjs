@@ -32,7 +32,7 @@ function manualReplyPrompt({
       : '',
     writer
       ? [
-          'You are the Agent that may change files for this message. Make only the changes the user asked for within the authorized workspace, and verify the result.',
+          'The user enabled workspace writes. Use your normal native tools, including network research, commands and configured plugins. Make only the changes the user asked for within the authorized workspace, and verify the result. Peers answer independently in parallel; keep draft filenames separate and do not overwrite their work.',
           group?.allowWrite ? deliveryContract(group) : '',
         ].filter(Boolean).join('\n')
       : 'This reply is read-only: do not modify files or other shared state. If a change is needed, describe it instead.',

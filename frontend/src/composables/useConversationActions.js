@@ -1,4 +1,4 @@
-import { nextTick, reactive, ref } from 'vue'
+import { computed, nextTick, reactive, ref } from 'vue'
 import { normalizeSnapshot } from '../desktop.js'
 
 function plainGroupPayload(form) {
@@ -13,7 +13,6 @@ function plainGroupPayload(form) {
 
 export function useConversationActions({
   activeGroup,
-  activeRun,
   activeView,
   closeModal,
   conversationHeader,
@@ -29,7 +28,6 @@ export function useConversationActions({
   saving,
   selectedGroupId,
   selectGroup,
-  sending,
   setDirectCreationPending,
   setSidebarAgentExpanded,
   showError,
@@ -44,6 +42,7 @@ export function useConversationActions({
   const sidebarDeleteGroupId = ref('')
   const sidebarDeletePopoverPoint = ref({ left: 0, top: 0 })
   const settingsIntent = ref('settings')
+  const settingsReadOnly = computed(() => Boolean(activeGroup.value && isGroupRunning(activeGroup.value.id)))
   const inlineTitleEditing = ref(false)
   const inlineTitleDraft = ref('')
   const groupForm = reactive({ name: '', topic: '', agentKinds: [], workdir: '', allowWrite: true })
@@ -121,6 +120,7 @@ export function useConversationActions({
   }
 
   async function pickGroupDirectory(target) {
+    if (target === 'settings' && settingsReadOnly.value) return
     try {
       const path = await workspace.value.pickDirectory()
       if (!path) return
@@ -156,7 +156,7 @@ export function useConversationActions({
   }
 
   function beginInlineTitleEdit() {
-    if (!activeGroup.value || activeRun.value || sending.value || saving.value) return
+    if (!activeGroup.value || saving.value) return
     inlineTitleDraft.value = String(activeGroup.value.name || '')
     inlineTitleEditing.value = true
     void nextTick(() => conversationHeader.value?.focusTitleInput())
@@ -175,14 +175,14 @@ export function useConversationActions({
   async function saveInlineTitle() {
     const group = activeGroup.value
     const name = inlineTitleDraft.value.trim()
-    if (!group || !name || activeRun.value || sending.value || saving.value) {
+    if (!group || !name || saving.value) {
       if (!name) cancelInlineTitleEdit()
       return
     }
     saving.value = true
     let saved = false
     try {
-      await workspace.value.updateGroup(group.id, plainGroupPayload({ ...group, name }))
+      await workspace.value.updateGroup(group.id, { name })
       snapshot.value = normalizeSnapshot(await workspace.value.get())
       inlineTitleEditing.value = false
       inlineTitleDraft.value = ''
@@ -196,7 +196,7 @@ export function useConversationActions({
   }
 
   function openGroupSettings(intent = 'settings') {
-    if (!activeGroup.value || sending.value || saving.value) return
+    if (!activeGroup.value || saving.value) return
     settingsIntent.value = typeof intent === 'string' ? intent : 'settings'
     settingsForm.name = groupName(activeGroup.value)
     settingsForm.topic = activeGroup.value.topic || ''
@@ -209,7 +209,7 @@ export function useConversationActions({
   }
 
   function openConversationRename(group) {
-    if (!group || isGroupRunning(group.id)) return
+    if (!group) return
     selectGroup(group.id)
     openGroupSettings('rename')
     void nextTick(() => workspaceModalContent.value?.focusSettingsName())
@@ -253,6 +253,7 @@ export function useConversationActions({
 
   async function saveGroupSettings() {
     if (!activeGroup.value) return
+    if (settingsReadOnly.value && settingsIntent.value !== 'rename') return
     formError.value = ''
     if (!settingsForm.workdir) {
       formError.value = t('group.createErrorWorkspace')
@@ -264,7 +265,8 @@ export function useConversationActions({
     }
     saving.value = true
     try {
-      await workspace.value.updateGroup(activeGroup.value.id, plainGroupPayload(settingsForm))
+      await workspace.value.updateGroup(activeGroup.value.id, settingsIntent.value === 'rename'
+        ? { name: settingsForm.name } : plainGroupPayload(settingsForm))
       snapshot.value = normalizeSnapshot(await workspace.value.get())
       closeModal({ force: true })
     } catch (error) {
@@ -335,6 +337,7 @@ export function useConversationActions({
     saveInlineTitle,
     settingsForm,
     settingsIntent,
+    settingsReadOnly,
     sidebarDeleteGroupId,
     sidebarDeletePopoverPoint,
   }

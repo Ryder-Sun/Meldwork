@@ -45,6 +45,7 @@ const {
   validateV4SnapshotBody,
 } = require('./local-workspace-context.cjs')
 const { manualReplyPrompt } = require('./prompts/manual-reply-prompt.cjs')
+const { agentRuntimeCapabilities } = require('../agents/agent-runtime-contract.cjs')
 
 const DISCUSSION_STYLES = new Set(['sequential', 'agent-led'])
 
@@ -640,7 +641,7 @@ class LocalWorkspaceMessageSubmission {
     const assignments = slotList.map((slot, index) => ({
       agentKind: slot.agentKind,
       slotId: slot.slotId,
-      role: slot.agentKind === writerKind ? 'writer' : 'primary',
+      role: slot.permission === 'workspace-write' ? 'writer' : 'primary',
       operationId: slot.operationId,
       objective: normalizedPhase === 'proposal'
         ? 'Produce an independent bounded response.'
@@ -895,7 +896,7 @@ class LocalWorkspaceMessageSubmission {
       knowledgeBaseHintsText: knowledgeBaseHintsPrompt(
         prepared?.knowledgeBaseHintsByKind?.get(kind) || [],
       ),
-      writer: kind === writerKind,
+      writer: slots.find(slot => slot.agentKind === kind)?.permission === 'workspace-write',
     })]))
     // Concurrent replies keep slot order in the timeline whatever order they
     // finish in; failure notices take their slot's number too.
@@ -943,7 +944,8 @@ class LocalWorkspaceMessageSubmission {
             snapshotSourceMessageIds,
             snapshotSourceEntries: snapshot.history,
             permissionMode: slot.permission,
-            singleWriterKind: writerKind || '',
+            singleWriterKind: '',
+            independentProposal: true,
             parallelGraph: true,
             deferMessage: true,
             allowMissingProposalReceipt: true,
@@ -1162,9 +1164,12 @@ class LocalWorkspaceMessageSubmission {
   }
 
   async runV4Manual({ group, targetKinds, userMessage, prepared, controller, threadRootId }) {
-    const writerKind = group.allowWrite === true
-      ? this.v4WriterKind(controller, targetKinds, 'manual')
-      : ''
+    const writableKinds = group.allowWrite === true ? targetKinds.filter(kind => (
+      agentRuntimeCapabilities(kind, {
+        agent: this.detectedAgents().find(agent => agent.kind === kind),
+      }).permissionModes.includes('workspace-write')
+    )) : []
+    const writerKind = this.v4WriterKind(controller, writableKinds, 'manual')
     const snapshot = v4Snapshot({
       state: this.snapshot(),
       group,
@@ -1184,7 +1189,7 @@ class LocalWorkspaceMessageSubmission {
       status: 'pending',
       attempt: 0,
       operationId: `agent-operation-${createHash('sha256').update(`${controller.runId}:${batchId}:${kind}`).digest('hex')}`,
-      permission: writerKind && kind === writerKind ? 'workspace-write' : 'read-only',
+      permission: writableKinds.includes(kind) ? 'workspace-write' : 'read-only',
       resultRefs: { artifactIds: [], evidenceIds: [] },
       deliveryWatermark: { version: 1, entryIds: [] },
       resultBodyArtifactId: '',
@@ -1285,7 +1290,6 @@ class LocalWorkspaceMessageSubmission {
     let effectiveResumedGate = resumedGate
     if (!effectiveOnlyKind) {
       const unknownWriters = slots.filter(isV4ManualUnknownWriter)
-      if (unknownWriters.length > 1) throw new Error('LOCAL_RUN_CONTINUATION_INVALID')
       const unknownWriter = unknownWriters[0]
       if (unknownWriter) {
         if (!this.requestHumanGate) throw new Error('LOCAL_RUN_RETRY_GATE_INVALID')

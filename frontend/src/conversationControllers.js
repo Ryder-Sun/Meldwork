@@ -111,7 +111,6 @@ export function createConversationControllers({
   const conversationHeaderController = {
     activeDirectAgent: agentCatalog.activeDirectAgent,
     activeGroup: app.activeGroup,
-    activeRun: app.activeRun,
     agentImageLabel: agentCatalog.agentImageLabel,
     agentSkillLabel: agentSkills.agentSkillLabel,
     beginInlineTitleEdit: conversationActions.beginInlineTitleEdit,
@@ -124,7 +123,6 @@ export function createConversationControllers({
     openGroupSettings: conversationActions.openGroupSettings,
     saveInlineTitle: conversationActions.saveInlineTitle,
     saving: app.saving,
-    sending: app.sending,
     t: app.t,
     theme: app.theme,
   }

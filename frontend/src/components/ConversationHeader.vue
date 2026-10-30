@@ -48,7 +48,7 @@
             type="button"
             :title="t('conversation.renameTitle')"
             :aria-label="t('conversation.renameTitle')"
-            :disabled="Boolean(activeRun) || sending || saving"
+            :disabled="saving"
             @click="beginInlineTitleEdit"
           >
             <span>{{ groupName(activeGroup) }}</span>
@@ -75,7 +75,6 @@
         class="workspace-chip"
         type="button"
         :title="activeGroup.workdir"
-        :disabled="Boolean(activeRun) || sending"
         @click="openGroupSettings"
       >
         <FolderOpenOutline />
@@ -86,7 +85,6 @@
         type="button"
         :title="t('conversation.settings')"
         :aria-label="t('conversation.settings')"
-        :disabled="Boolean(activeRun) || sending"
         @click="openGroupSettings"
       >
         <OptionsOutline />
@@ -113,7 +111,6 @@ const props = defineProps({
 const {
   activeDirectAgent,
   activeGroup,
-  activeRun,
   agentImageLabel,
   agentSkillLabel,
   beginInlineTitleEdit,
@@ -126,7 +123,6 @@ const {
   openGroupSettings,
   saveInlineTitle,
   saving,
-  sending,
   t,
   theme,
 } = props.controller

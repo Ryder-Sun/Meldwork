@@ -26,7 +26,7 @@ async function waitFor(read, label) {
 }
 
 for (const discussionStyle of ['sequential', 'agent-led']) {
-  test(`Natural ${discussionStyle} grants only the frozen writer workspace access`, async (t) => {
+  test(`Natural ${discussionStyle} respects writable group authorization for every participant`, async (t) => {
     const { directory, options } = fixture()
     t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
     const ledger = new RunLedger({ storagePath: path.join(directory, 'ledger.json') })
@@ -37,9 +37,7 @@ for (const discussionStyle of ['sequential', 'agent-led']) {
       const discussion = prompt.includes('Continue from the available peer responses')
       calls.push({ kind: agent.kind, discussion, sandbox: runOptions.sandbox })
       if (runOptions.sandbox === 'workspace-write') {
-        assert.equal(agent.kind, 'codex')
-        assert.equal(discussion, true)
-        assert.match(prompt, /designated workspace writer/)
+        assert.match(prompt, /user enabled workspace writes/i)
         fs.writeFileSync(path.join(workdir, 'result.txt'), 'OK')
         assert.equal(fs.readFileSync(path.join(workdir, 'result.txt'), 'utf8'), 'OK')
       }
@@ -54,7 +52,7 @@ for (const discussionStyle of ['sequential', 'agent-led']) {
     assert.equal(record.status, 'completed', JSON.stringify(workspace.snapshot().messages.map(message => message.content)))
     assert.equal(record.orchestration.discussionWriterKind, 'codex')
     assert.ok(calls.some(call => call.sandbox === 'workspace-write'))
-    assert.ok(calls.filter(call => !call.discussion || call.kind === 'hermes').every(call => call.sandbox === 'read-only'))
+    assert.ok(calls.every(call => call.sandbox === 'workspace-write'))
     for (const slot of record.orchestration.slots) {
       const assignment = record.orchestration.plan.assignments.find(item => item.slotId === slot.slotId)
       assert.equal(assignment.readOnly, slot.permission === 'read-only')
@@ -62,9 +60,8 @@ for (const discussionStyle of ['sequential', 'agent-led']) {
     for (const mutate of [
       cursor => { cursor.discussionWriterKind = 'not-a-participant' },
       ...(discussionStyle === 'sequential' ? [
-        cursor => { cursor.discussionWriterKind = 'hermes' },
         cursor => { delete cursor.discussionWriterKind },
-      ] : [cursor => { cursor.slots[0].permission = 'workspace-write' }]),
+      ] : [cursor => { cursor.slots[0].permission = 'read-only' }]),
       cursor => { cursor.plan.assignments[0].readOnly = !cursor.plan.assignments[0].readOnly },
     ]) {
       const tampered = structuredClone(record.orchestration)
@@ -108,11 +105,9 @@ for (const writerKind of ['hermes', '']) {
     assert.equal(result.orchestration.discussionWriterKind || '', writerKind)
     const writeCalls = calls.filter(call => call.sandbox === 'workspace-write')
     if (writerKind) {
-      // The writer may join both the opening full round and a later owner
-      // review round, but only the declared writer ever receives write access.
       assert.ok(writeCalls.length >= 1)
       assert.ok(writeCalls.every(call => (
-        call.kind === writerKind && call.discussion === true
+        call.kind === writerKind
       )))
       assert.ok(calls.filter(call => call.sandbox !== 'workspace-write')
         .every(call => call.sandbox === 'read-only'))
@@ -122,8 +117,13 @@ for (const writerKind of ['hermes', '']) {
   })
 }
 
-for (const { approved, restartGate } of [{ approved: false }, { approved: true }, { approved: true, restartGate: true }]) {
-  test(`Recovered natural writer ${approved ? 'retries only after approval' : 'does not replay after rejection'}${restartGate ? ' after reopening the Gate' : ''}`, async (t) => {
+for (const { approved, restartGate, capturePhase = 'discussion' } of [
+  { approved: false }, { approved: true }, { approved: true, restartGate: true },
+  { approved: false, capturePhase: 'proposal' },
+  { approved: true, capturePhase: 'proposal' },
+  { approved: true, restartGate: true, capturePhase: 'proposal' },
+]) {
+  test(`Recovered natural ${capturePhase} writer ${approved ? 'retries only after approval' : 'does not replay after rejection'}${restartGate ? ' after reopening the Gate' : ''}`, async (t) => {
     const { directory, options } = fixture()
     t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
     const ledger = new RunLedger({ storagePath: path.join(directory, 'ledger.json') })
@@ -134,7 +134,7 @@ for (const { approved, restartGate } of [{ approved: false }, { approved: true }
     let captured
     options.runAgent = async (agent, prompt, _workdir, runOptions) => {
       const discussion = prompt.includes('Continue from the available peer responses')
-      if (discussion && !captured) {
+      if ((discussion ? 'discussion' : 'proposal') === capturePhase && !captured) {
         captured = ledger.list()[0]
         recoveryLedger.checkpoint(captured)
         fs.copyFileSync(options.storagePath, recoveryStoragePath)
@@ -183,7 +183,8 @@ for (const { approved, restartGate } of [{ approved: false }, { approved: true }
     await (controller || recovered.activeRuns.get(group.id))?.done
     const result = recoveryLedger.get(captured.runId)
     assert.equal(result.status, approved ? 'completed' : 'stopped', result.reason)
-    assert.deepEqual(calls, approved ? [{ kind: 'codex', sandbox: 'workspace-write' }] : [])
+    assert.deepEqual(calls, approved ? Array.from({ length: capturePhase === 'proposal' ? 2 : 1 },
+      () => ({ kind: 'codex', sandbox: 'workspace-write' })) : [])
     if (approved) {
       assert.equal(secondCaptured.continuation.state, 'completed')
       const secondCalls = []

@@ -19,6 +19,8 @@ const naturalConsensusMethods = {
       for (const artifactId of artifactIds) {
         const { artifact, contentHash } = this.v4ArtifactIdentity(artifactId)
         if (artifact.locationRef?.kind === 'workspace-relative') {
+          if (candidate?.files.some(file => file.path === artifact.locationRef.path
+              && file.contentHash !== contentHash)) candidate = null
           files.set(artifact.locationRef.path, { path: artifact.locationRef.path,
             artifactId, contentHash, size: artifact.contentRef.size })
         }
@@ -84,7 +86,7 @@ const naturalConsensusMethods = {
       candidate.text,
       `To accept this version, use status completed and reviewedVersion "${candidate.version}" in your receipt. Do not rewrite or replace the candidate while accepting it.`,
       'If anything needs changing, use status continue, explain the defect and request the peer who should fix it. This withdraws the candidate and all its approvals; the revised result needs fresh approval from everyone.',
-      'This confirmation invocation is read-only. Missing, stale or implicit approval never counts as acceptance.',
+      'Do not modify this candidate while accepting it. Missing, stale or implicit approval never counts as acceptance.',
     ].join('\n\n')
   },
 

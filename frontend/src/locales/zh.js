@@ -599,6 +599,7 @@ export default {
     'settings.title': '对话设置',
     'settings.renameDirectTitle': '重命名单聊',
     'settings.renameGroupTitle': '重命名群聊',
+    'settings.runningReadOnly': '运行中可重命名对话，其他设置仅供查看。',
     'settings.conversationName': '会话名称',
     'settings.save': '保存修改',
     'settings.delete': '删除对话',

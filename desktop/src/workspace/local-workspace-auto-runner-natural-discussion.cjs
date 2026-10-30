@@ -242,7 +242,7 @@ const naturalDiscussionMethods = {
       activeKinds,
       transcript: String(options.transcript || ''),
       humanResponsesText: humanResponses.length ? packNaturalDiscussionTranscript(humanResponses) : '',
-      writerKind: options.writerKind,
+      writerKind: group.allowWrite === true ? kind : '',
       ownerKind: options.ownerKind,
       allowRouting: options.allowRouting === true,
       consensusText: options.consensusText || '',
@@ -485,19 +485,20 @@ const naturalDiscussionMethods = {
   },
 
   async runV4NaturalDiscussion(group, controller, threadRootId, context, input) {
-    if (input.resume && controller.orchestration?.phase === 'discussion') {
+    if (input.resume && ['proposal', 'discussion'].includes(controller.orchestration?.phase)) {
       for (const slot of input.slots) {
         if (slot.permission !== 'workspace-write' || !slot.agentRunId
             || slot.commitStatus === 'committed'
             || !['running', 'waiting', 'stopped', 'failed'].includes(slot.status)) continue
-        if (this.v4NaturalRecoveredDiscussionResult(group, controller, threadRootId, slot.agentKind, slot)) continue
+        if (this.v4NaturalRecoveredPhaseResult(group, controller, threadRootId,
+          controller.orchestration.phase, slot.agentKind, slot)) continue
         if (input.resumedGate?.operationId === slot.operationId
             && input.resumedGate.agentKind === slot.agentKind
             && input.resumedGate.status === 'approved') continue
         if (!this.requestHumanGate) throw new Error('LOCAL_RUN_RETRY_GATE_INVALID')
         const binding = {
           agentRunId: slot.agentRunId, agentKind: slot.agentKind,
-          round: controller.currentRound, phase: 'discussion', slotId: slot.slotId,
+          round: controller.currentRound, phase: controller.orchestration.phase, slotId: slot.slotId,
           operationId: slot.operationId, snapshotHash: input.snapshotHash,
         }
         const request = {
@@ -508,7 +509,7 @@ const naturalDiscussionMethods = {
         const gate = await this.requestHumanGate({
           type: 'retry', runId: controller.runId, agentRunId: slot.agentRunId,
           agentKind: slot.agentKind,
-          summary: 'The interrupted discussion writer may already have changed the workspace.',
+          summary: 'The interrupted Agent may already have changed the workspace.',
           options: [
             { optionId: 'retry-once', name: 'Retry once', kind: 'allow_once' },
             { optionId: 'cancel-retry', name: 'Do not retry', kind: 'reject_once' },
@@ -526,8 +527,10 @@ const naturalDiscussionMethods = {
           return 'stopped'
         }
         if (gate.optionId !== 'retry-once') throw new Error('LOCAL_RUN_CONTINUATION_INVALID')
+        if (this.completeHumanGateContinuation?.(controller.runId, gate.gateId, 'completed') !== true
+            && this.hasRunLedger()) throw new Error('LOCAL_RUN_PERSIST_FAILED')
         input.resumedGate = { ...binding, gateId: gate.gateId, type: 'retry',
-          status: gate.status, optionId: gate.optionId, request, used: false }
+          status: gate.status, optionId: gate.optionId, request, used: true }
       }
     }
     if (input.resumedGate?.type === 'retry'
@@ -539,7 +542,7 @@ const naturalDiscussionMethods = {
           || slot.operationId !== gate.operationId
           || slot.snapshotHash !== gate.snapshotHash
           || slot.attempt !== gate.request.attempt) throw new Error('LOCAL_RUN_CONTINUATION_INVALID')
-      if (this.completeHumanGateContinuation?.(controller.runId, gate.gateId, 'completed') !== true
+      if (!gate.used && this.completeHumanGateContinuation?.(controller.runId, gate.gateId, 'completed') !== true
           && this.hasRunLedger()) throw new Error('LOCAL_RUN_PERSIST_FAILED')
     }
     const style = controller.orchestration?.discussionStyle

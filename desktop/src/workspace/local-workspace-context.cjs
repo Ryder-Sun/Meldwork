@@ -325,7 +325,7 @@ function v4Prompt({
     : (snapshot?.skillHintsByKind || []).find(item => item?.kind === kind)?.skillHints || []
   if (naturalResponse) {
     return naturalBrief({
-      group: snapshot?.group || group,
+      group: { ...(snapshot?.group || group), allowWrite: group?.allowWrite === true },
       phase,
       taskText: cleanText(snapshot?.taskText, CURRENT_TASK_TEXT_LIMIT),
       history,

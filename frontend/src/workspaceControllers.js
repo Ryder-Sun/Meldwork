@@ -140,6 +140,8 @@ export function createWorkspaceControllers({
     selectedAgentDetail: agentSkills.selectedAgentDetail,
     setAgentSidebarVisibility: agentManagement.setAgentSidebarVisibility,
     settingsForm: conversationActions.settingsForm,
+    settingsIntent: conversationActions.settingsIntent,
+    settingsReadOnly: conversationActions.settingsReadOnly,
     t: app.t,
   }
 

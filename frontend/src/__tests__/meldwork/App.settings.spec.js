@@ -43,6 +43,45 @@ afterEach(() => {
 })
 
 describe('Meldwork workbench', () => {
+  it('renames a running group while its settings remain viewable and locked', async () => {
+    const { wrapper, bridge, state, emitWorkspaceChanged } = await mountApp(({ state, bridge }) => {
+      state.groups.push({ id: 'running-group', name: 'Research', conversationType: 'group',
+        topic: 'Original topic', agentKinds: ['codex', 'hermes'], workdir: '/tmp/research', allowWrite: true })
+      state.runningGroupIds = ['running-group']
+      state.runs.push({ runId: 'run-1', groupId: 'running-group', phase: 'running', targetKinds: ['codex', 'hermes'], agentRuns: [] })
+      bridge.localWorkspace.updateGroup.mockImplementation(async (id, input) => {
+        Object.assign(state.groups.find(group => group.id === id), structuredClone(input))
+        return structuredClone(state.groups.find(group => group.id === id))
+      })
+    })
+    await wrapper.get('.conversation-link').trigger('click')
+    await wrapper.get('.conversation-title-button').trigger('click')
+    await wrapper.get('.inline-title-form input').setValue('Live research')
+    await wrapper.get('.inline-title-form').trigger('submit')
+    await flushPromises()
+    expect(bridge.localWorkspace.updateGroup).toHaveBeenCalledWith('running-group', { name: 'Live research' })
+    expect(state.groups[0]).toMatchObject({ name: 'Live research', topic: 'Original topic', workdir: '/tmp/research', allowWrite: true, agentKinds: ['codex', 'hermes'] })
+    expect(state.runningGroupIds).toEqual(['running-group'])
+    await wrapper.get('.conversation-header-actions .icon-button').trigger('click')
+    const form = wrapper.get('.settings-form')
+    expect(form.text()).toContain('Other settings are read-only')
+    expect(form.findAll('.settings-primary-grid input').every(input => input.element.disabled)).toBe(true)
+    expect(form.get('fieldset').element.disabled).toBe(true)
+    expect(form.get('.switch-row input').element.disabled).toBe(true)
+    expect(form.get('.input-action-row button').element.disabled).toBe(true)
+    expect(form.get('.settings-delete-trigger').element.disabled).toBe(true)
+    expect(form.get('button[type="submit"]').element.disabled).toBe(true)
+    await form.trigger('submit')
+    expect(bridge.localWorkspace.updateGroup).toHaveBeenCalledTimes(1)
+    state.runningGroupIds = []
+    state.runs = []
+    emitWorkspaceChanged()
+    await flushPromises()
+    expect(form.get('fieldset').element.disabled).toBe(false)
+    expect(form.get('button[type="submit"]').element.disabled).toBe(false)
+    wrapper.unmount()
+  })
+
   it('keeps one settings navigation shell across all tabs without a visible title block', async () => {
     const { wrapper } = await mountApp()
     await wrapper.get('.sidebar-settings-entry').trigger('click')

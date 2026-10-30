@@ -1010,6 +1010,11 @@ test('manual send reserves its group throughout asynchronous attachment prefligh
 
   assert.deepEqual(workspace.snapshot().runningGroupIds, [group.id])
   assert.deepEqual(workspace.snapshot().runs, [])
+  assert.equal(workspace.updateGroup(group.id, { name: 'Renamed during preflight' }).name, 'Renamed during preflight')
+  assert.deepEqual(workspace.snapshot().runningGroupIds, [group.id])
+  for (const edit of [{ topic: 'changed' }, { allowWrite: false }, { agentKinds: ['codex'] }, { name: 'Bad rename', topic: 'changed' }]) {
+    assert.throws(() => workspace.updateGroup(group.id, edit), { message: 'LOCAL_GROUP_RUNNING' })
+  }
   await assert.rejects(
     workspace.sendMessage({ groupId: group.id, text: 'Second', targetKinds: ['codex'] }),
     { message: 'LOCAL_GROUP_RUNNING' },
@@ -1033,6 +1038,36 @@ test('manual send reserves its group throughout asynchronous attachment prefligh
     ['First'],
   )
   assert.deepEqual(workspace.snapshot().runningGroupIds, [])
+})
+
+test('renaming an active conversation preserves the running invocation and rejects other settings', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const started = deferred()
+  const finish = deferred()
+  options.runAgent = async () => {
+    started.resolve()
+    await finish.promise
+    return { text: 'Finished normally.' }
+  }
+  const workspace = new LocalWorkspace(options)
+  t.after(() => { finish.resolve(); return workspace.stopAll() })
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Before', agentKinds: ['codex'], workdir: directory, allowWrite: true })
+  const pending = workspace.sendMessage({ groupId: group.id, text: 'Keep working.', targetKinds: ['codex'] })
+  await started.promise
+  const controller = workspace.activeRuns.get(group.id)
+  workspace.updateGroup(group.id, { name: 'After' })
+  assert.equal(workspace.getGroup(group.id).name, 'After')
+  assert.equal(workspace.activeRuns.get(group.id), controller)
+  assert.equal(controller.signal.aborted, false)
+  assert.throws(() => workspace.updateGroup(group.id, { allowWrite: false }), /LOCAL_GROUP_RUNNING/)
+  assert.throws(() => workspace.updateGroup(group.id, { topic: 'Changed' }), /LOCAL_GROUP_RUNNING/)
+  finish.resolve()
+  await pending
+  assert.ok(workspace.snapshot().messages.some(message => message.content === 'Finished normally.'))
+  workspace.updateGroup(group.id, { topic: 'Editable after completion' })
+  assert.equal(workspace.getGroup(group.id).topic, 'Editable after completion')
 })
 
 test('automatic discussion cannot overtake a manual send in preflight', async (t) => {

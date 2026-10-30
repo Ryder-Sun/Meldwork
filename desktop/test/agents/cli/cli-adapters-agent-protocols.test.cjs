@@ -1094,7 +1094,7 @@ test('MiMo uses ACP by default and declares its JSON setup fallback', () => {
   const spec = invocation('mimo', '/tmp/mimo', '/tmp/work', 'mimo-session', {
     sandbox: 'workspace-write',
   })
-  assert.deepEqual(spec.args, ['acp', '--pure', '--cwd', '/tmp/work'])
+  assert.deepEqual(spec.args, ['acp', '--cwd', '/tmp/work'])
   assert.equal(spec.acpMode, 'build')
   assert.equal(spec.eventTransport, 'acp')
   assert.equal(spec.fallbackTransport, 'json')
@@ -1593,7 +1593,7 @@ send()
 
 test('OpenCode uses ACP without attachments and keeps JSON for attachment runs', () => {
   const chat = invocation('opencode', '/tmp/opencode', '/tmp/work', 'opencode-session')
-  assert.deepEqual(chat.args, ['acp', '--pure', '--cwd', '/tmp/work'])
+  assert.deepEqual(chat.args, ['acp', '--cwd', '/tmp/work'])
   assert.equal(chat.acpMode, 'plan')
   assert.equal(chat.eventTransport, 'acp')
   assert.equal(chat.fallbackTransport, 'json')
@@ -1602,7 +1602,7 @@ test('OpenCode uses ACP without attachments and keeps JSON for attachment runs',
   const configure = invocation('opencode', '/tmp/opencode', '/tmp/work', '', {
     sandbox: 'workspace-write',
   })
-  assert.deepEqual(configure.args, ['acp', '--pure', '--cwd', '/tmp/work'])
+  assert.deepEqual(configure.args, ['acp', '--cwd', '/tmp/work'])
   assert.equal(configure.acpMode, 'build')
 
   const first = path.resolve('diagram-one.png')

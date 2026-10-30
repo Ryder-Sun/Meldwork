@@ -348,7 +348,7 @@ describe('Meldwork workbench', () => {
     expect(wrapper.get('#message-agent-1').classes()).not.toContain('topic-reply')
     expect(wrapper.find('.topic-toggle').exists()).toBe(false)
     expect(wrapper.findAll('.active-topic-label').every(label => label.text() === 'Current task')).toBe(true)
-    expect(wrapper.get('.conversation-title-button').attributes()).toHaveProperty('disabled')
+    expect(wrapper.get('.conversation-title-button').attributes()).not.toHaveProperty('disabled')
     expect(wrapper.find('.run-round-progress').exists()).toBe(false)
     expect(wrapper.get('.run-status-panel.direct.solo').text()).toContain('Codex is working in this chat')
     expect(wrapper.get('.run-status-panel .run-agent-logo').attributes('data-status')).toBe('running')
