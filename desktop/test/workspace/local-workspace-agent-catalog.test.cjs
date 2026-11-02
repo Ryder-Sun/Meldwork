@@ -312,6 +312,7 @@ test('configured credentials do not make an Agent invocable when runtime prerequ
     recentlyVerified: false,
     available: false,
   })
+  assert.equal(agents()[0].availabilitySource, 'native-runtime-unavailable')
 })
 
 test('unidentified product versions remain unavailable after credential validation', async () => {

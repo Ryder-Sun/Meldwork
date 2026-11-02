@@ -15,7 +15,7 @@ Meldwork is a local-first multi-Agent collaboration workspace for the Agent tool
 You do not need to direct every round, but you still set the goal, grant permissions, and make key decisions. Missing information, permission requests, or tradeoffs may require your input. Workspace writes are opt-in; collaboration history, run state, and deliverables stay local so you can revisit the work and continue it.
 
 <p align="center">
-  <a href="https://github.com/Ryder-Sun/Meldwork/releases/download/Meldwork-V1.0.8/Meldwork-1.0.8-arm64.dmg"><strong>Download Meldwork V1.0.8 for Apple silicon macOS</strong></a>
+  <a href="https://github.com/Ryder-Sun/Meldwork/releases/download/Meldwork-V1.0.9/Meldwork-1.0.9-arm64.dmg"><strong>Download Meldwork V1.0.9 for Apple silicon macOS</strong></a>
   · <a href="architecture.md">Architecture</a>
   · <a href="LICENSE">License</a>
 </p>
@@ -86,9 +86,9 @@ Meldwork runs as a local Electron application. Conversations, group configuratio
 
 Selected Agents may send prompts, attachments, or Skills to the model provider configured in their own CLI. Knowledge access is explicit and bounded: the current implementation supports local Obsidian retrieval and CLI-owned Feishu or DingTalk access modes. Local-first describes where Meldwork stores and coordinates work; it does not promise that an Agent's model provider is offline.
 
-## Download V1.0.8
+## Download V1.0.9
 
-For Apple silicon macOS, download the [Meldwork V1.0.8 prerelease](https://github.com/Ryder-Sun/Meldwork/releases/tag/Meldwork-V1.0.8) and choose [`Meldwork-1.0.8-arm64.dmg`](https://github.com/Ryder-Sun/Meldwork/releases/download/Meldwork-V1.0.8/Meldwork-1.0.8-arm64.dmg). The release also includes a ZIP archive and SHA-256 manifest. Install at least one supported local Agent CLI before opening the app.
+For Apple silicon macOS, download the [Meldwork V1.0.9 prerelease](https://github.com/Ryder-Sun/Meldwork/releases/tag/Meldwork-V1.0.9) and choose [`Meldwork-1.0.9-arm64.dmg`](https://github.com/Ryder-Sun/Meldwork/releases/download/Meldwork-V1.0.9/Meldwork-1.0.9-arm64.dmg). The release also includes a ZIP archive and SHA-256 manifest. Install at least one supported local Agent CLI before opening the app.
 
 The preview artifacts are ad-hoc signed and not notarized with an Apple Developer ID. macOS may require **Open Anyway** under **System Settings → Privacy & Security** on first launch.
 
@@ -110,6 +110,12 @@ npm --prefix frontend run build
 npm --prefix frontend run build:desktop
 npm --prefix desktop test
 ```
+
+## V1.0.9
+
+Auto Discussion can complete native Agent turns on explicit completion and requires each participant to approve the same delivery version. A real six-Agent unlimited discussion completed in nine rounds with matching delivery hashes. This preview also improves Agent authentication status, handles CLI authentication errors reported on stderr, and bundles knowledge-base logos.
+
+Agent installation does not guarantee a working model connection: OpenClaw's isolated runtime may not support the native environment configuration, WorkBuddy's CLI may require its own login, and Zcode needs valid native provider credentials. Desktop and frontend regression checks passed 1,700 and 379 tests respectively.
 
 ## V1.0.8
 

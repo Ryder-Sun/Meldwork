@@ -142,6 +142,10 @@ export function useAgentCatalog({
     if (['workbuddy-desktop-locked', 'workbuddy-model-unavailable'].includes(agent.availabilitySource)) {
       return { label: t('workbuddy.configure'), tone: 'warning', icon: WarningOutline }
     }
+    if (agent.ready && !agent.recentlyVerified
+        && ['local-cli', 'native-credential', 'native-shell'].includes(agent.availabilitySource)) {
+      return { label: t('agent.unverified'), tone: 'neutral', icon: WarningOutline }
+    }
     if (agent.ready) return { label: t('agent.ready'), tone: 'ready', icon: CheckmarkCircleOutline }
     if (agent.custom) return { label: t('customAgent.executableUnavailable'), tone: 'warning', icon: WarningOutline }
     if (!agent.installed) return { label: t('agent.notInstalled'), tone: 'off', icon: DownloadOutline }
@@ -164,6 +168,7 @@ export function useAgentCatalog({
   // next. Empty when there is nothing to explain (ready, or not installed).
   function agentStateNote(agent) {
     if (!agent || agent.ready || agent.custom || !agent.installed) return ''
+    if (agent.availabilitySource === 'native-runtime-unavailable') return t('agent.note.nativeRuntimeUnavailable')
     if (agent.availabilitySource === 'workbuddy-desktop-locked') return t('workbuddy.desktopLocked')
     if (agent.availabilitySource === 'workbuddy-model-unavailable') return t('workbuddy.modelUnavailable')
     const version = agent.resolvedVersion || agent.version || ''

@@ -580,6 +580,30 @@ for (const exitCode of [0, 1]) {
   })
 }
 
+test('WorkBuddy reports authentication failure when the CLI exits successfully with only stderr', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-workbuddy-stderr-auth-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const cli = executable(directory, 'workbuddy-stderr-auth.cjs', `
+    process.stderr.write('Authentication required. Please use /login command to sign in to your account\\n')
+  `)
+  await assert.rejects(
+    runAgent({ kind: 'workbuddy', executable: cli }, 'hello', directory, {}),
+    error => error.code === 'LOCAL_AGENT_AUTH_REQUIRED',
+  )
+})
+
+test('a completed CLI answer is retained when stderr contains an authentication warning', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-workbuddy-warning-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const cli = executable(directory, 'workbuddy-warning.cjs', `
+    process.stderr.write('Authentication required for an optional service\\n')
+    process.stdout.write(JSON.stringify({ type: 'result', subtype: 'success', result: 'Done.' }) + '\\n')
+  `)
+  const result = await runAgent({ kind: 'workbuddy', executable: cli }, 'hello', directory, {})
+  assert.equal(result.text, 'Done.')
+  assert.equal(result.outcome, 'completed')
+})
+
 test('Gemini profile state retains one real tool lifecycle id and summary', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-gemini-profile-state-'))
   const cli = executable(directory, 'gemini-profile-state.cjs', `

@@ -40,11 +40,6 @@
             <div class="agent-discovery-copy">
               <p class="agent-discovery-kicker">{{ t('agentDiscovery.kicker') }}</p>
               <h1>{{ t('agentDiscovery.title') }}</h1>
-              <p>{{ t('agentDiscovery.body') }}</p>
-              <div class="agent-discovery-status">
-                <span class="agent-discovery-status-dot" aria-hidden="true" />
-                <span>{{ t('agentDiscovery.status') }}</span>
-              </div>
             </div>
             <WavePhysicsLoader :theme="theme" />
           </div>

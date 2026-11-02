@@ -48,6 +48,7 @@ const {
   failedAgentProcessError,
 } = require('./cli-process-support.cjs')
 const { createLegacyOutboundPayload } = require('../../collaboration/outbound-payload.cjs')
+const { authFailureCertainty } = require('../../runs/failure-signals.cjs')
 
 const MAX_PROGRESS_STEPS = 8
 const MAX_STDOUT_CAPTURE_BYTES = 10 * 1024 * 1024
@@ -462,6 +463,12 @@ async function runAgent(agent, prompt, workdir, options = {}) {
         })
         const rawStdout = stdout.text()
         const structuredDetail = structuredCliError(rawStdout)
+        if (!String(result?.text || '').trim() && authFailureCertainty(rawStderr) === 'definitive') {
+          rejectTerminal(failedAgentProcessError(redactChildSecrets(rawStderr, childEnv), {
+            sessionRef: failureSessionRef, kind: agent.kind, model: options.env?.CODEBUDDY_MODEL,
+          }))
+          return
+        }
         const usableNonZeroResult = code !== 0
           && result
           && typeof result.text === 'string'

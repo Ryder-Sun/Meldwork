@@ -1,4 +1,12 @@
-import { publicAsset } from './catalog.js'
+import feishuSvg from '../public/knowledge-base-logos/feishu.svg?raw'
+import dingtalkSvg from '../public/knowledge-base-logos/dingtalk.svg?raw'
+import obsidianSvg from '../public/knowledge-base-logos/obsidian.svg?raw'
+import notionSvg from '../public/knowledge-base-logos/notion.svg?raw'
+import confluenceSvg from '../public/knowledge-base-logos/confluence.svg?raw'
+import googleDriveSvg from '../public/knowledge-base-logos/googledrive.svg?raw'
+import sharepointSvg from '../public/knowledge-base-logos/sharepoint.svg?raw'
+
+const logo = svg => `data:image/svg+xml,${encodeURIComponent(svg)}`
 
 function defaultState(accessMode) {
   if (accessMode === 'vault') {
@@ -41,43 +49,43 @@ export const KNOWLEDGE_BASE_CATALOG = Object.freeze([
   {
     kind: 'feishu',
     accessMode: 'cli',
-    logo: publicAsset('knowledge-base-logos/feishu.svg'),
+    logo: logo(feishuSvg),
     defaultState: defaultState('cli'),
   },
   {
     kind: 'dingtalk',
     accessMode: 'cli',
-    logo: publicAsset('knowledge-base-logos/dingtalk.svg'),
+    logo: logo(dingtalkSvg),
     defaultState: defaultState('cli'),
   },
   {
     kind: 'obsidian',
     accessMode: 'vault',
-    logo: publicAsset('knowledge-base-logos/obsidian.svg'),
+    logo: logo(obsidianSvg),
     defaultState: defaultState('vault'),
   },
   {
     kind: 'notion',
     accessMode: 'oauth',
-    logo: publicAsset('knowledge-base-logos/notion.svg'),
+    logo: logo(notionSvg),
     defaultState: defaultState('oauth'),
   },
   {
     kind: 'confluence',
     accessMode: 'oauth',
-    logo: publicAsset('knowledge-base-logos/confluence.svg'),
+    logo: logo(confluenceSvg),
     defaultState: defaultState('oauth'),
   },
   {
     kind: 'googledrive',
     accessMode: 'oauth',
-    logo: publicAsset('knowledge-base-logos/googledrive.svg'),
+    logo: logo(googleDriveSvg),
     defaultState: defaultState('oauth'),
   },
   {
     kind: 'sharepoint',
     accessMode: 'oauth',
-    logo: publicAsset('knowledge-base-logos/sharepoint.svg'),
+    logo: logo(sharepointSvg),
     defaultState: defaultState('oauth'),
   },
 ])

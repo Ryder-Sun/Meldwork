@@ -60,30 +60,6 @@
   line-height: 1.2;
 }
 
-.agent-discovery-copy > p:not(.agent-discovery-kicker) {
-  max-width: 360px;
-  margin: 10px 0 0;
-  color: var(--muted);
-  line-height: 1.55;
-}
-
-.agent-discovery-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  margin-top: 13px;
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.agent-discovery-status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 12%, transparent);
-}
-
 .agent-discovery-enter-active,
 .agent-discovery-leave-active {
   transition: opacity 0.28s ease;

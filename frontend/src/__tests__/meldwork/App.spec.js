@@ -56,7 +56,9 @@ describe('Meldwork workbench', () => {
     await flushPromises()
 
     expect(wrapper.get('.agent-discovery-overlay').attributes('role')).toBe('status')
-    expect(wrapper.get('.agent-discovery-overlay').text()).toContain('Agent CLI')
+    expect(wrapper.get('.agent-discovery-overlay').text()).toContain('Finding your local Agents')
+    expect(wrapper.get('.agent-discovery-overlay').text()).not.toContain('Preparing your workspace')
+    expect(wrapper.get('.agent-discovery-overlay').text()).not.toContain('Meldwork is checking')
     expect(wrapper.find('.pixel-blast-container').exists()).toBe(true)
     expect(wrapper.get('.agent-discovery-overlay').find('.wave-physics-loader').exists()).toBe(true)
     expect(wrapper.get('.agent-discovery-overlay').findAll('.wave-physics-loader')).toHaveLength(1)

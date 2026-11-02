@@ -18,6 +18,24 @@ function catalogFor(agent) {
 }
 
 describe('Agent compatibility state', () => {
+  it('shows an invocable local CLI as unverified until its credentials are confirmed', () => {
+    setLocale('en')
+    expect(catalogFor({ kind: 'zcode', installed: true, available: true,
+      credentialState: 'unknown', availabilitySource: 'local-cli' }).label).toBe('Sign-in not verified')
+    expect(catalogFor({ kind: 'zcode', installed: true, available: true,
+      credentialState: 'ready', availabilitySource: 'native-credential' }).label).toBe('Sign-in not verified')
+    expect(catalogFor({ kind: 'zcode', installed: true, available: true,
+      credentialState: 'ready', availabilitySource: 'verified-run', recentlyVerified: true }).label).toBe('Ready')
+  })
+  it('explains when the isolated native runtime could not be prepared', () => {
+    setLocale('en')
+    const catalog = useAgentCatalog({
+      activeGroup: ref(null), directGroupsFor: () => [], installCatalog: ref({ agents: [] }),
+      snapshot: ref({ agents: [] }), t, theme: ref('light'),
+    })
+    expect(catalog.agentStateNote({ kind: 'openclaw', installed: true, ready: false,
+      availabilitySource: 'native-runtime-unavailable' })).toContain('different configuration or Gateway')
+  })
   it('honors explicit hiding despite history and excludes unavailable WorkBuddy until it becomes ready', () => {
     const snapshot = ref({ agents: [
       { kind: 'hermes', installed: true, available: false, showInSidebar: false },

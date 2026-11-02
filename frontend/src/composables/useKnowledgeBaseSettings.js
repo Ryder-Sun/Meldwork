@@ -25,6 +25,7 @@ export function useKnowledgeBaseSettings({ knowledgeBase, showError }) {
     ...definition,
     ...definition.defaultState,
     ...(sourceMap.value.get(definition.kind) || {}),
+    logo: definition.logo,
   })))
   const localEntries = computed(() => entries.value.filter(source => !comingSoon(source)))
   const plannedEntries = computed(() => entries.value.filter(comingSoon))

@@ -26,6 +26,16 @@ function obsidianStatus(vaultPath) {
 }
 
 describe('knowledge base status requests', () => {
+  it('keeps bundled logos when a status response contains a conflicting logo', async () => {
+    const settings = useKnowledgeBaseSettings({
+      knowledgeBase: ref({ status: vi.fn(async () => [{ ...obsidianStatus(''), logo: '' }]) }),
+      showError: vi.fn(),
+    })
+    await settings.loadKnowledgeBaseStatuses()
+    const entries = [...settings.localKnowledgeBaseEntries.value, ...settings.plannedKnowledgeBaseEntries.value]
+    expect(entries).toHaveLength(7)
+    expect(entries.every(source => source.logo.startsWith('data:image/svg+xml,'))).toBe(true)
+  })
   it('does not let an older full refresh overwrite a newer targeted result', async () => {
     const full = deferred()
     const targeted = deferred()
