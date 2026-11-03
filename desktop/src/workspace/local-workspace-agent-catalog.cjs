@@ -48,6 +48,7 @@ class LocalWorkspaceAgentCatalog {
     this.detectedAgents = options.detectedAgents
     this.setDetectedAgents = options.setDetectedAgents
     this.detectAgents = options.detectAgents
+    this.isKnownAgent = options.isKnownAgent || (() => false)
     this.credentialState = options.credentialState
     this.attachmentSupport = options.attachmentSupport || (() => ({}))
     this.save = options.save
@@ -224,10 +225,10 @@ class LocalWorkspaceAgentCatalog {
 
   setSidebarVisibility(kind, visible) {
     const agent = this.detectedAgents().find(item => item.kind === kind)
-    if (!agent) throw new Error('LOCAL_AGENT_NOT_INSTALLED')
+    if (!agent && !this.isKnownAgent(kind)) throw new Error('LOCAL_AGENT_NOT_INSTALLED')
     const state = this.state()
     state.agentPreferences[kind] = { ...state.agentPreferences[kind], showInSidebar: Boolean(visible) }
-    agent.showInSidebar = Boolean(visible)
+    if (agent) agent.showInSidebar = Boolean(visible)
     this.save()
     this.emitChanged()
     return this.snapshot()

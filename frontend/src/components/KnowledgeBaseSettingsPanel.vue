@@ -19,7 +19,7 @@
         <header class="knowledge-base-group-header">
           <h3 id="knowledge-base-group-local">{{ t('knowledgeBase.group.local') }}</h3>
         </header>
-        <div class="knowledge-base-list">
+        <SettingsCardRail :label="t('knowledgeBase.group.local')">
           <article
             v-for="source in localEntries"
             :key="source.kind"
@@ -63,13 +63,13 @@
               <ChevronForwardOutline v-if="!pending(source)" />
             </button>
           </article>
-        </div>
+        </SettingsCardRail>
       </section>
       <section class="knowledge-base-group" aria-labelledby="knowledge-base-group-planned">
         <header class="knowledge-base-group-header">
           <h3 id="knowledge-base-group-planned">{{ t('knowledgeBase.group.planned') }}</h3>
         </header>
-        <div class="knowledge-base-future-list">
+        <SettingsCardRail :label="t('knowledgeBase.group.planned')">
           <article
             v-for="source in plannedEntries"
             :key="source.kind"
@@ -94,7 +94,7 @@
               {{ statusLabel(source) }}
             </button>
           </article>
-        </div>
+        </SettingsCardRail>
       </section>
     </div>
   </section>
@@ -103,6 +103,7 @@
 <script setup>
 import { ChevronForwardOutline, CloudOutline, RefreshOutline } from '@vicons/ionicons5'
 import { t } from '../i18n.js'
+import SettingsCardRail from './SettingsCardRail.vue'
 
 defineProps({
   icon: { type: Function, required: true },

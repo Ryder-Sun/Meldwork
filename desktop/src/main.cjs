@@ -555,6 +555,7 @@ function createWorkspace() {
       })
     },
     agentLabel: kind => customAgentStore.label(kind) || agentConnectors.label(kind),
+    isKnownAgent: kind => cloudAgentBridges.catalogEntries().some(agent => agent.kind === kind),
     connectorRuntime: agentConnectors,
     naturalAgentResponses: true,
     runAgent: async (agent, prompt, workdir, options = {}) => {
@@ -619,7 +620,8 @@ async function localAgentCatalog() {
           ? (state?.credentialState || agent.credentialState || 'unknown')
           : 'missing',
         availabilitySource: agent.installed ? (state?.availabilitySource || 'unverified') : 'none',
-        showInSidebar: Boolean(agent.installed && state?.showInSidebar),
+        showInSidebar: Boolean(agent.installed && (state?.showInSidebar
+          ?? (agent.cloud ? workspace?.state?.agentPreferences?.[agent.kind]?.showInSidebar ?? true : false))),
         attachmentTypes: Object.entries(support)
           .filter(([, limit]) => Number(limit) > 0)
           .map(([type]) => type),

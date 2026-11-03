@@ -1685,12 +1685,19 @@ test('Cloud Agent catalog and Skills IPC preserve remote metadata without exposi
 
   const catalog = await harness.ipcHandlers.get('local-agent-installer:catalog')(harness.event())
   const cloudAgent = catalog.agents.find(agent => agent.kind === kind)
+  assert.equal(harness.workspaceInstances[0].input.isKnownAgent(kind), true)
+  assert.equal(harness.workspaceInstances[0].input.isKnownAgent('unknown'), false)
   assert.equal(cloudAgent.sourceKind, 'claude')
   assert.equal(cloudAgent.version, '2.1.123')
   assert.equal(cloudAgent.credentialState, 'missing')
   assert.equal(cloudAgent.available, false)
+  assert.equal(cloudAgent.showInSidebar, true)
   assert.equal(cloudAgent.custom, false)
   assert.equal('executable' in cloudAgent, false)
+
+  harness.workspaceInstances[0].state.agentPreferences = { [kind]: { showInSidebar: false } }
+  const hiddenCatalog = await harness.ipcHandlers.get('local-agent-installer:catalog')(harness.event())
+  assert.equal(hiddenCatalog.agents.find(agent => agent.kind === kind).showInSidebar, false)
 
   assert.deepEqual(
     await harness.ipcHandlers.get('local-agent-installer:skills')(harness.event(), kind),

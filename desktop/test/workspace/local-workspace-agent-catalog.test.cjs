@@ -25,6 +25,7 @@ function fixture(overrides = {}) {
   const catalog = new LocalWorkspaceAgentCatalog({
     state: () => state,
     detectedAgents: () => agents,
+    isKnownAgent: overrides.isKnownAgent,
     setDetectedAgents: (next) => { agents = next },
     detectAgents: overrides.detectAgents || (async () => []),
     credentialState: overrides.credentialState || (async () => ({
@@ -43,6 +44,17 @@ function fixture(overrides = {}) {
 
 test('Agent catalog module exposes only its coordinator', () => {
   assert.deepEqual(Object.keys(catalogApi), ['LocalWorkspaceAgentCatalog'])
+})
+
+test('sidebar preferences can hide an unavailable discovered Agent without enabling execution', () => {
+  const kind = 'cloud-unavailable'
+  const { catalog, state, agents } = fixture({ isKnownAgent: candidate => candidate === kind })
+  catalog.setSidebarVisibility(kind, false)
+  assert.equal(state.agentPreferences[kind].showInSidebar, false)
+  assert.deepEqual(agents(), [])
+  catalog.setSidebarVisibility(kind, true)
+  assert.equal(state.agentPreferences[kind].showInSidebar, true)
+  assert.throws(() => catalog.setSidebarVisibility('unknown', false), /LOCAL_AGENT_NOT_INSTALLED/)
 })
 
 test('WorkBuddy encrypted desktop login blocks standalone invocation with a specific configuration reason', async () => {

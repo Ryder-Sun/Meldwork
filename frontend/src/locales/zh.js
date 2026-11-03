@@ -1,4 +1,6 @@
 export default {
+    'settingsRail.previous': '查看前面的卡片',
+    'settingsRail.next': '查看后面的卡片',
     'workPreferences.deliverySection': '交付方式',
     'workPreferences.title': '你喜欢怎样的工作交付？',
     'workPreferences.hint': '调好你的默认偏好。具体任务要求优先，执行权限保持不变。',
@@ -36,6 +38,7 @@ export default {
     'workbuddy.native': '沿用 CLI 账号或环境配置',
     'workbuddy.modelHint': '列出 WorkBuddy 原生配置中支持工具且已有密钥的模型。Meldwork 仅保存模型选择；客户端已登录不代表独立 CLI 已获授权。',
     'workbuddy.modelUnavailable': '所选 WorkBuddy 模型不可用，请检查其原生配置并重新选择。',
+    'workbuddy.unavailableOption': '模型不可用',
     'workbuddy.busy': '请等待当前运行结束，再更改 WorkBuddy 模型。',
     'delivery.unsavedReview': '检查结果尚未保存。导出正文前请保存检查或确认采用。',
     'delivery.versionRun': '此版本的运行',

@@ -6,6 +6,25 @@ import { locale } from '../../i18n.js'
 afterEach(() => { delete window.meldworkDesktop })
 
 describe('WorkBuddy model settings', () => {
+  it('keeps an unavailable selection short and allows choosing an available model', async () => {
+    locale.value = 'en'
+    window.meldworkDesktop = { workBuddy: {
+      settings: vi.fn(async () => ({ modelId: 'missing', models: [{ id: 'text', name: 'Text model' }] })),
+      setModel: vi.fn(async modelId => ({ modelId, models: [{ id: 'text', name: 'Text model' }] })),
+    } }
+    const wrapper = mount(WorkBuddySettings)
+    await flushPromises()
+    const unavailable = wrapper.get('option[value="missing"]')
+    expect(unavailable.text()).toBe('Unavailable model')
+    expect(unavailable.attributes('disabled')).toBeDefined()
+    expect(wrapper.get('select').element.value).toBe('missing')
+    await wrapper.get('select').setValue('text')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(window.meldworkDesktop.workBuddy.setModel).toHaveBeenCalledWith('text')
+    wrapper.unmount()
+  })
+
   it('loads names, saves only the selected ID and refreshes after success', async () => {
     locale.value = 'en'
     const settings = { modelId: '', models: [{ id: 'text', name: 'Text model' }] }

@@ -208,6 +208,7 @@ class LocalWorkspace extends EventEmitter {
       detectedAgents: () => this.detectedAgents,
       setDetectedAgents: agents => { this.detectedAgents = agents },
       detectAgents: () => this.detectAgentsFn(),
+      isKnownAgent: options.isKnownAgent,
       credentialState: (...args) => this.credentialStateFn(...args),
       attachmentSupport: kind => this.attachmentSupportFn(kind),
       save: () => this.save(),

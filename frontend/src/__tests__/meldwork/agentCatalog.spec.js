@@ -129,6 +129,20 @@ describe('Agent compatibility state', () => {
     expect(agentLogo('cloud-0123456789abcdef01234567')).toContain('agent-logos/codex.svg')
   })
 
+  it('lists all discovered cloud Agents, including unavailable ones, without enabling them', () => {
+    const agents = ['codex', 'hermes', 'claude'].map((sourceKind, index) => ({
+      kind: `cloud-${String(index).repeat(24)}`, sourceKind, label: `${sourceKind} @ Server`,
+      cloud: true, connector: true, installed: true, available: index < 2, showInSidebar: true,
+    }))
+    const catalog = useAgentCatalog({
+      activeGroup: ref(null), directGroupsFor: () => [], installCatalog: ref({ agents }),
+      snapshot: ref({ agents: agents.slice(0, 2) }), t, theme: ref('light'),
+    })
+    expect(catalog.sidebarAgentGroups.value.find(group => group.id === 'cloud').agents.map(agent => agent.sourceKind))
+      .toEqual(['codex', 'hermes', 'claude'])
+    expect(catalog.readyAgents.value.filter(agent => agent.cloud)).toHaveLength(2)
+  })
+
   it('gives Gemini its own logo and name instead of the generic custom-Agent icon', () => {
     setLocale('en')
     const cloudAgent = {

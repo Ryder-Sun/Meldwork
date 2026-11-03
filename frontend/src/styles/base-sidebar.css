@@ -47,8 +47,8 @@
 }
 
 .titlebar-actions .icon-button:hover {
-  border-color: var(--border);
-  background: var(--surface-hover);
+  border-color: transparent;
+  background: transparent;
   color: var(--text);
 }
 
@@ -375,8 +375,7 @@
 }
 
 .sidebar-agent-new:hover {
-  border-color: var(--border);
-  background: var(--surface-hover);
+  color: var(--text);
 }
 
 .direct-session-action:hover {

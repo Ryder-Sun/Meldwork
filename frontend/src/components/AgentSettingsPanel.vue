@@ -17,7 +17,7 @@
         </div>
         <small>{{ t('systemSettings.agentCount', { count: category.agents.length }) }}</small>
       </header>
-      <div v-if="category.agents.length" class="agent-grid settings-agent-grid">
+      <SettingsCardRail v-if="category.agents.length" :label="t(category.titleKey)">
         <article
           v-for="agent in category.agents"
           :key="agent.kind"
@@ -108,7 +108,7 @@
             </div>
           </div>
         </article>
-      </div>
+      </SettingsCardRail>
       <div v-else class="custom-agent-empty">
         <span>{{ t('customAgent.empty') }}</span>
       </div>
@@ -126,6 +126,7 @@ import {
 } from '@vicons/ionicons5'
 import { t } from '../i18n.js'
 import WorkBuddySettings from './WorkBuddySettings.vue'
+import SettingsCardRail from './SettingsCardRail.vue'
 
 defineProps({
   agentCatalogGroups: { type: Array, required: true },

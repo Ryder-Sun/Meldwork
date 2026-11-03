@@ -95,6 +95,7 @@ export function useAgentManagement({
     formError.value = ''
     try {
       snapshot.value = normalizeSnapshot(await installer.value.setSidebarVisibility(agent.kind, visible === true))
+      await refreshAgents()
     } catch (error) {
       formError.value = translateError(error)
     } finally {

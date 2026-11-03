@@ -1,4 +1,6 @@
 export default {
+    'settingsRail.previous': 'Scroll to previous cards',
+    'settingsRail.next': 'Scroll to next cards',
     'workPreferences.deliverySection': 'Delivery approach',
     'workPreferences.title': 'How do you like work delivered?',
     'workPreferences.hint': 'Tune your defaults. Each task still takes priority, and permissions stay unchanged.',
@@ -36,6 +38,7 @@ export default {
     'workbuddy.native': 'Native CLI account / environment',
     'workbuddy.modelHint': 'Lists tool-capable models with credentials in your WorkBuddy configuration. Only the model choice is saved in Meldwork. Desktop sign-in alone may not authorize the standalone CLI.',
     'workbuddy.modelUnavailable': 'The selected WorkBuddy model is unavailable. Check its native configuration and select again.',
+    'workbuddy.unavailableOption': 'Unavailable model',
     'workbuddy.busy': 'Wait for current runs to finish before changing the WorkBuddy model.',
     'delivery.unsavedReview': 'Review changes are not saved. Save the review or accept before exporting text.',
     'delivery.versionRun': 'Run for this version',
