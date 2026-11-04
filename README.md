@@ -22,7 +22,9 @@ You do not need to direct every round, but you still set the goal, grant permiss
 
 ## What Meldwork is for
 
-[![Watch the Meldwork product video](assets/media/meldwork-handoff-preview.jpg)](assets/media/meldwork-handoff.mp4)
+[![Watch the Meldwork product video on YouTube](assets/media/meldwork-handoff-preview.jpg)](https://youtu.be/ttyJxo1s9ns)
+
+[Watch the product video on YouTube](https://youtu.be/ttyJxo1s9ns)
 
 Meldwork is useful when several Agents need to advance the same task and you want to spend less time passing context and coordinating next steps. Typical work includes:
 
