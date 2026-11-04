@@ -97,7 +97,7 @@
           <header>
             <strong>{{ t(agentGroup.titleKey) }}</strong>
           </header>
-          <div class="agent-choice-grid settings-agent-choice-grid">
+          <div class="agent-choice-grid settings-agent-choice-grid" :class="{ 'settings-local-agents': agentGroup.id === 'local' }">
             <label
               v-for="agent in agentGroup.agents"
               :key="agent.kind"

@@ -4,10 +4,8 @@
     :aria-busy="String(loading)"
   >
     <div class="manager-toolbar knowledge-base-toolbar">
-      <span class="knowledge-base-ready-summary" role="status" aria-live="polite">
-        {{ loading
-          ? t('knowledgeBase.status.checking')
-          : t('knowledgeBase.readyCount', { ready: readyCount, total: localEntries.length }) }}
+      <span class="knowledge-base-ready-summary visually-hidden" role="status" aria-live="polite">
+        {{ loading ? t('knowledgeBase.status.checking') : t('knowledgeBase.readyCount', { ready: readyCount, total: localEntries.length }) }}
       </span>
       <button class="secondary-button" type="button" :disabled="loading" @click="$emit('refresh')">
         <RefreshOutline :class="{ spinning: loading }" />
@@ -16,10 +14,8 @@
     </div>
     <div class="knowledge-base-sections">
       <section class="knowledge-base-group" aria-labelledby="knowledge-base-group-local">
-        <header class="knowledge-base-group-header">
-          <h3 id="knowledge-base-group-local">{{ t('knowledgeBase.group.local') }}</h3>
-        </header>
         <SettingsCardRail :label="t('knowledgeBase.group.local')">
+          <template #heading><header class="knowledge-base-group-header"><h3 id="knowledge-base-group-local">{{ t('knowledgeBase.group.local') }}</h3></header></template>
           <article
             v-for="source in localEntries"
             :key="source.kind"
@@ -66,10 +62,8 @@
         </SettingsCardRail>
       </section>
       <section class="knowledge-base-group" aria-labelledby="knowledge-base-group-planned">
-        <header class="knowledge-base-group-header">
-          <h3 id="knowledge-base-group-planned">{{ t('knowledgeBase.group.planned') }}</h3>
-        </header>
         <SettingsCardRail :label="t('knowledgeBase.group.planned')">
+          <template #heading><header class="knowledge-base-group-header"><h3 id="knowledge-base-group-planned">{{ t('knowledgeBase.group.planned') }}</h3></header></template>
           <article
             v-for="source in plannedEntries"
             :key="source.kind"

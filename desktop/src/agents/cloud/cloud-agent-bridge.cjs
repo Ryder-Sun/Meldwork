@@ -22,7 +22,12 @@ const STORE_VERSION = 1
 const DEFAULT_REQUEST_TIMEOUT_MS = 3 * 60 * 1000
 const DEFAULT_RUN_TIMEOUT_MS = 10 * 60 * 1000
 const MAX_REQUEST_TIMEOUT_MS = 15 * 60 * 1000
-const SSH_DISCOVERY_COMMAND = 'if command -v codex >/dev/null 2>&1; then codex --version; fi'
+const { AGENT_PROFILES } = require('../cli/cli-discovery.cjs')
+const SSH_AGENT_DEFINITIONS = Object.entries(AGENT_PROFILES).map(([id, profile]) => ({ id, ...profile }))
+const SSH_DISCOVERY_COMMAND = SSH_AGENT_DEFINITIONS.flatMap(definition =>
+  (definition.commands || [definition.id]).map(command =>
+    `if command -v ${command} >/dev/null 2>&1; then meldwork_version="$(${command} --version 2>/dev/null | head -n 1)"; if [ -n "$meldwork_version" ]; then printf '__MELDWORK_CLI__${definition.id}\\t%s\\n' "$meldwork_version"; fi; fi`),
+).join('; ')
 const SSH_CODEX_COMMAND = 'exec codex exec --json --skip-git-repo-check --sandbox read-only -'
 const SSH_TUNNEL_READY = 'MELDWORK_AGENT_BRIDGE_READY'
 const SSH_BRIDGE_SCRIPT = fs.readFileSync(require.resolve('./cloud-agent-bridge-server.cjs'), 'utf8')
@@ -131,6 +136,7 @@ function normalizeAgent(input) {
   return {
     id, sourceKind, label, version,
     description: cleanText(input.description, 400),
+    executionSupported: input.executionSupported !== false,
     available: input.available !== false,
     credentialState,
     skills,
@@ -436,17 +442,31 @@ class CloudAgentBridgeStore {
   }
 
   async probeSsh(address) {
-    const result = await this.sshCommand(address, SSH_DISCOVERY_COMMAND)
-    const version = String(result.stdout || '').match(/\b(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)\b/)?.[1]
-    if (!version) fail('CLOUD_AGENT_SSH_NO_AGENT')
+    const result = await this.sshCommand(address, loginShellCommand(SSH_DISCOVERY_COMMAND))
+    const output = String(result.stdout || '')
+    const found = new Map()
+    for (const line of output.split(/\r?\n/)) {
+      const match = line.match(/^__MELDWORK_CLI__([a-z]+)\t.*?\b(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)\b/)
+      if (match && !found.has(match[1])) found.set(match[1], match[2])
+    }
+    // Older SSH integrations returned only Codex's unprefixed version.
+    if (!found.size) {
+      const version = output.match(/\b(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)\b/)?.[1]
+      if (version) found.set('codex', version)
+    }
+    const agents = SSH_AGENT_DEFINITIONS.filter(definition => found.has(definition.id)).map(definition => ({
+      id: definition.id, label: definition.id === 'codex' ? 'Codex CLI' : definition.label, version: found.get(definition.id),
+      description: definition.id === 'codex' ? '' : 'Detected on the server; this CLI is not yet available through the SSH Bridge.',
+      available: definition.id === 'codex', executionSupported: definition.id === 'codex',
+      credentialState: definition.id === 'codex' ? 'ready' : 'unknown', domains: ['general'],
+      inputTypes: ['text'], permissionModes: ['read-only'],
+      session: { supported: false, resume: false, cancel: true, checkpoint: false },
+    }))
+    if (!agents.length) fail('CLOUD_AGENT_SSH_NO_AGENT')
     return {
       serverId: '',
       serverLabel: normalizeSshAddress(address).address,
-      agents: [{
-        id: 'codex', label: 'Codex CLI', version, description: '', domains: ['general'],
-        inputTypes: ['text'], permissionModes: ['read-only'],
-        session: { supported: false, resume: false, cancel: true, checkpoint: false },
-      }],
+      agents,
     }
   }
 
@@ -638,6 +658,7 @@ class CloudAgentBridgeStore {
       cloud: true,
       available: record.available && agent.available !== false,
       credentialState: agent.credentialState,
+      availabilitySource: agent.executionSupported === false ? 'cloud-bridge-unsupported' : undefined,
       serverLabel: record.label,
     })))
   }

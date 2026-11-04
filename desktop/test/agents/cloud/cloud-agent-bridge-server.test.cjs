@@ -2,14 +2,26 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const net = require('node:net')
+const os = require('node:os')
+const path = require('node:path')
 const { spawn } = require('node:child_process')
 
 const {
   discoverAgents,
+  AGENT_DEFINITIONS,
   invocationFor,
   parentSessionDetached,
   parseAgentOutput,
+  runAgent,
 } = require('../../../src/agents/cloud/cloud-agent-bridge-server.cjs')
+const { AGENT_PROFILES } = require('../../../src/agents/cli/cli-discovery.cjs')
+
+test('remote discovery covers every built-in Agent profile and command alias', () => {
+  assert.deepEqual(new Set(AGENT_DEFINITIONS.map(agent => agent.id)), new Set(Object.keys(AGENT_PROFILES)))
+  for (const definition of AGENT_DEFINITIONS) {
+    assert.deepEqual(definition.commands || [definition.id], AGENT_PROFILES[definition.id].commands)
+  }
+})
 
 test('detects a Bridge parent process detached from its SSH session', () => {
   assert.equal(parentSessionDetached(123, () => '123 (node) S 456 0 0 0'), false)
@@ -74,6 +86,54 @@ test('discovers supported remote CLIs and keeps an unauthenticated CLI visible b
   ])
   assert.deepEqual(agents[1].skills, [{ namespace: 'hermes', slug: 'research', name: 'research' }])
   assert.equal(agents[2].credentialState, 'missing')
+})
+
+test('discovers all supported CLI names and aliases without falsely advertising an execution adapter', () => {
+  const versions = new Map([
+    ['openclaw', '1.2.3'], ['codebuddy', '1.2.3'], ['zcode', '1.2.3'],
+    ['pi-agent', '1.2.3'], ['kimi', '1.2.3'], ['mimo', '1.2.3'],
+    ['gemini', '1.2.3'], ['opencode', '1.2.3'], ['qwen', '1.2.3'], ['ocr', '1.2.3'],
+  ])
+  const agents = discoverAgents({
+    spawnSync: (name, args) => args[0] === '--version' && versions.has(name)
+      ? { status: 0, stdout: versions.get(name) } : { status: 127, stdout: '' },
+    listSkills: () => [],
+  })
+  assert.deepEqual(agents.map(agent => agent.id), [
+    'openclaw', 'workbuddy', 'zcode', 'pi', 'kimi', 'mimo', 'gemini', 'opencode', 'qwen', 'opencodereview',
+  ])
+  const openCode = agents.find(agent => agent.id === 'opencode')
+  assert.equal(openCode.available, true)
+  assert.ok(agents.filter(agent => agent.id !== 'opencode').every(agent => !agent.available && agent.credentialState === 'unknown' && !agent.session.supported))
+})
+
+test('OpenCode uses plan mode and only accepts completed, non-error responses', () => {
+  assert.deepEqual(invocationFor('opencode', 'hello', 'ses_123'), {
+    command: 'opencode', args: ['run', '--format', 'json', '--agent', 'plan', '--session', 'ses_123', 'hello'], input: '',
+  })
+  const text = JSON.stringify({ type: 'text', sessionID: 'ses_123', part: { type: 'text', text: 'Answer' } })
+  const tool = JSON.stringify({ type: 'step_finish', part: { reason: 'tool-calls' } })
+  const stop = JSON.stringify({ type: 'step_finish', part: { reason: 'stop' } })
+  assert.equal(parseAgentOutput('opencode', [text, tool].join('\n')), null)
+  assert.deepEqual(parseAgentOutput('opencode', [text, tool, stop].join('\n')), {
+    text: 'Answer', sessionRef: 'ses_123', outcome: 'completed',
+  })
+  assert.equal(parseAgentOutput('opencode', [text, stop, JSON.stringify({ type: 'error' })].join('\n')), null)
+})
+
+test('OpenCode returns a completed response even if the native process keeps running', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-cloud-opencode-'))
+  const originalPath = process.env.PATH
+  const executable = path.join(directory, 'opencode')
+  fs.writeFileSync(executable, `#!/usr/bin/env node\nprocess.stdout.write(JSON.stringify({type:'text',sessionID:'ses_test',part:{type:'text',text:'Done'}})+'\\n')\nprocess.stdout.write(JSON.stringify({type:'step_finish',part:{reason:'stop'}})+'\\n')\nsetInterval(()=>{}, 1000)\n`, { mode: 0o755 })
+  process.env.PATH = `${directory}${path.delimiter}${originalPath}`
+  try {
+    const result = await runAgent('opencode', 'hello')
+    assert.deepEqual(result, { text: 'Done', sessionRef: 'ses_test', outcome: 'completed' })
+  } finally {
+    process.env.PATH = originalPath
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
 })
 
 test('builds read-only invocations and parses Hermes and Claude output', () => {

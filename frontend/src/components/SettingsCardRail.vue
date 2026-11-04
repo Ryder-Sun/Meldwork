@@ -1,11 +1,14 @@
 <template>
   <div class="settings-card-rail">
+    <div class="rail-heading">
+    <slot name="heading" />
     <div class="rail-controls">
-      <span class="rail-position" aria-hidden="true">{{ position }} <span>/ {{ count }}</span></span>
       <button type="button" :aria-label="t('settingsRail.previous')" :disabled="!canPrevious" @click="move(-1)"><ChevronBackOutline /></button>
+      <span class="rail-position" aria-hidden="true">{{ position }} <span>/ {{ count }}</span></span>
       <button type="button" :aria-label="t('settingsRail.next')" :disabled="!canNext" @click="move(1)"><ChevronForwardOutline /></button>
     </div>
-    <div ref="track" class="rail-track" :class="{ dragging }" tabindex="0" role="region" :aria-label="label" @scroll.passive="update" @keydown="onKey" @pointerdown="startDrag" @pointermove="drag" @pointerup="endDrag" @pointercancel="cancelDrag" @lostpointercapture="cancelDrag" @click.capture="guardClick" @dragstart.prevent @wheel.passive="stopAnimation">
+    </div>
+    <div ref="track" class="rail-track" :class="{ dragging }" :style="railHeight ? { height: `${railHeight}px` } : undefined" tabindex="0" role="region" :aria-label="label" @scroll.passive="update" @keydown="onKey" @pointerdown="startDrag" @pointermove="drag" @pointerup="endDrag" @pointercancel="cancelDrag" @lostpointercapture="cancelDrag" @click.capture="guardClick" @dragstart.prevent @wheel.passive="stopAnimation">
       <slot />
     </div>
     <div class="rail-progress" aria-hidden="true"><span :style="{ transform: `scaleX(${progress})` }" /></div>
@@ -24,6 +27,7 @@ const dragging = ref(false)
 const position = ref(1)
 const count = ref(0)
 const progress = ref(0)
+const railHeight = ref(0)
 let observer
 let gesture = null
 let animation = 0
@@ -36,6 +40,12 @@ function update() {
   canPrevious.value = node.scrollLeft > 2
   canNext.value = node.scrollLeft + node.clientWidth < node.scrollWidth - 2
   const cards = [...node.children]
+  const visible = cards.filter(card => {
+    const left = card.offsetLeft - node.offsetLeft - node.scrollLeft
+    return left < node.clientWidth && left + card.offsetWidth > 0
+  })
+  const height = Math.max(0, ...visible.map(card => card.offsetHeight))
+  railHeight.value = height ? height + 36 : 0
   count.value = cards.length
   const closest = cards.reduce((best, card, index) => Math.abs(card.offsetLeft - node.offsetLeft - node.scrollLeft) < best.distance
     ? { index, distance: Math.abs(card.offsetLeft - node.offsetLeft - node.scrollLeft) } : best, { index: 0, distance: Infinity })
@@ -126,22 +136,28 @@ onMounted(() => {
   if (typeof ResizeObserver !== 'undefined') {
     observer = new ResizeObserver(update)
     observer.observe(track.value)
+    for (const card of track.value.children) observer.observe(card)
   }
   update()
 })
-onUpdated(update)
+onUpdated(() => {
+  if (observer && track.value) for (const card of track.value.children) observer.observe(card)
+  update()
+})
 onBeforeUnmount(() => { observer?.disconnect(); stopAnimation(); cancelDrag() })
 </script>
 
 <style scoped>
 .settings-card-rail { min-width: 0; position: relative; }
-.rail-controls { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-bottom: 6px; }
-.rail-position { margin-right: auto; color: var(--text); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
+.rail-heading { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; min-width: 0; }
+.rail-heading > :deep(header) { min-width: 0; }
+.rail-controls { flex: 0 0 auto; display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.rail-position { min-width: 42px; text-align: center; color: var(--text); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
 .rail-position > span { color: var(--faint); margin-left: 4px; }
 .rail-controls button { display: grid; place-items: center; width: 30px; height: 30px; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
 .rail-controls button:hover:not(:disabled) { color: var(--accent-text); }
 .rail-controls svg { width: 18px; height: 18px; }
-.rail-track { display: flex; align-items: flex-start; gap: 16px; overflow-x: auto; padding: 12px 2px 24px; scroll-snap-type: x proximity; scroll-padding-inline: 2px; overscroll-behavior-x: contain; scrollbar-width: none; perspective: 1400px; cursor: grab; }
+.rail-track { box-sizing: border-box; display: flex; align-items: flex-start; gap: 16px; overflow-x: auto; padding: 12px 2px 24px; scroll-snap-type: x proximity; scroll-padding-inline: 2px; overscroll-behavior-x: contain; scrollbar-width: none; perspective: 1400px; cursor: grab; }
 .rail-track.dragging, .rail-track.settling { scroll-snap-type: none; }
 .rail-track.dragging, .rail-track.dragging :deep(*) { cursor: grabbing; user-select: none; }
 .rail-progress { height: 2px; background: var(--border); overflow: hidden; border-radius: 2px; }
@@ -153,13 +169,19 @@ onBeforeUnmount(() => { observer?.disconnect(); stopAnimation(); cancelDrag() })
 .rail-track > :deep(article:nth-child(2)) { animation-delay: 50ms; }
 .rail-track > :deep(article:nth-child(3)) { animation-delay: 100ms; }
 .rail-track > :deep(article:hover) { background: var(--surface-raised); box-shadow: 0 10px 28px color-mix(in srgb, var(--text) 9%, transparent); }
-.rail-track > :deep(.settings-agent-card) { display: flex; flex-direction: column; min-height: 280px; }
-.rail-track :deep(.agent-card-meta-row) { margin-top: auto; padding-top: 20px; }
+.rail-track > :deep(.settings-agent-card) { display: flex; flex-direction: column; min-height: 0; padding: 18px; gap: 14px; }
+.rail-track :deep(.agent-card-main) { padding: 0; grid-template-columns: 38px minmax(0, 1fr) 16px; gap: 12px; }
+.rail-track :deep(.agent-card-meta-row) { margin: 0; padding: 0; gap: 8px; }
+.rail-track :deep(.agent-card-actions) { padding: 0; }
+.rail-track :deep(.agent-card-note) { padding: 0; flex-wrap: wrap; }
+.rail-track :deep(.agent-card-note > span) { flex: 1 1 180px; }
+.rail-track :deep(.workbuddy-settings) { padding: 0; }
 .rail-track :deep(.agent-name-row) { flex-wrap: wrap; gap: 8px; }
 .rail-track :deep(.agent-card-description) { display: block; overflow: visible; -webkit-line-clamp: unset; }
-.rail-track > :deep(.knowledge-base-item), .rail-track > :deep(.knowledge-base-future-item) { display: flex; flex-direction: column; gap: 24px; padding: 22px; }
-.rail-track :deep(.knowledge-base-item-main) { width: 100%; display: flex; flex-direction: column; gap: 18px; }
-.rail-track :deep(.knowledge-base-item-title-row) { flex-direction: column; gap: 10px; }
+.rail-track > :deep(.knowledge-base-item), .rail-track > :deep(.knowledge-base-future-item) { display: flex; flex-direction: column; gap: 16px; padding: 18px; }
+.rail-track :deep(.knowledge-base-item-main) { width: 100%; display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 12px; }
+.rail-track :deep(.knowledge-base-logo) { width: 38px; height: 38px; }
+.rail-track :deep(.knowledge-base-item-title-row) { flex-wrap: wrap; gap: 6px 12px; }
 .rail-track :deep(.knowledge-base-item-copy strong) { white-space: normal; overflow: visible; }
 .rail-track :deep(.knowledge-base-card-description) { display: block; overflow: visible; -webkit-line-clamp: unset; }
 .rail-track :deep(.knowledge-base-action) { position: static; align-self: flex-start; margin-top: auto; max-width: 100%; }

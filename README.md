@@ -15,12 +15,14 @@ Meldwork is a local-first multi-Agent collaboration workspace for the Agent tool
 You do not need to direct every round, but you still set the goal, grant permissions, and make key decisions. Missing information, permission requests, or tradeoffs may require your input. Workspace writes are opt-in; collaboration history, run state, and deliverables stay local so you can revisit the work and continue it.
 
 <p align="center">
-  <a href="https://github.com/Ryder-Sun/Meldwork/releases/download/Meldwork-V1.0.9/Meldwork-1.0.9-arm64.dmg"><strong>Download Meldwork V1.0.9 for Apple silicon macOS</strong></a>
+  <a href="https://github.com/Ryder-Sun/Meldwork/releases"><strong>Download Meldwork</strong></a>
   · <a href="architecture.md">Architecture</a>
   · <a href="LICENSE">License</a>
 </p>
 
 ## What Meldwork is for
+
+[![Watch the Meldwork product video](assets/media/meldwork-handoff-preview.jpg)](assets/media/meldwork-handoff.mp4)
 
 Meldwork is useful when several Agents need to advance the same task and you want to spend less time passing context and coordinating next steps. Typical work includes:
 
@@ -86,12 +88,6 @@ Meldwork runs as a local Electron application. Conversations, group configuratio
 
 Selected Agents may send prompts, attachments, or Skills to the model provider configured in their own CLI. Knowledge access is explicit and bounded: the current implementation supports local Obsidian retrieval and CLI-owned Feishu or DingTalk access modes. Local-first describes where Meldwork stores and coordinates work; it does not promise that an Agent's model provider is offline.
 
-## Download V1.0.9
-
-For Apple silicon macOS, download the [Meldwork V1.0.9 prerelease](https://github.com/Ryder-Sun/Meldwork/releases/tag/Meldwork-V1.0.9) and choose [`Meldwork-1.0.9-arm64.dmg`](https://github.com/Ryder-Sun/Meldwork/releases/download/Meldwork-V1.0.9/Meldwork-1.0.9-arm64.dmg). The release also includes a ZIP archive and SHA-256 manifest. Install at least one supported local Agent CLI before opening the app.
-
-The preview artifacts are ad-hoc signed and not notarized with an Apple Developer ID. macOS may require **Open Anyway** under **System Settings → Privacy & Security** on first launch.
-
 ## Run from source
 
 Prerequisites: Node.js `22.12+` and npm.
@@ -110,20 +106,6 @@ npm --prefix frontend run build
 npm --prefix frontend run build:desktop
 npm --prefix desktop test
 ```
-
-## V1.0.9
-
-Auto Discussion can complete native Agent turns on explicit completion and requires each participant to approve the same delivery version. A real six-Agent unlimited discussion completed in nine rounds with matching delivery hashes. This preview also improves Agent authentication status, handles CLI authentication errors reported on stderr, and bundles knowledge-base logos.
-
-Agent installation does not guarantee a working model connection: OpenClaw's isolated runtime may not support the native environment configuration, WorkBuddy's CLI may require its own login, and Zcode needs valid native provider credentials. Desktop and frontend regression checks passed 1,700 and 379 tests respectively.
-
-## V1.0.8
-
-V1.0.8 keeps Kimi read-only queries in manual approval mode instead of forcing a planning cycle, preserves MiMo's final text chunks, forwards supported native CLI configuration, and retains the selected Auto Discussion mode after sending. Repetitive native output is cancelled with partial replies preserved. Zcode remains before Pi Agent with its official logo and native default configuration; WorkBuddy can reuse a configured desktop model selected in Meldwork.
-
-Real CLI acceptance covered all 13 installed Agents. A five-Agent unlimited discussion completed all 14 native calls through an isolated Magpie hotfix. The installed Magpie version can rewrite `stop` into `tool_calls` when `tool_calls` is null, causing OpenCode, MiMo, and Hermes to continue indefinitely; this Meldwork release does not install or restart Magpie. OpenClaw, Zcode, Gemini, Qwen, and OpenCodeReview also had native configuration or authentication failures in this audit. Detecting an installed CLI does not certify a working model connection. Regression validation includes 1,655 desktop tests, 370 frontend tests, web and desktop builds, and package validation. Unlimited discussion retains stalled-process detection and write permissions remain opt-in.
-
-Electron acceptance with the same isolated gateway also completed a separate five-Agent unlimited discussion: 19 native calls, no failed attempts or retries, about 12 minutes. Auto Discussion and No round limit remained selected after sending, completion, and leaving and reopening the group. This verifies the workflow, not a response-time guarantee or a repair to the user's installed gateway.
 
 ## Documentation
 

@@ -33,6 +33,20 @@ const AGENT_DEFINITIONS = Object.freeze([
       try { return JSON.parse(String(result.stdout || '')).loggedIn === true } catch { return false }
     },
   },
+  { id: 'openclaw', label: 'OpenClaw' },
+  { id: 'workbuddy', label: 'WorkBuddy', commands: ['codebuddy'] },
+  { id: 'zcode', label: 'Zcode' },
+  { id: 'pi', label: 'Pi Agent', commands: ['pi', 'pi-agent', 'piagent'] },
+  { id: 'kimi', label: 'Kimi Code' },
+  { id: 'mimo', label: 'MiMo Code' },
+  { id: 'gemini', label: 'Gemini CLI' },
+  {
+    id: 'opencode', label: 'OpenCode',
+    description: 'OpenCode exposed through an SSH-local Bridge.',
+    auth() { return null },
+  },
+  { id: 'qwen', label: 'Qwen Code' },
+  { id: 'opencodereview', label: 'OpenCodeReview', commands: ['ocr'] },
 ])
 
 function json(res, status, body) {
@@ -79,25 +93,27 @@ function discoverAgents(options = {}) {
   const command = (name, args) => commandResult(spawnSyncFn, name, args)
   const agents = []
   for (const definition of AGENT_DEFINITIONS) {
-    const versionResult = command(definition.id, ['--version'])
-    const version = versionResult.status === 0 ? versionFrom(versionResult.stdout) : ''
+    const version = (definition.commands || [definition.id]).map(name => command(name, ['--version']))
+      .map(result => result.status === 0 ? versionFrom(result.stdout) : '').find(Boolean) || ''
     if (!version) continue
-    const available = definition.auth(command)
+    const auth = definition.auth ? definition.auth(command) : null
+    const available = Boolean(definition.auth) && auth !== false
     agents.push({
       id: definition.id,
       sourceKind: definition.id,
       label: definition.label,
       version,
-      description: definition.description,
+      description: definition.description || 'Detected on the server; this CLI is not yet available through the SSH Bridge.',
       domains: ['general'],
       inputTypes: ['text'],
       permissionModes: ['read-only'],
       available,
-      credentialState: available ? 'ready' : 'missing',
+      executionSupported: Boolean(definition.auth),
+      credentialState: auth === true ? 'ready' : auth === false ? 'missing' : 'unknown',
       skills: listSkillsFn(definition.id),
       session: {
-        supported: true,
-        resume: true,
+        supported: Boolean(definition.auth),
+        resume: Boolean(definition.auth),
         cancel: true,
         checkpoint: false,
       },
@@ -133,10 +149,34 @@ function invocationFor(agentId, prompt, sessionRef = '') {
       input: '',
     }
   }
+  if (agentId === 'opencode') {
+    return {
+      command: 'opencode',
+      args: ['run', '--format', 'json', '--agent', 'plan',
+        ...(sessionRef ? ['--session', sessionRef] : []), prompt],
+      input: '',
+    }
+  }
   throw new Error('REMOTE_AGENT_UNSUPPORTED')
 }
 
 function parseAgentOutput(agentId, stdout) {
+  if (agentId === 'opencode') {
+    let sessionRef = ''
+    let text = ''
+    let completed = false
+    for (const line of String(stdout || '').split(/\r?\n/)) {
+      let event
+      try { event = JSON.parse(line) } catch { continue }
+      if (typeof event.sessionID === 'string') sessionRef = event.sessionID
+      if (event.type === 'text' && event.part?.type === 'text' && typeof event.part.text === 'string') text += event.part.text
+      if (event.type === 'error') return null
+      if (event.type === 'step_finish' || event.part?.type === 'step-finish') {
+        completed = ['stop', 'end_turn'].includes(String(event.part?.reason || event.reason || '').toLowerCase())
+      }
+    }
+    return completed && text.trim() ? { text: text.trim(), sessionRef, outcome: 'completed' } : null
+  }
   if (agentId === 'codex') {
     const messages = []
     let sessionRef = ''
@@ -205,15 +245,32 @@ function runAgent(agentId, prompt, sessionRef = '') {
     }
     const child = spawn(invocation.command, invocation.args, {
       stdio: ['pipe', 'pipe', 'pipe'], cwd: process.env.HOME || undefined,
+      ...(agentId === 'opencode' ? { env: { ...process.env, OPENCODE_PERMISSION: JSON.stringify({
+        '*': 'deny', read: 'allow', glob: 'allow', grep: 'allow', list: 'allow',
+        webfetch: 'allow', websearch: 'allow', question: 'deny', plan_enter: 'deny', plan_exit: 'deny',
+      }) } } : {}),
     })
     let stdout = ''
+    let terminalResult = null
+    let terminalTimer = null
+    let forceTimer = null
     child.stdout.on('data', chunk => {
       stdout += chunk.toString('utf8')
       if (Buffer.byteLength(stdout) > MAX_RESPONSE_BYTES) child.kill('SIGTERM')
+      if (agentId === 'opencode' && !terminalResult) {
+        terminalResult = parseAgentOutput(agentId, stdout)
+        if (terminalResult) terminalTimer = setTimeout(() => {
+          child.kill('SIGTERM')
+          forceTimer = setTimeout(() => child.kill('SIGKILL'), 1500)
+        }, 1500)
+      }
     })
     child.stderr.resume()
     child.once('error', () => resolve({ outcome: 'failed', failure: { code: 'REMOTE_AGENT_UNAVAILABLE' } }))
     child.once('close', code => {
+      if (terminalTimer) clearTimeout(terminalTimer)
+      if (forceTimer) clearTimeout(forceTimer)
+      if (terminalResult) return resolve(terminalResult)
       if (code !== 0) return resolve({ outcome: 'failed', failure: { code: 'REMOTE_AGENT_FAILED' } })
       resolve(parseAgentOutput(agentId, stdout)
         || { outcome: 'failed', failure: { code: 'REMOTE_AGENT_RESPONSE_INVALID' } })
@@ -265,6 +322,7 @@ function startServer() {
 if (require.main === module || !require.main) startServer()
 
 module.exports = {
+  AGENT_DEFINITIONS,
   createServer,
   discoverAgents,
   invocationFor,

@@ -1,7 +1,6 @@
 <template>
   <section class="settings-panel agent-manager">
     <div class="manager-toolbar">
-      <span>{{ t('home.readyCount', { ready: readyCount, installed: installedCount }) }}</span>
       <div class="manager-toolbar-actions">
         <button class="secondary-button" type="button" :disabled="refreshing" @click="$emit('refresh-agents')">
           <RefreshOutline :class="{ spinning: refreshing }" />
@@ -10,14 +9,13 @@
       </div>
     </div>
     <section v-for="category in agentCatalogGroups" :key="category.id" class="agent-catalog-category">
-      <header class="agent-catalog-category-header">
-        <div>
-          <h2>{{ t(category.titleKey) }}</h2>
-          <p>{{ t(category.subtitleKey) }}</p>
-        </div>
-        <small>{{ t('systemSettings.agentCount', { count: category.agents.length }) }}</small>
-      </header>
       <SettingsCardRail v-if="category.agents.length" :label="t(category.titleKey)">
+        <template #heading>
+          <header class="agent-catalog-category-header"><div>
+            <h2>{{ t(category.titleKey) }}</h2>
+            <p>{{ t(category.subtitleKey) }}</p>
+          </div></header>
+        </template>
         <article
           v-for="agent in category.agents"
           :key="agent.kind"
@@ -59,7 +57,7 @@
           </div>
           <p v-if="agentStateNote(agent)" class="agent-card-note" :data-tone="agentState(agent).tone">
             <span>{{ agentStateNote(agent) }}</span>
-            <button type="button" :disabled="refreshing" @click.stop="$emit('refresh-agents')">
+            <button type="button" :disabled="refreshing" @click.stop="$emit(agent.cloud ? 'refresh-cloud-agents' : 'refresh-agents')">
               {{ t('home.refresh') }}
             </button>
           </p>
@@ -151,6 +149,7 @@ defineEmits([
   'open-agent-detail',
   'open-direct',
   'refresh-agents',
+  'refresh-cloud-agents',
   'request-install',
 ])
 </script>

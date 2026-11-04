@@ -8,6 +8,12 @@
   font-size: var(--text-sm);
 }
 
+.agent-manager > .manager-toolbar,
+.knowledge-base-toolbar {
+  justify-content: flex-end;
+  margin-bottom: 24px;
+}
+
 .manager-toolbar-actions {
   display: flex;
   align-items: center;

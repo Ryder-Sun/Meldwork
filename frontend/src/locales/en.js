@@ -1,5 +1,8 @@
 export default {
     'settingsRail.previous': 'Scroll to previous cards',
+    'agent.cloudBridgeUnsupported': 'Bridge support needed',
+    'agent.note.cloudBridgeUnsupported': 'This CLI was found on the server, but the SSH Bridge cannot run it yet.',
+    'agent.availableUnverified': 'Available · unverified',
     'settingsRail.next': 'Scroll to next cards',
     'workPreferences.deliverySection': 'Delivery approach',
     'workPreferences.title': 'How do you like work delivered?',

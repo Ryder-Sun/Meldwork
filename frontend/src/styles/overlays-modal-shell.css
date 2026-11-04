@@ -48,6 +48,10 @@
   container-type: inline-size;
 }
 
+:root[data-theme="dark"] .modal:has(.settings-form) {
+  border: 0;
+}
+
 .modal.agent-detail-modal {
   width: min(700px, 100%);
   border: 0;

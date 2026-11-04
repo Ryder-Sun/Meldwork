@@ -331,6 +331,12 @@
   gap: 5px;
 }
 
+@container (min-width: 580px) {
+  .settings-agent-choice-grid.settings-local-agents {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 .settings-agent-choice {
   height: 44px;
   grid-template-columns: 24px minmax(0, 1fr) 15px;

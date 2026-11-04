@@ -65,6 +65,7 @@
         @open-agent-detail="openAgentDetail"
         @open-direct="openDirect"
         @refresh-agents="refreshAgents"
+        @refresh-cloud-agents="cloudAgentBridges.refresh"
         @request-install="requestInstall"
       />
 

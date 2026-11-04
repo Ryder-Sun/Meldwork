@@ -55,22 +55,23 @@ onMounted(() => { if (bridge) void load() })
 </script>
 
 <style scoped>
-.workbuddy-settings { min-width: 0; display: grid; gap: 8px; padding: 0 16px 12px; }
+.workbuddy-settings { min-width: 0; display: grid; gap: 8px; padding: 0 16px 12px; border-top: 1px solid var(--border); }
 .workbuddy-settings form { min-width: 0; display: grid; gap: 8px; margin-top: 8px; }
-.workbuddy-settings summary { color: var(--muted); cursor: pointer; font-size: var(--text-xs); }
+.workbuddy-settings summary { padding-top: 12px; color: var(--text-soft); cursor: pointer; font-size: var(--text-xs); font-weight: 600; }
 .workbuddy-model-actions { min-width: 0; display: grid; gap: 8px; }
-.workbuddy-model-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.workbuddy-model-buttons { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .workbuddy-model-actions select {
   min-width: 0;
   width: 100%;
-  height: 34px;
-  padding: 0 10px;
-  border: 1px solid var(--border);
+  height: 40px;
+  padding: 0 12px;
+  border: 0;
   border-radius: var(--radius-sm);
   background: var(--surface-raised);
-  color: var(--text);
+  color: var(--text-soft);
 }
+.workbuddy-model-actions select:hover:not(:disabled) { background: var(--surface-hover); }
 .workbuddy-settings label { color: var(--text-soft); font-size: var(--text-xs); }
-.workbuddy-settings p { margin: 0; color: var(--muted); font-size: var(--text-xs); line-height: 1.5; overflow-wrap: anywhere; }
+.workbuddy-settings p { margin: 0; color: var(--muted); font-size: var(--text-xs); line-height: 1.5; overflow-wrap: break-word; }
 .workbuddy-settings [role="alert"] { color: var(--danger); }
 </style>

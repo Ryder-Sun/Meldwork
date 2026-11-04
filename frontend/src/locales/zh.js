@@ -1,5 +1,8 @@
 export default {
     'settingsRail.previous': '查看前面的卡片',
+    'agent.cloudBridgeUnsupported': 'Bridge 暂不支持',
+    'agent.note.cloudBridgeUnsupported': '服务器已发现此 CLI，但 SSH Bridge 暂时无法运行它。',
+    'agent.availableUnverified': '可启动 · 待验证',
     'settingsRail.next': '查看后面的卡片',
     'workPreferences.deliverySection': '交付方式',
     'workPreferences.title': '你喜欢怎样的工作交付？',

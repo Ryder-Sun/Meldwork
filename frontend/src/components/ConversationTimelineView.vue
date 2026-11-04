@@ -43,7 +43,10 @@
           @click="focusTurn(turn.id)"
         >
           <span aria-hidden="true" />
-          <span class="turn-rail-tooltip" aria-hidden="true">{{ turnRailLabel(turn) }}</span>
+          <span class="turn-rail-tooltip" aria-hidden="true">
+            <span>{{ turn.query }}</span>
+            <small>{{ turn.time || t('conversation.timeUnknown') }} · <template v-if="activeGroup?.conversationType !== 'direct'">{{ topicReplyLabel(turn.replyCount) }} · </template>{{ runStatusLabel(turn.status) }}</small>
+          </span>
         </button>
       </nav>
 

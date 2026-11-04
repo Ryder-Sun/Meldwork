@@ -619,7 +619,7 @@ async function localAgentCatalog() {
         credentialState: agent.installed
           ? (state?.credentialState || agent.credentialState || 'unknown')
           : 'missing',
-        availabilitySource: agent.installed ? (state?.availabilitySource || 'unverified') : 'none',
+        availabilitySource: agent.installed ? (state?.availabilitySource || agent.availabilitySource || 'unverified') : 'none',
         showInSidebar: Boolean(agent.installed && (state?.showInSidebar
           ?? (agent.cloud ? workspace?.state?.agentPreferences?.[agent.kind]?.showInSidebar ?? true : false))),
         attachmentTypes: Object.entries(support)

@@ -165,6 +165,11 @@ test('keeps installed but unavailable cloud Agents in the catalog and out of run
     available: false, credentialState: 'missing', skills: [], domains: ['general'],
     inputTypes: ['text'], permissionModes: ['read-only'],
   })
+  unavailableManifest.agents.push({
+    id: 'pi', sourceKind: 'pi', label: 'Pi Agent', version: '1.2.3',
+    available: false, executionSupported: false, credentialState: 'unknown',
+    skills: [], domains: ['general'], inputTypes: ['text'], permissionModes: ['read-only'],
+  })
   const store = new CloudAgentBridgeStore({
     storagePath,
     fetch: async () => response(unavailableManifest),
@@ -175,9 +180,11 @@ test('keeps installed but unavailable cloud Agents in the catalog and out of run
     assert.deepEqual(store.catalogEntries().map(agent => [agent.sourceKind, agent.available]), [
       ['codex', true],
       ['claude', false],
+      ['pi', false],
     ])
     const claude = store.catalogEntries().find(agent => agent.sourceKind === 'claude')
     assert.equal(claude.credentialState, 'missing')
+    assert.equal(store.catalogEntries().find(agent => agent.sourceKind === 'pi').availabilitySource, 'cloud-bridge-unsupported')
     assert.deepEqual(store.skillsForInstance(claude.kind), [])
     const codex = store.catalogEntries().find(agent => agent.sourceKind === 'codex')
     assert.deepEqual(store.skillsForInstance(codex.kind), [
@@ -186,6 +193,21 @@ test('keeps installed but unavailable cloud Agents in the catalog and out of run
   } finally {
     fs.rmSync(directory, { recursive: true, force: true })
   }
+})
+
+test('SSH fallback discovers multiple CLI types without advertising unsupported execution', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-cloud-fallback-'))
+  const store = new CloudAgentBridgeStore({
+    storagePath: path.join(directory, 'bridges.json'),
+    fetch: async () => response(manifest()),
+    sshExecute: async () => ({ stdout: '__MELDWORK_CLI__codex\tcodex-cli 0.146.1\n__MELDWORK_CLI__pi\tpi 0.86.1\n__MELDWORK_CLI__kimi\tkimi 0.19.2\n', stderr: '' }),
+  })
+  try {
+    const result = await store.probeSsh('203.0.113.10')
+    assert.deepEqual(result.agents.map(agent => [agent.id, agent.available, agent.executionSupported]), [
+      ['codex', true, true], ['pi', false, false], ['kimi', false, false],
+    ])
+  } finally { fs.rmSync(directory, { recursive: true, force: true }) }
 })
 
 test('marks a persisted bridge unavailable after a failed refresh', async () => {

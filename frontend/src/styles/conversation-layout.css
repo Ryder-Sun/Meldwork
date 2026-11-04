@@ -512,7 +512,7 @@
   max-width: min(280px, calc(100vw - 96px));
   position: absolute;
   top: 50%;
-  left: calc(100% + 28px);
+  left: calc(100% + 38px);
   z-index: 5;
   padding: 7px 9px;
   border: 0;
@@ -529,6 +529,17 @@
   transform: translate(4px, -50%);
   visibility: hidden;
   transition: opacity 0.12s ease, transform 0.12s ease, visibility 0.12s ease;
+}
+
+.turn-rail-tooltip > span,
+.turn-rail-tooltip > small {
+  display: block;
+}
+
+.turn-rail-tooltip > small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 10px;
 }
 
 .turn-rail-tooltip::before {

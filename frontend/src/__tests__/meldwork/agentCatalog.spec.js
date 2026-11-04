@@ -18,12 +18,21 @@ function catalogFor(agent) {
 }
 
 describe('Agent compatibility state', () => {
+  it('explains an unsupported cloud Bridge adapter without claiming a login failure', () => {
+    setLocale('en')
+    const agent = { kind: 'cloud-pi', installed: true, ready: false, cloud: true,
+      availabilitySource: 'cloud-bridge-unsupported', credentialState: 'unknown' }
+    const catalog = useAgentCatalog({ activeGroup: ref(null), directGroupsFor: () => [],
+      installCatalog: ref({ agents: [] }), snapshot: ref({ agents: [] }), t, theme: ref('light') })
+    expect(catalog.agentState(agent).label).toBe('Bridge support needed')
+    expect(catalog.agentStateNote(agent)).toContain('cannot run it yet')
+  })
   it('shows an invocable local CLI as unverified until its credentials are confirmed', () => {
     setLocale('en')
     expect(catalogFor({ kind: 'zcode', installed: true, available: true,
-      credentialState: 'unknown', availabilitySource: 'local-cli' }).label).toBe('Sign-in not verified')
+      credentialState: 'unknown', availabilitySource: 'local-cli' }).label).toBe('Available · unverified')
     expect(catalogFor({ kind: 'zcode', installed: true, available: true,
-      credentialState: 'ready', availabilitySource: 'native-credential' }).label).toBe('Sign-in not verified')
+      credentialState: 'ready', availabilitySource: 'native-credential' }).label).toBe('Available · unverified')
     expect(catalogFor({ kind: 'zcode', installed: true, available: true,
       credentialState: 'ready', availabilitySource: 'verified-run', recentlyVerified: true }).label).toBe('Ready')
   })
