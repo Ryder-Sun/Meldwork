@@ -46,7 +46,9 @@ NODE
 
 ## 能力与事件
 
-清单声明的输入类型、权限、会话、取消、事件类型、用量字段和外联目标在运行时受约束。HTTP 目标必须与声明的 HTTPS origin 匹配。`Usage` 只统计事件实际报告的字段；缺失的回复 token 用量由运行预算估算，返回值不得伪造未声明或与事件不一致的用量。
+清单声明的输入类型、权限、会话、取消、事件类型和用量字段在运行时受约束。对于 SDK 的 HTTP 传输，目标必须与声明的 HTTPS origin 匹配，且不会跟随重定向。委托给本地 Agent CLI 的 Connector 不提供进程级网络隔离：CLI 自行发出的网络请求不受 Connector 外联目标清单强制限制，不能把该清单视为这类 Connector 的完整网络边界。
+
+`Usage` 只统计事件实际报告的字段；缺失的回复 token 用量由运行预算估算，返回值不得伪造未声明或与事件不一致的用量。
 
 事件及其必填字段以 [Run Event 协议](src/runs/run-event-protocol.cjs) 和 [Manifest 校验](src/agents/connectors/agent-connector-manifest.cjs) 为准。不要把 API key 放入清单、请求正文或示例包。
 
