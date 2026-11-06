@@ -10,12 +10,13 @@ const { outboundWirePayloadBytes } = require('../collaboration/outbound-payload.
 
 const PUBLIC_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/
 const SHA256 = /^[a-f0-9]{64}$/
-const OUTBOUND_TRANSPORTS = new Set(['legacy', 'acp', 'custom', 'http'])
+const OUTBOUND_TRANSPORTS = new Set(['legacy', 'acp', 'custom', 'http', 'ssh'])
 const OUTBOUND_SERIALIZATIONS = new Set([
   'cli-argv-stdin-v1',
   'acp-session-prompt-v1',
   'custom-cli-argv-stdin-v1',
   'http-json-body-v1',
+  'ssh-stdin-v1',
 ])
 const OUTBOUND_PROMPT_MODES = new Set(['stdin', 'argument', 'acp', 'json'])
 const SKILL_SNAPSHOT_ID = /^skill-snapshot-[a-f0-9]{64}$/
@@ -220,6 +221,9 @@ class LocalWorkspaceContextPacks {
         throw new Error('LOCAL_CONTEXT_DELIVERY_PARSE_FAILED')
       }
       wirePrompt = body.prompt
+    } else if (outbound.serialization === 'ssh-stdin-v1') {
+      wirePrompt = wirePayload.toString('utf8')
+      if (!Buffer.from(wirePrompt, 'utf8').equals(wirePayload)) throw new Error('LOCAL_CONTEXT_DELIVERY_PARSE_FAILED')
     } else wirePrompt = cliWirePrompt(wirePayload, outbound)
     const comparison = safeComparison(preview.text, callbackPrompt, wirePrompt, outbound)
     if (comparison.status !== 'match') throw new Error('LOCAL_CONTEXT_DELIVERY_MISMATCH')
@@ -238,7 +242,8 @@ class LocalWorkspaceContextPacks {
         || payload.transport !== (delivery.serialization === 'acp-session-prompt-v1'
           ? 'acp'
           : (delivery.serialization === 'custom-cli-argv-stdin-v1' ? 'custom'
-            : (delivery.serialization === 'http-json-body-v1' ? 'http' : 'legacy')))
+            : (delivery.serialization === 'http-json-body-v1' ? 'http'
+              : (delivery.serialization === 'ssh-stdin-v1' ? 'ssh' : 'legacy'))))
         || payload.serialization !== delivery.serialization
         || typeof payload.prompt !== 'string' || typeof payload.promptMode !== 'string') {
       throw new Error('LOCAL_CONTEXT_DELIVERY_COMPARISON_TAMPERED')
@@ -510,6 +515,10 @@ class LocalWorkspaceContextPacks {
       transport === 'http'
         && serialization === 'http-json-body-v1'
         && promptMode === 'json'
+    ) || (
+      transport === 'ssh'
+        && serialization === 'ssh-stdin-v1'
+        && promptMode === 'stdin'
     )
     if (!OUTBOUND_TRANSPORTS.has(transport)
         || !OUTBOUND_SERIALIZATIONS.has(serialization)

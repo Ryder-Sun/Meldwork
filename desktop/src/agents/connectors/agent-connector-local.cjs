@@ -815,9 +815,6 @@ class LocalAgentConnectors {
       sequence: 1,
     }
     try {
-      if (!['ssh', 'ssh-tunnel'].includes(entry.record.transport)) {
-        await input.onOutboundPayload({ destination: entry.record.address, transport: 'http' })
-      }
       const result = await this.cloudBridges.run({
         bridgeId: entry.record.bridgeId,
         agentId: entry.agent.id,
@@ -829,6 +826,7 @@ class LocalAgentConnectors {
         resume: input.resume,
         signal: input.signal,
         onActivity: input.onActivity,
+        onOutboundPayload: input.onOutboundPayload,
       })
       if (!result || typeof result !== 'object' || Array.isArray(result)
           || typeof result.text !== 'string' || result.text.includes('\u0000')

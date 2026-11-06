@@ -4,6 +4,7 @@ const fs = require('node:fs')
 const net = require('node:net')
 
 const { canonicalJson } = require('../../collaboration/outcome-records.cjs')
+const { createHttpOutboundPayload, createSshOutboundPayload } = require('../../collaboration/outbound-payload.cjs')
 const { atomicWritePrivateFile } = require('../../security/private-file.cjs')
 const { createAgentConnectorManifest } = require('../connectors/agent-connector-manifest.cjs')
 
@@ -296,7 +297,7 @@ class CloudAgentBridgeStore {
         redirect: 'error',
         signal: controller.signal,
         headers: { accept: 'application/json', ...(options.body ? { 'content-type': 'application/json' } : {}) },
-        ...(options.body ? { body: JSON.stringify(options.body) } : {}),
+        ...(options.body ? { body: options.bodyText ?? JSON.stringify(options.body) } : {}),
       })
       if (!response?.ok) throw bridgeError(`CLOUD_AGENT_BRIDGE_HTTP_${response?.status || 'FAILED'}`)
       const text = await response.text()
@@ -681,19 +682,28 @@ class CloudAgentBridgeStore {
     if (!agent) fail('CLOUD_AGENT_BRIDGE_AGENT_NOT_FOUND')
     if (agent.available === false) fail('CLOUD_AGENT_BRIDGE_AGENT_UNAVAILABLE')
     if (record.transport === 'ssh') return this.runSsh(record, agent, input)
+    const body = {
+      prompt: input.prompt,
+      sessionRef: input.sessionRef || null,
+      permissionMode: input.permissionMode,
+      operationId: input.operationId,
+      resume: input.resume || null,
+    }
+    const serializedBody = JSON.stringify(body)
+    await input.onOutboundPayload?.(createHttpOutboundPayload({
+      prompt: input.prompt,
+      destination: record.transport === 'ssh-tunnel' ? '' : record.address,
+      tunneled: record.transport === 'ssh-tunnel',
+      wireBytes: Buffer.from(serializedBody, 'utf8'),
+    }))
     return this.request(`/v1/agents/${encodeURIComponent(agentId)}/runs`, {
       address: record.transport === 'ssh-tunnel' ? record.endpoint : record.address,
       method: 'POST',
       signal: input.signal,
       timeoutMs: this.runTimeoutMs,
       onActivity: input.onActivity,
-      body: {
-        prompt: input.prompt,
-        sessionRef: input.sessionRef || null,
-        permissionMode: input.permissionMode,
-        operationId: input.operationId,
-        resume: input.resume || null,
-      },
+      body,
+      bodyText: serializedBody,
     })
   }
 
@@ -701,6 +711,7 @@ class CloudAgentBridgeStore {
     if (agent.id !== 'codex' || input.permissionMode !== 'read-only') {
       fail('CLOUD_AGENT_SSH_PERMISSION_UNSUPPORTED')
     }
+    await input.onOutboundPayload?.(createSshOutboundPayload({ prompt: input.prompt }))
     const result = await this.sshCommand(record.address, SSH_CODEX_COMMAND, input.prompt, input.signal)
     const messages = []
     let sessionRef = ''

@@ -153,6 +153,7 @@ test('discovers and runs an Agent exposed by a Cloud Agent Bridge', async (t) =>
       connectorEntries: () => [entry],
       bridgeForInstance: instanceId => instanceId === entry.instance.instanceId ? entry : null,
       run: async (input) => {
+        await input.onOutboundPayload({ destination: record.address, transport: 'http' })
         cloudRunInput = input
         return { text: 'cloud reply', outcome: 'completed' }
       },

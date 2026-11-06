@@ -70,11 +70,17 @@ function createCustomOutboundPayload({ prompt, command, args, cwd, stdin, prompt
   }, cliWirePayload(command, args, cwd, stdin))
 }
 
-function createHttpOutboundPayload({ prompt, destination, wireBytes }) {
+function createHttpOutboundPayload({ prompt, destination, wireBytes, tunneled = false }) {
   return payloadWithBytes({
     prompt, destination, transport: 'http',
+    ...(tunneled ? { tunneled: true } : {}),
     serialization: 'http-json-body-v1', promptMode: 'json',
   }, wireBytes)
+}
+
+function createSshOutboundPayload({ prompt }) {
+  return payloadWithBytes({ prompt, transport: 'ssh',
+    serialization: 'ssh-stdin-v1', promptMode: 'stdin' }, Buffer.from(prompt, 'utf8'))
 }
 
 function outboundWirePayloadBytes(payload) {
@@ -86,6 +92,7 @@ module.exports = {
   createAcpOutboundPayload,
   createCustomOutboundPayload,
   createHttpOutboundPayload,
+  createSshOutboundPayload,
   createLegacyOutboundPayload,
   outboundWirePayloadBytes,
 }

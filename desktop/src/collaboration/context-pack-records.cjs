@@ -263,6 +263,7 @@ const deliveryContentFields = {
     'acp-session-prompt-v1',
     'custom-cli-argv-stdin-v1',
     'http-json-body-v1',
+    'ssh-stdin-v1',
   ]),
   runtimeAdditions: z.array(runtimeAdditionSchema).max(MAX_RUNTIME_ADDITIONS),
   sessionProvenance: sessionProvenanceSchema,

@@ -248,6 +248,15 @@ test('rejects every undeclared Connector capability before it crosses the recipe
     },
   ), { message: 'AGENT_CONNECTOR_OUTBOUND_DESTINATION_REQUIRED' })
 
+  const forgedTunnel = runtimeFixture(async input => {
+    input.onOutboundPayload({ transport: 'http', tunneled: true })
+  }).runtime
+  await assert.rejects(forgedTunnel.run(
+    forgedTunnel.detectAgents()[0], 'Review', '/tmp/workspace', {
+      runId: 'run-forged-tunnel', agentRunId: 'agent-run-forged-tunnel', sandbox: 'read-only',
+    },
+  ), { message: 'AGENT_CONNECTOR_OUTBOUND_DESTINATION_REQUIRED' })
+
   const undeclaredSessionResult = runtimeFixture(async (input) => {
     input.emit({
       eventId: 'completed', cursor: 'completed', sequence: 1,

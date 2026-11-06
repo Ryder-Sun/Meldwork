@@ -1,6 +1,7 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
+const { outboundWirePayloadBytes } = require('../../../src/collaboration/outbound-payload.cjs')
 const os = require('node:os')
 const path = require('node:path')
 
@@ -53,6 +54,7 @@ test('reports activity while a cloud Agent request is waiting for its final resp
       agents: manifest().agents,
     })]
     const record = store.records[0]
+    let outbound
     const result = await store.run({
       bridgeId: record.bridgeId,
       agentId: 'codex',
@@ -142,9 +144,11 @@ test('connects, persists, and exposes a bridge Agent as a connector entry', asyn
       prompt: 'hello',
       permissionMode: 'read-only',
       operationId: 'operation-1',
+      onOutboundPayload: value => { outbound = value },
     })
     assert.deepEqual(result, { text: 'remote reply', outcome: 'completed' })
     assert.equal(calls.at(-1).url, 'https://203.0.113.10:8443/v1/agents/codex/runs')
+    assert.equal(outboundWirePayloadBytes(outbound).toString('utf8'), calls.at(-1).options.body)
 
     const restarted = new CloudAgentBridgeStore({
       storagePath,
@@ -276,6 +280,7 @@ test('discovers and runs a remote Codex CLI through existing SSH configuration',
     assert.deepEqual(entry.manifest.permissionModes, ['read-only'])
     assert.deepEqual(entry.manifest.outboundDestinations, [])
 
+    let outbound
     const result = await store.run({
       bridgeId: connected.bridgeId,
       agentId: 'codex',
@@ -360,9 +365,12 @@ test('connects through an SSH-local Agent Bridge tunnel and reuses its HTTP prot
       prompt: 'through tunnel',
       permissionMode: 'read-only',
       operationId: 'tunnel-operation-1',
+      onOutboundPayload: value => { outbound = value },
     })
     assert.deepEqual(result, { text: 'tunneled reply', outcome: 'completed' })
     assert.equal(calls.at(-1).url, 'http://127.0.0.1:45678/v1/agents/codex/runs')
+    assert.equal(outbound.tunneled, true)
+    assert.equal(outboundWirePayloadBytes(outbound).toString('utf8'), calls.at(-1).options.body)
     store.remove(connected.bridgeId)
     assert.equal(child.killed, true)
   } finally {

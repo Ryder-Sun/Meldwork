@@ -68,10 +68,13 @@ function outboundOrigin(value) {
   }
 }
 
-function assertOutboundDestination(connector, value) {
+function assertOutboundDestination(connector, value, outbound = {}) {
   const destinations = connector.capabilities.outboundDestinations
   const destination = String(value || '')
   if (!destination) {
+    if (connector.recipeId === 'external.cloud-agent-bridge'
+        && connector.upstreamId === 'meldwork-cloud'
+        && outbound.tunneled === true && destinations.length === 0) return ''
     if (destinations.length || OUTBOUND_TRANSPORTS.has(connector.transport.type)) {
       fail('AGENT_CONNECTOR_OUTBOUND_DESTINATION_REQUIRED')
     }
@@ -409,7 +412,7 @@ class AgentConnectorRuntime {
       return event
     }
     const onOutboundPayload = (outbound = {}) => {
-      assertOutboundDestination(connector, outbound.destination)
+      assertOutboundDestination(connector, outbound.destination, outbound)
       return options.onOutboundPayload?.(outbound)
     }
 
