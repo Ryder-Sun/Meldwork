@@ -237,6 +237,32 @@ test('OpenCode project provider references reach its execution without leaking t
   assert.equal(harness.runAgentCalls.at(-1)[3].env.PROJECT_PROVIDER_KEY, undefined)
 })
 
+test('selected OpenCode configuration supplies its declared credentials to execution', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-opencode-selected-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const selected = path.join(directory, 'selected'); fs.mkdirSync(selected)
+  fs.writeFileSync(path.join(selected, 'opencode.jsonc'), '{ provider: { custom: { options: { apiKey: "{env:SELECTED_KEY}" } } } }')
+  const readiness = require('../../src/agents/local-agent-readiness.cjs')
+  const { harness } = loadMain(directory, {
+    dialogResult: { canceled: false, filePaths: [selected] },
+    nativeShellEnvironment: input => ({ env: input.extraEnvKeys?.includes('SELECTED_KEY')
+      ? { SELECTED_KEY: 'selected-secret' } : {}, source: 'native-shell' }),
+    nativeEnvironment: readiness.nativeCredentialEnvironment,
+  })
+  await harness.ready()
+  const workspace = harness.workspaceInstances[0]
+  workspace.activeRuns = new Map()
+  workspace.state.agentPreferences = {}
+  workspace.state.agentRuntime = {}
+  workspace.save = () => {}
+  const chosen = await harness.ipcHandlers.get('local-agent-native-config:choose')(harness.event(), 'opencode')
+  assert.equal(chosen.directory, fs.realpathSync(selected))
+  await workspace.input.runAgent({ kind: 'opencode', executable: '/tmp/opencode' }, 'hello', directory, {})
+  const options = harness.runAgentCalls.at(-1)[3]
+  assert.equal(options.env.OPENCODE_CONFIG_DIR, chosen.directory)
+  assert.equal(options.env.SELECTED_KEY, 'selected-secret')
+})
+
 test('native credentials from multiple Agents are captured in bounded batches without restoring unset values', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-env-batches-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

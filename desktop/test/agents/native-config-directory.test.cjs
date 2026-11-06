@@ -82,6 +82,7 @@ for (const [kind, key, file] of [
   ['pi', 'PI_CODING_AGENT_DIR', 'models.json'],
   ['kimi', 'KIMI_CODE_HOME', 'config.toml'],
   ['workbuddy', 'CODEBUDDY_CONFIG_DIR', 'models.json'],
+  ['opencode', 'OPENCODE_CONFIG_DIR', 'opencode.jsonc'],
 ]) {
   test(`${kind} uses its selected native configuration directory`, t => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), `meldwork-${kind}-config-`))
