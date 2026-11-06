@@ -883,7 +883,7 @@ class LocalAgentConnectors {
         return { outcome: 'failed', failure }
       }
       if (input.transportSignal?.aborted && (requestSent || !input.connector.capabilities.session.cancel)) {
-        const failure = { code: 'AGENT_CONNECTOR_HTTP_TRANSPORT_ABORTED', category: 'unknown', retryable: false }
+        const failure = { code: 'AGENT_CONNECTOR_HTTP_TRANSPORT_ABORTED', category: requestSent ? 'unknown' : 'execution', retryable: false }
         input.emit({ ...terminal, type: 'Failed', ...failure })
         return { outcome: 'failed', failure }
       }
