@@ -6,6 +6,7 @@ const {
 
 const RECENT_VERIFICATION_MS = 24 * 60 * 60 * 1000
 const AUTH_FAILURE_RETRY_MS = 30 * 1000
+const MAX_PROJECT_AUTH_RECORDS = 64
 // A readiness probe that times out or crashes says nothing about whether the
 // Agent works: it is not a "not signed in" answer. An Agent that was usable
 // stays usable through such results for this long; a definitive answer
@@ -22,7 +23,8 @@ function expiredAuthFailure(runtime, now) {
 }
 
 function clearProjectFailure(runtime) {
-  if (runtime?.verificationSource !== 'successful-run' || runtime.credentialState !== 'ready') return undefined
+  if ((runtime?.verificationSource !== 'successful-run' || runtime.credentialState !== 'ready')
+      && !runtime?.projectVerifications?.length && !runtime?.projectFailures?.length) return undefined
   const { projectFailureIdentity, projectFailureCheckedAt, failureIdentity, ...retained } = runtime
   return retained
 }
@@ -88,19 +90,31 @@ class LocalWorkspaceAgentCatalog {
   isRecentlyVerified(kind, workdir) {
     const runtime = this.state().agentRuntime[kind]
     const agent = this.detectedAgents().find(item => item.kind === kind)
-    if (!matchesRecentVerification(runtime, agent, this.now(), this.state().agentPreferences)) return false
-    if (workdir === undefined) return true
+    if (workdir === undefined) return matchesRecentVerification(runtime, agent, this.now(), this.state().agentPreferences)
     if (this.isProjectAuthBlocked(kind, workdir)) return false
     const projectIdentity = projectVerificationIdentity(kind, workdir)
-    return projectIdentity === '' || (projectIdentity !== null && runtime.projectVerificationIdentity === projectIdentity)
+    if (projectIdentity === '') return matchesRecentVerification(runtime, agent, this.now(), this.state().agentPreferences)
+    if (!projectIdentity || runtime?.credentialState === 'missing') return false
+    const identity = agentVerificationIdentity(agent, this.state().agentPreferences)
+    const record = Array.isArray(runtime?.projectVerifications)
+      ? runtime.projectVerifications.find(item => item?.projectIdentity === projectIdentity && item.verificationIdentity === identity)
+      : null
+    if (record) return recentlyVerified({ credentialState: 'ready', checkedAt: record.checkedAt }, this.now())
+    return matchesRecentVerification(runtime, agent, this.now(), this.state().agentPreferences)
+      && runtime.projectVerificationIdentity === projectIdentity
   }
 
   isProjectAuthBlocked(kind, workdir) {
     const runtime = this.state().agentRuntime[kind]
     const agent = this.detectedAgents().find(item => item.kind === kind)
     const identity = projectVerificationIdentity(kind, workdir)
+    const agentIdentity = agentVerificationIdentity(agent, this.state().agentPreferences)
+    const failure = Array.isArray(runtime?.projectFailures)
+      ? runtime.projectFailures.find(item => item?.projectIdentity === identity && item.verificationIdentity === agentIdentity)
+      : null
+    if (failure) return !expiredAuthFailure({ projectFailureIdentity: identity, projectFailureCheckedAt: failure.checkedAt }, this.now())
     return Boolean(identity && runtime?.projectFailureIdentity === identity
-      && runtime.failureIdentity === agentVerificationIdentity(agent, this.state().agentPreferences)
+      && runtime.failureIdentity === agentIdentity
       && !expiredAuthFailure(runtime, this.now()))
   }
 
@@ -166,6 +180,7 @@ class LocalWorkspaceAgentCatalog {
           && !runtime?.projectFailureIdentity
           && runtime === runtimeAtRefreshStart.get(agent.kind)) {
         runtime = {
+          ...runtime,
           credentialState: 'ready',
           checkedAt: this.now(),
         }
@@ -327,6 +342,30 @@ class LocalWorkspaceAgentCatalog {
         ? { verificationSource: 'successful-run', verificationIdentity: identity,
           ...(projectIdentity ? { projectVerificationIdentity: projectIdentity } : {}) } : {}),
     }
+    if (projectIdentity && (credentialState === 'missing' || (credentialState === 'ready' && verifiedRun))) {
+      const keep = records => (Array.isArray(records) ? records : [])
+        .filter(item => item?.verificationIdentity === identity && item.projectIdentity !== projectIdentity)
+        .slice(-(MAX_PROJECT_AUTH_RECORDS - 1))
+      const projectVerifications = keep(previous?.projectVerifications)
+      const projectFailures = keep(previous?.projectFailures)
+      if (previous?.verificationSource === 'successful-run' && previous.verificationIdentity === identity
+          && previous.projectVerificationIdentity && previous.projectVerificationIdentity !== projectIdentity
+          && !projectVerifications.some(item => item.projectIdentity === previous.projectVerificationIdentity)) {
+        projectVerifications.push({ projectIdentity: previous.projectVerificationIdentity,
+          verificationIdentity: identity, checkedAt: previous.checkedAt })
+      }
+      if (previous?.failureIdentity === identity && previous.projectFailureIdentity
+          && previous.projectFailureIdentity !== projectIdentity
+          && !projectFailures.some(item => item.projectIdentity === previous.projectFailureIdentity)) {
+        projectFailures.push({ projectIdentity: previous.projectFailureIdentity,
+          verificationIdentity: identity, checkedAt: previous.projectFailureCheckedAt || previous.checkedAt })
+      }
+      const record = { projectIdentity, verificationIdentity: identity, checkedAt: this.now() }
+      if (projectFailure) projectFailures.push(record)
+      else projectVerifications.push(record)
+      state.agentRuntime[kind].projectVerifications = projectVerifications.slice(-MAX_PROJECT_AUTH_RECORDS)
+      state.agentRuntime[kind].projectFailures = projectFailures.slice(-MAX_PROJECT_AUTH_RECORDS)
+    }
     if (credentialState === 'ready') this.indeterminateSince.delete(kind)
     if (agent && !(effectiveState === 'unknown' && agent.authenticated === true)) {
       agent.credentialState = effectiveState
@@ -358,9 +397,12 @@ class LocalWorkspaceAgentCatalog {
     const state = this.state()
     let changed = false
     for (const [kind, runtime] of Object.entries(state.agentRuntime)) {
-      if (runtime?.credentialState !== 'missing' && !runtime?.projectFailureIdentity) continue
+      if (runtime?.credentialState !== 'missing' && !runtime?.projectFailureIdentity && !runtime?.projectFailures?.length) continue
       const retained = clearProjectFailure(runtime)
-      if (retained) state.agentRuntime[kind] = retained
+      if (retained) {
+        delete retained.projectFailures
+        state.agentRuntime[kind] = retained
+      }
       else delete state.agentRuntime[kind]
       changed = true
     }

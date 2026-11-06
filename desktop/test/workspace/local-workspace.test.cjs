@@ -680,6 +680,37 @@ test('a project authentication failure preserves another project\'s verified aut
   assert.equal(workspace.agentCatalog.isProjectAuthBlocked('zcode', second), false)
 })
 
+test('multiple project verifications and authentication failures survive restart independently', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const projects = ['a', 'b', 'c', 'd'].map(name => path.join(directory, name))
+  for (const project of projects) fs.mkdirSync(project)
+  options.detectAgents = async () => [{ kind: 'zcode', name: 'Zcode', executable: '/tmp/zcode', version: '1' }]
+  options.runAgent = async (_agent, _prompt, workdir) => {
+    if (projects.slice(2).includes(workdir)) throw new Error('Please log in first')
+    return { text: 'Verified', outcome: 'completed' }
+  }
+  let workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const groups = projects.map((workdir, index) => workspace.createGroup({
+    name: `Project ${index}`, agentKinds: ['zcode'], workdir,
+  }))
+  for (const group of groups) await workspace.sendMessage({ groupId: group.id, text: 'Run', targetKinds: ['zcode'] })
+  assert.equal(workspace.agentCatalog.isRecentlyVerified('zcode', projects[0]), true)
+  assert.equal(workspace.agentCatalog.isRecentlyVerified('zcode', projects[1]), true)
+  assert.equal(workspace.agentCatalog.isProjectAuthBlocked('zcode', projects[2]), true)
+  assert.equal(workspace.agentCatalog.isProjectAuthBlocked('zcode', projects[3]), true)
+  workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  assert.equal(workspace.agentCatalog.isRecentlyVerified('zcode', projects[0]), true)
+  assert.equal(workspace.agentCatalog.isRecentlyVerified('zcode', projects[1]), true)
+  assert.equal(workspace.agentCatalog.isProjectAuthBlocked('zcode', projects[2]), true)
+  assert.equal(workspace.agentCatalog.isProjectAuthBlocked('zcode', projects[3]), true)
+  await workspace.sendMessage({ groupId: groups[0].id, text: 'Auto', targetKinds: [], routingMode: 'automatic' })
+  assert.equal(workspace.agentCatalog.isRecentlyVerified('zcode', projects[1]), true)
+  assert.equal(workspace.agentCatalog.isProjectAuthBlocked('zcode', projects[2]), true)
+})
+
 test('automatic routing starts the verified read-only Agent when the only writer is unverified', async t => {
   const { directory, calls, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
