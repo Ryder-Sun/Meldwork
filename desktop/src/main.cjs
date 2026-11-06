@@ -389,7 +389,7 @@ async function runCoreAgent(agent, prompt, workdir, options = {}) {
         ...configDirectoryEnvironment(selectedNativeEnv),
         ...nativeCredentialEnvironment(agent.kind, selectedNativeEnv),
         ...(agent.kind === 'workbuddy' ? workBuddyEnvironment({
-          env: shellEnvironment.env, home: shellEnvironment.home,
+          env: selectedNativeEnv, home: shellEnvironment.home,
           modelId: workspace?.state.agentPreferences.workbuddy?.modelId,
         }) : {}),
         ...(shellEnvironment.env.PATH ? { PATH: shellEnvironment.env.PATH } : {}),
@@ -780,7 +780,9 @@ function registerIpc() {
     getWorkspace: () => workspace,
     getWorkBuddySettings: async () => {
       const shell = await nativeShellEnvironment()
-      return workBuddySettings({ ...shell, modelId: workspace?.state.agentPreferences.workbuddy?.modelId })
+      return workBuddySettings({ ...shell,
+        env: nativeConfigEnvironment('workbuddy', workspace?.state.agentPreferences, shell.env),
+        modelId: workspace?.state.agentPreferences.workbuddy?.modelId })
     },
     installer,
     isShutdownStarted: () => shutdownStarted,

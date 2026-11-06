@@ -48,6 +48,7 @@ for (const [kind, key, file] of [
   ['codex', 'CODEX_HOME', 'config.toml'],
   ['claude', 'CLAUDE_CONFIG_DIR', 'settings.json'],
   ['pi', 'PI_CODING_AGENT_DIR', 'models.json'],
+  ['workbuddy', 'CODEBUDDY_CONFIG_DIR', 'models.json'],
 ]) {
   test(`${kind} uses its selected native configuration directory`, t => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), `meldwork-${kind}-config-`))

@@ -270,6 +270,39 @@ test('DeepSeek shared Skill directory follows the native shell and invalidates i
   assert.equal(catalog.input.sharedDirectoryForKind('deepseek'), shared)
 })
 
+test('WorkBuddy selected directory supplies model settings, execution, and Skill discovery', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-workbuddy-config-ipc-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const native = path.join(directory, 'workbuddy-home')
+  fs.mkdirSync(native)
+  fs.writeFileSync(path.join(native, 'models.json'), JSON.stringify([{ id: 'native-model', name: 'Native',
+    apiKey: 'synthetic-secret', url: 'https://example.test/v1', supportsToolCall: true }]))
+  let credentialEnvironment
+  const { harness } = loadMain(directory, {
+    dialogResult: { canceled: false, filePaths: [native] },
+    nativeShellEnvironment: () => ({ env: { CODEBUDDY_CONFIG_DIR: '/previous' }, source: 'native-shell' }),
+    nativeCredentialState: (_kind, input) => { credentialEnvironment = input.env; return { state: 'ready', source: 'native-credential' } },
+  })
+  await harness.ready()
+  const workspace = harness.workspaceInstances[0]
+  workspace.state.agentPreferences = {}
+  workspace.state.agentRuntime = {}
+  workspace.activeRuns = new Map()
+  workspace.save = () => {}
+  const chosen = await harness.ipcHandlers.get('local-agent-native-config:choose')(harness.event(), 'workbuddy')
+  const settings = await harness.ipcHandlers.get('local-workbuddy:settings')(harness.event())
+  assert.deepEqual(settings.models, [{ id: 'native-model', name: 'Native' }])
+  assert.doesNotMatch(JSON.stringify(settings), /synthetic-secret/)
+  workspace.state.agentPreferences.workbuddy.modelId = 'native-model'
+  await workspace.input.credentialState('workbuddy', { executable: '/tmp/workbuddy' })
+  assert.equal(credentialEnvironment.CODEBUDDY_CONFIG_DIR, chosen.directory)
+  await workspace.input.runAgent({ kind: 'workbuddy', executable: '/tmp/workbuddy' }, 'hello', directory, {})
+  const env = harness.runAgentCalls.at(-1)[3].env
+  assert.equal(env.CODEBUDDY_CONFIG_DIR, chosen.directory)
+  assert.equal(env.CODEBUDDY_API_KEY, 'synthetic-secret')
+  assert.equal(harness.skillCatalogInstances[0].input.configDirectoryForKind('workbuddy'), chosen.directory)
+})
+
 test('native configuration cannot change if a run starts while the picker is open', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-config-race-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

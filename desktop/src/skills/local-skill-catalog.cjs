@@ -172,7 +172,7 @@ function globalRoots(kind, home, configDirectory = '', sharedDirectory = '') {
     }
     const nativeParts = kind === 'pi' && parts[0] === '.pi' && parts[1] === 'agent'
       ? parts.slice(2)
-      : (['codex', 'hermes', 'claude'].includes(kind) && parts[0] === `.${kind}`)
+      : (['codex', 'hermes', 'claude', 'workbuddy'].includes(kind) && parts[0] === `.${kind}`)
         || (kind === 'deepseek' && parts[0] === '.dsh') ? parts.slice(1) : null
     const directory = configDirectory && nativeParts
       ? path.join(configDirectory, ...nativeParts) : path.join(home, ...parts)
@@ -189,8 +189,8 @@ function safePluginRoot(installLocation, ...parts) {
   return candidate
 }
 
-function workBuddyPluginRoots(home) {
-  const workBuddy = path.join(home, '.workbuddy')
+function workBuddyPluginRoots(home, configDirectory = '') {
+  const workBuddy = configDirectory || path.join(home, '.workbuddy')
   const settings = readJson(path.join(workBuddy, 'settings.json'))
   const marketplaces = readJson(path.join(workBuddy, 'plugins', 'known_marketplaces.json'))
   const enabled = settings?.enabledPlugins
@@ -272,7 +272,7 @@ function codexPluginRoots(home, configDirectory = '') {
 function skillRoots(kind, home, configDirectory = '', sharedDirectory = '') {
   const roots = globalRoots(kind, home, configDirectory, sharedDirectory)
   if (kind === 'codex') roots.push(...codexPluginRoots(home, configDirectory))
-  if (kind === 'workbuddy') roots.push(...workBuddyPluginRoots(home))
+  if (kind === 'workbuddy') roots.push(...workBuddyPluginRoots(home, configDirectory))
   return roots
 }
 

@@ -63,7 +63,7 @@ test('supported Agent scans stay isolated and return targetKind-safe global meta
 test('selected native directories control Skill discovery and Codex plugin lookup', t => {
   const home = fixture(t)
   const selected = {}
-  for (const kind of ['hermes', 'codex', 'claude', 'pi']) {
+  for (const kind of ['hermes', 'codex', 'claude', 'pi', 'workbuddy']) {
     writeSkill(kind === 'pi' ? path.join(home, '.pi', 'agent', 'skills') : path.join(home, `.${kind}`, 'skills'), `${kind}-old`)
     selected[kind] = path.join(home, `selected-${kind}`)
     writeSkill(path.join(selected[kind], 'skills'), `${kind}-new`)
@@ -77,6 +77,7 @@ test('selected native directories control Skill discovery and Codex plugin looku
   assert.deepEqual(catalog.list('hermes').skills.map(skill => skill.slug), ['hermes-new'])
   assert.deepEqual(catalog.list('claude').skills.map(skill => skill.slug).sort(), ['claude-new', 'shared'])
   assert.deepEqual(catalog.list('pi').skills.map(skill => skill.slug), ['pi-new'])
+  assert.deepEqual(catalog.list('workbuddy').skills.map(skill => skill.slug), ['workbuddy-new'])
   assert.deepEqual(catalog.list('deepseek').skills.map(skill => skill.slug).sort(), ['deepseek-new', 'shared'])
   assert.deepEqual(catalog.list('codex').skills.map(skill => skill.slug).sort(), ['codex-new', 'plugin-skill', 'shared'])
   const skill = catalog.list('hermes').skills[0]
@@ -85,6 +86,18 @@ test('selected native directories control Skill discovery and Codex plugin looku
   catalog.invalidate('hermes')
   assert.deepEqual(catalog.list('hermes').skills.map(item => item.slug), ['hermes-old'])
   assert.throws(() => catalog.resolveSelections('hermes', [skill]), { message: 'LOCAL_SKILL_SELECTION_INVALID' })
+})
+
+test('WorkBuddy plugin settings follow its selected native directory', t => {
+  const home = fixture(t)
+  const selected = path.join(home, 'selected-workbuddy')
+  const marketplace = path.join(home, 'marketplace')
+  fs.mkdirSync(path.join(selected, 'plugins'), { recursive: true })
+  fs.writeFileSync(path.join(selected, 'settings.json'), JSON.stringify({ enabledPlugins: { 'docs@builtin': true } }))
+  fs.writeFileSync(path.join(selected, 'plugins', 'known_marketplaces.json'), JSON.stringify({ builtin: { installLocation: marketplace } }))
+  writeSkill(path.join(marketplace, 'docs', 'skills'), 'selected-plugin')
+  const catalog = new LocalSkillCatalog({ home, configDirectoryForKind: kind => kind === 'workbuddy' ? selected : '' })
+  assert.deepEqual(catalog.list('workbuddy').skills.map(skill => skill.slug), ['selected-plugin'])
 })
 
 test('DeepSeek shared Skills follow its independent native shared directory', t => {
