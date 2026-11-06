@@ -1210,6 +1210,48 @@ input.on('line', (line) => {
   )
 })
 
+test('MiMo ACP replaces a cached process after its native project configuration changes', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-mimo-config-reuse-'))
+  const count = path.join(directory, 'count')
+  const config = path.join(directory, 'mimocode.json')
+  fs.writeFileSync(config, JSON.stringify({ model: 'custom/first' }))
+  const cli = executable(directory, 'mimo-config-reuse.cjs', `
+const fs = require('node:fs'), readline = require('node:readline')
+const count = process.env.MELDWORK_TEST_SPAWN_COUNT_FILE
+fs.writeFileSync(count, String((fs.existsSync(count) ? Number(fs.readFileSync(count, 'utf8')) : 0) + 1))
+const send = value => process.stdout.write(JSON.stringify(value) + '\\n')
+readline.createInterface({ input: process.stdin }).on('line', line => {
+  const m = JSON.parse(line), sessionId = m.params?.sessionId || 'mimo-config-session'
+  if (m.method === 'initialize') send({ jsonrpc: '2.0', id: m.id, result: { protocolVersion: 1 } })
+  else if (m.method === 'session/new') send({ jsonrpc: '2.0', id: m.id, result: { sessionId } })
+  else if (m.method === 'session/set_mode') send({ jsonrpc: '2.0', id: m.id, result: {} })
+  else if (m.method === 'session/prompt') {
+    send({ jsonrpc: '2.0', method: 'session/update', params: { sessionId, update: {
+      sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'reply' },
+    } } })
+    send({ jsonrpc: '2.0', id: m.id, result: { stopReason: 'end_turn' } })
+  }
+})
+`)
+  t.after(async () => { await adapters.shutdownAcpSessionRuntime(); fs.rmSync(directory, { recursive: true, force: true }) })
+  const agent = { kind: 'mimo', name: 'MiMo', executable: cli }
+  const options = { acpPersistenceKey: 'workspace:mimo:config',
+    env: { XDG_CONFIG_HOME: path.join(directory, 'xdg'), MELDWORK_TEST_SPAWN_COUNT_FILE: count } }
+  const first = await adapters.runAgent(agent, 'first', directory, options)
+  const second = await adapters.runAgent(agent, 'second', directory, {
+    ...options, sessionRef: first.sessionRef, sessionTransport: 'acp',
+  })
+  assert.equal(second.text, 'reply')
+  assert.equal(fs.readFileSync(count, 'utf8'), '1')
+  fs.writeFileSync(config, JSON.stringify({ model: 'custom/second' }))
+  await assert.rejects(adapters.runAgent(agent, 'changed', directory, {
+    ...options, sessionRef: first.sessionRef, sessionTransport: 'acp',
+  }), { code: 'LOCAL_AGENT_SESSION_INVALID' })
+  const fresh = await adapters.runAgent(agent, 'fresh', directory, options)
+  assert.equal(fresh.text, 'reply')
+  assert.equal(fs.readFileSync(count, 'utf8'), '2')
+})
+
 test('switching between read-only and write keeps one ACP process when only the session mode differs', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-acp-mode-switch-'))
   const spawnCountFile = path.join(directory, 'spawn-count.txt')

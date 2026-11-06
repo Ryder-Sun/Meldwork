@@ -1,6 +1,7 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const os = require('node:os')
+const { createHash } = require('node:crypto')
 const JSON5 = require('json5')
 const { nativeSecretEnvKeys } = require('./native-secret-environment.cjs')
 
@@ -18,7 +19,7 @@ function projectDirectories(workdir) {
   return directories.reverse()
 }
 
-function mimoProviderKey(options = {}) {
+function mimoConfigLayers(options = {}) {
   const env = options.env || process.env
   const home = options.home || os.homedir()
   const root = env.XDG_CONFIG_HOME || path.join(home, '.config')
@@ -30,7 +31,7 @@ function mimoProviderKey(options = {}) {
     }
     const explicitFile = resolveNativePath(env.MIMOCODE_CONFIG)
     const explicitDirectory = resolveNativePath(env.MIMOCODE_CONFIG_DIR)
-    if (explicitFile === null || explicitDirectory === null) return ''
+    if (explicitFile === null || explicitDirectory === null) return null
     const projects = /^(?:1|true)$/i.test(env.MIMOCODE_DISABLE_PROJECT_CONFIG || '')
       ? [] : projectDirectories(options.workdir)
     const files = [path.join(root, 'mimocode', 'mimocode.json'), path.join(root, 'mimocode', 'mimocode.jsonc'),
@@ -46,13 +47,26 @@ function mimoProviderKey(options = {}) {
         if (error.code === 'ENOENT') continue
         throw error
       }
-      if (!stat.isFile() || stat.size > 2 * 1024 * 1024) return ''
+      if (!stat.isFile() || stat.size > 2 * 1024 * 1024) return null
       configs.push(JSON5.parse(fs.readFileSync(file, 'utf8')))
     }
     if (env.MIMOCODE_CONFIG_CONTENT) {
-      if (Buffer.byteLength(env.MIMOCODE_CONFIG_CONTENT) > 2 * 1024 * 1024) return ''
+      if (Buffer.byteLength(env.MIMOCODE_CONFIG_CONTENT) > 2 * 1024 * 1024) return null
       configs.push(JSON5.parse(env.MIMOCODE_CONFIG_CONTENT))
     }
+    return configs
+  } catch { return null }
+}
+
+function mimoConfigurationFingerprint(options = {}) {
+  const configs = mimoConfigLayers(options)
+  return configs === null ? null : createHash('sha256').update(JSON.stringify(configs)).digest('hex')
+}
+
+function mimoProviderKey(options = {}) {
+  const configs = mimoConfigLayers(options)
+  if (!configs) return ''
+  try {
     let model = ''
     for (const config of configs) {
       if (typeof config?.model === 'string') model = config.model
@@ -84,4 +98,4 @@ function mimoConfiguredProvider(options = {}) {
   return typeof key === 'string' && Boolean(key.trim())
 }
 
-module.exports = { mimoConfiguredProvider, mimoDeclaredCredentialKeys }
+module.exports = { mimoConfigurationFingerprint, mimoConfiguredProvider, mimoDeclaredCredentialKeys }
