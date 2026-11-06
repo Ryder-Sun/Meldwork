@@ -559,7 +559,7 @@ function nativeShellCommand(shellName, extraEnvKeys = []) {
   const keys = [...SHELL_ENV_KEYS, ...nativeSecretEnvKeys(extraEnvKeys)].join(' ')
   // Enumerate names only; do not dump unrelated values or depend on Electron RunAsNode.
   const regionNames = shellName === 'zsh'
-    ? 'builtin print -rl -- ${(k)parameters[(I)VERTEX_REGION_*]}'
+    ? 'for __meldwork_region in ${(k)parameters[(I)VERTEX_REGION_*]}; do [[ ${(tP)__meldwork_region} == *export* ]] && builtin print -r -- "$__meldwork_region"; done'
     : [
         'if [ -n "${BASH_VERSION-}" ]; then',
         '  builtin compgen -e VERTEX_REGION_',

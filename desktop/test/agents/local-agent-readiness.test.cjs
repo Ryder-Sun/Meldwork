@@ -1511,6 +1511,7 @@ for (const shell of ['/bin/sh', '/bin/bash', '/bin/zsh']) {
       execFileFn: async (command, args, options) => {
         const result = await execFile(command, ['-c', [
           "export VERTEX_REGION_CLAUDE_FUTURE_MODEL=us-east5",
+          "VERTEX_REGION_PRIVATE=unexported-region",
           "export VERTEX_REGION_CLAUDE_EMPTY=''",
           "export VERTEX_REGION_LITERAL='$(touch should-not-exist)'",
           "export MELDWORK_UNRELATED='synthetic-unrelated-secret'",
@@ -1523,11 +1524,13 @@ for (const shell of ['/bin/sh', '/bin/bash', '/bin/zsh']) {
     })
     assert.equal(resolved.source, 'native-shell')
     assert.equal(resolved.env.VERTEX_REGION_CLAUDE_FUTURE_MODEL, 'us-east5')
+    assert.equal(resolved.env.VERTEX_REGION_PRIVATE, undefined)
     assert.equal(resolved.env.VERTEX_REGION_CLAUDE_EMPTY, '')
     assert.equal(resolved.env.VERTEX_REGION_LITERAL, '$(touch should-not-exist)')
     assert.equal(resolved.env.MELDWORK_UNRELATED, undefined)
     assert.equal(resolved.env.NODE_OPTIONS, undefined)
     assert.equal(output.includes('synthetic-unrelated-secret'), false)
+    assert.equal(output.includes('unexported-region'), false)
     assert.equal(fs.existsSync(path.join(home, 'should-not-exist')), false)
   })
 }
