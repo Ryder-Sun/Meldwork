@@ -6,6 +6,26 @@ import { t } from '../../i18n.js'
 afterEach(() => { delete window.meldworkDesktop })
 
 describe('Connector package settings', () => {
+  it('offers upgrade instead of a conflicting install when another version is installed', async () => {
+    const publisher = { name: 'Publisher' }
+    const items = [
+      { packageId: 'old', connectorId: 'example', state: 'installed', label: 'Old', connectorVersion: '1.0.0', publisher },
+      { packageId: 'new', connectorId: 'example', state: 'approved', label: 'New', connectorVersion: '2.0.0', publisher },
+      { packageId: 'disabled', connectorId: 'example', state: 'disabled', label: 'Disabled', connectorVersion: '0.9.0', publisher },
+    ]
+    const api = { packages: vi.fn().mockResolvedValue(items), list: vi.fn().mockResolvedValue([]), upgrade: vi.fn() }
+    window.meldworkDesktop = { localAgentConnector: api }
+    const wrapper = mount(ConnectorPackagesPanel)
+    await flushPromises()
+    const rows = wrapper.findAll('.connector-row')
+    expect(rows[1].text()).toContain(t('connectorPackages.upgrade'))
+    expect(rows[1].text()).not.toContain(t('connectorPackages.install'))
+    expect(rows[2].text()).not.toContain(t('connectorPackages.install'))
+    await rows[1].findAll('button').find(button => button.text() === t('connectorPackages.upgrade')).trigger('click')
+    expect(api.upgrade).toHaveBeenCalledWith('new')
+    wrapper.unmount()
+  })
+
   it('approves packages and configures credential-free instances', async () => {
     const item = { packageId: 'package', manifestId: 'manifest', state: 'imported', label: 'Example', connectorVersion: '1.0.0', publisher: { name: 'Publisher' } }
     const api = {

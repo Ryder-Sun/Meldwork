@@ -12,8 +12,8 @@
       <div class="connector-actions">
         <button type="button" :disabled="busy" @click="inspect(item)">{{ t('connectorPackages.inspect') }}</button>
         <button v-if="item.state === 'imported'" type="button" :disabled="busy" @click="perform('approve', item)">{{ t('connectorPackages.approve') }}</button>
-        <button v-if="item.state === 'approved' || item.state === 'disabled'" type="button" :disabled="busy" @click="perform('install', item)">{{ t('connectorPackages.install') }}</button>
-        <button v-if="item.state === 'approved' && packages.some(other => other.connectorId === item.connectorId && other.state === 'installed')" type="button" :disabled="busy" @click="perform('upgrade', item)">{{ t('connectorPackages.upgrade') }}</button>
+        <button v-if="['approved', 'disabled'].includes(item.state) && !hasInstalledVersion(item)" type="button" :disabled="busy" @click="perform('install', item)">{{ t('connectorPackages.install') }}</button>
+        <button v-if="item.state === 'approved' && hasInstalledVersion(item)" type="button" :disabled="busy" @click="perform('upgrade', item)">{{ t('connectorPackages.upgrade') }}</button>
         <button v-if="item.state === 'installed'" type="button" :disabled="busy" @click="configure(item)">{{ t('connectorPackages.configure') }}</button>
         <button v-if="item.state === 'installed'" type="button" :disabled="busy" @click="perform('disable', item)">{{ t('connectorPackages.disable') }}</button>
         <button v-if="!['revoked', 'removed'].includes(item.state)" type="button" :disabled="busy" @click="perform('revoke', item)">{{ t('connectorPackages.revoke') }}</button>
@@ -61,6 +61,10 @@ const notice = ref('')
 const confirmingInstance = ref('')
 const selected = ref(null)
 const audit = ref([])
+function hasInstalledVersion(item) {
+  return packages.value.some(other => other.packageId !== item.packageId
+    && other.connectorId === item.connectorId && other.state === 'installed')
+}
 async function run(action) {
   busy.value = true
   error.value = ''
