@@ -100,6 +100,37 @@ function httpPackage(sessionOverrides = {}) {
   })
 }
 
+test('concurrent HTTP Connector accounts use only their own credentials at the transport boundary', async t => {
+  const requests = []
+  const previous = process.env.OPENAI_API_KEY
+  process.env.OPENAI_API_KEY = 'unrelated-global-provider-secret'
+  t.after(() => { if (previous === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = previous })
+  const { connectors, directory, packageStore } = fixture(t, async (_url, options) => {
+    requests.push({ prompt: JSON.parse(options.body).prompt, authorization: options.headers.authorization })
+    return { ok: true, text: async () => JSON.stringify({ text: 'done' }) }
+  })
+  const pkg = httpPackage()
+  install(packageStore, pkg)
+  connectors.refresh([])
+  const first = connectors.configure({ manifestId: pkg.manifest.manifestId, label: 'Account A',
+    credentials: { 'access-token': 'account-a-secret' } })
+  const second = connectors.configure({ manifestId: pkg.manifest.manifestId, label: 'Account B',
+    credentials: { 'access-token': 'account-b-secret' } })
+  const agents = connectors.detectAgents()
+  const agentA = agents.find(agent => agent.kind === first.instanceId)
+  const agentB = agents.find(agent => agent.kind === second.instanceId)
+  assert.ok(agentA && agentB)
+  const results = await Promise.all([
+    connectors.run(agentA, 'prompt-a', directory, { runId: 'run-a', agentRunId: 'agent-a', sandbox: 'read-only' }),
+    connectors.run(agentB, 'prompt-b', directory, { runId: 'run-b', agentRunId: 'agent-b', sandbox: 'read-only' }),
+  ])
+  assert.deepEqual(requests.sort((a, b) => a.prompt.localeCompare(b.prompt)), [
+    { prompt: 'prompt-a', authorization: 'Bearer account-a-secret' },
+    { prompt: 'prompt-b', authorization: 'Bearer account-b-secret' },
+  ])
+  assert.doesNotMatch(JSON.stringify(results), /account-[ab]-secret|unrelated-global-provider-secret/)
+})
+
 test('HTTP transport timeout starts after outbound recording', async t => {
   let requestSignal
   const { connectors, directory, packageStore } = fixture(t, async (_url, { signal }) => {
