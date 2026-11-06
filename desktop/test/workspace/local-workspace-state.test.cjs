@@ -3,7 +3,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
-const { loadWorkspaceState, workspaceSnapshot } = require('../../src/workspace/local-workspace-state.cjs')
+const { loadWorkspaceState, saveWorkspaceState, workspaceSnapshot } = require('../../src/workspace/local-workspace-state.cjs')
 
 test('snapshot exposes only the newest bound run outcome without private ledger fields', () => {
   const record = { runId: 'run-new', groupId: 'group', threadRootId: 'root', status: 'completed',
@@ -29,6 +29,13 @@ function fixture(t) {
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
   return path.join(directory, 'workspace.json')
 }
+
+test('a maximum-length Connector session reference survives workspace reload', t => {
+  const storagePath = fixture(t)
+  const reference = 'x'.repeat(256)
+  saveWorkspaceState(storagePath, { version: 3, groups: [], messages: [], sessions: { 'group:connector': reference } })
+  assert.equal(loadWorkspaceState(storagePath).state.sessions['group:connector'], reference)
+})
 
 test('distinguishes missing, corrupt, unreadable, unsupported, and valid workspace state', (t) => {
   const storagePath = fixture(t)

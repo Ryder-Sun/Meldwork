@@ -339,7 +339,7 @@ test('non-legacy Connector results cannot bypass event declarations with raw pro
 })
 
 test('Connector session references must be bounded strings without control characters', async () => {
-  for (const invalid of [{}, 42, 'session\nnext', 'session\u0000next', 'x'.repeat(8193)]) {
+  for (const invalid of [{}, 42, 'session\nnext', 'session\u0000next', 'x'.repeat(257), 'path/session', 'sk_' + 'x'.repeat(16)]) {
     const inputRuntime = runtimeFixture(async () => assert.fail('invalid session reached recipe')).runtime
     await assert.rejects(inputRuntime.run(inputRuntime.detectAgents()[0], 'Review', '/tmp/workspace', {
       runId: 'run-bad-session-input', agentRunId: 'agent-bad-session-input', sandbox: 'read-only', sessionRef: invalid,
@@ -352,7 +352,7 @@ test('Connector session references must be bounded strings without control chara
       runId: 'run-bad-session-result', agentRunId: 'agent-bad-session-result', sandbox: 'read-only',
     }), { message: 'AGENT_CONNECTOR_SESSION_INVALID' })
   }
-  const valid = 'x'.repeat(8192)
+  const valid = 'x'.repeat(256)
   const { runtime } = runtimeFixture(async input => {
     assert.equal(input.sessionRef, valid)
     input.emit({ eventId: 'completed', cursor: 'completed', sequence: 1, type: 'Completed', outcome: 'completed' })

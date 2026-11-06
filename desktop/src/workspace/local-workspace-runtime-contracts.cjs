@@ -1,4 +1,5 @@
 const { DEFAULT_MAX_OUTPUT_CHARS, normalizeTraceCapsule } = require('../runs/run-harness.cjs')
+const { normalizeSessionRef } = require('../runs/session-reference.cjs')
 const {
   MAX_MESSAGE_TEXT_CHARS,
   MAX_SYSTEM_PARAM_TEXT_CHARS,
@@ -23,8 +24,6 @@ const MAX_TERMINAL_PREFIX_TEXT_CHARS = (MAX_SYSTEM_PARAM_TEXT_CHARS * 2) + 128
 const MAX_TERMINAL_MESSAGE_TEXT_CHARS = MAX_TERMINAL_PREFIX_TEXT_CHARS
   + 1
   + DEFAULT_MAX_OUTPUT_CHARS
-const SESSION_REF = /^[A-Za-z0-9][A-Za-z0-9._:+-]{0,255}$/
-const SECRET_LIKE_SESSION_REF = /^(?:sk|rk|pk|ghp|github_pat|xox[baprs]?)[_-][A-Za-z0-9_-]{12,}$/i
 const RUN_STATUSES = new Set([
   'completed', 'partial', 'failed', 'stopped', 'timeout', 'round-limit', 'interrupted',
   'budget-exhausted', 'circuit-breaker',
@@ -121,11 +120,6 @@ function cleanElapsedMs(value) {
 
 function agentStoppedError() {
   return new Error('LOCAL_AGENT_EXECUTION_STOPPED')
-}
-
-function normalizeSessionRef(value) {
-  const sessionRef = String(value || '')
-  return SESSION_REF.test(sessionRef) && !SECRET_LIKE_SESSION_REF.test(sessionRef) ? sessionRef : ''
 }
 
 async function abortableOperation(operation, signal) {

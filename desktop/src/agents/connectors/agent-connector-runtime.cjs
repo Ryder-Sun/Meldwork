@@ -1,6 +1,7 @@
 const crypto = require('node:crypto')
 const { automaticPermissionResponse, READ_ONLY_SAFE_TOOL_KINDS } = require('../agent-permission-policy.cjs')
 const { SDK_HTTP_JSON_RECIPE_ID } = require('./agent-connector-package-store.cjs')
+const { normalizeSessionRef } = require('../../runs/session-reference.cjs')
 
 const { canonicalJson } = require('../../collaboration/outcome-records.cjs')
 const {
@@ -14,7 +15,6 @@ const SHA256 = /^[a-f0-9]{64}$/
 const MAX_PROMPT_BYTES = 4 * 1024 * 1024
 const MAX_INPUT_RESPONSE_BYTES = 128 * 1024
 const MAX_ATTACHMENTS = 16
-const MAX_SESSION_REF_LENGTH = 8192
 const OUTBOUND_TRANSPORTS = new Set(['http', 'a2a'])
 
 function runtimeError(code) {
@@ -113,7 +113,7 @@ function assertEventCapabilities(connector, input, permissionMode) {
 
 function validatedSessionRef(value) {
   if (value == null) return ''
-  if (typeof value !== 'string' || value.length > MAX_SESSION_REF_LENGTH || /[\u0000-\u001f\u007f]/.test(value)) {
+  if (typeof value !== 'string' || (value !== '' && normalizeSessionRef(value) !== value)) {
     fail('AGENT_CONNECTOR_SESSION_INVALID')
   }
   return value
