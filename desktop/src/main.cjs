@@ -252,7 +252,12 @@ async function nativeShellEnvironment(options = {}) {
 
 async function detectLocalAgents() {
   const shellEnvironment = await nativeShellEnvironment()
-  return detectAgents({ env: shellEnvironment.env, home: shellEnvironment.home })
+  return detectAgents({
+    env: shellEnvironment.env,
+    home: shellEnvironment.home,
+    nativeEnvironmentForKind: kind => kind === 'openclaw'
+      ? {} : nativeCredentialEnvironment(kind, shellEnvironment.env),
+  })
 }
 
 function workspaceStoragePath(userData = app.getPath('userData')) {

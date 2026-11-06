@@ -4,6 +4,7 @@ const os = require('node:os')
 const path = require('node:path')
 const { promisify } = require('node:util')
 const { networkEnvironment } = require('./cli-network-environment.cjs')
+const { redactChildSecrets } = require('./cli-runtime-event-sanitizer.cjs')
 const {
   assessAgentVersion,
   capabilityProbes,
@@ -458,7 +459,7 @@ async function inspectAgentCandidate(kind, executable, options, childEnv) {
       const identified = identifyAgentVersion(kind, [result.stdout, result.stderr], { executable })
       return {
         succeeded: true,
-        version: identified?.line || '',
+        version: redactChildSecrets(identified?.line || '', childEnv),
         versionIdentified: Boolean(identified),
       }
     } catch { /* capability probes can still establish whether this installation works */ }
@@ -539,9 +540,11 @@ async function detectAgents(options = {}) {
     ...systemChildEnvironment(env, platform),
     PATH: searchPath(detectionOptions),
   }
-  const detected = await Promise.all(ALLOWED_KINDS.map(kind => (
-    detectAgentKind(kind, detectionOptions, childEnv).catch(() => null)
-  )))
+  const detected = await Promise.all(ALLOWED_KINDS.map(kind => {
+    const nativeEnv = typeof options.nativeEnvironmentForKind === 'function'
+      ? options.nativeEnvironmentForKind(kind) : {}
+    return detectAgentKind(kind, detectionOptions, { ...childEnv, ...nativeEnv }).catch(() => null)
+  }))
   return detected.filter(Boolean)
 }
 

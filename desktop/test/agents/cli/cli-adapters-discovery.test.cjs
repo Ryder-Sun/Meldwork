@@ -1094,6 +1094,38 @@ test('Agent detection passes only allowlisted system environment to version comm
   }
 })
 
+test('Agent detection uses each Agent native environment without exposing its values in the catalog', async () => {
+  const { nativeCredentialEnvironment } = require('../../../src/agents/local-agent-readiness.cjs')
+  const shell = {
+    OPENAI_API_KEY: 'codex-private-token', ANTHROPIC_API_KEY: 'claude-private-token',
+    AWS_PROFILE: 'native-profile', AWS_REGION: 'us-east-1',
+    UNRELATED_SECRET: 'unrelated-private-token',
+  }
+  const seen = new Map()
+  const found = await detectAgents({
+    platform: 'darwin', env: shell,
+    nativeEnvironmentForKind: kind => nativeCredentialEnvironment(kind, shell),
+    resolveExecutableFn: async kind => ['codex', 'claude'].includes(kind) ? `/tmp/${kind}` : null,
+    execFileFn: async (command, _args, options) => {
+      seen.set(command, options.env)
+      return { stdout: command.endsWith('codex')
+        ? 'codex-cli 0.147.0 codex-private-token' : 'Claude Code 2.1.0 claude-private-token', stderr: '' }
+    },
+    probeAgentCapabilitiesFn: async (_kind, executable, options) => {
+      assert.deepEqual(options.childEnv, seen.get(executable))
+      return { compatibilityState: 'compatible', incompatibilityReason: '', incompatibilityProbe: '' }
+    },
+  })
+  assert.equal(seen.get('/tmp/codex').OPENAI_API_KEY, shell.OPENAI_API_KEY)
+  assert.equal(seen.get('/tmp/codex').ANTHROPIC_API_KEY, undefined)
+  assert.equal(seen.get('/tmp/claude').ANTHROPIC_API_KEY, shell.ANTHROPIC_API_KEY)
+  assert.equal(seen.get('/tmp/claude').AWS_PROFILE, shell.AWS_PROFILE)
+  assert.equal(seen.get('/tmp/claude').AWS_REGION, shell.AWS_REGION)
+  assert.equal(seen.get('/tmp/claude').OPENAI_API_KEY, undefined)
+  assert.equal(seen.get('/tmp/claude').UNRELATED_SECRET, undefined)
+  assert.doesNotMatch(JSON.stringify(found), /(?:codex|claude)-private-token/)
+})
+
 test('Agent detection retains a broken installation with unavailable capabilities', async () => {
   const found = await detectAgents({
     platform: 'darwin',
