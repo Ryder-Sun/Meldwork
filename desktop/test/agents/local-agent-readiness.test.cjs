@@ -140,6 +140,15 @@ test('Pi Cloudflare readiness and execution retain required account and gateway 
   assert.equal(nativeCredentialState('pi', { home, env: {
     CLOUDFLARE_API_KEY: native.CLOUDFLARE_API_KEY, CLOUDFLARE_ACCOUNT_ID: 'account-id',
   } }).state, 'unknown')
+  const authPath = path.join(root, 'auth.json')
+  const store = credential => fs.writeFileSync(authPath, JSON.stringify({ 'cloudflare-ai-gateway': credential }))
+  store({ type: 'api_key', key: 'stored-token', env: { CLOUDFLARE_ACCOUNT_ID: 'stored-account' } })
+  assert.equal(nativeCredentialState('pi', { home, env: {} }).state, 'unknown')
+  assert.equal(nativeCredentialState('pi', { home, env: { CLOUDFLARE_GATEWAY_ID: 'gateway-id' } }).state, 'ready')
+  store({ type: 'api_key', key: 'stored-token', env: { CLOUDFLARE_ACCOUNT_ID: '', CLOUDFLARE_GATEWAY_ID: 'gateway-id' } })
+  assert.equal(nativeCredentialState('pi', { home, env: native }).state, 'unknown')
+  store({ type: 'api_key', key: '', env: { CLOUDFLARE_ACCOUNT_ID: 'account-id', CLOUDFLARE_GATEWAY_ID: 'gateway-id' } })
+  assert.equal(nativeCredentialState('pi', { home, env: native }).state, 'unknown')
 })
 
 test('Pi retains more than 32 environment references from its native models configuration', t => {

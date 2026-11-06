@@ -229,6 +229,22 @@ function piAuthContainsCredential(filename, selected) {
   } catch { return false }
 }
 
+function piCloudflareCredentialReady(root, env, provider) {
+  let credential
+  try {
+    const contents = readCredentialFile(path.join(root, 'auth.json'))
+    const auth = contents && JSON.parse(contents)
+    credential = auth?.[provider]
+  } catch { return false }
+  const value = (name, stored) => stored !== undefined ? stored : env[name]
+  const key = value('CLOUDFLARE_API_KEY', credential?.key)
+  const account = value('CLOUDFLARE_ACCOUNT_ID', credential?.env?.CLOUDFLARE_ACCOUNT_ID)
+  const gateway = value('CLOUDFLARE_GATEWAY_ID', credential?.env?.CLOUDFLARE_GATEWAY_ID)
+  const present = item => typeof item === 'string' && Boolean(item.trim())
+  return credentialLiteral(key) && present(account)
+    && (provider !== 'cloudflare-ai-gateway' || present(gateway))
+}
+
 function piModelsContainCredential(root, env, selected) {
   try {
     if (selected === null) return false
@@ -758,11 +774,8 @@ function nativeCredentialState(kind, options = {}) {
     ? Object.keys(credentialEnv).length > 0
     : Boolean(selectedPiKey && credentialEnv[selectedPiKey]
       || piProvider === 'anthropic' && (credentialEnv.ANTHROPIC_AUTH_TOKEN || credentialEnv.ANTHROPIC_OAUTH_TOKEN))
-  const piCloudflareConfigured = !['cloudflare-workers-ai', 'cloudflare-ai-gateway'].includes(piProvider)
-    || (typeof env.CLOUDFLARE_ACCOUNT_ID === 'string' && Boolean(env.CLOUDFLARE_ACCOUNT_ID.trim())
-      && (piProvider !== 'cloudflare-ai-gateway'
-        || (typeof env.CLOUDFLARE_GATEWAY_ID === 'string' && Boolean(env.CLOUDFLARE_GATEWAY_ID.trim()))))
-  if (hasCredentialEnv && piCloudflareConfigured) {
+  const piCloudflare = ['cloudflare-workers-ai', 'cloudflare-ai-gateway'].includes(piProvider)
+  if (piCloudflare ? piCloudflareCredentialReady(piHome, env, piProvider) : hasCredentialEnv) {
     return {
       state: 'ready',
       source: options.credentialSource === 'native-shell' ? 'native-shell' : 'native-credential',
@@ -794,7 +807,7 @@ function nativeCredentialState(kind, options = {}) {
     opencode: [openCodeAuth],
     opencodereview: [path.join(home, '.opencodereview', 'config.json')],
   }[kind] || []
-  if (jsonFiles.some(filename => kind === 'pi' ? piAuthContainsCredential(filename, piProvider)
+  if (jsonFiles.some(filename => kind === 'pi' ? !piCloudflare && piAuthContainsCredential(filename, piProvider)
     : hermesSelection ? path.basename(filename) === 'auth.json' && hermesAuthContainsCredential(filename, hermesSelection.provider)
       : jsonContainsCredential(filename))
       || (kind === 'pi' && piModelsContainCredential(piHome, env, piProvider))
