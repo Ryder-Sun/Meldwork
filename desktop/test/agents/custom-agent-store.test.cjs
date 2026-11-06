@@ -36,6 +36,23 @@ test('custom Agent store keeps its public facade stable', () => {
   ])
 })
 
+test('custom Agent environment preserves network settings without unrelated credentials', () => {
+  const env = customAgentStoreApi.childEnvironment({
+    HOME: '/home/example', HTTP_PROXY: 'http://127.0.0.1:3128',
+    https_proxy: 'http://127.0.0.1:3129', NO_PROXY: 'localhost',
+    REQUESTS_CA_BUNDLE: '/tmp/ca.pem', CURL_CA_BUNDLE: '/tmp/ca.pem',
+    NODE_USE_ENV_PROXY: '1', UNRELATED_API_KEY: 'private',
+  }, 'linux')
+  assert.equal(env.HTTP_PROXY, 'http://127.0.0.1:3128')
+  assert.equal(env.https_proxy, 'http://127.0.0.1:3129')
+  assert.equal(env.NO_PROXY, 'localhost')
+  assert.equal(env.REQUESTS_CA_BUNDLE, '/tmp/ca.pem')
+  assert.equal(env.CURL_CA_BUNDLE, '/tmp/ca.pem')
+  assert.equal(env.NODE_USE_ENV_PROXY, '1')
+  assert.equal(env.UNRELATED_API_KEY, undefined)
+  assert.equal(customAgentStoreApi.childEnvironment({ Http_Proxy: 'http://proxy' }, 'win32').HTTP_PROXY, 'http://proxy')
+})
+
 function fixture(t, options = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-custom-agent-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
@@ -50,6 +67,40 @@ function fixture(t, options = {}) {
   })
   return { directory, executable, store }
 }
+
+test('custom Agent probe and execution both receive the configured proxy', async t => {
+  const previous = process.env.HTTP_PROXY
+  t.after(() => {
+    if (previous === undefined) delete process.env.HTTP_PROXY
+    else process.env.HTTP_PROXY = previous
+  })
+  process.env.HTTP_PROXY = 'http://127.0.0.1:3128'
+  let probeEnv
+  const { executable, store } = fixture(t, {
+    execFileFn: async (_command, _args, options) => {
+      probeEnv = options.env
+      return { stdout: 'review-agent 1.0.0', stderr: '' }
+    },
+  })
+  store.create({ label: 'Review Agent', args: [], promptMode: 'stdin' }, executable)
+  await store.detectAgents()
+  let runEnv
+  await store.run('custom-0123456789abcdef', 'Review', '/tmp', {
+    sandbox: 'workspace-write',
+    spawnFn: (_command, _args, options) => {
+      runEnv = options.env
+      const child = new EventEmitter()
+      child.stdout = new PassThrough()
+      child.stderr = new PassThrough()
+      child.stdin = new PassThrough()
+      child.kill = () => true
+      setImmediate(() => { child.stdout.write('Done'); child.emit('close', 0) })
+      return child
+    },
+  })
+  assert.equal(probeEnv.HTTP_PROXY, process.env.HTTP_PROXY)
+  assert.equal(runEnv.HTTP_PROXY, process.env.HTTP_PROXY)
+})
 
 test('stores private definitions while exposing only sanitized Custom Agent metadata', async (t) => {
   const { directory, executable, store } = fixture(t)

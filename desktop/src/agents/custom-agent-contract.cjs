@@ -1,6 +1,7 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const { agentRuntimeError } = require('./agent-runtime-contract.cjs')
+const { networkEnvironment } = require('./cli/cli-network-environment.cjs')
 
 const CUSTOM_AGENT_KIND = /^custom-[a-f0-9]{16}$/
 const PROMPT_MODES = new Set(['stdin', 'argument'])
@@ -108,8 +109,8 @@ function executablePath(filename, platform = process.platform) {
   return path.normalize(resolved)
 }
 
-function childEnvironment(source = process.env) {
-  const env = {}
+function childEnvironment(source = process.env, platform = process.platform) {
+  const env = networkEnvironment(source, platform)
   for (const name of CHILD_ENV_KEYS) {
     const key = Object.keys(source).find(candidate => candidate.toLowerCase() === name.toLowerCase())
     const value = key ? source[key] : ''

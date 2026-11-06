@@ -85,7 +85,7 @@ class CustomAgentStore {
       const result = await this.execFileFn(definition.executable, ['--version'], {
         timeout: 5000,
         windowsHide: true,
-        env: childEnvironment(),
+        env: childEnvironment(process.env, this.platform),
       })
       return [result?.stdout, result?.stderr]
         .flatMap(output => String(output || '').split(/\r?\n/))
@@ -206,7 +206,7 @@ class CustomAgentStore {
         promptMode: definition.promptMode,
       }))
     }
-    const env = childEnvironment(options.env || process.env)
+    const env = childEnvironment(options.env || process.env, this.platform)
     return await new Promise((resolve, reject) => {
       let child
       try {
