@@ -28,6 +28,11 @@ const naturalConsensusMethods = {
       if (message.trace?.phase !== 'discussion') continue
       const decision = message.trace?.context?.taskDecision
       if (!decision) continue
+      const contribution = this.v4NaturalMessageContent(message)
+      if (contribution.partial || !contribution.text.trim()) {
+        candidate = null
+        continue
+      }
       if (decision.status !== 'completed') {
         candidate = null
         continue
@@ -41,11 +46,6 @@ const naturalConsensusMethods = {
       // An unbound confirmation cannot replace the version being reviewed.
       // Revisions must first withdraw it with a non-completed decision.
       if (candidate) continue
-      const contribution = this.v4NaturalMessageContent(message)
-      if (contribution.partial || !contribution.text.trim()) {
-        candidate = null
-        continue
-      }
       const candidateFiles = [...files.values()]
       candidate = {
         version: hashValue({ messageId: message.id, text: contribution.text, artifactIds, files: candidateFiles }),

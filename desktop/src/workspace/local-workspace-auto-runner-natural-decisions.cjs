@@ -92,6 +92,10 @@ const v4NaturalDecisionMethods = {
       return { status: 'partial' }
     }
     if (decision.status === 'completed') {
+      const contribution = this.v4NaturalMessageContent(ownerMessage)
+      if (contribution.partial || !contribution.text.trim()) {
+        return { nextKinds: [owner], ownerReview: true }
+      }
       const unresolved = this.v4NaturalUnresolvedBlockers(group, controller, threadRootId, round)
       if (unresolved.length) {
         const available = unresolved.filter(kind => activeKinds.includes(kind))

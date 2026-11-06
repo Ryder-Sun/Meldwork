@@ -6,6 +6,8 @@ const path = require('node:path')
 const { RunLedger } = require('../../src/runs/run-ledger.cjs')
 const { RunScheduler } = require('../../src/runs/run-scheduler.cjs')
 const { LocalWorkspace } = require('../../src/workspace/local-workspace.cjs')
+const { naturalConsensusMethods } = require('../../src/workspace/local-workspace-auto-runner-natural-consensus.cjs')
+const { v4NaturalDecisionMethods } = require('../../src/workspace/local-workspace-auto-runner-natural-decisions.cjs')
 const { deferred, fixture } = require('../support/local-workspace-test-helpers.cjs')
 
 function delay(ms) {
@@ -54,6 +56,49 @@ function acceptedReply(prompt, text, extra = {}) {
   const reviewedVersion = prompt.match(/Candidate version: ([a-f0-9]{64})/)?.[1]
   return decisionReply(text, 'completed', { ...extra, ...(reviewedVersion ? { reviewedVersion } : {}) })
 }
+
+test('a truncated peer review cannot approve or retain a discussion candidate', () => {
+  const messages = []
+  const runner = {
+    ...naturalConsensusMethods,
+    state: () => ({ messages }),
+    v4NaturalMessageMatchesBinding: () => true,
+    v4NaturalMessageContent: message => ({ text: message.content, partial: message.trace.truncated === true }),
+  }
+  const group = { id: 'group' }
+  const controller = { runId: 'run' }
+  const decision = { status: 'completed', reason: 'Done', deliverables: ['Answer'] }
+  const turn = (kind, sequence, context, truncated = false) => ({
+    id: `message-${sequence}`, groupId: group.id, threadRootId: 'task', role: 'agent',
+    agentKind: kind, turnSeq: sequence, content: 'The answer.',
+    trace: { phase: 'discussion', runId: 'run', truncated, context: { taskDecision: context } },
+  })
+  messages.push(turn('codex', 1, decision))
+  const candidate = runner.v4NaturalConsensus(group, controller, 'task')
+  assert.ok(candidate)
+  messages.push(turn('hermes', 2, { ...decision, reviewedVersion: candidate.version }, true))
+  assert.equal(runner.v4NaturalConsensus(group, controller, 'task'), null)
+  messages[1].trace.truncated = false
+  assert.deepEqual([...runner.v4NaturalConsensus(group, controller, 'task').approvedKinds], ['codex', 'hermes'])
+  messages[0].trace.truncated = true
+  assert.equal(runner.v4NaturalConsensus(group, controller, 'task'), null)
+})
+
+test('sequential discussion asks the owner to replace a truncated completion', async () => {
+  const ownerMessage = { agentKind: 'codex', content: 'Partial answer', trace: {
+    context: { taskDecision: { status: 'completed', reason: 'Done', deliverables: ['Answer'] } },
+  } }
+  const runner = {
+    ...v4NaturalDecisionMethods,
+    v4NaturalDiscussionRoundMessages: () => [ownerMessage],
+    v4NaturalOwner: () => 'codex',
+    v4NaturalNextKinds: () => [],
+    v4NaturalMessageContent: () => ({ text: ownerMessage.content, partial: true }),
+  }
+  assert.deepEqual(await runner.v4NaturalRoundOutcome({}, { targetKinds: ['codex'] }, 'task', 1, ['codex']), {
+    nextKinds: ['codex'], ownerReview: true,
+  })
+})
 
 test('a native repetition failure preserves the partial proposal through reload', { timeout: 10000 }, async t => {
   const { directory, options } = fixture()
@@ -553,6 +598,7 @@ test('Natural V4 requires a prior peer discussion round before the owner complet
   workspace.autoRunner.state = () => ({
     messages: [{
       groupId: 'group', threadRootId: 'thread', role: 'agent', agentKind: 'codex',
+      content: 'The answer is ready.',
       trace: { phase: 'discussion', runId: 'run', round: 2, context: completedDecision },
     }],
   })
@@ -574,6 +620,7 @@ test('Natural V4 requires a prior peer discussion round before the owner complet
       },
       {
         groupId: 'group', threadRootId: 'thread', role: 'agent', agentKind: 'codex',
+        content: 'The answer is ready.',
         trace: { phase: 'discussion', runId: 'run', round: 2, context: completedDecision },
       },
     ],
@@ -587,6 +634,7 @@ test('Natural V4 requires a prior peer discussion round before the owner complet
 
   const turn = (kind, round, status, runId = 'run') => ({
     groupId: 'group', threadRootId: 'thread', role: 'agent', agentKind: kind,
+    content: 'Discussion contribution.',
     trace: { phase: 'discussion', runId, round, context: { taskDecision: {
       status, reason: status, deliverables: status === 'completed' ? ['answer'] : [],
     } } },
