@@ -71,6 +71,20 @@ test('local Agent child environments keep supported runtime settings but reject 
   assert.equal(Object.hasOwn(env, 'DYLD_INSERT_LIBRARIES'), false)
 })
 
+test('Pi child environment receives native cloud configuration without process injection', () => {
+  const source = {
+    AWS_PROFILE: 'native-profile', AZURE_OPENAI_API_KEY: 'synthetic-azure',
+    GOOGLE_APPLICATION_CREDENTIALS: '/tmp/adc.json', GITHUB_TOKEN: 'unrelated',
+    NODE_OPTIONS: '--require=/tmp/injected.js',
+  }
+  const env = childEnvironment({ kind: 'pi' }, '/tmp/workspace', { env: source }, 'darwin')
+  assert.equal(env.AWS_PROFILE, source.AWS_PROFILE)
+  assert.equal(env.AZURE_OPENAI_API_KEY, source.AZURE_OPENAI_API_KEY)
+  assert.equal(env.GOOGLE_APPLICATION_CREDENTIALS, source.GOOGLE_APPLICATION_CREDENTIALS)
+  assert.equal(env.GITHUB_TOKEN, undefined)
+  assert.equal(env.NODE_OPTIONS, undefined)
+})
+
 test('WorkBuddy runs load the lite bundle only when that is all the install ships', (t) => {
   const liteOnly = workBuddyInstall(t, ['codebuddy-lite-wb.mjs'])
   const withHeadless = workBuddyInstall(t, ['codebuddy-lite-wb.mjs', 'codebuddy-headless.js'])

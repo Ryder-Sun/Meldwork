@@ -995,6 +995,22 @@ test('native cloud configuration is forwarded only to compatible Agents', () => 
   assert.deepEqual(nativeCredentialEnvironment('codex', cloud), {})
 })
 
+test('Pi retains its native Bedrock, Azure and Vertex environment without unrelated secrets', async () => {
+  const cloud = {
+    AWS_PROFILE: 'native-profile', AWS_REGION: 'region', AWS_SECRET_ACCESS_KEY: 'synthetic-aws',
+    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: '/v2/credentials/example',
+    AZURE_OPENAI_API_KEY: 'synthetic-azure', AZURE_OPENAI_BASE_URL: 'https://azure.example',
+    GOOGLE_CLOUD_API_KEY: 'synthetic-google', GOOGLE_CLOUD_PROJECT: 'project',
+    GOOGLE_APPLICATION_CREDENTIALS: '/tmp/adc.json',
+  }
+  const result = await resolveNativeShellEnvironment({
+    cache: false, platform: 'win32', env: { ...cloud, GITHUB_TOKEN: 'unrelated' },
+  })
+  assert.deepEqual(nativeCredentialEnvironment('pi', result.env), cloud)
+  assert.deepEqual(nativeCredentialEnvironment('codex', result.env), {})
+  assert.equal(result.env.GITHUB_TOKEN, undefined)
+})
+
 test('an installed Agent without credential evidence remains unverified', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-missing-readiness-'))
   try {

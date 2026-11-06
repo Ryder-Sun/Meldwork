@@ -1965,6 +1965,27 @@ test('native Agent credentials are injected only through local Agent execution o
   assert.equal(options.env.NO_PROXY, 'localhost,127.0.0.1')
 })
 
+test('Pi execution receives its native cloud configuration from the shell', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-pi-native-cloud-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const { harness } = loadMain(directory, {
+    nativeShellEnvironment: () => ({
+      env: { AWS_PROFILE: 'native', AZURE_OPENAI_API_KEY: 'synthetic-azure',
+        GOOGLE_CLOUD_PROJECT: 'native-project', GITHUB_TOKEN: 'unrelated' },
+      source: 'native-shell',
+    }),
+    nativeEnvironment: (...args) => require('../../src/agents/local-agent-readiness.cjs')
+      .nativeCredentialEnvironment(...args),
+  })
+  await harness.ready()
+  await harness.workspaceInstances[0].input.runAgent({ kind: 'pi' }, 'hello', directory, {})
+  const env = harness.runAgentCalls[0][3].env
+  assert.equal(env.AWS_PROFILE, 'native')
+  assert.equal(env.AZURE_OPENAI_API_KEY, 'synthetic-azure')
+  assert.equal(env.GOOGLE_CLOUD_PROJECT, 'native-project')
+  assert.equal(env.GITHUB_TOKEN, undefined)
+})
+
 test('OpenClaw native auth is routed through the app-owned isolated runtime', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-openclaw-native-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
