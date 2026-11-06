@@ -48,7 +48,7 @@ export function useAgentCatalog({
         detected.sourceKind || installedProfile.sourceKind || profile.sourceKind || profile.kind,
         theme.value,
       ),
-      imageLimit: profile.custom
+      imageLimit: profile.custom && !profile.connector
         ? MAX_ATTACHMENTS
         : Number(detected.imageAttachmentLimit ?? installedProfile.imageAttachmentLimit ?? profile.imageLimit) || 0,
       installed: Boolean(installedProfile.installed || detected.installed),

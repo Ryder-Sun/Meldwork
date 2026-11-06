@@ -514,6 +514,27 @@ describe('Meldwork workbench', () => {
     wrapper.unmount()
   })
 
+  it('does not treat a file-only Connector as supporting images', async () => {
+    const { wrapper, bridge } = await mountApp(({ state }) => {
+      state.agents.push({ kind: 'custom-connector', label: 'File Connector', installed: true,
+        available: true, credentialState: 'ready', custom: true, connector: true,
+        imageAttachmentLimit: 0, attachmentTypes: ['file'], version: '1.0.0' })
+      state.groups.push({ id: 'direct-connector', conversationType: 'direct', directAgentKind: 'custom-connector',
+        name: 'File Connector', agentKinds: ['custom-connector'], workdir: '/tmp/meldwork-workspace',
+        allowWrite: false, createdAt: '2026-07-29T08:00:00Z', updatedAt: '2026-07-29T08:00:00Z' })
+    })
+    await wrapper.get('.direct-session-open').trigger('click')
+    await wrapper.get('.composer-box textarea').trigger('paste', {
+      clipboardData: { items: [{ kind: 'file', type: 'image/png', getAsFile: () => ({
+        name: 'image.png', type: 'image/png', size: 3, arrayBuffer: vi.fn(async () => new Uint8Array([1, 2, 3]).buffer),
+      }) }] },
+    })
+    await flushPromises()
+    expect(bridge.localAttachments.importAttachment).not.toHaveBeenCalled()
+    expect(wrapper.findAll('.composer-attachment')).toHaveLength(0)
+    wrapper.unmount()
+  })
+
   it('keeps the attachment action clickable when support is unavailable', async () => {
     const { wrapper, bridge } = await mountApp(({ state }) => {
       state.agents.push({

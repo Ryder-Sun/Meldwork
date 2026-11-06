@@ -112,7 +112,7 @@ export function useComposerAttachments({
         : (normalizedType === 'image'
         ? Math.max(0, Math.floor(Number(agent?.imageLimit) || 0))
         : 0)
-      const fileFallbackLimit = attachmentTypes.includes('file') ? MAX_ATTACHMENTS : 0
+      const fileFallbackLimit = !agent?.connector && attachmentTypes.includes('file') ? MAX_ATTACHMENTS : 0
       return Math.max(nativeLimit, fileFallbackLimit)
     })
     return Math.min(MAX_ATTACHMENTS, ...limits)

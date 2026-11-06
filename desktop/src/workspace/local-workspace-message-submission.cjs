@@ -176,7 +176,7 @@ class LocalWorkspaceMessageSubmission {
           MAX_MESSAGE_ATTACHMENTS,
           Math.floor(Number(support[type]) || 0),
         ))
-        const fileFallbackLimit = Math.max(0, Math.min(
+        const fileFallbackLimit = support.fileFallback === false ? 0 : Math.max(0, Math.min(
           MAX_MESSAGE_ATTACHMENTS,
           Math.floor(Number(support.file) || 0),
         ))

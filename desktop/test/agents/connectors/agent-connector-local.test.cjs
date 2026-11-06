@@ -97,6 +97,9 @@ test('discovers an explicitly installed approved sample and exposes generic sani
   assert.equal(agent.connectorId, SAMPLE_AGENT_CONNECTOR_MANIFEST.connectorId)
   assert.equal(agent.upstreamVersion, '0.147.0')
   assert.equal(agent.credentialConfigured, false)
+  assert.deepEqual(connectors.attachmentSupport(agent.kind), {
+    image: 0, audio: 0, video: 0, file: 32, fileFallback: false,
+  })
   assert.equal(Object.hasOwn(agent, 'executable'), false)
   assert.equal(Object.hasOwn(agent, 'credentialRef'), false)
   const [catalog] = connectors.catalog()

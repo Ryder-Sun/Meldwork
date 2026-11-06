@@ -146,6 +146,30 @@ test('discovers and runs an approved external Connector with trusted durable pro
   }])
 })
 
+test('Connector attachment limits match workspace submission', async () => {
+  const { MAX_MESSAGE_ATTACHMENTS } = require('../../../src/workspace/local-workspace-message-records.cjs')
+  let executed = 0
+  const { runtime } = runtimeFixture(async input => {
+    executed += 1
+    assert.equal(input.attachments.length, MAX_MESSAGE_ATTACHMENTS)
+    input.emit({ eventId: 'complete', cursor: 'complete', sequence: 1, type: 'Completed', outcome: 'completed' })
+    return { text: 'done', outcome: 'completed' }
+  })
+  const agent = runtime.detectAgents()[0]
+  const attachments = Array.from({ length: MAX_MESSAGE_ATTACHMENTS }, (_, i) => ({
+    path: `/tmp/${i}.pdf`, mimeType: 'application/pdf',
+  }))
+  const options = { runId: 'run-files', agentRunId: 'agent-files', sandbox: 'read-only' }
+  assert.equal((await runtime.run(agent, 'Review', '/tmp/workspace', { ...options, attachments })).outcome, 'completed')
+  await assert.rejects(runtime.run(agent, 'Review', '/tmp/workspace', {
+    ...options, attachments: [...attachments, attachments[0]],
+  }), { message: 'AGENT_CONNECTOR_ATTACHMENTS_INVALID' })
+  await assert.rejects(runtime.run(agent, 'Review', '/tmp/workspace', {
+    ...options, attachments: [{ type: 'structured-data' }],
+  }), { message: 'AGENT_CONNECTOR_ATTACHMENT_UNSUPPORTED' })
+  assert.equal(executed, 1)
+})
+
 test('unreported Connector usage is estimated instead of counted as zero', async () => {
   const { runtime } = runtimeFixture(async input => {
     input.emit({ eventId: 'completed', cursor: 'completed', sequence: 1,
@@ -373,6 +397,17 @@ test('a generic file declaration cannot bypass media input capabilities', async 
       attachments: [{ inputType: 'file', mimeType }],
     }), { message: 'AGENT_CONNECTOR_ATTACHMENT_UNSUPPORTED' })
   }
+})
+
+test('workspace preflight applies the same strict Connector media capabilities', () => {
+  const { LocalWorkspaceMessageSubmission } = require('../../../src/workspace/local-workspace-message-submission.cjs')
+  const validate = LocalWorkspaceMessageSubmission.prototype.validateAttachmentSupport
+  const connector = { attachmentSupport: () => ({ file: 32, image: 0, fileFallback: false }) }
+  assert.throws(() => validate.call(connector, ['connector'], [{ mimeType: 'image/png' }]),
+    { message: 'LOCAL_AGENT_IMAGE_UNSUPPORTED' })
+  assert.doesNotThrow(() => validate.call(connector, ['connector'], [{ mimeType: 'application/pdf' }]))
+  const native = { attachmentSupport: () => ({ file: 32, image: 0 }) }
+  assert.doesNotThrow(() => validate.call(native, ['native'], [{ mimeType: 'image/png' }]))
 })
 
 test('untrusted recipes cannot bypass event or permission capability checks through callbacks', async () => {

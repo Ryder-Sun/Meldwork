@@ -14,7 +14,8 @@ const PUBLIC_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/
 const SHA256 = /^[a-f0-9]{64}$/
 const MAX_PROMPT_BYTES = 4 * 1024 * 1024
 const MAX_INPUT_RESPONSE_BYTES = 128 * 1024
-const MAX_ATTACHMENTS = 16
+// Keep this aligned with the workspace message attachment limit.
+const MAX_ATTACHMENTS = 32
 const OUTBOUND_TRANSPORTS = new Set(['http', 'a2a'])
 
 function runtimeError(code) {
