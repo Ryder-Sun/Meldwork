@@ -1351,6 +1351,22 @@ test('Claude retains native Bedrock container credentials through shell discover
   assert.equal(result.env.GITHUB_TOKEN, undefined)
 })
 
+test('Kimi credential detection follows its selected native home instead of stale defaults', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-kimi-home-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const defaults = path.join(home, '.kimi-code')
+  const selected = path.join(home, 'selected-kimi')
+  fs.mkdirSync(defaults)
+  fs.mkdirSync(selected)
+  fs.writeFileSync(path.join(defaults, 'config.toml'), 'api_key = "stale-test-credential"\n')
+  assert.equal(nativeCredentialState('kimi', { home, env: {} }).state, 'ready')
+  assert.equal(nativeCredentialState('kimi', { home, env: { KIMI_CODE_HOME: selected } }).state, 'unknown')
+  fs.mkdirSync(path.join(selected, 'credentials'))
+  fs.writeFileSync(path.join(selected, 'credentials', 'kimi-code.json'), '{"access_token":"selected-test-credential"}')
+  assert.equal(nativeCredentialState('kimi', { home, env: { KIMI_CODE_HOME: selected } }).state, 'ready')
+  assert.equal(nativeCredentialState('kimi', { home, env: { KIMI_CODE_HOME: 'relative-home' } }).state, 'unknown')
+})
+
 test('an installed Agent without credential evidence remains unverified', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-missing-readiness-'))
   try {

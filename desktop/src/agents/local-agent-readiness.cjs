@@ -481,6 +481,9 @@ function nativeCredentialState(kind, options = {}) {
   const claudeHome = env.CLAUDE_CONFIG_DIR || path.join(home, '.claude')
   const expandHome = value => String(value).replace(/^~(?=$|[\\/])/, home)
   const piHome = env.PI_CODING_AGENT_DIR ? expandHome(env.PI_CODING_AGENT_DIR) : path.join(home, '.pi', 'agent')
+  const kimiHome = env.KIMI_CODE_HOME
+    ? (path.isAbsolute(env.KIMI_CODE_HOME) ? env.KIMI_CODE_HOME : null)
+    : path.join(home, '.kimi-code')
   const hermesHome = env.HERMES_HOME ? expandHome(env.HERMES_HOME)
     : (options.platform || process.platform) === 'win32'
       ? path.join(env.LOCALAPPDATA || path.join(home, 'AppData', 'Local'), `hermes${env.HERMES_DATA_DIR_SUFFIX || ''}`)
@@ -507,7 +510,7 @@ function nativeCredentialState(kind, options = {}) {
         path.join(home, '.pi-agent', 'config.json'),
       ]),
     ],
-    kimi: [path.join(home, '.kimi-code', 'credentials', 'kimi-code.json')],
+    kimi: kimiHome ? [path.join(kimiHome, 'credentials', 'kimi-code.json')] : [],
     claude: [
       path.join(claudeHome, '.credentials.json'),
       path.join(claudeHome, 'settings.json'),
@@ -539,9 +542,8 @@ function nativeCredentialState(kind, options = {}) {
       path.join(home, '.pi-agent', 'config.toml'),
     ],
     kimi: [
-      path.join(home, '.kimi', 'config.toml'),
-      path.join(home, '.kimi-code', 'config.toml'),
-      path.join(home, '.kimi-code', '.env'),
+      ...(env.KIMI_CODE_HOME ? [] : [path.join(home, '.kimi', 'config.toml')]),
+      ...(kimiHome ? [path.join(kimiHome, 'config.toml'), path.join(kimiHome, '.env')] : []),
     ],
     mimo: [path.join(home, '.mimo', '.env'), path.join(home, '.mimocode', '.env')],
     claude: [path.join(claudeHome, '.env')],
