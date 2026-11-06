@@ -55,6 +55,12 @@ function envValue(env, name) {
   return match ? env[match] : ''
 }
 
+function nativeConfigDirectoryEnvironment(kind, env) {
+  const key = NATIVE_CONFIG_DIR_KEYS[kind]
+  const value = key && envValue(env, key)
+  return typeof value === 'string' && value ? { [key]: value } : {}
+}
+
 function systemChildEnvironment(sourceEnv = process.env, platform = process.platform) {
   const env = networkEnvironment(sourceEnv, platform)
   for (const name of SYSTEM_CHILD_ENV_KEYS) {
@@ -362,6 +368,7 @@ async function probeAgentCapabilities(kind, executable, options = {}) {
   const childEnv = {
     ...(options.childEnv || {
       ...systemChildEnvironment(env, platform),
+      ...nativeConfigDirectoryEnvironment(kind, env),
       PATH: searchPath(options),
     }),
     ...launchEnvironment(kind, executable, options),
@@ -545,10 +552,8 @@ async function detectAgents(options = {}) {
     PATH: searchPath(detectionOptions),
   }
   const detected = await Promise.all(ALLOWED_KINDS.map(kind => {
-    const nativeKey = NATIVE_CONFIG_DIR_KEYS[kind]
-    const value = nativeKey && envValue(env, nativeKey)
     const nativeEnv = typeof options.nativeEnvironmentForKind === 'function'
-      ? options.nativeEnvironmentForKind(kind) : (typeof value === 'string' && value ? { [nativeKey]: value } : {})
+      ? options.nativeEnvironmentForKind(kind) : nativeConfigDirectoryEnvironment(kind, env)
     return detectAgentKind(kind, detectionOptions, { ...childEnv, ...nativeEnv }).catch(() => null)
   }))
   return detected.filter(Boolean)

@@ -1191,6 +1191,23 @@ test('Agent detection keeps native configuration directories scoped to their own
   }
 })
 
+test('direct capability probes use only their own native configuration directory', async () => {
+  const seen = []
+  await probeAgentCapabilities('codex', '/tmp/codex-direct', {
+    platform: 'darwin',
+    env: { CODEX_HOME: '/native/codex', CLAUDE_CONFIG_DIR: '/native/claude' },
+    execFileFn: async (_command, _args, options) => {
+      seen.push(options.env)
+      throw new Error('probe unavailable')
+    },
+  })
+  assert.ok(seen.length)
+  for (const env of seen) {
+    assert.equal(env.CODEX_HOME, '/native/codex')
+    assert.equal(env.CLAUDE_CONFIG_DIR, undefined)
+  }
+})
+
 test('runAgent hides executable paths from spawn failures', async () => {
   const child = new EventEmitter()
   child.stdin = new PassThrough()
