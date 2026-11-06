@@ -702,6 +702,7 @@ class CloudAgentBridgeStore {
     if (agent.available === false) fail('CLOUD_AGENT_BRIDGE_AGENT_UNAVAILABLE')
     const target = {
       transport: record.transport, address: record.address, endpoint: record.endpoint,
+      serverId: record.serverId,
       manifestId: manifestFor(record, agent).manifestId,
     }
     if (target.transport === 'ssh') return this.runSsh(record, agent, input, target)
@@ -720,7 +721,7 @@ class CloudAgentBridgeStore {
       wireBytes: Buffer.from(serializedBody, 'utf8'),
     }))
     this.assertRunTarget(record, agent.id, target, input.signal)
-    return this.runTransport(record.bridgeId, input.signal, signal => this.request(`/v1/agents/${encodeURIComponent(agentId)}/runs`, {
+    return this.runTransport(record, agentId, target, input.signal, signal => this.request(`/v1/agents/${encodeURIComponent(agentId)}/runs`, {
       address: target.transport === 'ssh-tunnel' ? target.endpoint : target.address,
       method: 'POST',
       signal,
@@ -731,8 +732,8 @@ class CloudAgentBridgeStore {
     }))
   }
 
-  async runTransport(bridgeId, callerSignal, execute) {
-    const active = { bridgeId, controller: new AbortController(), removed: false }
+  async runTransport(record, agentId, target, callerSignal, execute) {
+    const active = { bridgeId: record.bridgeId, controller: new AbortController(), removed: false }
     const abort = () => active.controller.abort()
     callerSignal?.addEventListener('abort', abort, { once: true })
     if (callerSignal?.aborted) abort()
@@ -740,6 +741,9 @@ class CloudAgentBridgeStore {
     try {
       const result = await execute(active.controller.signal)
       if (active.removed) throw Object.assign(bridgeError('CLOUD_AGENT_BRIDGE_REMOVED'), { category: 'unknown' })
+      if (!this.runTargetMatches(record.bridgeId, agentId, target)) {
+        throw Object.assign(bridgeError('CLOUD_AGENT_BRIDGE_CHANGED'), { category: 'unknown' })
+      }
       return result
     } catch (error) {
       if (active.removed) throw Object.assign(bridgeError('CLOUD_AGENT_BRIDGE_REMOVED'), { category: 'unknown' })
@@ -750,13 +754,19 @@ class CloudAgentBridgeStore {
     }
   }
 
+  runTargetMatches(bridgeId, agentId, target) {
+    const current = this.records.find(item => item.bridgeId === bridgeId)
+    const agent = current?.agents.find(item => item.id === agentId)
+    if (!current || !current.available || !agent || agent.available === false
+        || current.transport !== target.transport || current.address !== target.address
+        || current.endpoint !== target.endpoint || current.serverId !== target.serverId) return false
+    try { return manifestFor(current, agent).manifestId === target.manifestId } catch { return false }
+  }
+
   assertRunTarget(record, agentId, target, signal) {
     if (signal?.aborted) fail('LOCAL_AGENT_EXECUTION_STOPPED')
     const current = this.records.find(item => item.bridgeId === record.bridgeId)
-    const agent = current?.agents.find(item => item.id === agentId)
-    if (current !== record || !current.available || !agent || agent.available === false
-        || current.transport !== target.transport || current.address !== target.address
-        || current.endpoint !== target.endpoint || manifestFor(current, agent).manifestId !== target.manifestId) {
+    if (current !== record || !this.runTargetMatches(record.bridgeId, agentId, target)) {
       fail('CLOUD_AGENT_BRIDGE_NOT_FOUND')
     }
   }
@@ -767,7 +777,7 @@ class CloudAgentBridgeStore {
     }
     await input.onOutboundPayload?.(createSshOutboundPayload({ prompt: input.prompt }))
     this.assertRunTarget(record, agent.id, target, input.signal)
-    const result = await this.runTransport(record.bridgeId, input.signal,
+    const result = await this.runTransport(record, agent.id, target, input.signal,
       signal => this.sshCommand(target.address, SSH_CODEX_COMMAND, input.prompt, signal))
     const messages = []
     let sessionRef = ''

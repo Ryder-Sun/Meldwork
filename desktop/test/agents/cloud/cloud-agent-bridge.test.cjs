@@ -119,7 +119,7 @@ function response(value, ok = true, status = 200) {
 
 test('does not send to a removed or changed cloud bridge after outbound review', async t => {
   for (const transport of ['bridge', 'ssh-tunnel', 'ssh']) {
-    for (const change of ['remove', 'address', 'agent', 'abort']) {
+    for (const change of ['remove', 'address', 'server', 'agent', 'abort']) {
       await t.test(`${transport}: ${change}`, async t => {
         const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-cloud-target-'))
         t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
@@ -143,6 +143,7 @@ test('does not send to a removed or changed cloud bridge after outbound review',
           onOutboundPayload: async () => {
             if (change === 'remove') store.remove(record.bridgeId)
             if (change === 'address') record.address = '203.0.113.11'
+            if (change === 'server') record.serverId = 'replacement-server'
             if (change === 'agent') record.agents[0].available = false
             if (change === 'abort') controller.abort()
           },
@@ -152,6 +153,28 @@ test('does not send to a removed or changed cloud bridge after outbound review',
     }
   }
 })
+
+for (const changed of [false, true]) {
+  test(`cloud response ${changed ? 'rejects a changed server identity' : 'accepts a matching reconnected server'}`, async t => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-cloud-identity-'))
+    t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+    let finish
+    const store = new CloudAgentBridgeStore({
+      storagePath: path.join(directory, 'bridges.json'),
+      fetch: () => new Promise(resolve => { finish = () => resolve(response({ text: 'reply', outcome: 'completed' })) }),
+    })
+    const record = store.normalizeRecord({ bridgeId: 'cloud-bridge-0123456789abcdef01234567',
+      address: 'https://203.0.113.10', serverId: 'original-server', label: 'Server',
+      available: true, agents: manifest().agents })
+    store.records = [record]
+    const result = store.run({ bridgeId: record.bridgeId, agentId: 'codex', prompt: 'hello', permissionMode: 'read-only' })
+    await new Promise(resolve => setImmediate(resolve))
+    store.records[0] = { ...record, serverId: changed ? 'replacement-server' : record.serverId }
+    finish()
+    if (changed) await assert.rejects(result, { code: 'CLOUD_AGENT_BRIDGE_CHANGED', category: 'unknown' })
+    else assert.equal((await result).text, 'reply')
+  })
+}
 
 for (const transport of ['bridge', 'ssh-tunnel', 'ssh']) {
   test(`${transport} bridge removal aborts only its active run and rejects a late reply`, async t => {
