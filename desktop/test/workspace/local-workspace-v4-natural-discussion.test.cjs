@@ -59,6 +59,12 @@ function acceptedReply(prompt, text, extra = {}) {
 }
 
 test('explicit first-person task failures are distinguished from discussion and quotations', () => {
+  for (const text of ['抱歉，由于权限不足，我无法读取所需文件。', '很抱歉，因为访问被拒绝，我们不能完成任务。', 'Sorry, I cannot complete the task.', 'Unfortunately, access denied.']) {
+    assert.equal(explicitTaskFailure(text), true, text)
+  }
+  for (const text of ['抱歉，权限不足的问题已修复，现在可以访问文件。', 'Sorry, the user said: "I cannot access the file."']) {
+    assert.equal(explicitTaskFailure(text), false, text)
+  }
   for (const text of ['I cannot access the requested files.', "I can't complete the task.", 'Permission denied.', 'Access denied!', '权限不足。', '访问被拒绝。', 'Permission denied; I cannot access the file.', 'Access denied: we cannot complete the task.', '我无法访问所需文件。', '我们不能完成任务。', '权限不足，无法访问所需文件。', '访问被拒绝：我们无法完成任务。', 'I checked the workspace.\nI cannot complete the task.', '检查结果：\n- 我无法读取所需文件。']) {
     assert.equal(explicitTaskFailure(text), true, text)
   }
@@ -128,6 +134,8 @@ test('a completion receipt with a failure reason cannot create or approve a cand
   const receipt = { status: 'completed', reason: 'I cannot complete the task.', deliverables: ['answer'] }
   messages.push({ id: 'one', groupId: 'group', threadRootId: 'task', role: 'agent', agentKind: 'codex',
     content: 'I checked the task.', trace: { phase: 'discussion', runId: 'run', context: { taskDecision: receipt } } })
+  assert.equal(runner.v4NaturalConsensus(group, controller, 'task'), null)
+  receipt.reason = '抱歉，由于权限不足，我无法读取所需文件。'
   assert.equal(runner.v4NaturalConsensus(group, controller, 'task'), null)
   receipt.reason = 'Done.'
   const candidate = runner.v4NaturalConsensus(group, controller, 'task')

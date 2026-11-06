@@ -7,6 +7,9 @@ function explicitTaskFailure(text) {
     if (/^(?:```|~~~)/.test(line)) { inCodeBlock = !inCodeBlock; return false }
     if (inCodeBlock || line.startsWith('>')) return false
     const statement = line.replace(/^(?:[-*+]\s+|\d+[.)]\s+)/, '')
+      .replace(/^(?:sorry|unfortunately)[,:，]\s*/i, '')
+      .replace(/^(?:抱歉|很抱歉|对不起)[，,:：]\s*/u, '')
+      .replace(/^(?:由于|因为)(?:权限不足|访问被拒绝)[，,:：]\s*/u, '')
     return /^(?:permission denied|access denied)[.!。！\s]*$/i.test(statement)
       || /^(?:权限不足|访问被拒绝)[.!。！\s]*$/u.test(statement)
       || /^(?:(?:permission denied|access denied)[.:;，,\s]+)?(?:i|we)\s+(?:cannot|can't|am unable to|are unable to)\s+(?:access|open|read|execute|perform|complete|finish)\b/i.test(statement)
