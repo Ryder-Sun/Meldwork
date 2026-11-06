@@ -129,7 +129,7 @@ const RUNTIME_ENV_KEYS = Object.freeze({
     'AZURE_CONFIG_DIR',
   ],
   qwen: ['DASHSCOPE_API_KEY', 'OPENAI_API_KEY', 'OPENAI_BASE_URL', 'OPENAI_MODEL', 'QWEN_HOME'],
-  gemini: ['GEMINI_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_MODEL', 'GOOGLE_GEMINI_BASE_URL', ...GOOGLE_CLOUD_ENV_KEYS],
+  gemini: ['GEMINI_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_MODEL', 'GEMINI_CLI_HOME', 'GOOGLE_GEMINI_BASE_URL', ...GOOGLE_CLOUD_ENV_KEYS],
   opencode: [
     'OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'OPENROUTER_API_KEY',
     'OPENAI_BASE_URL', 'OPENAI_MODEL',
@@ -525,6 +525,9 @@ function nativeCredentialState(kind, options = {}) {
   const env = options.env || process.env
   const codexHome = env.CODEX_HOME || path.join(home, '.codex')
   const claudeHome = env.CLAUDE_CONFIG_DIR || path.join(home, '.claude')
+  const geminiHome = env.GEMINI_CLI_HOME
+    ? (path.isAbsolute(env.GEMINI_CLI_HOME) ? path.join(env.GEMINI_CLI_HOME, '.gemini') : null)
+    : path.join(home, '.gemini')
   const expandHome = value => String(value).replace(/^~(?=$|[\\/])/, home)
   const piHome = env.PI_CODING_AGENT_DIR ? expandHome(env.PI_CODING_AGENT_DIR) : path.join(home, '.pi', 'agent')
   const kimiHome = env.KIMI_CODE_HOME
@@ -563,10 +566,7 @@ function nativeCredentialState(kind, options = {}) {
       path.join(claudeHome, 'settings.local.json'),
     ],
     qwen: [path.join(home, '.qwen', 'oauth_creds.json'), path.join(home, '.qwen', 'settings.json')],
-    gemini: [
-      path.join(home, '.gemini', 'oauth_creds.json'),
-      path.join(home, '.gemini', 'settings.json'),
-    ],
+    gemini: geminiHome ? [path.join(geminiHome, 'oauth_creds.json'), path.join(geminiHome, 'settings.json')] : [],
     opencode: [path.join(env.XDG_DATA_HOME || path.join(home, '.local', 'share'), 'opencode', 'auth.json')],
     opencodereview: [path.join(home, '.opencodereview', 'config.json')],
   }[kind] || []
@@ -594,7 +594,7 @@ function nativeCredentialState(kind, options = {}) {
     mimo: [path.join(home, '.mimo', '.env'), path.join(home, '.mimocode', '.env')],
     claude: [path.join(claudeHome, '.env')],
     qwen: [path.join(home, '.qwen', '.env')],
-    gemini: [path.join(home, '.gemini', '.env')],
+    gemini: geminiHome ? [path.join(geminiHome, '.env')] : [],
     opencode: [
       path.join(home, '.opencode', '.env'),
       path.join(home, '.config', 'opencode', '.env'),

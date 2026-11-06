@@ -16,6 +16,26 @@ const {
   resolveNativeShellEnvironment,
 } = require('../../src/agents/local-agent-readiness.cjs')
 
+test('Gemini uses its shell-selected native home for readiness and execution', async t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-gemini-native-home-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const selected = path.join(home, 'selected')
+  const selectedConfig = path.join(selected, '.gemini')
+  const defaultConfig = path.join(home, '.gemini')
+  fs.mkdirSync(selectedConfig, { recursive: true })
+  fs.mkdirSync(defaultConfig, { recursive: true })
+  fs.writeFileSync(path.join(defaultConfig, 'oauth_creds.json'), JSON.stringify({ refresh_token: 'default-secret' }))
+  const captured = await resolveNativeShellEnvironment({ cache: false, platform: 'win32', env: { GEMINI_CLI_HOME: selected } })
+  const native = nativeCredentialEnvironment('gemini', captured.env)
+  assert.deepEqual(native, { GEMINI_CLI_HOME: selected })
+  assert.equal(nativeCredentialState('gemini', { home, env: native }).state, 'unknown')
+  fs.writeFileSync(path.join(selectedConfig, 'oauth_creds.json'), JSON.stringify({ refresh_token: 'selected-secret' }))
+  assert.equal(nativeCredentialState('gemini', { home, env: native }).state, 'ready')
+  assert.equal(childEnvironment({ kind: 'gemini' }, home, { env: native }, 'darwin').GEMINI_CLI_HOME, selected)
+  assert.deepEqual(nativeCredentialEnvironment('codex', captured.env), {})
+  assert.equal(nativeCredentialState('gemini', { home, env: { GEMINI_CLI_HOME: 'relative' } }).state, 'unknown')
+})
+
 test('Pi captures only environment references declared by its selected native models configuration', async t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-pi-declared-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))
