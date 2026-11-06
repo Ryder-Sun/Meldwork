@@ -129,10 +129,7 @@ class LocalWorkspaceAgentCatalog {
         recoveredRuntimeCredential = true
       }
       const runtimeMissing = runtime?.credentialState === 'missing'
-      const verifiedReady = runtime?.credentialState === 'ready'
-        || state.messages.some(message => (
-          message.role === 'agent' && message.agentKind === agent.kind
-        ))
+      const verifiedReady = recentlyVerified(runtime, this.now())
       const nativeReadySource = nativeState === 'ready'
         ? (native.source || 'native-credential')
         : ''

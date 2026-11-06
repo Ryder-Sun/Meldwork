@@ -68,6 +68,19 @@ test('WorkBuddy encrypted desktop login blocks standalone invocation with a spec
   assert.equal(agents()[0].availabilitySource, 'workbuddy-desktop-locked')
 })
 
+test('old Agent replies and expired runtime verification do not imply current authentication', async () => {
+  const { catalog, agents, state } = fixture({
+    detectAgents: async () => [{ kind: 'codex', version: '0.146.0', compatibilityState: 'compatible' }],
+    credentialState: async () => ({ state: 'unknown', source: 'native-config-unknown' }),
+  })
+  state.messages.push({ role: 'agent', agentKind: 'codex' })
+  state.agentRuntime.codex = { credentialState: 'ready', checkedAt: '2026-07-01T00:00:00.000Z' }
+  await catalog.refresh()
+  assert.equal(agents()[0].credentialState, 'unknown')
+  assert.equal(agents()[0].recentlyVerified, false)
+  assert.notEqual(agents()[0].availabilitySource, 'verified-run')
+})
+
 test('sidebar visibility preserves a selected WorkBuddy model', async () => {
   const { catalog, state } = fixture({ detectAgents: async () => [{ kind: 'workbuddy' }] })
   state.agentPreferences.workbuddy = { modelId: 'native-text' }
