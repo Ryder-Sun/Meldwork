@@ -108,6 +108,29 @@ test('Pi model readiness resolves native credential references without running c
   assert.equal(nativeCredentialState('pi', { home, env: {} }).state, 'ready')
 })
 
+test('Pi authentication readiness checks the selected native provider', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-pi-auth-provider-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const root = path.join(home, '.pi', 'agent'); fs.mkdirSync(root, { recursive: true })
+  const settings = path.join(root, 'settings.json')
+  fs.writeFileSync(settings, JSON.stringify({ defaultProvider: 'selected' }))
+  const auth = path.join(root, 'auth.json')
+  fs.writeFileSync(auth, JSON.stringify({ other: { type: 'api_key', key: 'unrelated-secret' } }))
+  assert.equal(nativeCredentialState('pi', { home, env: {} }).state, 'unknown')
+  assert.equal(nativeCredentialState('pi', { home, env: { OPENAI_API_KEY: 'unrelated-secret' } }).state, 'unknown')
+  fs.writeFileSync(auth, JSON.stringify({ other: { type: 'api_key', key: 'unrelated-secret' },
+    selected: { type: 'oauth', refresh: 'selected-secret' } }))
+  assert.equal(nativeCredentialState('pi', { home, env: {} }).state, 'ready')
+  fs.writeFileSync(settings, '{invalid')
+  assert.equal(nativeCredentialState('pi', { home, env: {} }).state, 'unknown')
+  fs.rmSync(settings)
+  assert.equal(nativeCredentialState('pi', { home, env: {} }).state, 'ready')
+  fs.rmSync(auth)
+  fs.writeFileSync(settings, JSON.stringify({ defaultProvider: 'openai' }))
+  assert.equal(nativeCredentialState('pi', { home, env: { ANTHROPIC_API_KEY: 'unrelated-secret' } }).state, 'unknown')
+  assert.equal(nativeCredentialState('pi', { home, env: { OPENAI_API_KEY: 'selected-secret' } }).state, 'ready')
+})
+
 test('Zcode captures credentials only for configured native models', async t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-zcode-declared-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))

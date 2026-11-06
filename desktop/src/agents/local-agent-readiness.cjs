@@ -59,6 +59,10 @@ const CREDENTIAL_ENV_KEYS = Object.freeze({
   opencode: ['OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'OPENROUTER_API_KEY'],
   opencodereview: ['OCR_LLM_TOKEN', 'OPENAI_API_KEY'],
 })
+const PI_PROVIDER_CREDENTIAL_KEYS = Object.freeze({
+  openai: 'OPENAI_API_KEY', anthropic: 'ANTHROPIC_API_KEY',
+  openrouter: 'OPENROUTER_API_KEY', google: 'GEMINI_API_KEY',
+})
 const GOOGLE_CLOUD_ENV_KEYS = [
   'GOOGLE_APPLICATION_CREDENTIALS', 'GOOGLE_CLOUD_PROJECT', 'GCLOUD_PROJECT',
   'GOOGLE_CLOUD_LOCATION', 'GOOGLE_CLOUD_QUOTA_PROJECT', 'CLOUDSDK_CONFIG',
@@ -198,18 +202,33 @@ function openCodeAuthContainsCredential(filename) {
   } catch { return false }
 }
 
-function piModelsContainCredential(root, env) {
+function piDefaultProvider(root) {
   try {
+    const settings = readCredentialFile(path.join(root, 'settings.json'))
+    if (!settings) return ''
+    const parsed = JSON5.parse(settings)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+    return typeof parsed.defaultProvider === 'string' ? parsed.defaultProvider : ''
+  } catch { return null }
+}
+
+function piAuthContainsCredential(filename, selected) {
+  if (selected === null) return false
+  try {
+    const contents = readCredentialFile(filename)
+    const auth = contents && JSON.parse(contents)
+    if (!auth || typeof auth !== 'object' || Array.isArray(auth)) return false
+    return containsCredential(selected ? auth[selected] : auth)
+  } catch { return false }
+}
+
+function piModelsContainCredential(root, env, selected) {
+  try {
+    if (selected === null) return false
     const contents = readCredentialFile(path.join(root, 'models.json'))
     const config = contents && JSON5.parse(contents)
     const providers = config?.providers
     if (!providers || typeof providers !== 'object' || Array.isArray(providers)) return false
-    let selected = ''
-    try {
-      const settings = readCredentialFile(path.join(root, 'settings.json'))
-      const parsed = settings && JSON5.parse(settings)
-      if (typeof parsed?.defaultProvider === 'string') selected = parsed.defaultProvider
-    } catch { return false }
     const candidates = selected ? [providers[selected]] : Object.values(providers)
     return candidates.some(provider => {
       const value = provider?.apiKey
@@ -578,7 +597,13 @@ function nativeCredentialState(kind, options = {}) {
       ? path.join(env.LOCALAPPDATA || path.join(home, 'AppData', 'Local'), `hermes${env.HERMES_DATA_DIR_SUFFIX || ''}`)
       : path.join(home, `.hermes${env.HERMES_DATA_DIR_SUFFIX || ''}`)
   const openCodeAuth = path.join(env.XDG_DATA_HOME || path.join(home, '.local', 'share'), 'opencode', 'auth.json')
-  if (Object.keys(nativeCredentialKeyEnvironment(kind, env)).length) {
+  const piProvider = kind === 'pi' ? piDefaultProvider(piHome) : ''
+  const credentialEnv = nativeCredentialKeyEnvironment(kind, env)
+  const selectedPiKey = Object.hasOwn(PI_PROVIDER_CREDENTIAL_KEYS, piProvider) ? PI_PROVIDER_CREDENTIAL_KEYS[piProvider] : ''
+  const hasCredentialEnv = kind !== 'pi' || piProvider === ''
+    ? Object.keys(credentialEnv).length > 0
+    : Boolean(selectedPiKey && credentialEnv[selectedPiKey])
+  if (hasCredentialEnv) {
     return {
       state: 'ready',
       source: options.credentialSource === 'native-shell' ? 'native-shell' : 'native-credential',
@@ -610,7 +635,8 @@ function nativeCredentialState(kind, options = {}) {
     opencode: [openCodeAuth],
     opencodereview: [path.join(home, '.opencodereview', 'config.json')],
   }[kind] || []
-  if (jsonFiles.some(jsonContainsCredential) || (kind === 'pi' && piModelsContainCredential(piHome, env))
+  if (jsonFiles.some(filename => kind === 'pi' ? piAuthContainsCredential(filename, piProvider) : jsonContainsCredential(filename))
+      || (kind === 'pi' && piModelsContainCredential(piHome, env, piProvider))
       || (kind === 'opencode' && openCodeAuthContainsCredential(openCodeAuth))) {
     return { state: 'ready', source: 'native-credential' }
   }
