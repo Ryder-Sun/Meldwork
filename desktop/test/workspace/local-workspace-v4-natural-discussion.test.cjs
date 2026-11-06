@@ -59,6 +59,9 @@ function acceptedReply(prompt, text, extra = {}) {
 }
 
 test('explicit first-person task failures are distinguished from discussion and quotations', () => {
+  for (const text of ["I couldn't access the requested files.", 'We were unable to finish the task.', 'I failed to complete the task.', '我未能读取所需文件。']) {
+    assert.equal(explicitTaskFailure(text), true, text)
+  }
   for (const text of ['抱歉，由于权限不足，我无法读取所需文件。', '很抱歉，因为访问被拒绝，我们不能完成任务。', 'Sorry, I cannot complete the task.', 'Unfortunately, access denied.']) {
     assert.equal(explicitTaskFailure(text), true, text)
   }
@@ -397,6 +400,21 @@ test('Natural discussion never completes a failure that claims completion withou
 })
 
 for (const discussionStyle of ['agent-led', 'sequential']) {
+  test(`Natural ${discussionStyle} rejects a past-tense failure with a contradictory completion`, async t => {
+    const { directory, options } = fixture()
+    t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+    const ledger = new RunLedger({ storagePath: path.join(directory, 'run-ledger.json') })
+    const workspace = new LocalWorkspace({
+      ...options, runLedger: ledger, naturalAgentResponses: true,
+      runAgent: async (_agent, prompt) => ({ outcome: 'completed', text: naturalPhase(prompt) === 'proposal'
+        ? 'Initial attempt.' : decisionReply("I couldn't access the required files.") }),
+    })
+    await workspace.refreshAgents()
+    const group = workspace.createGroup({ name: 'Past failure', agentKinds: ['codex'], workdir: directory, allowWrite: false })
+    const controller = await runDiscussion(workspace, group, { discussionStyle, maxRounds: 4 })
+    assert.notEqual(new RunLedger({ storagePath: ledger.storagePath }).get(controller.runId).status, 'completed')
+  })
+
   test(`Natural ${discussionStyle} does not complete an explicit failure with a contradictory receipt`, async t => {
     const { directory, options } = fixture()
     t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

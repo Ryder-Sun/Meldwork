@@ -12,8 +12,8 @@ function explicitTaskFailure(text) {
       .replace(/^(?:由于|因为)(?:权限不足|访问被拒绝)[，,:：]\s*/u, '')
     return /^(?:permission denied|access denied)[.!。！\s]*$/i.test(statement)
       || /^(?:权限不足|访问被拒绝)[.!。！\s]*$/u.test(statement)
-      || /^(?:(?:permission denied|access denied)[.:;，,\s]+)?(?:i|we)\s+(?:cannot|can't|am unable to|are unable to)\s+(?:access|open|read|execute|perform|complete|finish)\b/i.test(statement)
-      || /^(?:(?:权限不足|访问被拒绝)[，,:：；;\s]+)?(?:我|我们)?(?:无法|不能|没法)(?:访问|打开|读取|执行|完成)/u.test(statement)
+      || /^(?:(?:permission denied|access denied)[.:;，,\s]+)?(?:i|we)\s+(?:cannot|can't|could not|couldn't|am unable to|are unable to|was unable to|were unable to|failed to)\s+(?:access|open|read|execute|perform|complete|finish)\b/i.test(statement)
+      || /^(?:(?:权限不足|访问被拒绝)[，,:：；;\s]+)?(?:我|我们)?(?:无法|不能|没法|未能)(?:访问|打开|读取|执行|完成)/u.test(statement)
   })
 }
 
