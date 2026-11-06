@@ -205,10 +205,36 @@ function hermesDeclaredCredentialKeys(options = {}) {
     if (!stat.isFile() || stat.size > 1024 * 1024) return []
     const config = yaml.load(fs.readFileSync(filename, 'utf8'))
     if (!config || typeof config !== 'object' || Array.isArray(config)) return []
+    const model = config.model && typeof config.model === 'object' && !Array.isArray(config.model)
+      ? config.model : {}
+    const fallbacks = (Array.isArray(config.fallback_model) ? config.fallback_model : [config.fallback_model])
+      .filter(entry => entry && typeof entry === 'object' && !Array.isArray(entry)).slice(0, 32)
+    const nestedModel = model.default && typeof model.default === 'object' ? model.default : {}
+    const currentProvider = String(model.provider || nestedModel.provider || env.HERMES_INFERENCE_PROVIDER || 'auto').trim().toLowerCase()
+    const references = [currentProvider, ...fallbacks.map(entry => String(entry.provider || '').trim().toLowerCase())].filter(Boolean)
+    const allCandidates = references.includes('auto') || (currentProvider === 'custom' && !model.base_url)
+      || fallbacks.some(entry => String(entry.provider || '').trim().toLowerCase() === 'custom' && !entry.base_url)
+    const endpoints = [model, ...fallbacks].map(entry => String(entry.base_url || '').trim().replace(/\/+$/, '')).filter(Boolean)
+    const matches = (entry, providerKey = '') => {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false
+      if (entry.enabled === false || entry.enabled === 0 || entry.enabled === null || (typeof entry.enabled === 'string'
+          && ['false', '0', 'no', 'off'].includes(entry.enabled.trim().toLowerCase()))) return false
+      if (allCandidates) return true
+      const aliases = [providerKey, entry.name, entry.provider_key].flatMap(value => {
+        const raw = String(value || '').trim().toLowerCase()
+        if (!raw) return []
+        const normalized = raw.replace(/ /g, '-')
+        const suffix = normalized.startsWith('custom:') ? normalized.slice(7) : normalized
+        return [raw, normalized, suffix, `custom:${suffix}`]
+      })
+      if (references.some(name => aliases.includes(name))) return true
+      const base = String(entry.base_url || entry.api || entry.url || '').trim().replace(/\/+$/, '')
+      return references.includes('custom') && Boolean(base) && endpoints.includes(base)
+    }
     const providers = config.providers && typeof config.providers === 'object' && !Array.isArray(config.providers)
-      ? Object.values(config.providers).slice(0, 256) : []
-    const custom = Array.isArray(config.custom_providers) ? config.custom_providers.slice(0, 256) : []
-    const entries = [config.model, config.fallback_model, ...providers, ...custom]
+      ? Object.entries(config.providers).slice(0, 256).filter(([key, value]) => matches(value, key)).map(([, value]) => value) : []
+    const custom = Array.isArray(config.custom_providers) ? config.custom_providers.slice(0, 256).filter(entry => matches(entry)) : []
+    const entries = [model, ...fallbacks, ...providers, ...custom]
     return nativeSecretEnvKeys(entries.flatMap(entry => (
       entry && typeof entry === 'object' && !Array.isArray(entry) ? [entry.key_env, entry.api_key_env] : []
     )))

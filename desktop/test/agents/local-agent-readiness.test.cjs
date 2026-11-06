@@ -18,7 +18,10 @@ test('Hermes captures only safe credential names declared by its selected YAML c
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))
   const selected = path.join(home, 'selected'); fs.mkdirSync(selected)
   fs.writeFileSync(path.join(selected, 'config.yaml'), [
-    'model:', '  key_env: CUSTOM_CREDENTIAL', 'providers:', '  another:', '    api_key_env: SECOND_VALUE',
+    'model:', '  provider: another', '  key_env: CUSTOM_CREDENTIAL',
+    'fallback_model:', '  - provider: "custom:lower"', '    model: fallback',
+    'providers:', '  another:', '    api_key_env: SECOND_VALUE',
+    '  unrelated:', '    key_env: UNRELATED_SECRET',
     'custom_providers:', '  - name: invalid', '    key_env: NODE_OPTIONS',
     '  - name: invalid2', '    key_env: PATH', '  - name: invalid3', '    key_env: "X; touch /tmp/bad"',
     '  - name: lower', '    key_env: lower_secret',
@@ -46,6 +49,26 @@ test('declared Hermes credentials can be read from a login shell without capturi
   assert.equal(result.env.CUSTOM_CREDENTIAL, 'test-private')
   assert.equal(result.env.UNRELATED_SECRET, undefined)
   assert.equal(result.env.NODE_OPTIONS, undefined)
+})
+
+test('Hermes declared credentials follow selected and fallback providers, including auto selection', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-provider-keys-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const root = path.join(home, '.hermes'); fs.mkdirSync(root)
+  const file = path.join(root, 'config.yaml')
+  const config = [
+    'model:', '  provider: first', 'providers:',
+    '  first:', '    key_env: FIRST_KEY',
+    '  second:', '    name: Second Provider', '    key_env: SECOND_KEY',
+    '  disabled:', '    enabled: false', '    key_env: DISABLED_KEY',
+    'fallback_model:', '  - provider: "custom:second"', '    model: fallback', '    key_env: FALLBACK_KEY',
+  ].join('\n')
+  fs.writeFileSync(file, config)
+  assert.deepEqual(hermesDeclaredCredentialKeys({ home, env: {} }), ['FALLBACK_KEY', 'FIRST_KEY', 'SECOND_KEY'])
+  fs.writeFileSync(file, config.replace('provider: first', 'provider: auto'))
+  assert.deepEqual(hermesDeclaredCredentialKeys({ home, env: {} }), ['FALLBACK_KEY', 'FIRST_KEY', 'SECOND_KEY'])
+  fs.writeFileSync(file, config.replace('provider: first', 'provider: absent').replace('  - provider: "custom:second"', '  - provider: absent'))
+  assert.deepEqual(hermesDeclaredCredentialKeys({ home, env: {} }), ['FALLBACK_KEY'])
 })
 
 test('native environment cache observes credential and proxy changes without a PATH change', async () => {
