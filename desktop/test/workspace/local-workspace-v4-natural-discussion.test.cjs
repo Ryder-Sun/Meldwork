@@ -59,7 +59,7 @@ function acceptedReply(prompt, text, extra = {}) {
 }
 
 test('explicit first-person task failures are distinguished from discussion and quotations', () => {
-  for (const text of ['I cannot access the requested files.', "I can't complete the task.", 'Permission denied; I cannot access the file.', 'Access denied: we cannot complete the task.', '我无法访问所需文件。', '我们不能完成任务。', '权限不足，无法访问所需文件。', '访问被拒绝：我们无法完成任务。']) {
+  for (const text of ['I cannot access the requested files.', "I can't complete the task.", 'Permission denied.', 'Access denied!', '权限不足。', '访问被拒绝。', 'Permission denied; I cannot access the file.', 'Access denied: we cannot complete the task.', '我无法访问所需文件。', '我们不能完成任务。', '权限不足，无法访问所需文件。', '访问被拒绝：我们无法完成任务。']) {
     assert.equal(explicitTaskFailure(text), true, text)
   }
   for (const text of ['I cannot reproduce the reported issue; all tests pass.',
@@ -332,7 +332,7 @@ for (const discussionStyle of ['agent-led', 'sequential']) {
     const workspace = new LocalWorkspace({
       ...options, runLedger: ledger, naturalAgentResponses: true,
       runAgent: async (_agent, prompt) => ({ outcome: 'completed', text: naturalPhase(prompt) === 'proposal'
-        ? 'Initial attempt.' : decisionReply('Permission denied; I cannot access the required file.') }),
+        ? 'Initial attempt.' : decisionReply('Permission denied.') }),
     })
     await workspace.refreshAgents()
     const group = workspace.createGroup({ name: 'Permission denied with receipt', agentKinds: ['codex'], workdir: directory, allowWrite: false })
@@ -441,7 +441,7 @@ test('Natural discussion retains an explicit peer failure without a structured d
 })
 
 test('Natural discussion forwards a peer failure without a structured decision to the owner', async () => {
-  const peer = { agentKind: 'hermes', content: 'I cannot access the required file.', trace: {} }
+  const peer = { agentKind: 'hermes', content: '权限不足。', trace: {} }
   let notice
   const runner = { ...v4NaturalDecisionMethods,
     v4NaturalDiscussionRoundMessages: () => [peer], v4NaturalOwner: () => 'codex',

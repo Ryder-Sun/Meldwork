@@ -2,7 +2,9 @@ const { parseLenientTaskDecision } = require('../collaboration/task-decision.cjs
 
 function explicitTaskFailure(text) {
   const firstLine = String(text || '').trim().split(/\r?\n/, 1)[0]
-  return /^(?:(?:permission denied|access denied)[.:;，,\s]+)?(?:i|we)\s+(?:cannot|can't|am unable to|are unable to)\s+(?:access|open|read|execute|perform|complete|finish)\b/i.test(firstLine)
+  return /^(?:permission denied|access denied)[.!。！\s]*$/i.test(firstLine)
+    || /^(?:权限不足|访问被拒绝)[.!。！\s]*$/u.test(firstLine)
+    || /^(?:(?:permission denied|access denied)[.:;，,\s]+)?(?:i|we)\s+(?:cannot|can't|am unable to|are unable to)\s+(?:access|open|read|execute|perform|complete|finish)\b/i.test(firstLine)
     || /^(?:(?:权限不足|访问被拒绝)[，,:：；;\s]+)?(?:我|我们)?(?:无法|不能|没法)(?:访问|打开|读取|执行|完成)/u.test(firstLine)
 }
 
