@@ -217,6 +217,7 @@ function parseAgentOutput(agentId, stdout) {
       }
       return true
     }).join('\n').trim()
+    if (hermesFailedTurn(text)) return null
     return text ? { text, sessionRef, outcome: 'completed' } : null
   }
   if (agentId === 'claude') {
@@ -226,6 +227,11 @@ function parseAgentOutput(agentId, stdout) {
     return { text: result.result.trim(), sessionRef: String(result.session_id || ''), outcome: 'completed' }
   }
   return null
+}
+
+function hermesFailedTurn(text) {
+  return /^Provider said:\s*\S.*$/m.test(text)
+    && /^(?:Your request was not processed\. Send it again if you still want me to carry it out\.|This turn did not complete\. Some actions may already have run; verify their effects before resending\.)$/m.test(text)
 }
 
 function hasOpenCodeError(stdout) {
@@ -343,6 +349,9 @@ function runAgent(agentId, prompt, sessionRef = '', signal = null) {
       if (terminalResult && (code === 0 || (terminalStopRequested
           && ['SIGTERM', 'SIGKILL'].includes(signalName)))) return resolve(terminalResult)
       if (code !== 0) return resolve({ outcome: 'failed', failure: { code: 'REMOTE_AGENT_FAILED' } })
+      if (agentId === 'hermes' && hermesFailedTurn(stdout)) {
+        return resolve({ outcome: 'failed', failure: { code: 'REMOTE_AGENT_FAILED' } })
+      }
       resolve(parseAgentOutput(agentId, stdout)
         || { outcome: 'failed', failure: { code: 'REMOTE_AGENT_RESPONSE_INVALID' } })
     })

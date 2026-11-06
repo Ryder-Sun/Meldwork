@@ -229,6 +229,25 @@ test('remote replies preserve UTF-8 characters split across process output chunk
   }
 })
 
+test('remote Hermes reports a native failed turn as failure even when the process exits zero', async t => {
+  if (process.platform === 'win32') return t.skip('uses a POSIX executable fixture')
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-cloud-hermes-failure-'))
+  const originalPath = process.env.PATH
+  const failed = "custom didn't respond in time on any of 3 attempts.\n\nProvider said: Connection error.\n\nYour request was not processed. Send it again if you still want me to carry it out."
+  fs.writeFileSync(path.join(directory, 'hermes'), `#!/usr/bin/env node\nprocess.stdout.write(${JSON.stringify(failed)})\n`, { mode: 0o755 })
+  process.env.PATH = `${directory}${path.delimiter}${originalPath}`
+  try {
+    assert.equal(parseAgentOutput('hermes', failed), null)
+    assert.deepEqual(await runAgent('hermes', 'hello'), { outcome: 'failed', failure: { code: 'REMOTE_AGENT_FAILED' } })
+    assert.equal(parseAgentOutput('hermes', 'Provider said: Connection error.\nThis turn did not complete. Some actions may already have run; verify their effects before resending.'), null)
+    assert.equal(parseAgentOutput('hermes', 'The earlier Provider said: Connection error. The service is now working.').outcome, 'completed')
+    assert.equal(parseAgentOutput('hermes', '> Provider said: Connection error.\n> Your request was not processed. Send it again if you still want me to carry it out.').outcome, 'completed')
+  } finally {
+    process.env.PATH = originalPath
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
+})
+
 test('cancelling a remote Agent run terminates its native process', async t => {
   if (process.platform === 'win32') return t.skip('uses a POSIX executable fixture')
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-cloud-cancel-'))
