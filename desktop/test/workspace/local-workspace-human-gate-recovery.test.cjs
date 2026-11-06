@@ -8,7 +8,7 @@ const {
 } = require('../../src/collaboration/orchestration-v4-records.cjs')
 const { LocalWorkspace } = require('../../src/workspace/local-workspace.cjs')
 const { RunLedger } = require('../../src/runs/run-ledger.cjs')
-const { fixture } = require('../support/local-workspace-test-helpers.cjs')
+const { deferred, fixture } = require('../support/local-workspace-test-helpers.cjs')
 
 function pendingGate(workspace, timeoutMs = 2000) {
   const current = workspace.listHumanGates({ pendingOnly: true })[0]
@@ -230,6 +230,81 @@ test('task-graph Human decisions resume from the durable v3 cursor after restart
   await secondRestart.refreshAgents()
   await new Promise(resolve => setImmediate(resolve))
   assert.equal(calls.length, 1)
+})
+
+test('task graph automatic recovery excludes active nodes, unfinished Agent runs and human continuations', () => {
+  const base = { mode: 'auto', status: 'running', groupId: 'group', targetKinds: ['codex'], agentRuns: [],
+    orchestration: { version: 3, workflow: 'auto', template: 'task-graph',
+      taskGraph: { currentNodeIds: [], nodeStates: [{ status: 'pending' }] } } }
+  const recoverable = record => LocalWorkspace.prototype.recoverableTaskGraphRecords.call({
+    state: { groups: [{ id: 'group' }] }, runLedger: { list: () => [record] },
+  }).length === 1
+  assert.equal(recoverable(base), true)
+  assert.equal(recoverable({ ...base, continuation: { state: 'pending' } }), false)
+  assert.equal(recoverable({ ...base, agentRuns: [{ status: 'running' }] }), false)
+  assert.equal(recoverable({ ...base, agentRuns: [{ status: 'interrupted' }] }), false)
+  assert.equal(recoverable({ ...base, attemptHistory: [{ finalOutcome: 'unknown' }] }), false)
+  assert.equal(recoverable({ ...base, orchestration: { ...base.orchestration,
+    taskGraph: { currentNodeIds: ['active'], nodeStates: [{ status: 'running' }] } } }), false)
+  assert.equal(recoverable({ ...base, status: 'stopped' }), false)
+})
+
+test('task graph resumes a persisted node boundary after restart without repeating completed work', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const ledgerPath = path.join(directory, 'run-ledger.json')
+  const ledger = new RunLedger({ storagePath: ledgerPath })
+  options.runLedger = ledger
+  const calls = []
+  const finalStarted = deferred()
+  options.runAgent = async (agent, _prompt, _workdir, runOptions) => {
+    calls.push(agent.kind)
+    if (agent.kind === 'workbuddy' && calls.filter(kind => kind === 'workbuddy').length === 1) {
+      finalStarted.resolve()
+      await new Promise((_, reject) => {
+        if (runOptions.signal.aborted) return reject(new Error('stopped'))
+        runOptions.signal.addEventListener('abort', () => reject(new Error('stopped')), { once: true })
+      })
+    }
+    return { text: 'Shared conclusion.', outcome: 'completed' }
+  }
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Boundary recovery', agentKinds: ['codex', 'workbuddy'],
+    workdir: directory, allowWrite: false })
+  let boundarySnapshot = ''
+  let boundaryJournal = ''
+  const capture = () => {
+    const record = ledger.list(group.id)[0]
+    const states = record?.orchestration?.taskGraph?.nodeStates
+    if (!boundarySnapshot && states?.[0]?.status === 'accepted' && states?.[1]?.status === 'pending') {
+      boundarySnapshot = fs.readFileSync(ledgerPath, 'utf8')
+      boundaryJournal = fs.readFileSync(`${ledgerPath}.journal`, 'utf8')
+    }
+  }
+  workspace.on('changed', capture)
+  const acceptance = { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 }
+  const node = (nodeId, agentKind, rest = {}) => ({ nodeId, role: 'primary', agentKind,
+    dependsOn: [], inputNodeIds: [], expectedOutput: 'Produce a conclusion.', acceptance,
+    terminal: false, parallel: false, decisionOptions: [], ...rest })
+  await workspace.sendMessage({ groupId: group.id, text: 'Review together', mode: 'auto', maxRounds: 3,
+    targetKinds: ['codex', 'workbuddy'], workflow: { template: 'task-graph', nodes: [
+      node('first', 'codex'), node('final', 'workbuddy', { dependsOn: ['first'], inputNodeIds: ['first'], terminal: true }),
+    ] } })
+  await finalStarted.promise
+  assert.ok(boundarySnapshot)
+  const runId = ledger.list(group.id)[0].runId
+  await workspace.stopAll()
+  workspace.off('changed', capture)
+  fs.writeFileSync(ledgerPath, boundarySnapshot)
+  fs.writeFileSync(`${ledgerPath}.journal`, boundaryJournal)
+  const restartedLedger = new RunLedger({ storagePath: ledgerPath })
+  const restarted = new LocalWorkspace({ ...options, runLedger: restartedLedger })
+  await restarted.refreshAgents()
+  const terminal = await waitForTerminalRun(restartedLedger, runId)
+  assert.equal(terminal.status, 'completed', terminal.reason)
+  assert.equal(calls.filter(kind => kind === 'codex').length, 1)
+  assert.equal(calls.filter(kind => kind === 'workbuddy').length, 2)
 })
 
 test('parallel task graph preserves completed work and resumes the remaining gated node after restart', async t => {

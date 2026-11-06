@@ -432,8 +432,9 @@ class LocalWorkspace extends EventEmitter {
   restoreInterruptedRuns() {
     const recoverableV4Manual = this.recoverableV4ManualRecords()
     const recoverableV4Auto = this.recoverableV4AutoRecords()
+    const recoverableTaskGraphs = this.recoverableTaskGraphRecords()
     this.runLedgerCoordinator.restoreInterruptedRuns()
-    if (!recoverableV4Manual.length && !recoverableV4Auto.length) return
+    if (!recoverableV4Manual.length && !recoverableV4Auto.length && !recoverableTaskGraphs.length) return
 
     let messagesChanged = false
     for (const record of recoverableV4Manual) {
@@ -478,7 +479,56 @@ class LocalWorkspace extends EventEmitter {
       }
       this.prepareV4AutoRecovery(durable)
     }
+    for (const record of recoverableTaskGraphs) {
+      if (this.activeRuns.has(record.groupId)) continue
+      const interrupted = this.runLedger.get(record.runId)
+      try {
+        if (!this.prepareTaskGraphRecovery(this.runLedger.checkpoint(record))) throw new Error('LOCAL_RUN_CONTINUATION_INVALID')
+      } catch {
+        if (interrupted) { try { this.runLedger.checkpoint(interrupted) } catch { /* Preserve the ledger failure. */ } }
+      }
+    }
     if (messagesChanged) this.save()
+  }
+
+  recoverableTaskGraphRecords() {
+    let records = []
+    try { records = this.runLedger?.list?.() || [] } catch { return [] }
+    const groups = new Set(this.state.groups.map(group => group.id))
+    const retained = new Set()
+    return records.filter(record => {
+      const cursor = record?.orchestration
+      const graph = cursor?.taskGraph
+      if (record?.mode !== 'auto' || TERMINAL_RUN_STATUSES.has(record.status)
+          || record.continuation || !groups.has(record.groupId) || retained.has(record.groupId)
+          || cursor?.version !== 3 || cursor.workflow !== 'auto' || cursor.template !== 'task-graph'
+          || !Array.isArray(graph?.currentNodeIds) || graph.currentNodeIds.length !== 0
+          || !Array.isArray(graph.nodeStates) || graph.nodeStates.some(state => ['running', 'waiting'].includes(state.status))
+          || (record.agentRuns || []).some(run => !['completed', 'partial', 'failed'].includes(run.status))
+          || (record.attemptHistory || []).some(attempt => attempt.finalOutcome === 'unknown')) return false
+      retained.add(record.groupId)
+      return true
+    })
+  }
+
+  prepareTaskGraphRecovery(durable) {
+    const group = this.state.groups.find(item => item.id === durable.groupId)
+    if (!group || this.activeRuns.has(group.id)) return false
+    const controller = this.createRunController('auto', durable.targetKinds, durable.threadRootId,
+      durable.maxRounds, durable.unlimitedRounds)
+    Object.assign(controller, {
+      runId: durable.runId, taskId: durable.taskId, contextPackId: durable.contextPackId,
+      taskBound: true, groupId: group.id, currentRound: durable.currentRound || 0,
+      startedAt: durable.startedAt, attemptHistory: [...(durable.attemptHistory || [])],
+      orchestration: structuredClone(durable.orchestration),
+      completedKinds: [...durable.orchestration.successfulKinds], failedKinds: [],
+    })
+    controller.harness = new RunHarness({ runId: durable.runId, groupId: group.id,
+      threadRootId: durable.threadRootId, targetKinds: durable.targetKinds, agentRuns: durable.agentRuns })
+    if (durable.budget) controller.budget = new RunBudget({ ...durable.budget, now: Date.now })
+    this.activeRuns.set(group.id, controller)
+    this.pendingV4AutoRecoveries.set(durable.runId, { group, durable, controller })
+    return true
   }
 
   recoverableV4ManualRecords() {
