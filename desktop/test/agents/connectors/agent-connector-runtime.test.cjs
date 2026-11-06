@@ -399,16 +399,28 @@ test('a generic file declaration cannot bypass media input capabilities', async 
   }
 })
 
-test('a media declaration cannot disguise an ordinary file', async () => {
+test('another input declaration cannot disguise an ordinary file', async () => {
   const { runtime } = runtimeFixture(async () => {
     assert.fail('undeclared file must not reach the connector recipe')
-  }, { inputTypes: ['text', 'image', 'audio', 'video'] })
-  for (const inputType of ['image', 'audio', 'video']) {
+  }, { inputTypes: ['text', 'image', 'audio', 'video', 'structured-data'] })
+  for (const inputType of ['image', 'audio', 'video', 'structured-data']) {
     await assert.rejects(runtime.run(runtime.detectAgents()[0], 'Review', '/tmp/workspace', {
       runId: 'run-disguised', agentRunId: 'agent-disguised', sandbox: 'read-only',
       attachments: [{ inputType, mimeType: 'application/pdf' }],
     }), { message: 'AGENT_CONNECTOR_ATTACHMENT_UNSUPPORTED' })
   }
+})
+
+test('explicit structured data without file MIME retains its declared capability', async () => {
+  const { runtime } = runtimeFixture(async input => {
+    assert.deepEqual(input.attachments, [{ inputType: 'structured-data', value: { answer: 42 } }])
+    input.emit({ eventId: 'done', cursor: 'done', sequence: 1, type: 'Completed', outcome: 'completed' })
+    return { text: 'done', outcome: 'completed' }
+  }, { inputTypes: ['text', 'structured-data'] })
+  assert.equal((await runtime.run(runtime.detectAgents()[0], 'Review', '/tmp/workspace', {
+    runId: 'run-structured', agentRunId: 'agent-structured', sandbox: 'read-only',
+    attachments: [{ inputType: 'structured-data', value: { answer: 42 } }],
+  })).outcome, 'completed')
 })
 
 test('workspace preflight applies the same strict Connector media capabilities', () => {
