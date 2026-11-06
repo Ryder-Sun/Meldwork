@@ -182,6 +182,17 @@ test('Codex native API key is captured and scoped to Codex', async () => {
   assert.equal(result.env.UNRELATED_SECRET, undefined)
 })
 
+test('an OpenAI environment key alone does not prove the default Codex provider is authenticated', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-codex-unverified-key-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const env = { OPENAI_API_KEY: 'custom-provider-key' }
+  assert.deepEqual(nativeCredentialState('codex', { home, env }), { state: 'unknown', source: 'unverified' })
+  assert.deepEqual(nativeCredentialEnvironment('codex', env), env)
+  assert.deepEqual(nativeCredentialState('codex', { home, env: { ...env, CODEX_API_KEY: 'native-key' } }), {
+    state: 'ready', source: 'native-credential',
+  })
+})
+
 test('Windows native environment canonicalizes allowed keys without leaking unrelated values', async () => {
   const result = await resolveNativeShellEnvironment({ cache: false, platform: 'win32', env: {
     Path: 'C:\\tools', Anthropic_Api_Key: 'native-secret', Claude_Config_Dir: 'C:\\claude',
