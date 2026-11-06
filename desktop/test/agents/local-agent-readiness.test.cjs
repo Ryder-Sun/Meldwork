@@ -1499,6 +1499,24 @@ test('model-specific Vertex regions participate in cache identity and stay scope
 })
 
 for (const shell of ['/bin/sh', '/bin/bash', '/bin/zsh']) {
+  test(`native shell ${shell} removes values that are no longer exported`, {
+    skip: process.platform === 'win32' || !fs.existsSync(shell),
+  }, async () => {
+    const execFile = require('node:util').promisify(require('node:child_process').execFile)
+    const result = await resolveNativeShellEnvironment({
+      cache: false, shell, env: { PATH: '/usr/bin:/bin', AWS_PROFILE: 'old', VERTEX_REGION_MODEL: 'old' },
+      execFileFn: (command, args, options) => execFile(command, ['-c', [
+        'unset AWS_PROFILE VERTEX_REGION_MODEL',
+        'AWS_PROFILE=local VERTEX_REGION_MODEL=local',
+        args[1],
+      ].join('\n')], options),
+    })
+    for (const key of ['AWS_PROFILE', 'VERTEX_REGION_MODEL']) {
+      assert.equal(Object.hasOwn(result.env, key), false)
+      assert.ok(result.unsetKeys.includes(key))
+    }
+  })
+
   test(`native shell ${shell} extracts exported dynamic regions without unrelated values or value evaluation`, {
     skip: process.platform === 'win32' || !fs.existsSync(shell),
   }, async t => {

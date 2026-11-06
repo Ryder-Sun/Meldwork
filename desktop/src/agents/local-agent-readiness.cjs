@@ -567,6 +567,11 @@ function nativeShellCommand(shellName, extraEnvKeys = []) {
         "  BASH_ENV= ENV= /bin/bash --noprofile --norc -c 'builtin compgen -e VERTEX_REGION_'",
         'fi',
       ].join('\n')
+  const exportedCheck = shellName === 'zsh'
+    ? '[[ ${(tP)__meldwork_key} == *export* ]]'
+    : shellName === 'bash'
+      ? '__meldwork_decl=$(declare -p "$__meldwork_key" 2>/dev/null); __meldwork_flags=${__meldwork_decl#declare -}; __meldwork_flags=${__meldwork_flags%% *}; case "$__meldwork_flags" in *x*) true ;; *) false ;; esac'
+      : '/usr/bin/printenv "$__meldwork_key" >/dev/null 2>&1'
   return [
     `printf '${SHELL_ENV_MARKER}\\0'`,
     `for __meldwork_key in ${keys} $(${regionNames}); do`,
@@ -577,8 +582,7 @@ function nativeShellCommand(shellName, extraEnvKeys = []) {
     '    [ ${#__meldwork_model} -le 120 ] || continue ;;',
     '  esac',
     '  eval "__meldwork_value=\\${$__meldwork_key-}"',
-    '  eval "__meldwork_set=\\${$__meldwork_key+x}"',
-    '  if [ -n "$__meldwork_set" ]; then',
+    `  if ${exportedCheck}; then`,
     "    printf '%s=%s\\0' \"$__meldwork_key\" \"$__meldwork_value\"",
     '  else',
     "    printf '!%s\\0' \"$__meldwork_key\"",
