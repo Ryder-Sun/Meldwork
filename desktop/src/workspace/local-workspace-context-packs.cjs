@@ -588,4 +588,4 @@ class LocalWorkspaceContextPacks {
   }
 }
 
-module.exports = { LocalWorkspaceContextPacks }
+module.exports = { LocalWorkspaceContextPacks, publicId }

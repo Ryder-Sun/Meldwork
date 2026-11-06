@@ -716,6 +716,24 @@ test('a direct conversation respects an explicit read-only task cap', async t =>
   assert.equal(workspace.snapshot().messages.find(message => message.role === 'user').routingDecision.permissionCap, 'read-only')
 })
 
+test('read-only task caps work with Unicode group identifiers', async t => {
+  const { directory, calls, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  let next = 0
+  options.createId = () => ['群聊 甲', 'task-1'][next++] || `message-${next}`
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ conversationType: 'direct', directAgentKind: 'codex',
+    agentKinds: ['codex'], workdir: directory, allowWrite: true })
+  await workspace.sendMessage({ groupId: group.id, text: 'Read only', targetKinds: ['codex'],
+    routingRequirements: { permissionMode: 'read-only' } })
+  const task = workspace.snapshot().messages.find(message => message.role === 'user')
+  assert.equal(group.id, '群聊 甲')
+  assert.equal(task.id, 'task-1')
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].runOptions.sandbox, 'read-only')
+})
+
 test('regeneration retains the original task permission cap without silently changing it', async t => {
   const { directory, calls, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
