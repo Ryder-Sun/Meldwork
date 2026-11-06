@@ -102,6 +102,7 @@ class RunJournal {
     this.pending = new Map()
     this.legacyRunIds = new Set()
     this.uncertainCompaction = null
+    this.uncertainAppend = null
     this.load()
   }
 
@@ -170,6 +171,28 @@ class RunJournal {
   }
 
   assertLoaded() {
+    if (this.loadError && this.uncertainAppend) {
+      const { originalSize, dev, ino, appended } = this.uncertainAppend
+      let fd
+      try {
+        fd = fs.openSync(this.storagePath, fs.constants.O_RDWR | (fs.constants.O_NOFOLLOW || 0))
+        const stat = fs.fstatSync(fd)
+        if (!stat.isFile() || stat.dev !== dev || stat.ino !== ino
+            || stat.size < originalSize || stat.size > originalSize + appended.length) {
+          throw new Error('RUN_JOURNAL_STORE_INVALID')
+        }
+        const tail = Buffer.alloc(stat.size - originalSize)
+        if (tail.length && (fs.readSync(fd, tail, 0, tail.length, originalSize) !== tail.length
+            || !tail.equals(appended.subarray(0, tail.length)))) {
+          throw new Error('RUN_JOURNAL_STORE_INVALID')
+        }
+        fs.ftruncateSync(fd, originalSize)
+        fs.fsyncSync(fd)
+        this.uncertainAppend = null
+        this.loadError = null
+      } catch (error) { this.loadError = error }
+      finally { if (fd !== undefined) fs.closeSync(fd) }
+    }
     if (this.loadError && this.uncertainCompaction) {
       const { serialized, change } = this.uncertainCompaction
       try {
@@ -202,21 +225,28 @@ class RunJournal {
     const directory = path.dirname(this.storagePath)
     fs.mkdirSync(directory, { recursive: true, mode: 0o700 })
     let originalSize = 0
+    let originalIdentity = null
     const existed = fs.existsSync(this.storagePath)
     if (existed) {
       const stat = fs.lstatSync(this.storagePath)
       if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('RUN_JOURNAL_WRITE_FAILED')
       originalSize = stat.size
+      originalIdentity = { dev: stat.dev, ino: stat.ino }
     }
     const next = {
       version: JOURNAL_VERSION,
       sequence: this.sequence + 1,
       ...entry,
     }
+    const appended = Buffer.from(`${JSON.stringify(next)}\n`, 'utf8')
     let descriptor
     try {
       descriptor = fs.openSync(this.storagePath, 'a', 0o600)
-      fs.writeFileSync(descriptor, `${JSON.stringify(next)}\n`, 'utf8')
+      if (!originalIdentity) {
+        const stat = fs.fstatSync(descriptor)
+        originalIdentity = { dev: stat.dev, ino: stat.ino }
+      }
+      fs.writeFileSync(descriptor, appended)
       fs.fsyncSync(descriptor)
       fs.closeSync(descriptor)
       descriptor = undefined
@@ -232,7 +262,10 @@ class RunJournal {
         const rollback = fs.openSync(this.storagePath, 'r+')
         try { fs.fsyncSync(rollback) } finally { fs.closeSync(rollback) }
       } catch (rollbackError) {
-        if (existed || rollbackError.code !== 'ENOENT') this.loadError = rollbackError
+        if (existed || rollbackError.code !== 'ENOENT') {
+          this.loadError = rollbackError
+          if (originalIdentity) this.uncertainAppend = { originalSize, ...originalIdentity, appended }
+        }
       }
       throw error
     }

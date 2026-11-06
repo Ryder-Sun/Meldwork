@@ -2259,17 +2259,61 @@ test('failed journal append rollback prevents stale sequence reuse', t => {
   fs.truncateSync = () => { throw Object.assign(new Error('TRUNCATE_FAILED'), { code: 'EIO' }) }
   try {
     assert.throws(() => ledger.checkpoint(runRecord('failed-append', 'group-append')), { message: 'RUN_LEDGER_WRITE_FAILED' })
+    assert.throws(() => ledger.checkpoint(runRecord('later-append', 'group-append')), { message: 'RUN_LEDGER_WRITE_FAILED' })
   } finally {
     fs.fsyncSync = originalSync
     fs.truncateSync = originalTruncate
   }
-  assert.throws(() => ledger.checkpoint(runRecord('later-append', 'group-append')), { message: 'RUN_LEDGER_WRITE_FAILED' })
+  ledger.checkpoint(runRecord('later-append', 'group-append'))
   const restarted = new RunLedger({ storagePath })
   assert.equal(restarted.loadError, null)
   assert.equal(restarted.get('active-append').status, 'running')
   assert.equal(restarted.get('failed-append'), null)
-  restarted.checkpoint(runRecord('later-append', 'group-append'))
   assert.equal(new RunLedger({ storagePath }).get('later-append').status, 'running')
+})
+
+test('uncertain journal rollback refuses externally modified tail bytes', t => {
+  const { storagePath } = fixture(t)
+  const ledger = new RunLedger({ storagePath, now: () => 1000 })
+  ledger.checkpoint(runRecord('active-tail', 'group-tail'))
+  const originalSync = fs.fsyncSync
+  const originalTruncate = fs.truncateSync
+  fs.fsyncSync = () => { throw Object.assign(new Error('SYNC_FAILED'), { code: 'EIO' }) }
+  fs.truncateSync = () => { throw Object.assign(new Error('TRUNCATE_FAILED'), { code: 'EIO' }) }
+  try {
+    assert.throws(() => ledger.checkpoint(runRecord('failed-tail', 'group-tail')), { message: 'RUN_LEDGER_WRITE_FAILED' })
+  } finally {
+    fs.fsyncSync = originalSync
+    fs.truncateSync = originalTruncate
+  }
+  fs.appendFileSync(ledger.journal.storagePath, 'external change')
+  const before = fs.readFileSync(ledger.journal.storagePath)
+  assert.throws(() => ledger.checkpoint(runRecord('next-tail', 'group-tail')), { message: 'RUN_LEDGER_WRITE_FAILED' })
+  assert.deepEqual(fs.readFileSync(ledger.journal.storagePath), before)
+})
+
+test('uncertain commit append rolls back before automatically retrying', t => {
+  const { storagePath } = fixture(t)
+  const ledger = new RunLedger({ storagePath, now: () => 1000 })
+  ledger.checkpoint(runRecord('active-commit', 'group-commit'))
+  const append = ledger.journal.append.bind(ledger.journal)
+  let failCommit = true
+  ledger.journal.append = entry => {
+    if (entry.phase !== 'commit' || !failCommit) return append(entry)
+    failCommit = false
+    const sync = fs.fsyncSync
+    const truncate = fs.truncateSync
+    fs.fsyncSync = () => { throw Object.assign(new Error('SYNC_FAILED'), { code: 'EIO' }) }
+    fs.truncateSync = () => { throw Object.assign(new Error('TRUNCATE_FAILED'), { code: 'EIO' }) }
+    try { return append(entry) } finally { fs.fsyncSync = sync; fs.truncateSync = truncate }
+  }
+  assert.throws(() => ledger.checkpoint(runRecord('failed-commit', 'group-commit')), { message: 'RUN_LEDGER_WRITE_FAILED' })
+  assert.equal(ledger.get('failed-commit'), null)
+  ledger.checkpoint(runRecord('retry-commit', 'group-commit'))
+  const restarted = new RunLedger({ storagePath })
+  assert.equal(restarted.loadError, null)
+  assert.equal(restarted.get('failed-commit'), null)
+  assert.equal(restarted.get('retry-commit').status, 'running')
 })
 
 test('deleteGroup removes only matching records and persists the result', (t) => {
