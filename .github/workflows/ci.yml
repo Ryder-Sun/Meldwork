@@ -22,12 +22,28 @@ jobs:
           cache: npm
           cache-dependency-path: desktop/package-lock.json
 
-      - name: Install runtime dependencies
-        run: npm ci --omit=dev
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Install desktop dependencies
+        run: npm ci
         working-directory: desktop
 
       - name: Test actual process tree termination
         run: node --test desktop/test/agents/cli/windows-process-tree.test.cjs
+
+      - name: Build unpacked Windows application
+        run: npm run pack
+        working-directory: desktop
+
+      - name: Test packaged process tree termination
+        shell: pwsh
+        run: |
+          $env:ELECTRON_RUN_AS_NODE = '1'
+          $env:MELDWORK_TEST_PACKAGED_APP = (Resolve-Path 'desktop/dist/win-unpacked/resources/app.asar').Path
+          & 'desktop/dist/win-unpacked/Meldwork.exe' --test desktop/test/agents/cli/windows-process-tree.test.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   private-file-portability:
     name: Private file portability (${{ matrix.os }})
