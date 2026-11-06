@@ -150,6 +150,33 @@ test('a later unclassified peer contribution withdraws prior approvals', () => {
   assert.equal(runner.v4NaturalConsensus(group, controller, 'task'), null)
 })
 
+test('stale or unbound follow-up reviews cannot retain an earlier approval', () => {
+  const messages = []
+  const runner = { ...naturalConsensusMethods, state: () => ({ messages }),
+    v4NaturalMessageMatchesBinding: () => true,
+    v4NaturalMessageContent: naturalDiscussionMethods.v4NaturalMessageContent }
+  const group = { id: 'group' }
+  const controller = { runId: 'run' }
+  const message = (kind, sequence, decision) => ({
+    id: `message-${sequence}`, groupId: 'group', threadRootId: 'task', role: 'agent',
+    agentKind: kind, turnSeq: sequence, content: 'Reviewed the answer.',
+    trace: { phase: 'discussion', runId: 'run', context: { taskDecision: decision } },
+  })
+  const complete = { status: 'completed', deliverables: ['answer'] }
+  messages.push(message('codex', 1, complete))
+  const candidate = runner.v4NaturalConsensus(group, controller, 'task')
+  messages.push(message('hermes', 2, { ...complete, reviewedVersion: candidate.version }))
+  assert.equal(runner.v4NaturalConsensus(group, controller, 'task').approvedKinds.size, 2)
+  messages.push(message('hermes', 3, { ...complete, reviewedVersion: 'a'.repeat(64) }))
+  assert.deepEqual([...runner.v4NaturalConsensus(group, controller, 'task').approvedKinds], ['codex'])
+  messages.push(message('hermes', 4, { ...complete, reviewedVersion: candidate.version }))
+  assert.equal(runner.v4NaturalConsensus(group, controller, 'task').approvedKinds.size, 2)
+  messages.push(message('hermes', 5, complete))
+  assert.deepEqual([...runner.v4NaturalConsensus(group, controller, 'task').approvedKinds], ['codex'])
+  messages.push(message('codex', 6, { ...complete, reviewedVersion: 'b'.repeat(64) }))
+  assert.equal(runner.v4NaturalConsensus(group, controller, 'task'), null)
+})
+
 test('a completion receipt with a failure reason cannot create or approve a candidate', () => {
   const messages = []
   const runner = { ...naturalConsensusMethods, state: () => ({ messages }),

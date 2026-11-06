@@ -52,12 +52,21 @@ const naturalConsensusMethods = {
       if (decision.reviewedVersion) {
         if (candidate && decision.reviewedVersion === candidate.version) {
           candidate.approvedKinds.add(message.agentKind)
+        } else if (candidate?.approvedKinds.has(message.agentKind)) {
+          if (candidate.message.agentKind === message.agentKind) candidate = null
+          else candidate.approvedKinds.delete(message.agentKind)
         }
         continue
       }
       // An unbound confirmation cannot replace the version being reviewed.
       // Revisions must first withdraw it with a non-completed decision.
-      if (candidate) continue
+      if (candidate) {
+        if (candidate.approvedKinds.has(message.agentKind)) {
+          if (candidate.message.agentKind === message.agentKind) candidate = null
+          else candidate.approvedKinds.delete(message.agentKind)
+        }
+        continue
+      }
       const candidateFiles = [...files.values()]
       candidate = {
         version: hashValue({ messageId: message.id, text: contribution.text, artifactIds, files: candidateFiles }),
