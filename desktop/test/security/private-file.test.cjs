@@ -24,6 +24,33 @@ test('private file writes replace contents atomically with restrictive permissio
   assert.deepEqual(fs.readdirSync(path.dirname(filename)), ['private.json'])
 })
 
+test('private file writes sync the parent directory after replacement', (t) => {
+  if (process.platform === 'win32') return t.skip('directory handles are not portable on Windows')
+  const directory = fixture(t)
+  const filename = path.join(directory, 'private.json')
+  const original = fs.fsyncSync
+  const types = []
+  fs.fsyncSync = fd => { types.push(fs.fstatSync(fd).isDirectory() ? 'directory' : 'file'); return original(fd) }
+  t.after(() => { fs.fsyncSync = original })
+  atomicWritePrivateFile(filename, 'durable')
+  assert.deepEqual(types, ['file', 'directory'])
+  assert.equal(fs.readFileSync(filename, 'utf8'), 'durable')
+})
+
+test('directory sync failures are surfaced rather than reported as durable writes', (t) => {
+  if (process.platform === 'win32') return t.skip('directory handles are not portable on Windows')
+  const directory = fixture(t)
+  const filename = path.join(directory, 'private.json')
+  const original = fs.fsyncSync
+  fs.fsyncSync = fd => {
+    if (fs.fstatSync(fd).isDirectory()) throw Object.assign(new Error('DIRECTORY_SYNC_FAILED'), { code: 'EIO' })
+    return original(fd)
+  }
+  t.after(() => { fs.fsyncSync = original })
+  assert.throws(() => atomicWritePrivateFile(filename, 'data'), { message: 'DIRECTORY_SYNC_FAILED' })
+  assert.equal(fs.readFileSync(filename, 'utf8'), 'data')
+})
+
 test('private file writes remove their temporary file when replacement fails', (t) => {
   const directory = fixture(t)
   const filename = path.join(directory, 'occupied')

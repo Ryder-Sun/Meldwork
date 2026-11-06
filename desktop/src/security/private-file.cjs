@@ -18,6 +18,17 @@ function atomicWritePrivateFile(filename, contents) {
     descriptor = undefined
     fs.chmodSync(temporaryPath, 0o600)
     fs.renameSync(temporaryPath, filename)
+    let directoryDescriptor
+    try {
+      directoryDescriptor = fs.openSync(directory, 'r')
+      fs.fsyncSync(directoryDescriptor)
+    } catch (error) {
+      const unsupported = ['EINVAL', 'ENOTSUP', 'EOPNOTSUPP'].includes(error.code)
+        || (process.platform === 'win32' && ['EPERM', 'EISDIR'].includes(error.code))
+      if (!unsupported) throw error
+    } finally {
+      if (directoryDescriptor !== undefined) fs.closeSync(directoryDescriptor)
+    }
   } catch (error) {
     if (descriptor !== undefined) {
       try { fs.closeSync(descriptor) } catch { /* already closed */ }

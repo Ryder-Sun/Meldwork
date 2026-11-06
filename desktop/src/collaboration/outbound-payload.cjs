@@ -3,15 +3,17 @@ const crypto = require('node:crypto')
 const wireBytesByPayload = new WeakMap()
 
 function canonicalJson(value) {
-  if (Array.isArray(value)) {
-    return `[${value.map(canonicalJson).join(',')}]`
+  const normalized = JSON.parse(JSON.stringify(value))
+  function serialize(item) {
+    if (Array.isArray(item)) return `[${item.map(serialize).join(',')}]`
+    if (item && typeof item === 'object') {
+      return `{${Object.keys(item).sort().map(key => (
+        `${JSON.stringify(key)}:${serialize(item[key])}`
+      )).join(',')}}`
+    }
+    return JSON.stringify(item)
   }
-  if (value && typeof value === 'object') {
-    return `{${Object.keys(value).sort().map(key => (
-      `${JSON.stringify(key)}:${canonicalJson(value[key])}`
-    )).join(',')}}`
-  }
-  return JSON.stringify(value)
+  return serialize(normalized)
 }
 
 function payloadWithBytes(fields, value) {

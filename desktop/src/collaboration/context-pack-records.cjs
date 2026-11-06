@@ -269,12 +269,18 @@ function validateDeliveryRelations(delivery, context) {
   if (delivery.payloadHash !== delivery.payloadRef.hash) {
     context.addIssue({ code: 'custom', path: ['payloadHash'], message: 'payload hash mismatch' })
   }
-  if (delivery.wirePayloadHash !== delivery.wirePayloadRef.hash
-      || delivery.wirePayloadBytes !== delivery.wirePayloadRef.size) {
+  if (delivery.wirePayloadHash !== delivery.wirePayloadRef.hash) {
     context.addIssue({
       code: 'custom',
       path: ['wirePayloadHash'],
       message: 'wire payload reference mismatch',
+    })
+  }
+  if (delivery.wirePayloadBytes !== delivery.wirePayloadRef.size) {
+    context.addIssue({
+      code: 'custom',
+      path: ['wirePayloadBytes'],
+      message: 'wire payload byte count mismatch',
     })
   }
   const additionIds = delivery.runtimeAdditions.map(addition => addition.additionId)
@@ -336,6 +342,7 @@ function assertNoForbiddenContent(value, prefix, seen = new Set()) {
 
 function parseInput(value, prefix, maxBytes) {
   if (Buffer.isBuffer(value) || value instanceof Uint8Array || typeof value === 'string') {
+    if (typeof value === 'string' && value.length > maxBytes) fail(`${prefix}_JSON_INVALID`)
     const bytes = typeof value === 'string' ? Buffer.from(value, 'utf8') : Buffer.from(value)
     if (!bytes.length || bytes.length > maxBytes) fail(`${prefix}_JSON_INVALID`)
     let parsed
@@ -347,7 +354,14 @@ function parseInput(value, prefix, maxBytes) {
 
 function validated(schema, value, prefix) {
   const result = schema.safeParse(value)
-  if (!result.success) fail(`${prefix}_SCHEMA_INVALID`)
+  if (!result.success) {
+    const error = contextRecordError(`${prefix}_SCHEMA_INVALID`)
+    const field = result.error.issues.find(issue => (
+      issue.code === 'custom' && ['wirePayloadHash', 'wirePayloadBytes'].includes(issue.path[0])
+    ))?.path[0]
+    if (field) error.field = field
+    throw error
+  }
   return result.data
 }
 
@@ -375,14 +389,14 @@ function createContextPackRecord(input) {
     ...body,
   }
   if (record.parentPackId === record.contextPackId) fail('CONTEXT_PACK_SCHEMA_INVALID')
-  enforceCanonicalSize(record, 'CONTEXT_PACK', MAX_CONTEXT_PACK_RECORD_BYTES)
-  return JSON.parse(canonicalJson(record))
+  return JSON.parse(enforceCanonicalSize(record, 'CONTEXT_PACK', MAX_CONTEXT_PACK_RECORD_BYTES))
 }
 
 function parseContextPackRecord(input) {
   const { parsed, serialized } = parseInput(
     input, 'CONTEXT_PACK', MAX_CONTEXT_PACK_RECORD_BYTES,
   )
+  if (!isPlainObject(parsed)) fail('CONTEXT_PACK_SCHEMA_INVALID')
   assertNoForbiddenContent(parsed, 'CONTEXT_PACK')
   const record = validated(contextPackRecordSchema, parsed, 'CONTEXT_PACK')
   const { contextPackId, ...body } = record
@@ -405,14 +419,14 @@ function createDeliveryRecord(input) {
     deliveryRecordId: deriveId('delivery-record', body),
     ...body,
   }
-  enforceCanonicalSize(record, 'DELIVERY_RECORD', MAX_DELIVERY_RECORD_BYTES)
-  return JSON.parse(canonicalJson(record))
+  return JSON.parse(enforceCanonicalSize(record, 'DELIVERY_RECORD', MAX_DELIVERY_RECORD_BYTES))
 }
 
 function parseDeliveryRecord(input) {
   const { parsed, serialized } = parseInput(
     input, 'DELIVERY_RECORD', MAX_DELIVERY_RECORD_BYTES,
   )
+  if (!isPlainObject(parsed)) fail('DELIVERY_RECORD_SCHEMA_INVALID')
   assertNoForbiddenContent(parsed, 'DELIVERY_RECORD')
   const record = validated(deliveryRecordSchema, parsed, 'DELIVERY_RECORD')
   const { deliveryRecordId, ...body } = record

@@ -24,6 +24,20 @@ const {
   runtimeCommandSummary,
   searchPath,
 } = require('../../../src/agents/cli/cli-adapters.cjs')
+
+test('discovery scans version-manager directories once per pass and rescans on refresh', async () => {
+  let scans = 0
+  const options = {
+    platform: 'linux', home: '/tmp/meldwork-discovery-test', env: { PATH: '' },
+    readdirFn: () => { scans++; return [] },
+    accessFn: async () => { throw new Error('not found') },
+    execFileFn: async () => { throw new Error('not found') },
+  }
+  await detectAgents(options)
+  assert.equal(scans, 2)
+  await detectAgents(options)
+  assert.equal(scans, 4)
+})
 const {
   executable,
   readJsonWhenReady,

@@ -104,7 +104,10 @@ function versionManagerBins(root, suffix, options = {}) {
     .map(name => pathApi.join(root, name, ...suffix))
 }
 
+const DETECTION_SEARCH_DIRECTORIES = Symbol('detectionSearchDirectories')
+
 function searchDirectories(options = {}) {
+  if (options[DETECTION_SEARCH_DIRECTORIES]) return options[DETECTION_SEARCH_DIRECTORIES]
   const { platform, env, home, pathApi } = runtimeOptions(options)
   const configured = String(envValue(env, 'PATH') || '').split(pathApi.delimiter)
   const pnpmHome = envValue(env, 'PNPM_HOME')
@@ -524,14 +527,15 @@ async function detectAgentKind(kind, options, childEnv) {
 }
 
 async function detectAgents(options = {}) {
-  const runtime = runtimeOptions(options)
+  const detectionOptions = { ...options, [DETECTION_SEARCH_DIRECTORIES]: searchDirectories(options) }
+  const runtime = runtimeOptions(detectionOptions)
   const { env, platform } = runtime
   const childEnv = {
     ...systemChildEnvironment(env, platform),
-    PATH: searchPath(options),
+    PATH: searchPath(detectionOptions),
   }
   const detected = await Promise.all(ALLOWED_KINDS.map(kind => (
-    detectAgentKind(kind, options, childEnv).catch(() => null)
+    detectAgentKind(kind, detectionOptions, childEnv).catch(() => null)
   )))
   return detected.filter(Boolean)
 }

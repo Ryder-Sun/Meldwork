@@ -34,6 +34,16 @@ function agentCompatible(agent) {
     || typeof agent?.compatibilityState === 'undefined'
 }
 
+function sidebarVisible(agent, preferred) {
+  if (typeof preferred === 'boolean') return preferred
+  return !(agent.custom === true && agent.task && agent.task !== 'general')
+}
+
+function agentInvocable({ installed, versionIdentified, compatible, configured, authenticated, runtimePrerequisitesReady, unavailable }) {
+  return installed !== false && versionIdentified && compatible && configured
+    && authenticated && runtimePrerequisitesReady !== false && !unavailable
+}
+
 function recentlyVerified(runtime, now) {
   if (runtime?.credentialState !== 'ready') return false
   const checkedAt = Date.parse(String(runtime.checkedAt || ''))
@@ -157,8 +167,8 @@ class LocalWorkspaceAgentCatalog {
       const runtimePrerequisitesReady = retained !== null
         || (native?.source !== 'native-runtime-unavailable'
           && (native?.source !== 'native-probe-failed' || recentlyVerified(runtime, this.now())))
-      const invocable = installed && versionIdentified && compatible && configured
-        && authenticated && runtimePrerequisitesReady && !workBuddyUnavailable
+      const invocable = agentInvocable({ installed, versionIdentified, compatible, configured,
+        authenticated, runtimePrerequisitesReady, unavailable: workBuddyUnavailable })
       const verifiedRecently = (authoritativeNativeState && nativeState === 'ready')
         || recentlyVerified(runtime, this.now())
       const available = invocable
@@ -185,6 +195,9 @@ class LocalWorkspaceAgentCatalog {
         compatible,
         configured,
         authenticated,
+        runtimePrerequisitesReady,
+        runtimePrerequisitesSource: runtimePrerequisitesReady ? '' : native?.source || '',
+        runtimeBlockSource: workBuddyUnavailable ? native.source : '',
         invocable,
         recentlyVerified: verifiedRecently,
         credentialState,
@@ -193,7 +206,7 @@ class LocalWorkspaceAgentCatalog {
         task: capabilities.task,
         resumable: capabilities.resumable,
         capabilities,
-        showInSidebar: typeof preferred === 'boolean' ? preferred : true,
+        showInSidebar: sidebarVisible({ ...agent, task: capabilities.task }, preferred),
       }
     })
     this.setDetectedAgents(agents)
@@ -248,19 +261,21 @@ class LocalWorkspaceAgentCatalog {
       agent.compatible = agentCompatible(agent)
       agent.configured = credentialState !== 'unknown'
       agent.authenticated = credentialState === 'ready'
-      agent.invocable = agent.versionIdentified && agent.compatible
-        && agent.configured && agent.authenticated
+      agent.invocable = agentInvocable({ ...agent,
+        unavailable: Boolean(agent.runtimeBlockSource) })
       agent.recentlyVerified = credentialState === 'ready'
       agent.available = agent.invocable
       agent.availabilitySource = !agent.compatible
         ? 'incompatible'
-        : credentialState === 'ready'
-          ? 'verified-run'
-          : credentialState === 'missing'
-            ? 'runtime-auth-failure'
-            : 'unverified'
+        : credentialState === 'missing'
+          ? 'runtime-auth-failure'
+          : agent.runtimeBlockSource
+            ? agent.runtimeBlockSource
+          : agent.runtimePrerequisitesReady === false
+            ? agent.runtimePrerequisitesSource || 'native-runtime-unavailable'
+            : credentialState === 'ready' ? 'verified-run' : 'unverified'
       const preferred = state.agentPreferences[kind]?.showInSidebar
-      agent.showInSidebar = typeof preferred === 'boolean' ? preferred : true
+      agent.showInSidebar = sidebarVisible(agent, preferred)
     }
     this.save()
     this.emitChanged()

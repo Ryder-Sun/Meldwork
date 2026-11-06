@@ -325,6 +325,47 @@ test('configured credentials do not make an Agent invocable when runtime prerequ
     available: false,
   })
   assert.equal(agents()[0].availabilitySource, 'native-runtime-unavailable')
+  catalog.markRuntimeCredential('openclaw', 'ready')
+  assert.equal(agents()[0].available, false)
+  assert.equal(agents()[0].invocable, false)
+  assert.equal(agents()[0].availabilitySource, 'native-runtime-unavailable')
+})
+
+test('review-only custom Agents stay out of the sidebar across runtime credential changes', async () => {
+  const kind = 'custom-0123456789abcdef'
+  const { agents, catalog } = fixture({
+    detectAgents: async () => [{ kind, custom: true, capabilities: { domains: ['software-review'] } }],
+    credentialState: async () => ({ state: 'ready', source: 'native-credential' }),
+  })
+  await catalog.refresh()
+  assert.equal(agents()[0].task, 'code_review')
+  assert.equal(agents()[0].showInSidebar, false)
+  catalog.markRuntimeCredential(kind, 'missing')
+  catalog.markRuntimeCredential(kind, 'ready')
+  assert.equal(agents()[0].showInSidebar, false)
+})
+
+test('runtime credential changes do not clear a WorkBuddy native model blocker', async () => {
+  const { agents, catalog } = fixture({
+    detectAgents: async () => [{ kind: 'workbuddy', compatibilityState: 'compatible' }],
+    credentialState: async () => ({ state: 'ready', source: 'workbuddy-model-unavailable' }),
+  })
+  await catalog.refresh()
+  assert.equal(agents()[0].available, false)
+  catalog.markRuntimeCredential('workbuddy', 'missing')
+  catalog.markRuntimeCredential('workbuddy', 'ready')
+  assert.equal(agents()[0].available, false)
+  assert.equal(agents()[0].availabilitySource, 'workbuddy-model-unavailable')
+})
+
+test('runtime credentials do not make an uninstalled Agent invocable', () => {
+  const { agents, catalog } = fixture({ initialAgents: [{
+    kind: 'codex', installed: false, compatible: true, compatibilityState: 'compatible',
+    versionIdentified: true, task: 'general',
+  }] })
+  catalog.markRuntimeCredential('codex', 'ready')
+  assert.equal(agents()[0].invocable, false)
+  assert.equal(agents()[0].available, false)
 })
 
 test('unidentified product versions remain unavailable after credential validation', async () => {

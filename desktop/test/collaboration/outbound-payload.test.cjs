@@ -1,0 +1,15 @@
+const test = require('node:test')
+const assert = require('node:assert/strict')
+const crypto = require('node:crypto')
+const { createLegacyOutboundPayload, outboundWirePayloadBytes } = require('../../src/collaboration/outbound-payload.cjs')
+
+test('wire payload omits undefined object fields and preserves JSON array semantics', () => {
+  const payload = createLegacyOutboundPayload({ command: 'cli', args: ['x', undefined], cwd: undefined, stdin: undefined })
+  const bytes = outboundWirePayloadBytes(payload)
+  assert.equal(bytes.toString(), '{"args":["x",null],"command":"cli"}')
+  assert.deepEqual(JSON.parse(bytes), { args: ['x', null], command: 'cli' })
+  assert.equal(payload.wirePayloadBytes, bytes.length)
+  assert.equal(payload.wirePayloadHash, crypto.createHash('sha256').update(bytes).digest('hex'))
+  const repeated = createLegacyOutboundPayload({ command: 'cli', args: ['x', undefined] })
+  assert.equal(payload.wirePayloadHash, repeated.wirePayloadHash)
+})

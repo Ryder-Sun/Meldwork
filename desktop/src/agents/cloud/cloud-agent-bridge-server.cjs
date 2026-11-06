@@ -36,6 +36,7 @@ const AGENT_DEFINITIONS = Object.freeze([
   { id: 'openclaw', label: 'OpenClaw' },
   { id: 'workbuddy', label: 'WorkBuddy', commands: ['codebuddy'] },
   { id: 'zcode', label: 'Zcode' },
+  { id: 'deepseek', label: 'DeepSeek Harness', commands: ['dsh'] },
   { id: 'pi', label: 'Pi Agent', commands: ['pi', 'pi-agent', 'piagent'] },
   { id: 'kimi', label: 'Kimi Code' },
   { id: 'mimo', label: 'MiMo Code' },

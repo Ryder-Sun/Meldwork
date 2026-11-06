@@ -286,6 +286,25 @@ test('four suspended global leases consume no capacity while waiting', async () 
   assert.equal(scheduler.snapshot().active.global, 0)
 })
 
+test('two suspended leases in one workspace release both slots and reacquire safely', async () => {
+  const scheduler = new RunScheduler({ taskLimit: 2, workspaceLimit: 2, globalLimit: 4 })
+  const releases = []
+  const completed = []
+  const waiting = [0, 1].map(index => scheduler.withLease({
+    taskId: `task-${index}`, workspaceKey: 'shared-workspace',
+  }, async lease => {
+    await lease.suspend(() => new Promise(resolve => { releases[index] = resolve }))
+    completed.push(index)
+  }))
+  while (releases.filter(Boolean).length < 2) await new Promise(resolve => setImmediate(resolve))
+  assert.equal(scheduler.snapshot().active.global, 0)
+  await scheduler.withLease({ taskId: 'other', workspaceKey: 'shared-workspace' }, async () => {})
+  releases.forEach(release => release())
+  await Promise.all(waiting)
+  assert.deepEqual(completed.sort(), [0, 1])
+  assert.equal(scheduler.snapshot().active.global, 0)
+})
+
 test('task pause blocks queued same-task work while another task uses released capacity', async () => {
   const scheduler = new RunScheduler({ taskLimit: 1, workspaceLimit: 3, globalLimit: 1 })
   const ownerReady = deferred()

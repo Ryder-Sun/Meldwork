@@ -6,12 +6,39 @@ const os = require('node:os')
 const path = require('node:path')
 
 const {
+  MAX_CONTEXT_PACK_RECORD_BYTES,
   canonicalJson,
   createContextPackRecord,
   createDeliveryRecord,
   parseContextPackRecord,
   parseDeliveryRecord,
 } = require('../../src/collaboration/context-pack-records.cjs')
+
+test('rejects clearly oversized JSON strings before creating a UTF-8 buffer', () => {
+  const input = 'x'.repeat(MAX_CONTEXT_PACK_RECORD_BYTES + 1)
+  const original = Buffer.from
+  let copied = false
+  Buffer.from = function (value, ...args) {
+    if (value === input) copied = true
+    return original.call(this, value, ...args)
+  }
+  try {
+    assert.throws(() => parseContextPackRecord(input), { message: 'CONTEXT_PACK_JSON_INVALID' })
+    assert.equal(copied, false)
+  } finally { Buffer.from = original }
+})
+
+test('still enforces byte limits for multibyte strings below the character precheck', () => {
+  const input = '你'.repeat(Math.floor(MAX_CONTEXT_PACK_RECORD_BYTES / 2))
+  assert.ok(input.length < MAX_CONTEXT_PACK_RECORD_BYTES)
+  assert.throws(() => parseContextPackRecord(input), { message: 'CONTEXT_PACK_JSON_INVALID' })
+})
+
+test('a JSON string at the byte limit reaches schema validation', () => {
+  const input = JSON.stringify('x'.repeat(MAX_CONTEXT_PACK_RECORD_BYTES - 2))
+  assert.equal(Buffer.byteLength(input), MAX_CONTEXT_PACK_RECORD_BYTES)
+  assert.throws(() => parseContextPackRecord(input), { message: 'CONTEXT_PACK_SCHEMA_INVALID' })
+})
 const { ContextPackStore } = require('../../src/collaboration/context-pack-store.cjs')
 
 function contentRef(value, mediaType = 'application/octet-stream') {
@@ -245,7 +272,10 @@ test('enforces collection bounds, uniqueness, target scope, and matching hashes'
   const pack = createContextPackRecord(packInput())
   assert.throws(() => createDeliveryRecord(deliveryInput(pack.contextPackId, {
     wirePayloadHash: '0'.repeat(64),
-  })), { message: 'DELIVERY_RECORD_SCHEMA_INVALID' })
+  })), { message: 'DELIVERY_RECORD_SCHEMA_INVALID', field: 'wirePayloadHash' })
+  assert.throws(() => createDeliveryRecord(deliveryInput(pack.contextPackId, {
+    wirePayloadBytes: 1,
+  })), { message: 'DELIVERY_RECORD_SCHEMA_INVALID', field: 'wirePayloadBytes' })
 })
 
 test('roundtrips immutable Context Packs and Delivery Records with private canonical files', {

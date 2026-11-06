@@ -22,7 +22,9 @@ const roundsMethods = {
     let totalSuccesses = cursor?.totalSuccesses || 0
     let consensusReached = false
     const reportedFailures = new Set()
-    const firstRound = resume ? Math.max(0, controller.currentRound - 1) : 0
+    const currentRound = Number.isSafeInteger(controller.currentRound) && controller.currentRound > 0
+      ? controller.currentRound : 1
+    const firstRound = resume ? currentRound - 1 : 0
 
     for (
       let round = firstRound;

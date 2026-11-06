@@ -187,6 +187,7 @@ function createAttachmentService({ getStore, getSnapshot, nativeImage, openPath 
   }
 
   function importFiles(filenames) {
+    if (!Array.isArray(filenames)) throw new Error('LOCAL_ATTACHMENT_REFERENCE_INVALID')
     if (filenames.length > MAX_ATTACHMENT_PICK_REQUEST) {
       throw new Error('LOCAL_ATTACHMENT_COUNT_LIMIT')
     }
