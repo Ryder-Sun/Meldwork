@@ -2250,6 +2250,29 @@ test('uncertain journal compaction cannot append with a stale sequence', t => {
   assert.equal(new RunLedger({ storagePath }).get('another-run').status, 'running')
 })
 
+test('failed journal append rollback prevents stale sequence reuse', t => {
+  const { storagePath } = fixture(t)
+  const ledger = new RunLedger({ storagePath, now: () => 1000 })
+  ledger.checkpoint(runRecord('active-append', 'group-append'))
+  const originalSync = fs.fsyncSync
+  const originalTruncate = fs.truncateSync
+  fs.fsyncSync = () => { throw Object.assign(new Error('SYNC_FAILED'), { code: 'EIO' }) }
+  fs.truncateSync = () => { throw Object.assign(new Error('TRUNCATE_FAILED'), { code: 'EIO' }) }
+  try {
+    assert.throws(() => ledger.checkpoint(runRecord('failed-append', 'group-append')), { message: 'RUN_LEDGER_WRITE_FAILED' })
+  } finally {
+    fs.fsyncSync = originalSync
+    fs.truncateSync = originalTruncate
+  }
+  assert.throws(() => ledger.checkpoint(runRecord('later-append', 'group-append')), { message: 'RUN_LEDGER_WRITE_FAILED' })
+  const restarted = new RunLedger({ storagePath })
+  assert.equal(restarted.loadError, null)
+  assert.equal(restarted.get('active-append').status, 'running')
+  assert.equal(restarted.get('failed-append'), null)
+  restarted.checkpoint(runRecord('later-append', 'group-append'))
+  assert.equal(new RunLedger({ storagePath }).get('later-append').status, 'running')
+})
+
 test('deleteGroup removes only matching records and persists the result', (t) => {
   const { storagePath } = fixture(t)
   let now = 0

@@ -188,7 +188,8 @@ class RunJournal {
     const directory = path.dirname(this.storagePath)
     fs.mkdirSync(directory, { recursive: true, mode: 0o700 })
     let originalSize = 0
-    if (fs.existsSync(this.storagePath)) {
+    const existed = fs.existsSync(this.storagePath)
+    if (existed) {
       const stat = fs.lstatSync(this.storagePath)
       if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('RUN_JOURNAL_WRITE_FAILED')
       originalSize = stat.size
@@ -212,7 +213,13 @@ class RunJournal {
       if (descriptor !== undefined) {
         try { fs.closeSync(descriptor) } catch { /* already closed */ }
       }
-      try { fs.truncateSync(this.storagePath, originalSize) } catch { /* append did not create a file */ }
+      try {
+        fs.truncateSync(this.storagePath, originalSize)
+        const rollback = fs.openSync(this.storagePath, 'r+')
+        try { fs.fsyncSync(rollback) } finally { fs.closeSync(rollback) }
+      } catch (rollbackError) {
+        if (existed || rollbackError.code !== 'ENOENT') this.loadError = rollbackError
+      }
       throw error
     }
   }
