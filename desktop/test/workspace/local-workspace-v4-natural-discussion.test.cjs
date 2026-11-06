@@ -130,6 +130,26 @@ test('a peer failure without a receipt withdraws an already approved candidate',
   assert.equal(runner.v4NaturalConsensus(group, controller, 'task'), null)
 })
 
+test('a later unclassified peer contribution withdraws prior approvals', () => {
+  const messages = []
+  const runner = { ...naturalConsensusMethods, state: () => ({ messages }),
+    v4NaturalMessageMatchesBinding: () => true,
+    v4NaturalMessageContent: naturalDiscussionMethods.v4NaturalMessageContent }
+  const group = { id: 'group' }
+  const controller = { runId: 'run' }
+  const message = (kind, sequence, content, decision) => ({
+    id: `message-${sequence}`, groupId: 'group', threadRootId: 'task', role: 'agent',
+    agentKind: kind, turnSeq: sequence, content,
+    trace: { phase: 'discussion', runId: 'run', context: decision ? { taskDecision: decision } : {} },
+  })
+  messages.push(message('codex', 1, 'The answer is ready.', { status: 'completed', deliverables: ['answer'] }))
+  const candidate = runner.v4NaturalConsensus(group, controller, 'task')
+  messages.push(message('hermes', 2, 'Reviewed.', { status: 'completed', deliverables: ['answer'], reviewedVersion: candidate.version }))
+  assert.equal(runner.v4NaturalConsensus(group, controller, 'task').approvedKinds.size, 2)
+  messages.push(message('hermes', 3, 'I disagree with that conclusion.'))
+  assert.equal(runner.v4NaturalConsensus(group, controller, 'task'), null)
+})
+
 test('a completion receipt with a failure reason cannot create or approve a candidate', () => {
   const messages = []
   const runner = { ...naturalConsensusMethods, state: () => ({ messages }),

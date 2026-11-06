@@ -39,7 +39,12 @@ const naturalConsensusMethods = {
         candidate = null
         continue
       }
-      if (!decision) continue
+      // A later unclassified contribution may withdraw or revise an earlier
+      // approval. It cannot safely inherit the previous candidate's votes.
+      if (!decision) {
+        candidate = null
+        continue
+      }
       if (decision.status !== 'completed') {
         candidate = null
         continue
