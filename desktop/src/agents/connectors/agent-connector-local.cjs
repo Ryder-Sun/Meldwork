@@ -1,6 +1,7 @@
 const crypto = require('node:crypto')
 const fs = require('node:fs')
 const path = require('node:path')
+const { createHttpOutboundPayload } = require('../../collaboration/outbound-payload.cjs')
 
 const {
   createAgentConnectorManifest,
@@ -753,7 +754,16 @@ class LocalAgentConnectors {
       sequence: 1,
     }
     try {
-      await input.onOutboundPayload({ destination: endpoint, transport: 'http' })
+      const body = JSON.stringify({
+        prompt: input.prompt,
+        sessionRef: input.sessionRef || null,
+        resume: input.resume,
+        permissionMode: input.permissionMode,
+        operationId: input.operationId,
+      })
+      await input.onOutboundPayload(createHttpOutboundPayload({
+        prompt: input.prompt, destination: endpoint, wireBytes: Buffer.from(body, 'utf8'),
+      }))
       const headers = { 'content-type': 'application/json' }
       const authSlotId = packageRecord.provider.config.authSlotId
       if (authSlotId) {
@@ -765,13 +775,7 @@ class LocalAgentConnectors {
         redirect: 'error',
         headers,
         signal: input.signal,
-        body: JSON.stringify({
-          prompt: input.prompt,
-          sessionRef: input.sessionRef || null,
-          resume: input.resume,
-          permissionMode: input.permissionMode,
-          operationId: input.operationId,
-        }),
+        body,
       })
       if (!response?.ok) throw Object.assign(new Error('AGENT_CONNECTOR_HTTP_FAILED'), {
         code: 'AGENT_CONNECTOR_HTTP_FAILED', retryable: response?.status >= 500,

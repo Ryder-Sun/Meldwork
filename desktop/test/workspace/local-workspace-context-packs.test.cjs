@@ -11,6 +11,7 @@ const {
 } = require('../../src/collaboration/context-pack-records.cjs')
 const {
   createAcpOutboundPayload,
+  createHttpOutboundPayload,
   createLegacyOutboundPayload,
 } = require('../../src/collaboration/outbound-payload.cjs')
 const { RunLedger } = require('../../src/runs/run-ledger.cjs')
@@ -462,6 +463,32 @@ test('ACP Delivery comparison preserves exact JSON-RPC bytes and remains safe af
     restarted.contextPacks.compareDelivery(delivery.deliveryRecordId),
     comparison,
   )
+})
+
+test('HTTP delivery verifies the actual request body and survives restart', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  let body
+  options.runAgent = async (_agent, prompt, _workdir, runOptions) => {
+    body = JSON.stringify({ prompt, sessionRef: null, permissionMode: 'read-only', operationId: 'operation-1' })
+    await runOptions.onOutboundPayload(createHttpOutboundPayload({
+      prompt, destination: 'https://example.com/v1/run', wireBytes: Buffer.from(body),
+    }))
+    return { text: 'HTTP result', outcome: 'completed' }
+  }
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'HTTP comparison', agentKinds: ['codex'], workdir: directory })
+  await workspace.sendMessage({ groupId: group.id, text: 'Compare HTTP input', targetKinds: ['codex'] })
+  const result = workspace.snapshot().messages.find(message => message.role === 'agent')
+  const delivery = deliveryForMessage(workspace, result)
+  assert.equal(workspace.contentBlobStore.read(delivery.wirePayloadRef).toString('utf8'), body)
+  assert.equal(workspace.contextPacks.compareDelivery(delivery.deliveryRecordId).status, 'match')
+  assert.deepEqual(new LocalWorkspace(options).contextPacks.compareDelivery(delivery.deliveryRecordId),
+    workspace.contextPacks.compareDelivery(delivery.deliveryRecordId))
+  assert.throws(() => workspace.contextPacks.compareAttemptOutbound(delivery.contextPackId, {
+    prompt: JSON.parse(body).prompt, transport: 'http', serialization: 'http-json-body-v1', promptMode: 'json',
+  }, Buffer.from(JSON.stringify({ prompt: 'different' }))), { message: 'LOCAL_CONTEXT_DELIVERY_MISMATCH' })
 })
 
 test('long in-budget requests verify the exact prompt that is actually delivered', async (t) => {

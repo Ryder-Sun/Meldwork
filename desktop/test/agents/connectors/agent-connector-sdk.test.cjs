@@ -3,6 +3,9 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
+const { outboundWirePayloadBytes } = require('../../../src/collaboration/outbound-payload.cjs')
+const { LocalWorkspace } = require('../../../src/workspace/local-workspace.cjs')
+const { fixture: workspaceFixture } = require('../../support/local-workspace-test-helpers.cjs')
 
 const { AgentConnectorInstanceStore } = require('../../../src/agents/connectors/agent-connector-instance-store.cjs')
 const { createAgentConnectorManifest } = require('../../../src/agents/connectors/agent-connector-manifest.cjs')
@@ -167,8 +170,10 @@ test('HTTP JSON provider enforces destinations, credentials, cancellation, and f
     credentials: { 'access-token': 'private-token' },
   })
   const [agent] = connectors.detectAgents()
+  let recordedOutbound
   const result = await connectors.run(agent, 'remote prompt', directory, {
     runId: 'run-http', agentRunId: 'agent-run-http', sandbox: 'read-only',
+    onOutboundPayload: value => { recordedOutbound = value },
   })
   assert.equal(result.text, 'remote result')
   assert.equal(calls[0].url, 'https://connector.example.com/v1/run')
@@ -176,6 +181,8 @@ test('HTTP JSON provider enforces destinations, credentials, cancellation, and f
   assert.equal(calls[0].options.headers.authorization, 'Bearer private-token')
   assert.doesNotMatch(JSON.stringify(result), /private-token|credential-ref/i)
   assert.equal(JSON.parse(calls[0].options.body).prompt, 'remote prompt')
+  assert.equal(outboundWirePayloadBytes(recordedOutbound).toString('utf8'), calls[0].options.body)
+  assert.doesNotMatch(outboundWirePayloadBytes(recordedOutbound).toString('utf8'), /private-token/)
 
   const rejected = await connectors.run(agent, 'blocked', directory, {
     runId: 'run-blocked', agentRunId: 'agent-run-blocked', sandbox: 'read-only',
@@ -204,6 +211,35 @@ test('HTTP JSON provider enforces destinations, credentials, cancellation, and f
   })
   assert.equal(cancelled.outcome, 'cancelled')
   assert.equal(configured.credentialConfigured, true)
+})
+
+test('HTTP Connector completes a workspace chat with verified outbound bytes', async t => {
+  const requests = []
+  const { connectors, packageStore } = fixture(t, async (_url, options) => {
+    requests.push(options)
+    return { ok: true, status: 200, text: async () => JSON.stringify({ text: 'real connector reply' }) }
+  })
+  const packageRecord = httpPackage()
+  install(packageStore, packageRecord)
+  connectors.refresh([])
+  connectors.configure({ manifestId: packageRecord.manifest.manifestId,
+    label: 'HTTP account', credentials: { 'access-token': 'private-token' } })
+  const [agent] = connectors.detectAgents()
+  const { directory, options } = workspaceFixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  options.runAgent = (_agent, prompt, workdir, runOptions) => connectors.run(agent, prompt, workdir, {
+    ...runOptions, runId: 'run-http-workspace', agentRunId: 'agent-run-http-workspace',
+  })
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'HTTP workspace', agentKinds: ['codex'], workdir: directory, allowWrite: false })
+  await workspace.sendMessage({ groupId: group.id, text: 'Test connector', targetKinds: ['codex'] })
+  const message = workspace.snapshot().messages.find(item => item.role === 'agent')
+  assert.equal(message?.content, 'real connector reply', JSON.stringify(workspace.snapshot().messages))
+  const delivery = workspace.contextPackStore.getDelivery(message.trace.context.deliveryRecordIds[0])
+  assert.equal(workspace.contentBlobStore.read(delivery.wirePayloadRef).toString('utf8'), requests[0].body)
+  assert.equal(workspace.contextPacks.compareDelivery(delivery.deliveryRecordId).status, 'match')
+  assert.doesNotMatch(requests[0].body, /private-token/)
 })
 
 test('disable, reinstall, revoke, and remove fail closed around configured instances', (t) => {

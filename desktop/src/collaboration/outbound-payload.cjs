@@ -70,6 +70,13 @@ function createCustomOutboundPayload({ prompt, command, args, cwd, stdin, prompt
   }, cliWirePayload(command, args, cwd, stdin))
 }
 
+function createHttpOutboundPayload({ prompt, destination, wireBytes }) {
+  return payloadWithBytes({
+    prompt, destination, transport: 'http',
+    serialization: 'http-json-body-v1', promptMode: 'json',
+  }, wireBytes)
+}
+
 function outboundWirePayloadBytes(payload) {
   const bytes = payload && typeof payload === 'object' ? wireBytesByPayload.get(payload) : null
   return bytes ? Buffer.from(bytes) : null
@@ -78,6 +85,7 @@ function outboundWirePayloadBytes(payload) {
 module.exports = {
   createAcpOutboundPayload,
   createCustomOutboundPayload,
+  createHttpOutboundPayload,
   createLegacyOutboundPayload,
   outboundWirePayloadBytes,
 }

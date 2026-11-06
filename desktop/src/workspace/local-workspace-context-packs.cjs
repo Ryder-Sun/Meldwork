@@ -10,13 +10,14 @@ const { outboundWirePayloadBytes } = require('../collaboration/outbound-payload.
 
 const PUBLIC_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/
 const SHA256 = /^[a-f0-9]{64}$/
-const OUTBOUND_TRANSPORTS = new Set(['legacy', 'acp', 'custom'])
+const OUTBOUND_TRANSPORTS = new Set(['legacy', 'acp', 'custom', 'http'])
 const OUTBOUND_SERIALIZATIONS = new Set([
   'cli-argv-stdin-v1',
   'acp-session-prompt-v1',
   'custom-cli-argv-stdin-v1',
+  'http-json-body-v1',
 ])
-const OUTBOUND_PROMPT_MODES = new Set(['stdin', 'argument', 'acp'])
+const OUTBOUND_PROMPT_MODES = new Set(['stdin', 'argument', 'acp', 'json'])
 const SKILL_SNAPSHOT_ID = /^skill-snapshot-[a-f0-9]{64}$/
 
 function publicId(value, prefix) {
@@ -211,9 +212,15 @@ class LocalWorkspaceContextPacks {
       throw new Error('LOCAL_CONTEXT_DELIVERY_PARSE_FAILED')
     }
     const callbackPrompt = String(outbound?.prompt || '')
-    const wirePrompt = outbound.serialization === 'acp-session-prompt-v1'
-      ? acpWirePrompt(wirePayload)
-      : cliWirePrompt(wirePayload, outbound)
+    let wirePrompt
+    if (outbound.serialization === 'acp-session-prompt-v1') wirePrompt = acpWirePrompt(wirePayload)
+    else if (outbound.serialization === 'http-json-body-v1') {
+      const body = parseJson(wirePayload, 'LOCAL_CONTEXT_DELIVERY_PARSE_FAILED')
+      if (!isPlainObject(body) || typeof body.prompt !== 'string') {
+        throw new Error('LOCAL_CONTEXT_DELIVERY_PARSE_FAILED')
+      }
+      wirePrompt = body.prompt
+    } else wirePrompt = cliWirePrompt(wirePayload, outbound)
     const comparison = safeComparison(preview.text, callbackPrompt, wirePrompt, outbound)
     if (comparison.status !== 'match') throw new Error('LOCAL_CONTEXT_DELIVERY_MISMATCH')
     return {
@@ -230,7 +237,8 @@ class LocalWorkspaceContextPacks {
     if (!isPlainObject(payload) || !isPlainObject(payload.comparison)
         || payload.transport !== (delivery.serialization === 'acp-session-prompt-v1'
           ? 'acp'
-          : (delivery.serialization === 'custom-cli-argv-stdin-v1' ? 'custom' : 'legacy'))
+          : (delivery.serialization === 'custom-cli-argv-stdin-v1' ? 'custom'
+            : (delivery.serialization === 'http-json-body-v1' ? 'http' : 'legacy')))
         || payload.serialization !== delivery.serialization
         || typeof payload.prompt !== 'string' || typeof payload.promptMode !== 'string') {
       throw new Error('LOCAL_CONTEXT_DELIVERY_COMPARISON_TAMPERED')
@@ -498,6 +506,10 @@ class LocalWorkspaceContextPacks {
       transport === 'acp'
         && serialization === 'acp-session-prompt-v1'
         && promptMode === 'acp'
+    ) || (
+      transport === 'http'
+        && serialization === 'http-json-body-v1'
+        && promptMode === 'json'
     )
     if (!OUTBOUND_TRANSPORTS.has(transport)
         || !OUTBOUND_SERIALIZATIONS.has(serialization)
