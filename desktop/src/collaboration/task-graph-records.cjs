@@ -229,6 +229,16 @@ function parseTaskGraphCursor(input, targetKinds = null) {
   return { ...cursor, graph }
 }
 
+function assertTaskGraphDependencies(cursorInput) {
+  const cursor = parseTaskGraphCursor(cursorInput)
+  const states = new Map(cursor.nodeStates.map(state => [state.nodeId, state.status]))
+  if (cursor.graph.nodes.some(node => states.get(node.nodeId) !== 'pending'
+      && node.dependsOn.some(id => states.get(id) !== 'accepted'))) {
+    fail('TASK_GRAPH_CURSOR_INVALID')
+  }
+  return cursor
+}
+
 function updateTaskGraphCursor(cursorInput, nodeId, updates, now = Date.now()) {
   const cursor = parseTaskGraphCursor(cursorInput)
   const index = cursor.nodeStates.findIndex(state => state.nodeId === nodeId)
@@ -239,7 +249,7 @@ function updateTaskGraphCursor(cursorInput, nodeId, updates, now = Date.now()) {
   const currentNodeIds = nodeStates
     .filter(state => ['running', 'waiting'].includes(state.status))
     .map(state => state.nodeId)
-  return parseTaskGraphCursor({
+  return assertTaskGraphDependencies({
     ...cursor,
     nodeStates,
     currentNodeIds,
@@ -274,6 +284,7 @@ module.exports = {
   TASK_GRAPH_VERSION,
   createTaskGraph,
   createTaskGraphCursor,
+  assertTaskGraphDependencies,
   parseTaskGraph,
   parseTaskGraphCursor,
   readyTaskGraphNodes,

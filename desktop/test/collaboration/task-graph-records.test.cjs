@@ -5,6 +5,7 @@ const { taskGraphMethods } = require('../../src/workspace/local-workspace-auto-r
 const {
   createTaskGraph,
   createTaskGraphCursor,
+  assertTaskGraphDependencies,
   parseTaskGraph,
   parseTaskGraphCursor,
   readyTaskGraphNodes,
@@ -136,6 +137,21 @@ test('runner normalizes legacy success before applying the round limit', async (
   const status = await taskGraphMethods.runTaskGraph.call(runner, {}, controller, '', {})
   assert.equal(status, 'round-limit')
   assert.equal(controller.orchestration.taskGraph.terminalState, 'running')
+})
+
+test('cursor rejects work that ran before its dependencies were accepted', () => {
+  const graph = createTaskGraph(workflow(), ['codex', 'hermes'])
+  const cursor = createTaskGraphCursor(graph)
+  for (const status of ['running', 'waiting', 'accepted', 'rejected', 'failed']) {
+    assert.throws(() => updateTaskGraphCursor(cursor, 'review-hermes', { status }),
+      { message: 'TASK_GRAPH_CURSOR_INVALID' })
+  }
+  const historical = { ...cursor, nodeStates: cursor.nodeStates.map(state => state.nodeId === 'review-hermes'
+    ? { ...state, status: 'accepted' } : state), terminalState: 'accepted' }
+  assert.doesNotThrow(() => parseTaskGraphCursor(historical))
+  assert.throws(() => assertTaskGraphDependencies(historical), { message: 'TASK_GRAPH_CURSOR_INVALID' })
+  const ready = updateTaskGraphCursor(cursor, 'primary-codex', { status: 'accepted' })
+  assert.equal(updateTaskGraphCursor(ready, 'review-hermes', { status: 'running' }).nodeStates[1].status, 'running')
 })
 
 test('only primary nodes can declare a safe claim key and it survives graph serialization', () => {

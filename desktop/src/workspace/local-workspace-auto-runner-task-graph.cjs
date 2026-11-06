@@ -9,6 +9,7 @@ const {
 const { unlimitedReviewContract } = require('./local-workspace-context.cjs')
 const { explicitTaskFailure } = require('./local-workspace-auto-runner-natural-decisions.cjs')
 const {
+  assertTaskGraphDependencies,
   parseTaskGraphCursor,
   readyTaskGraphNodes,
   terminalTaskGraphState,
@@ -404,7 +405,7 @@ const taskGraphMethods = {
 
   async runTaskGraph(group, controller, threadRootId, context) {
     while (!controller.signal.aborted) {
-      let cursor = parseTaskGraphCursor(controller.orchestration.taskGraph)
+      let cursor = assertTaskGraphDependencies(controller.orchestration.taskGraph)
       const terminalState = terminalTaskGraphState(cursor)
       if (cursor.terminalState !== terminalState) {
         cursor = this.checkpointTaskGraph(group, controller, cursor)
