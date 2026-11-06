@@ -428,6 +428,33 @@ test('Windows search path includes npm, app, and user CLI locations', () => {
   assert.ok(value.includes('C:\\ProgramData\\chocolatey\\bin'))
 })
 
+test('native environment names are case sensitive on Unix and case insensitive on Windows', async () => {
+  const { systemChildEnvironment } = require('../../../src/agents/cli/cli-discovery.cjs')
+  assert.notEqual(systemChildEnvironment({ home: '/tmp/not-home' }, 'darwin').HOME, '/tmp/not-home')
+  assert.equal(systemChildEnvironment({ userprofile: 'C:\\Native' }, 'win32').USERPROFILE, 'C:\\Native')
+  const unixPath = searchPath({ platform: 'darwin', home: '/tmp/user',
+    env: { path: '/tmp/not-native', pnpm_home: '/tmp/not-pnpm' } }).split(':')
+  assert.equal(unixPath.includes('/tmp/not-native'), false)
+  assert.equal(unixPath.includes('/tmp/not-pnpm'), false)
+  const windowsPath = searchPath({ platform: 'win32', home: 'C:\\Users\\Ryder',
+    env: { Path: 'C:\\Native', pnpm_home: 'C:\\Pnpm' } }).split(';')
+  assert.ok(windowsPath.includes('C:\\Native'))
+  assert.ok(windowsPath.includes('C:\\Pnpm'))
+  for (const platform of ['darwin', 'win32']) {
+    let versionEnvironment
+    await detectAgents({
+      platform, env: { hermes_home: '/tmp/not-native' },
+      resolveExecutableFn: async kind => kind === 'hermes' ? '/tmp/hermes' : null,
+      probeAgentCapabilitiesFn: async () => ({ compatibilityState: 'compatible' }),
+      execFileFn: async (_command, args, options) => {
+        if (args.includes('--version')) versionEnvironment = options.env
+        return { stdout: 'Hermes 0.19.1', stderr: '' }
+      },
+    })
+    assert.equal(versionEnvironment.HERMES_HOME, platform === 'win32' ? '/tmp/not-native' : undefined)
+  }
+})
+
 test('Windows executable resolution honors PATHEXT', async () => {
   const expected = 'C:\\Tools\\codex.CMD'
   const executable = await resolveExecutable('codex', {

@@ -50,23 +50,23 @@ const SYSTEM_CHILD_ENV_KEYS = Object.freeze([
   'PROGRAMFILES', 'PROGRAMFILES(X86)', 'PROGRAMW6432',
   'OS', 'PROCESSOR_ARCHITECTURE', 'PROCESSOR_IDENTIFIER', 'NUMBER_OF_PROCESSORS',
 ])
-function envValue(env, name) {
+function envValue(env, name, platform = process.platform) {
   const match = Object.hasOwn(env, name) ? name
-    : Object.keys(env).find(key => key.toLowerCase() === name.toLowerCase())
+    : platform === 'win32' ? Object.keys(env).find(key => key.toLowerCase() === name.toLowerCase()) : undefined
   return match ? env[match] : ''
 }
 
-function nativeConfigDirectoryEnvironment(kind, env) {
+function nativeConfigDirectoryEnvironment(kind, env, platform = process.platform) {
   const key = Object.hasOwn(NATIVE_CONFIG_DIRECTORIES, kind) ? NATIVE_CONFIG_DIRECTORIES[kind].key : ''
   const keys = kind === 'deepseek' ? [key, 'DSH_AGENTS_HOME'] : [key]
-  return Object.fromEntries(keys.filter(Boolean).map(name => [name, envValue(env, name)])
+  return Object.fromEntries(keys.filter(Boolean).map(name => [name, envValue(env, name, platform)])
     .filter(([, value]) => typeof value === 'string' && value))
 }
 
 function systemChildEnvironment(sourceEnv = process.env, platform = process.platform) {
   const env = networkEnvironment(sourceEnv, platform)
   for (const name of SYSTEM_CHILD_ENV_KEYS) {
-    const value = envValue(sourceEnv, name)
+    const value = envValue(sourceEnv, name, platform)
     if (typeof value === 'string' && value) env[name] = value
   }
   if (platform === 'win32') env.USERPROFILE ||= os.homedir()
@@ -121,10 +121,11 @@ const DETECTION_SEARCH_DIRECTORIES = Symbol('detectionSearchDirectories')
 function searchDirectories(options = {}) {
   if (options[DETECTION_SEARCH_DIRECTORIES]) return options[DETECTION_SEARCH_DIRECTORIES]
   const { platform, env, home, pathApi } = runtimeOptions(options)
-  const configured = String(envValue(env, 'PATH') || '').split(pathApi.delimiter)
-  const pnpmHome = envValue(env, 'PNPM_HOME')
+  const readEnv = name => envValue(env, name, platform)
+  const configured = String(readEnv('PATH') || '').split(pathApi.delimiter)
+  const pnpmHome = readEnv('PNPM_HOME')
   if (platform !== 'win32') {
-    const fnmMultishellPath = envValue(env, 'FNM_MULTISHELL_PATH')
+    const fnmMultishellPath = readEnv('FNM_MULTISHELL_PATH')
     const fnmDataRoots = [
       pathApi.join(home, '.local', 'share', 'fnm', 'node-versions'),
       platform === 'darwin'
@@ -134,11 +135,11 @@ function searchDirectories(options = {}) {
     return uniquePaths([
       ...configured,
       pnpmHome,
-      envValue(env, 'NVM_BIN'),
-      envValue(env, 'BUN_INSTALL') && pathApi.join(envValue(env, 'BUN_INSTALL'), 'bin'),
-      envValue(env, 'ASDF_DATA_DIR') && pathApi.join(envValue(env, 'ASDF_DATA_DIR'), 'shims'),
-      envValue(env, 'MISE_DATA_DIR') && pathApi.join(envValue(env, 'MISE_DATA_DIR'), 'shims'),
-      envValue(env, 'NODENV_ROOT') && pathApi.join(envValue(env, 'NODENV_ROOT'), 'shims'),
+      readEnv('NVM_BIN'),
+      readEnv('BUN_INSTALL') && pathApi.join(readEnv('BUN_INSTALL'), 'bin'),
+      readEnv('ASDF_DATA_DIR') && pathApi.join(readEnv('ASDF_DATA_DIR'), 'shims'),
+      readEnv('MISE_DATA_DIR') && pathApi.join(readEnv('MISE_DATA_DIR'), 'shims'),
+      readEnv('NODENV_ROOT') && pathApi.join(readEnv('NODENV_ROOT'), 'shims'),
       fnmMultishellPath && pathApi.join(fnmMultishellPath, 'bin'),
       pathApi.join(home, '.volta', 'bin'),
       platform === 'darwin' && pathApi.join(home, 'Library', 'pnpm'),
@@ -163,15 +164,15 @@ function searchDirectories(options = {}) {
     ], platform)
   }
 
-  const appData = envValue(env, 'APPDATA')
-  const localAppData = envValue(env, 'LOCALAPPDATA')
-  const programFiles = envValue(env, 'ProgramFiles')
-  const programFilesX86 = envValue(env, 'ProgramFiles(x86)')
-  const programData = envValue(env, 'ProgramData')
-  const chocolatey = envValue(env, 'ChocolateyInstall')
-  const scoop = envValue(env, 'SCOOP')
-  const nvmHome = envValue(env, 'NVM_HOME')
-  const nvmSymlink = envValue(env, 'NVM_SYMLINK')
+  const appData = readEnv('APPDATA')
+  const localAppData = readEnv('LOCALAPPDATA')
+  const programFiles = readEnv('ProgramFiles')
+  const programFilesX86 = readEnv('ProgramFiles(x86)')
+  const programData = readEnv('ProgramData')
+  const chocolatey = readEnv('ChocolateyInstall')
+  const scoop = readEnv('SCOOP')
+  const nvmHome = readEnv('NVM_HOME')
+  const nvmSymlink = readEnv('NVM_SYMLINK')
   const workBuddyCli = base => base && pathApi.join(
     base, 'WorkBuddy', 'resources', 'app.asar.unpacked', 'cli', 'bin',
   )
@@ -246,7 +247,7 @@ function launchEnvironment(kind, executable, options = {}) {
 function executableExtensions(options = {}) {
   const { platform, env } = runtimeOptions(options)
   if (platform !== 'win32') return ['']
-  const configured = String(envValue(env, 'PATHEXT') || '')
+  const configured = String(envValue(env, 'PATHEXT', platform) || '')
     .split(';')
     .map(extension => extension.trim())
     .filter(Boolean)
@@ -370,7 +371,7 @@ async function probeAgentCapabilities(kind, executable, options = {}) {
   const childEnv = {
     ...(options.childEnv || {
       ...systemChildEnvironment(env, platform),
-      ...nativeConfigDirectoryEnvironment(kind, env),
+      ...nativeConfigDirectoryEnvironment(kind, env, platform),
       PATH: searchPath(options),
     }),
     ...launchEnvironment(kind, executable, options),
@@ -560,7 +561,7 @@ async function detectAgents(options = {}) {
   }
   const detected = await Promise.all(ALLOWED_KINDS.map(kind => {
     const nativeEnv = typeof options.nativeEnvironmentForKind === 'function'
-      ? options.nativeEnvironmentForKind(kind) : nativeConfigDirectoryEnvironment(kind, env)
+      ? options.nativeEnvironmentForKind(kind) : nativeConfigDirectoryEnvironment(kind, env, platform)
     const kindEnv = { ...childEnv, ...nativeEnv }
     const secretKeys = typeof options.nativeCredentialKeysForKind === 'function'
       ? nativeSecretEnvKeys(options.nativeCredentialKeysForKind(kind)) : []
