@@ -424,6 +424,46 @@ test('fresh Auto observes terminal persistence failure without hiding controller
   ))
 })
 
+test('fresh Auto restores a saved result after terminal snapshot failure and restart', async (t) => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const ledgerPath = path.join(directory, 'run-ledger-outbox.json')
+  const ledger = new RunLedger({ storagePath: ledgerPath })
+  options.runLedger = ledger
+  options.terminalRetrySleep = () => Promise.resolve()
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({
+    name: 'Terminal crash recovery', agentKinds: ['codex'], workdir: directory, allowWrite: false,
+  })
+  workspace.autoRunner.runV4Discussion = async (_group, _controller, threadRootId) => {
+    workspace.addMessage(group.id, 'agent', 'Saved result before terminal checkpoint.', 'codex', threadRootId)
+    return 'completed'
+  }
+  const persist = ledger.persist.bind(ledger)
+  ledger.persist = runs => {
+    if (runs.some(run => run.status === 'completed')) throw new Error('SIMULATED_TERMINAL_WRITE_FAILURE')
+    return persist(runs)
+  }
+  await workspace.sendMessage({
+    groupId: group.id, text: 'Complete the task.', mode: 'auto', maxRounds: 2,
+    targetKinds: ['codex'], protocol: 'v4',
+  })
+  const controller = workspace.activeRuns.get(group.id)
+  assert.ok(controller)
+  await waitFor(() => controller.terminalPersistence?.state === 'failed', 'terminal write failure')
+  clearTimeout(controller.terminalRetryTimer)
+  for (const timer of workspace.runCheckpointTimers.values()) clearTimeout(timer)
+  workspace.runCheckpointTimers.clear()
+  const restoredLedger = new RunLedger({ storagePath: ledgerPath })
+  assert.equal(restoredLedger.loadError, null)
+  assert.equal(restoredLedger.get(controller.runId).status, 'completed')
+  const restored = new LocalWorkspace({ ...options, runLedger: restoredLedger })
+  assert.equal(restoredLedger.get(controller.runId).status, 'completed')
+  assert.ok(restored.snapshot().messages.some(message => message.content === 'Saved result before terminal checkpoint.'))
+  assert.equal(new RunLedger({ storagePath: ledgerPath }).get(controller.runId).status, 'completed')
+})
+
 function negotiatedAssignments() {
   return [
     {

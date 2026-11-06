@@ -3,6 +3,7 @@ const { randomBytes } = require('node:crypto')
 
 const { atomicWritePrivateFile } = require('../security/private-file.cjs')
 const { RunJournal } = require('./run-journal.cjs')
+const { RunTerminalOutbox } = require('./run-terminal-outbox.cjs')
 const { isLegacyMultiWriter, recoverLegacyRecord } = require('./run-ledger-legacy.cjs')
 const {
   DEFAULT_MAX_DURABLE_AGENT_RUNS,
@@ -172,7 +173,49 @@ class RunLedger {
       compactionBytes: options.journalCompactionBytes,
     })
     this.runs = this.load()
+    this.terminalOutbox = new RunTerminalOutbox(this.storagePath)
+    if (!this.loadError) {
+      try { this.recoverTerminalOutbox() } catch (error) { this.loadError = error }
+    }
     if (!this.loadError && this.journal.legacyRunIds.size) this.backupLegacyFiles()
+  }
+
+  recordTerminalIntent(record) {
+    this.assertLoaded()
+    const existing = this.runs.find(item => item.runId === record?.runId)
+    if (!existing || !TERMINAL_STATUSES.has(record.status)
+        || record.groupId !== existing.groupId || record.taskId !== existing.taskId
+        || record.contextPackId !== existing.contextPackId) {
+      throw new Error('RUN_TERMINAL_OUTBOX_INVALID')
+    }
+    this.terminalOutbox.prepare(record)
+  }
+
+  clearTerminalIntent(runId) {
+    this.terminalOutbox.remove(runId)
+  }
+
+  recoverTerminalOutbox() {
+    for (const record of this.terminalOutbox.list()) {
+      const existing = this.runs.find(item => item.runId === record.runId)
+      // An already committed terminal run can later be removed by history
+      // pruning or group deletion while an outbox cleanup is still pending.
+      if (!existing) {
+        this.terminalOutbox.remove(record.runId)
+        continue
+      }
+      if (existing.groupId !== record.groupId || existing.taskId !== record.taskId
+          || existing.contextPackId !== record.contextPackId) {
+        throw new Error('RUN_TERMINAL_OUTBOX_INVALID')
+      }
+      if (TERMINAL_STATUSES.has(existing.status)) {
+        if (existing.status !== record.status) throw new Error('RUN_TERMINAL_OUTBOX_CONFLICT')
+      } else {
+        this.checkpoint(record)
+        this.finish(record.runId, record.status, record.reason || '')
+      }
+      this.terminalOutbox.remove(record.runId)
+    }
   }
 
   backupLegacyFiles() {

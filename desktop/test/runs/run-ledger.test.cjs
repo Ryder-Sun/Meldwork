@@ -2285,6 +2285,121 @@ test('finish remains retryable when persistence fails', (t) => {
   assert.equal(new RunLedger({ storagePath }).get('run-1').status, 'completed')
 })
 
+test('terminal outbox restores a completed run after snapshot persistence fails and restart', (t) => {
+  const { storagePath } = fixture(t)
+  const ledger = new RunLedger({ storagePath, now: () => 1000 })
+  ledger.checkpoint(runRecord('run-outbox', 'group-outbox'))
+  const completed = runRecord('run-outbox', 'group-outbox', 'completed', [{
+    agentRunId: 'agent-outbox', kind: 'codex', status: 'completed',
+    output: 'Durable completed answer.',
+  }])
+  ledger.recordTerminalIntent(completed)
+  if (process.platform !== 'win32') {
+    const directory = `${storagePath}.terminal-outbox`
+    assert.equal(fs.statSync(directory).mode & 0o777, 0o700)
+    assert.equal(fs.statSync(path.join(directory, fs.readdirSync(directory)[0])).mode & 0o777, 0o600)
+  }
+  failNextPersist(ledger)
+  assert.throws(() => ledger.checkpoint(completed), { message: 'RUN_LEDGER_WRITE_FAILED' })
+  const restarted = new RunLedger({ storagePath, now: () => 2000 })
+  assert.equal(restarted.loadError, null)
+  assert.equal(restarted.get('run-outbox').status, 'completed')
+  assert.equal(restarted.get('run-outbox').agentRuns[0].output, 'Durable completed answer.')
+  assert.deepEqual(restarted.recoverInterrupted(), [])
+  assert.equal(new RunLedger({ storagePath }).get('run-outbox').status, 'completed')
+  assert.deepEqual(fs.readdirSync(`${storagePath}.terminal-outbox`), [])
+})
+
+test('terminal intent survives abrupt process exit before the terminal checkpoint', (t) => {
+  const { spawnSync } = require('node:child_process')
+  const { storagePath } = fixture(t)
+  const ledger = new RunLedger({ storagePath, now: () => 1000 })
+  ledger.checkpoint(runRecord('run-crash', 'group-crash'))
+  const completed = runRecord('run-crash', 'group-crash', 'completed')
+  const script = `
+const { RunLedger } = require(process.argv[1])
+const ledger = new RunLedger({ storagePath: process.argv[2] })
+ledger.recordTerminalIntent(JSON.parse(process.argv[3]))
+process.exit(42)
+`
+  const child = spawnSync(process.execPath, [
+    '-e', script, require.resolve('../../src/runs/run-ledger.cjs'), storagePath, JSON.stringify(completed),
+  ], { encoding: 'utf8' })
+  assert.equal(child.status, 42, child.stderr)
+  const restarted = new RunLedger({ storagePath })
+  assert.equal(restarted.loadError, null)
+  assert.equal(restarted.get('run-crash').status, 'completed')
+  assert.deepEqual(restarted.recoverInterrupted(), [])
+})
+
+test('terminal outbox rejects redirected storage', { skip: process.platform === 'win32' }, (t) => {
+  const { storagePath, directory } = fixture(t)
+  const ledger = new RunLedger({ storagePath, now: () => 1000 })
+  ledger.checkpoint(runRecord('run-link', 'group-link'))
+  const target = path.join(directory, 'unrelated')
+  fs.mkdirSync(target)
+  fs.symlinkSync(target, `${storagePath}.terminal-outbox`)
+  assert.throws(() => ledger.recordTerminalIntent(runRecord('run-link', 'group-link', 'completed')))
+  assert.deepEqual(fs.readdirSync(target), [])
+  const restarted = new RunLedger({ storagePath })
+  assert.ok(restarted.loadError)
+})
+
+test('terminal outbox reports parent directory sync failure', { skip: process.platform === 'win32' }, (t) => {
+  const { storagePath } = fixture(t)
+  const ledger = new RunLedger({ storagePath, now: () => 1000 })
+  ledger.checkpoint(runRecord('run-dir-sync', 'group-dir-sync'))
+  const original = fs.fsyncSync
+  fs.fsyncSync = fd => {
+    if (fs.fstatSync(fd).isDirectory()) throw Object.assign(new Error('SYNC_FAILED'), { code: 'EIO' })
+    return original(fd)
+  }
+  t.after(() => { fs.fsyncSync = original })
+  assert.throws(() => ledger.recordTerminalIntent(runRecord('run-dir-sync', 'group-dir-sync', 'completed')), {
+    message: 'SYNC_FAILED',
+  })
+  assert.equal(ledger.get('run-dir-sync').status, 'running')
+})
+
+test('terminal outbox cleanup is idempotent after a committed terminal checkpoint', (t) => {
+  const { storagePath } = fixture(t)
+  const ledger = new RunLedger({ storagePath, now: () => 1000 })
+  ledger.checkpoint(runRecord('run-committed', 'group-committed'))
+  const completed = runRecord('run-committed', 'group-committed', 'completed')
+  ledger.recordTerminalIntent(completed)
+  ledger.checkpoint(completed)
+  const restarted = new RunLedger({ storagePath })
+  assert.equal(restarted.loadError, null)
+  assert.equal(restarted.get('run-committed').status, 'completed')
+  assert.deepEqual(fs.readdirSync(`${storagePath}.terminal-outbox`), [])
+})
+
+test('outbox cleanup does not recreate a subsequently deleted group', (t) => {
+  const { storagePath } = fixture(t)
+  const ledger = new RunLedger({ storagePath, now: () => 1000 })
+  ledger.checkpoint(runRecord('run-deleted', 'group-deleted'))
+  const completed = runRecord('run-deleted', 'group-deleted', 'completed')
+  ledger.recordTerminalIntent(completed)
+  ledger.checkpoint(completed)
+  assert.equal(ledger.deleteGroup('group-deleted'), 1)
+  const restarted = new RunLedger({ storagePath })
+  assert.equal(restarted.loadError, null)
+  assert.equal(restarted.get('run-deleted'), null)
+  assert.deepEqual(fs.readdirSync(`${storagePath}.terminal-outbox`), [])
+})
+
+test('corrupt terminal outbox stops recovery rather than dropping a run', (t) => {
+  const { storagePath } = fixture(t)
+  const ledger = new RunLedger({ storagePath, now: () => 1000 })
+  ledger.checkpoint(runRecord('run-corrupt', 'group-corrupt'))
+  ledger.recordTerminalIntent(runRecord('run-corrupt', 'group-corrupt', 'completed'))
+  const directory = `${storagePath}.terminal-outbox`
+  fs.writeFileSync(path.join(directory, fs.readdirSync(directory)[0]), '{invalid')
+  const restarted = new RunLedger({ storagePath })
+  assert.ok(restarted.loadError)
+  assert.throws(() => restarted.recoverInterrupted(), { message: 'RUN_LEDGER_LOAD_FAILED' })
+})
+
 test('interruption recovery remains retryable without mutating nested Agent state', (t) => {
   const { storagePath } = fixture(t)
   let now = 1000

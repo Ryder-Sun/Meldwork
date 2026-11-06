@@ -4,10 +4,26 @@ const test = require('node:test')
 
 const coordinatorApi = require('../../src/workspace/local-workspace-run-coordinator.cjs')
 const { LocalWorkspaceRunCoordinator } = coordinatorApi
+const { LocalWorkspaceRunLedger } = require('../../src/workspace/local-workspace-ledger.cjs')
 const { LocalWorkspace } = require('../../src/workspace/local-workspace.cjs')
 const { fixture: workspaceFixture } = require('../support/local-workspace-test-helpers.cjs')
 
 const CONTEXT_PACK_ID = `context-pack-${'a'.repeat(64)}`
+
+test('terminal checkpoint is not attempted when the durable outbox cannot be written', () => {
+  const calls = []
+  const ledger = new LocalWorkspaceRunLedger({
+    runLedger: {
+      recordTerminalIntent: () => { calls.push('intent'); throw new Error('OUTBOX_UNAVAILABLE') },
+      checkpoint: () => calls.push('checkpoint'),
+      finish: () => calls.push('finish'),
+    },
+    timers: new Map(),
+  })
+  ledger.record = () => ({ runId: 'run-1', status: 'completed' })
+  assert.equal(ledger.finish('group-1', { runId: 'run-1' }, 'completed'), false)
+  assert.deepEqual(calls, ['intent'])
+})
 
 function fixture(overrides = {}) {
   const preparingRuns = new Map()
