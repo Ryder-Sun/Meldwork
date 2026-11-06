@@ -210,7 +210,8 @@ function hermesDeclaredCredentialKeys(options = {}) {
     if (!config || typeof config !== 'object' || Array.isArray(config)) return []
     const model = config.model && typeof config.model === 'object' && !Array.isArray(config.model)
       ? config.model : {}
-    const fallbacks = (Array.isArray(config.fallback_model) ? config.fallback_model : [config.fallback_model])
+    const fallbacks = [config.fallback_providers, config.fallback_model]
+      .flatMap(value => Array.isArray(value) ? value : [value])
       .filter(entry => entry && typeof entry === 'object' && !Array.isArray(entry)).slice(0, 32)
     const nestedModel = model.default && typeof model.default === 'object' ? model.default : {}
     const currentProvider = String(model.provider || nestedModel.provider || env.HERMES_INFERENCE_PROVIDER || 'auto').trim().toLowerCase()

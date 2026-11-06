@@ -91,6 +91,30 @@ test('Hermes declared credentials follow selected and fallback providers, includ
   assert.deepEqual(hermesDeclaredCredentialKeys({ home, env: {} }), ['FALLBACK_KEY'])
 })
 
+test('Hermes captures credentials for the native fallback provider chain and legacy fallback', async t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-fallback-keys-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const root = path.join(home, '.hermes'); fs.mkdirSync(root)
+  fs.writeFileSync(path.join(root, 'config.yaml'), [
+    'model:', '  provider: main', '  key_env: MAIN_KEY',
+    'fallback_providers:', '  - provider: custom:backup', '    model: backup-model',
+    '    key_env: BACKUP_KEY',
+    '  - provider: alternate', '    model: alternate-model',
+    'fallback_model:', '  provider: legacy', '  model: legacy-model', '  api_key_env: LEGACY_KEY',
+    'providers:', '  alternate:', '    api_key_env: ALTERNATE_KEY',
+    '  unused:', '    key_env: UNRELATED_SECRET',
+  ].join('\n'))
+  const keys = hermesDeclaredCredentialKeys({ home, env: {} })
+  assert.deepEqual(keys, ['ALTERNATE_KEY', 'BACKUP_KEY', 'LEGACY_KEY', 'MAIN_KEY'])
+  const captured = await resolveNativeShellEnvironment({ cache: false, platform: 'win32', extraEnvKeys: keys,
+    env: { BACKUP_KEY: 'backup-private', ALTERNATE_KEY: 'alternate-private',
+      LEGACY_KEY: 'legacy-private', UNRELATED_SECRET: 'not-shared' } })
+  assert.deepEqual(nativeCredentialEnvironment('hermes', captured.env, keys), {
+    ALTERNATE_KEY: 'alternate-private', BACKUP_KEY: 'backup-private', LEGACY_KEY: 'legacy-private',
+  })
+  assert.equal(captured.env.UNRELATED_SECRET, undefined)
+})
+
 test('native environment cache observes credential and proxy changes without a PATH change', async () => {
   const base = { platform: 'win32', home: 'C:\\meldwork-cache-test', env: { PATH: 'C:\\bin',
     ANTHROPIC_API_KEY: 'synthetic-before', HTTPS_PROXY: 'http://before.example:8080' } }

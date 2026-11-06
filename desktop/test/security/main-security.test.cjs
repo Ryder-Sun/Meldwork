@@ -208,23 +208,28 @@ test('Hermes selected config captures only its declared native credential for ex
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-env-main-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
   const native = path.join(directory, 'native'); fs.mkdirSync(native)
-  fs.writeFileSync(path.join(native, 'config.yaml'), 'model:\n  key_env: CUSTOM_CREDENTIAL\n')
+  fs.writeFileSync(path.join(native, 'config.yaml'), [
+    'model:', '  provider: custom', '  key_env: CUSTOM_CREDENTIAL',
+    'fallback_providers:', '  - provider: alternate', '    model: backup', '    key_env: FALLBACK_CREDENTIAL',
+  ].join('\n'))
   const readiness = require('../../src/agents/local-agent-readiness.cjs')
   const { harness } = loadMain(directory, {
     hermesDeclaredCredentialKeys: readiness.hermesDeclaredCredentialKeys,
     nativeEnvironment: readiness.nativeCredentialEnvironment,
     nativeShellEnvironment: input => ({ source: 'native-shell', env: input.extraEnvKeys?.includes('CUSTOM_CREDENTIAL')
-      ? { CUSTOM_CREDENTIAL: 'synthetic-secret', UNRELATED_SECRET: 'private' } : {} }),
+      ? { CUSTOM_CREDENTIAL: 'synthetic-secret', FALLBACK_CREDENTIAL: 'synthetic-backup', UNRELATED_SECRET: 'private' } : {} }),
   })
   await harness.ready()
   harness.workspaceInstances[0].state.agentPreferences = { hermes: { nativeConfigDirectory: native } }
   await harness.workspaceInstances[0].input.runAgent({ kind: 'hermes', executable: '/tmp/hermes' }, 'hello', directory, {})
   const options = harness.runAgentCalls.at(-1)[3]
   assert.equal(options.env.CUSTOM_CREDENTIAL, 'synthetic-secret')
+  assert.equal(options.env.FALLBACK_CREDENTIAL, 'synthetic-backup')
   assert.equal(options.env.UNRELATED_SECRET, undefined)
-  assert.deepEqual(options.nativeCredentialKeys, ['CUSTOM_CREDENTIAL'])
+  assert.deepEqual(options.nativeCredentialKeys, ['CUSTOM_CREDENTIAL', 'FALLBACK_CREDENTIAL'])
   await harness.workspaceInstances[0].input.runAgent({ kind: 'codex', executable: '/tmp/codex' }, 'hello', directory, {})
   assert.equal(harness.runAgentCalls.at(-1)[3].env.CUSTOM_CREDENTIAL, undefined)
+  assert.equal(harness.runAgentCalls.at(-1)[3].env.FALLBACK_CREDENTIAL, undefined)
 })
 
 test('Zcode receives only its native provider credential', async t => {
