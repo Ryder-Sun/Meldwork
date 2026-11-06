@@ -156,6 +156,48 @@ test('an uncertain audit append blocks further operations until the store is reo
   assert.deepEqual(reopened.audit(packageId).map(event => event.action), ['imported', 'approved'])
 })
 
+test('the first audit append syncs its parent directory', (t) => {
+  if (process.platform === 'win32') return t.skip('directory handles are not portable on Windows')
+  const { rootPath, store } = fixture(t)
+  const open = fs.openSync
+  let directorySyncs = 0
+  fs.openSync = (...args) => {
+    if (args[0] === rootPath && args[1] === 'r') directorySyncs += 1
+    return open(...args)
+  }
+  try {
+    store.import(serializeAgentConnectorPackage(SAMPLE_LOCAL_ECHO_AGENT_CONNECTOR_PACKAGE), 'first.json')
+    assert.equal(directorySyncs, 1)
+    store.approve(SAMPLE_LOCAL_ECHO_AGENT_CONNECTOR_PACKAGE.packageId)
+    assert.equal(directorySyncs, 1)
+  } finally {
+    fs.openSync = open
+  }
+})
+
+test('an audit directory sync failure leaves the store unavailable until reload', (t) => {
+  if (process.platform === 'win32') return t.skip('directory handles are not portable on Windows')
+  const { rootPath, create, store } = fixture(t)
+  const root = fs.statSync(rootPath)
+  const sync = fs.fsyncSync
+  fs.fsyncSync = descriptor => {
+    const stat = fs.fstatSync(descriptor)
+    if (stat.isDirectory() && stat.dev === root.dev && stat.ino === root.ino) {
+      throw Object.assign(new Error('directory sync failed'), { code: 'EIO' })
+    }
+    return sync(descriptor)
+  }
+  try {
+    assert.throws(() => store.import(serializeAgentConnectorPackage(SAMPLE_LOCAL_ECHO_AGENT_CONNECTOR_PACKAGE)), {
+      message: 'AGENT_CONNECTOR_PACKAGE_AUDIT_UNAVAILABLE',
+    })
+  } finally {
+    fs.fsyncSync = sync
+  }
+  assert.equal(store.diagnostic(), 'AGENT_CONNECTOR_PACKAGE_AUDIT_UNAVAILABLE')
+  assert.equal(create().inspect(SAMPLE_LOCAL_ECHO_AGENT_CONNECTOR_PACKAGE.packageId).state, 'imported')
+})
+
 test('upgrades one installed Connector version and fails closed on audit tampering', (t) => {
   const { create, rootPath, store } = fixture(t)
   const first = SAMPLE_LOCAL_ECHO_AGENT_CONNECTOR_PACKAGE

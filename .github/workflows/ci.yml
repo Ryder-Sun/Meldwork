@@ -36,6 +36,9 @@ jobs:
       - name: Test native environment key casing
         run: node --test --test-name-pattern="Windows native environment canonicalizes" desktop/test/agents/local-agent-readiness.test.cjs
 
+      - name: Test Connector package storage
+        run: node --test --test-name-pattern="persists the complete trust lifecycle|reimporting a removed package|uncertain audit append|upgrades one installed Connector" desktop/test/agents/connectors/agent-connector-package-store.test.cjs
+
       - name: Build unpacked Windows application
         run: npm run pack
         working-directory: desktop

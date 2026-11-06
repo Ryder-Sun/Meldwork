@@ -431,6 +431,19 @@ class AgentConnectorPackageStore {
       fs.fchmodSync(descriptor, 0o600)
       fs.closeSync(descriptor)
       descriptor = undefined
+      if (stat.size === 0) {
+        let directoryDescriptor
+        try {
+          directoryDescriptor = fs.openSync(this.rootPath, 'r')
+          fs.fsyncSync(directoryDescriptor)
+        } catch (error) {
+          const unsupported = ['EINVAL', 'ENOTSUP', 'EOPNOTSUPP'].includes(error.code)
+            || (process.platform === 'win32' && ['EPERM', 'EISDIR'].includes(error.code))
+          if (!unsupported) throw error
+        } finally {
+          if (directoryDescriptor !== undefined) fs.closeSync(directoryDescriptor)
+        }
+      }
     } catch (error) {
       if (descriptor !== undefined) try { fs.closeSync(descriptor) } catch {}
       if (writeStarted) this.unavailableCode = 'AGENT_CONNECTOR_PACKAGE_AUDIT_UNAVAILABLE'
