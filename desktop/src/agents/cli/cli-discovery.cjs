@@ -1,4 +1,5 @@
 const { execFile } = require('node:child_process')
+const { createHmac, randomBytes } = require('node:crypto')
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
@@ -32,6 +33,7 @@ const ALLOWED_KINDS = Object.keys(AGENT_PROFILES)
 const DEFAULT_WINDOWS_PATHEXT = ['.COM', '.EXE', '.BAT', '.CMD']
 const CAPABILITY_CACHE_TTL_MS = 5 * 60 * 1000
 const capabilityCache = new Map()
+const capabilityEnvironmentKey = randomBytes(32)
 const SYSTEM_CHILD_ENV_KEYS = Object.freeze([
   'HOME', 'USER', 'LOGNAME', 'SHELL',
   'TMPDIR', 'TMP', 'TEMP',
@@ -376,9 +378,12 @@ async function probeAgentCapabilities(kind, executable, options = {}) {
   let identity = ''
   try {
     const stat = (options.statFn || fs.statSync)(executable)
+    const environment = Object.keys(childEnv).sort().map(key => [key, childEnv[key]])
+    const environmentFingerprint = createHmac('sha256', capabilityEnvironmentKey)
+      .update(JSON.stringify(environment)).digest('hex')
     identity = JSON.stringify([
       kind, executable, options.version || '', stat.dev, stat.ino,
-      stat.size, stat.mtimeMs, stat.ctimeMs,
+      stat.size, stat.mtimeMs, stat.ctimeMs, environmentFingerprint,
     ])
   } catch { /* caching requires a verifiable executable identity */ }
   const cacheKey = `${kind}:${executable}`

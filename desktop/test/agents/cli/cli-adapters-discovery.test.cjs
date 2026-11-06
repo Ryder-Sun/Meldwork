@@ -149,6 +149,27 @@ test('only unchanged recently verified executables survive inconclusive capabili
   assert.equal((await probeAgentCapabilities('workbuddy', executable, options)).compatibilityState, 'unknown')
 })
 
+test('capability probe cache does not cross native configuration or credential environments', async () => {
+  let timeout = false
+  const options = {
+    env: {}, version: '2.115.0',
+    childEnv: { CODEBUDDY_CONFIG_DIR: '/native/one', CODEBUDDY_API_KEY: 'synthetic-one' },
+    statFn: () => ({ dev: 1, ino: 1, size: 100, mtimeMs: 1, ctimeMs: 1 }),
+    execFileFn: async () => {
+      if (timeout) throw Object.assign(new Error('timeout'), { code: 'ETIMEDOUT' })
+      return { stdout: '--print --output-format --permission-mode --max-turns --resume json plan acceptEdits' }
+    },
+  }
+  const executable = '/test/config-sensitive-workbuddy'
+  assert.equal((await probeAgentCapabilities('workbuddy', executable, options)).compatibilityState, 'compatible')
+  timeout = true
+  assert.equal((await probeAgentCapabilities('workbuddy', executable, options)).compatibilityState, 'compatible')
+  options.childEnv = { ...options.childEnv, CODEBUDDY_CONFIG_DIR: '/native/two' }
+  assert.equal((await probeAgentCapabilities('workbuddy', executable, options)).compatibilityState, 'unknown')
+  options.childEnv = { CODEBUDDY_CONFIG_DIR: '/native/one', CODEBUDDY_API_KEY: 'synthetic-two' }
+  assert.equal((await probeAgentCapabilities('workbuddy', executable, options)).compatibilityState, 'unknown')
+})
+
 test('Agent detection does not promote an inconclusive capability check to compatible', async () => {
   const [agent] = await detectAgents({
     env: {},
