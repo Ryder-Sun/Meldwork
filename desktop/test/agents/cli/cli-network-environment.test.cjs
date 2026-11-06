@@ -66,6 +66,28 @@ test('login shell proxy and CA settings survive credential probes and actual chi
   assert.equal(env.NODE_EXTRA_CA_CERTS, source.NODE_EXTRA_CA_CERTS)
 })
 
+test('shell-unset network and XDG values do not reappear in Agent children', t => {
+  const oldProxy = process.env.HTTPS_PROXY
+  const oldConfig = process.env.XDG_CONFIG_HOME
+  process.env.HTTPS_PROXY = 'http://stale.example:8080'
+  process.env.XDG_CONFIG_HOME = '/stale/config'
+  t.after(() => {
+    if (oldProxy === undefined) delete process.env.HTTPS_PROXY
+    else process.env.HTTPS_PROXY = oldProxy
+    if (oldConfig === undefined) delete process.env.XDG_CONFIG_HOME
+    else process.env.XDG_CONFIG_HOME = oldConfig
+  })
+  const options = { env: {}, nativeUnsetKeys: ['HTTPS_PROXY', 'XDG_CONFIG_HOME'] }
+  const child = childEnvironment({ kind: 'claude' }, '/tmp/workspace', options, 'linux')
+  assert.equal(child.HTTPS_PROXY, undefined)
+  assert.equal(child.XDG_CONFIG_HOME, undefined)
+  const overridden = childEnvironment({ kind: 'claude' }, '/tmp/workspace', {
+    ...options, env: { HTTPS_PROXY: 'http://chosen.example', XDG_CONFIG_HOME: '/chosen/config' },
+  }, 'linux')
+  assert.equal(overridden.HTTPS_PROXY, 'http://chosen.example')
+  assert.equal(overridden.XDG_CONFIG_HOME, '/chosen/config')
+})
+
 test('proxy credentials are redacted in diagnostics and across every streamed split', () => {
   const proxy = 'http://proxy-user:proxy%40password@proxy.example:3128'
   const env = { https_proxy: proxy }

@@ -216,11 +216,12 @@ test('shell-unset provider credentials are not restored from the desktop process
   const readiness = require('../../src/agents/local-agent-readiness.cjs')
   const { harness } = loadMain(directory, {
     nativeEnvironment: readiness.nativeCredentialEnvironment,
-    nativeShellEnvironment: () => ({ source: 'native-shell', env: {}, unsetKeys: ['ANTHROPIC_API_KEY'] }),
+    nativeShellEnvironment: () => ({ source: 'native-shell', env: {}, unsetKeys: ['ANTHROPIC_API_KEY', 'HTTPS_PROXY'] }),
   })
   await harness.ready()
   await harness.workspaceInstances[0].input.runAgent({ kind: 'claude', executable: '/tmp/claude' }, 'hello', directory, {})
   assert.equal(harness.runAgentCalls.at(-1)[3].env.ANTHROPIC_API_KEY, undefined)
+  assert.deepEqual(harness.runAgentCalls.at(-1)[3].nativeUnsetKeys, ['ANTHROPIC_API_KEY', 'HTTPS_PROXY'])
 })
 
 test('Hermes selected config captures only its declared native credential for execution', async t => {

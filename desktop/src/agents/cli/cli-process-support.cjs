@@ -124,6 +124,12 @@ function failedAgentProcessError(detail, options = {}) {
   )
 }
 
+function inheritedEnvironment(options, platform) {
+  const env = systemChildEnvironment(process.env, platform)
+  for (const key of options.nativeUnsetKeys || []) delete env[key]
+  return env
+}
+
 function openClawChildEnvironment(workdir, options, platform) {
   const source = options.env || {}
   const guard = options.openClawRuntimeGuard
@@ -134,7 +140,7 @@ function openClawChildEnvironment(workdir, options, platform) {
   }
 
   const env = {
-    ...systemChildEnvironment(process.env, platform),
+    ...inheritedEnvironment(options, platform),
     ...networkEnvironment(source, platform),
   }
   for (const key of [
@@ -190,6 +196,9 @@ function childEnvironment(agent, workdir, options, platform) {
     openCodeSafetyEnv.MIMOCODE_PERMISSION = JSON.stringify(headlessPermissions)
   }
   const source = { ...process.env, ...options.env }
+  for (const key of options.nativeUnsetKeys || []) {
+    if (!Object.hasOwn(options.env || {}, key)) delete source[key]
+  }
   const nativeKeys = agent.kind === 'codex'
     ? nativeSecretEnvKeys(options.nativeCredentialKeys).filter(key => key === 'CODEX_API_KEY')
     : ['hermes', 'zcode'].includes(agent.kind) ? nativeSecretEnvKeys(options.nativeCredentialKeys) : []
@@ -200,7 +209,7 @@ function childEnvironment(agent, workdir, options, platform) {
       && !BLOCKED_RUNTIME_ENV.test(key)
   )))
   const childEnv = {
-    ...systemChildEnvironment(process.env, platform),
+    ...inheritedEnvironment(options, platform),
     ...controlled,
     ...hermesSafetyEnv,
     ...openCodeSafetyEnv,

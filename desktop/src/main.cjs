@@ -248,7 +248,9 @@ function openExternalUrl(value) {
 async function nativeShellEnvironment(options = {}) {
   const home = app.getPath('home')
   let resolved = await resolveNativeShellEnvironment({ home, refresh: options.refresh === true })
-  const hermesEnv = nativeConfigEnvironment('hermes', workspace?.state.agentPreferences, { ...process.env, ...resolved.env })
+  const initialEnv = { ...process.env, ...resolved.env }
+  for (const key of resolved.unsetKeys || []) delete initialEnv[key]
+  const hermesEnv = nativeConfigEnvironment('hermes', workspace?.state.agentPreferences, initialEnv)
   const hermesCredentialKeys = hermesDeclaredCredentialKeys({ home, env: hermesEnv })
   const zcodeCredentialKeys = zcodeDeclaredCredentialKeys({ home })
   const declaredKeys = [...new Set([...hermesCredentialKeys, ...zcodeCredentialKeys])]
@@ -440,6 +442,7 @@ async function runCoreAgent(agent, prompt, workdir, options = {}) {
     : {}
   return runAgent(agent, prompt, workdir, {
     ...runOptions,
+    ...(shellEnvironment?.unsetKeys ? { nativeUnsetKeys: shellEnvironment.unsetKeys } : {}),
     ...(connectorCredentialIsolation ? { nativeCredentialKeys: ['CODEX_API_KEY'] }
       : ['codex', 'hermes', 'zcode'].includes(agent.kind)
         ? { nativeCredentialKeys: agent.kind === 'codex' ? ['CODEX_API_KEY']
