@@ -497,7 +497,11 @@ class AgentConnectorPackageStore {
     if (!allowed[action]?.includes(current.state)) {
       fail('AGENT_CONNECTOR_PACKAGE_TRANSITION_INVALID')
     }
-    this.readPackage(normalizedId)
+    const target = this.readPackage(normalizedId)
+    if (action === 'installed' && this.list().some(item => item.state === 'installed'
+        && item.packageId !== normalizedId && item.connectorId === target.manifest.connectorId)) {
+      fail('AGENT_CONNECTOR_PACKAGE_UPGRADE_INVALID')
+    }
     this.append(action, normalizedId)
     return this.inspect(normalizedId)
   }
@@ -571,9 +575,12 @@ class AgentConnectorPackageStore {
   installedPackages() {
     if (this.unavailableCode) return []
     try {
-      return [...this.states.entries()]
+      const installed = [...this.states.entries()]
         .filter(([, state]) => state.state === 'installed')
         .map(([packageId]) => this.inspect(packageId))
+      const counts = new Map()
+      for (const item of installed) counts.set(item.manifest.connectorId, (counts.get(item.manifest.connectorId) || 0) + 1)
+      return installed.filter(item => counts.get(item.manifest.connectorId) === 1)
     } catch (error) {
       this.unavailableCode = error?.code || 'AGENT_CONNECTOR_PACKAGE_STORE_UNAVAILABLE'
       return []

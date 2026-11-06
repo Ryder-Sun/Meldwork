@@ -137,6 +137,26 @@ test('reimporting a removed package requires fresh approval and preserves its au
   assert.equal(reopened.install(packageId).state, 'installed')
 })
 
+test('duplicate installed Connector identities cannot silently change the selected package', t => {
+  const { create, store } = fixture(t)
+  const first = SAMPLE_LOCAL_ECHO_AGENT_CONNECTOR_PACKAGE
+  const second = createAgentConnectorPackage({
+    publisher: { ...first.publisher, name: `${first.publisher.name} Alternative` },
+    provider: first.provider, manifest: first.manifest,
+  })
+  for (const record of [first, second]) {
+    store.import(serializeAgentConnectorPackage(record), `${record.packageId}.json`)
+    store.approve(record.packageId)
+  }
+  store.install(first.packageId)
+  assert.throws(() => store.install(second.packageId), { message: 'AGENT_CONNECTOR_PACKAGE_UPGRADE_INVALID' })
+  assert.equal(store.packageForManifest(first.manifest.manifestId).packageId, first.packageId)
+  // An older audit may already contain both installations; never choose one arbitrarily.
+  store.append('installed', second.packageId)
+  assert.deepEqual(create().installedPackages(), [])
+  assert.equal(create().packageForManifest(first.manifest.manifestId), null)
+})
+
 test('an uncertain audit append blocks further operations until the store is reopened', (t) => {
   const { create, store } = fixture(t)
   const serialized = serializeAgentConnectorPackage(SAMPLE_LOCAL_ECHO_AGENT_CONNECTOR_PACKAGE)
