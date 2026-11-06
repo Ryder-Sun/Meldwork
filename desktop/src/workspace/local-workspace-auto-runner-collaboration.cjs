@@ -188,6 +188,8 @@ const collaborationMethods = {
       && entry.value === conclusionValue
       && entry.owner.type === 'agent'
       && entry.owner.agentKind === kind
+      && (!options.deduplicateByAgentRun || (entry.provenance.runId === provenance.runId
+        && entry.provenance.agentRunId === provenance.agentRunId))
     ))
     if (conclusion && !duplicateConclusion) {
       collaboration = appendBlackboardEntry(collaboration, {

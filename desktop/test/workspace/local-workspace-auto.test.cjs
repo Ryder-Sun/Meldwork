@@ -7,6 +7,7 @@ const { agentRuntimeError } = require('../../src/agents/agent-runtime-contract.c
 const { MAX_RUN_AGENT_ATTEMPTS } = require('../../src/runs/failure-policy.cjs')
 const { LocalWorkspace } = require('../../src/workspace/local-workspace.cjs')
 const { taskGraphMethods } = require('../../src/workspace/local-workspace-auto-runner-task-graph.cjs')
+const { collaborationMethods } = require('../../src/workspace/local-workspace-auto-runner-collaboration.cjs')
 const { createTaskGraph, createTaskGraphCursor, updateTaskGraphCursor } = require('../../src/collaboration/task-graph-records.cjs')
 const { emptyCollaborationState } = require('../../src/collaboration/collaboration-records.cjs')
 const {
@@ -108,6 +109,60 @@ test('task graph resumes a human decision after its blackboard checkpoint withou
     { status: 'approved', optionId: 'reject' }), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
   assert.throws(() => runner.applyTaskGraphHumanDecision({}, controller, node,
     { status: 'rejected', optionId: 'reject' }), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
+})
+
+for (const role of ['primary', 'arbiter']) test(`task graph replays a checkpointed ${role} result without losing references`, () => {
+  const node = graphNode({ role, terminal: true,
+    acceptance: { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 } })
+  const graph = createTaskGraph({ template: 'task-graph', nodes: [node] })
+  const cursor = updateTaskGraphCursor(createTaskGraphCursor(graph), node.nodeId, { status: 'running', attempts: 1 })
+  const controller = { runId: 'run', taskId: 'task', currentRound: 1, completedKinds: [], failedKinds: [],
+    orchestration: { taskGraph: cursor, collaboration: emptyCollaborationState(), activeKinds: ['codex'] } }
+  let failCheckpoint = true
+  const runner = { ...collaborationMethods, ...taskGraphMethods,
+    taskGraphVerifiedOutcomeRefs: () => ({ artifactIds: [], evidenceIds: [] }),
+    checkpointOrchestration: (_group, target, updates) => { Object.assign(target.orchestration, updates) },
+    checkpointTaskGraph: (_group, target, next) => {
+      if (failCheckpoint) throw new Error('LOCAL_RUN_PERSIST_FAILED')
+      target.orchestration.taskGraph = next
+      return next
+    },
+  }
+  const result = { message: { content: 'A complete answer.', trace: { status: 'completed', agentRunId: 'agent-run' } } }
+  assert.throws(() => runner.applyTaskGraphAgentResult({}, controller, node, result), { message: 'LOCAL_RUN_PERSIST_FAILED' })
+  const original = JSON.parse(JSON.stringify(controller.orchestration))
+  assert.equal(original.collaboration.entries.length, 1)
+  const resumed = { ...controller, orchestration: original, completedKinds: [], failedKinds: [] }
+  failCheckpoint = false
+  assert.equal(runner.applyTaskGraphAgentResult({}, resumed, node, result), true)
+  assert.equal(resumed.orchestration.collaboration.entries.length, 1)
+  assert.deepEqual(resumed.orchestration.taskGraph.nodeStates[0].entryIds, [original.collaboration.entries[0].entryId])
+  assert.throws(() => runner.applyTaskGraphAgentResult({}, { ...controller, orchestration: original }, node,
+    { message: { ...result.message, content: 'Different answer.' } }), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
+  const changedEvidenceRunner = { ...runner, taskGraphVerifiedOutcomeRefs: () => ({ artifactIds: ['different'], evidenceIds: [] }) }
+  assert.throws(() => changedEvidenceRunner.applyTaskGraphAgentResult({}, { ...controller, orchestration: original }, node,
+    result), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
+})
+
+test('identical conclusions from separate task graph runs keep separate provenance', () => {
+  const first = graphNode({ acceptance: { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 } })
+  const second = graphNode({ nodeId: 'second', terminal: true, dependsOn: [first.nodeId], inputNodeIds: [first.nodeId],
+    acceptance: { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 } })
+  const graph = createTaskGraph({ template: 'task-graph', nodes: [first, second] })
+  const controller = { runId: 'run', taskId: 'task', currentRound: 1, completedKinds: [], failedKinds: [],
+    orchestration: { taskGraph: createTaskGraphCursor(graph), collaboration: emptyCollaborationState(), activeKinds: ['codex'] } }
+  const runner = { ...collaborationMethods, ...taskGraphMethods,
+    taskGraphVerifiedOutcomeRefs: () => ({ artifactIds: [], evidenceIds: [] }),
+    checkpointOrchestration: (_group, target, updates) => { Object.assign(target.orchestration, updates) },
+    checkpointTaskGraph: (_group, target, next) => { target.orchestration.taskGraph = next; return next },
+  }
+  const result = agentRunId => ({ message: { content: 'Same answer.', trace: { status: 'completed', agentRunId } } })
+  runner.applyTaskGraphAgentResult({}, controller, first, result('first-run'))
+  controller.currentRound = 2
+  runner.applyTaskGraphAgentResult({}, controller, second, result('second-run'))
+  const claims = controller.orchestration.collaboration.entries.filter(entry => entry.entryType === 'claim')
+  assert.deepEqual(claims.map(entry => entry.provenance.agentRunId), ['first-run', 'second-run'])
+  assert.deepEqual(controller.orchestration.taskGraph.nodeStates[1].entryIds, [claims[1].entryId])
 })
 
 test('task graph counts only evidence recorded by the current run or trusted main process', () => {

@@ -149,7 +149,25 @@ const taskGraphMethods = {
     const verifiedResult = { ...result, outcomeRefs: verifiedRefs }
     const accepted = this.taskGraphResultAccepted(node, result, controller, verifiedRefs)
     const acceptedDecision = node.role === 'arbiter' && accepted
-    const entryIds = this.recordCollaborationResult(
+    const subject = node.role === 'primary'
+      ? `task:${controller.taskId}:conclusion` : `task:${controller.taskId}:node:${node.nodeId}`
+    const agentRunId = result?.message?.trace?.agentRunId
+    const previous = agentRunId ? controller.orchestration.collaboration.entries.filter(entry => (
+      entry.provenance.runId === controller.runId && entry.provenance.agentRunId === agentRunId
+    )) : []
+    const conclusion = publicCollaborationText(result?.message?.content || '')
+    if (previous.length) {
+      const primary = previous.filter(entry => ['claim', 'decision'].includes(entry.entryType))
+      if (primary.length !== 1 || primary[0].entryType !== (acceptedDecision ? 'decision' : 'claim')
+          || primary[0].subject !== subject || primary[0].statement !== conclusion
+          || primary[0].owner.type !== 'agent' || primary[0].owner.agentKind !== node.agentKind
+          || primary[0].provenance.taskId !== controller.taskId
+          || canonicalJson(primary[0].provenance.artifactIds) !== canonicalJson(verifiedRefs.artifactIds)
+          || canonicalJson(primary[0].provenance.evidenceIds) !== canonicalJson(verifiedRefs.evidenceIds)) {
+        throw new Error('LOCAL_RUN_CONTINUATION_INVALID')
+      }
+    }
+    const entryIds = previous.length ? previous.map(entry => entry.entryId) : this.recordCollaborationResult(
       group,
       controller,
       controller.orchestration.activeKinds,
@@ -157,14 +175,12 @@ const taskGraphMethods = {
       verifiedResult,
       {
         role: node.role,
+        deduplicateByAgentRun: true,
         entryType: acceptedDecision ? 'decision' : 'claim',
-        subject: node.role === 'primary'
-          ? `task:${controller.taskId}:conclusion`
-          : `task:${controller.taskId}:node:${node.nodeId}`,
+        subject,
         refs: acceptedDecision ? conflicts.map(entry => entry.entryId) : [],
       },
     )
-    const conclusion = publicCollaborationText(result?.message?.content || '')
     const { artifactIds, evidenceIds } = verifiedRefs
     let cursor = updateTaskGraphCursor(
       controller.orchestration.taskGraph,
