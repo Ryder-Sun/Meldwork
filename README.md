@@ -103,6 +103,8 @@ DeepSeek Harness (`dsh`) supports direct chats and group replies through ACP, wi
 
 WorkBuddy also supports selecting its existing native configuration directory in Settings → Agents. Its model list, execution environment, and local and plugin Skills use the selected directory.
 
+Hermes uses its native `config.yaml` and Provider settings. When its model, fallback model, or provider entries declare credential variables with `key_env` or `api_key_env`, Meldwork reads those variables from the launch environment or login shell for Hermes; unrelated variables and unsafe process controls are excluded. Hermes may prepare its own dependencies when started with a new native data directory.
+
 ## Context and local boundaries
 
 Meldwork runs as a local Electron application. Conversations, group configuration, run records, and app-owned attachments stay in the local user data directory. The renderer receives only validated snapshots through a narrow preload API; executable paths, credentials, native session references, Skill paths, and unrestricted shell access remain in the main process.
