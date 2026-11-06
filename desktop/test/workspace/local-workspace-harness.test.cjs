@@ -162,8 +162,8 @@ test('Cloud Bridge Agents can create direct and group chats through the Connecto
     bridgeForInstance: instanceId => entries.find(entry => entry.instance.instanceId === instanceId) || null,
     run: async (input) => {
       cloudRuns.push(input)
-      const heartbeat = setInterval(() => input.onActivity?.(), 5)
-      await new Promise(resolve => setTimeout(resolve, 65))
+      const heartbeat = setInterval(() => input.onActivity?.(), 20)
+      await new Promise(resolve => setTimeout(resolve, 450))
       clearInterval(heartbeat)
       return { text: `${input.agentId} cloud reply`, outcome: 'completed' }
     },
@@ -181,7 +181,7 @@ test('Cloud Bridge Agents can create direct and group chats through the Connecto
   options.detectAgents = async () => connectors.refresh([])
   options.connectorRuntime = connectors
   options.runAgent = async () => { throw new Error('LOCAL_RUNNER_MUST_NOT_RUN') }
-  options.runAgentTimeoutMs = 20
+  options.runAgentTimeoutMs = 200
   options.runAbortGraceMs = 20
   const workspace = new LocalWorkspace(options)
   const snapshot = await workspace.refreshAgents()

@@ -93,7 +93,7 @@ test('local preload exposes the local-only Meldwork API', async () => {
   assert.deepEqual(
     Object.keys(api.localAgentConnector).sort(),
     [
-      'approve', 'audit', 'configure', 'delete', 'disable', 'import', 'inspect',
+      'approve', 'audit', 'configure', 'configureFromEnvironment', 'delete', 'disable', 'import', 'inspect',
       'install', 'list', 'packages', 'remove', 'revoke', 'test', 'upgrade',
     ].sort(),
   )
@@ -103,6 +103,7 @@ test('local preload exposes the local-only Meldwork API', async () => {
     label: 'Review account',
     credentials: { account: 'renderer-entered-secret' },
   }
+  const environmentConfiguration = { packageId, label: 'Shell account', environmentKeys: { account: 'ACCOUNT_KEY' } }
   await api.localAgentConnector.list()
   await api.localAgentConnector.packages()
   await api.localAgentConnector.import()
@@ -111,6 +112,7 @@ test('local preload exposes the local-only Meldwork API', async () => {
   await api.localAgentConnector.approve(packageId)
   await api.localAgentConnector.install(packageId)
   await api.localAgentConnector.configure(configuration)
+  await api.localAgentConnector.configureFromEnvironment(environmentConfiguration)
   await api.localAgentConnector.test('custom-0123456789abcdef')
   await api.localAgentConnector.disable(packageId)
   await api.localAgentConnector.revoke(packageId)
@@ -126,6 +128,7 @@ test('local preload exposes the local-only Meldwork API', async () => {
     { channel: 'local-agent-connector:approve', args: [packageId] },
     { channel: 'local-agent-connector:install', args: [packageId] },
     { channel: 'local-agent-connector:configure', args: [configuration] },
+    { channel: 'local-agent-connector:configure-from-environment', args: [environmentConfiguration] },
     { channel: 'local-agent-connector:test', args: ['custom-0123456789abcdef'] },
     { channel: 'local-agent-connector:disable', args: [packageId] },
     { channel: 'local-agent-connector:revoke', args: [packageId] },

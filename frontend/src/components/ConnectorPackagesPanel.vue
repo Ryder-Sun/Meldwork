@@ -28,6 +28,22 @@
         <h4>{{ t('connectorPackages.audit') }}</h4>
         <ol><li v-for="event in audit" :key="event.eventId">{{ t(`connectorPackages.event.${event.action}`) }} · {{ event.timestamp }}</li></ol>
       </div>
+      <form v-if="configuring?.packageId === item.packageId" class="connector-configure" @submit.prevent="saveEnvironment">
+        <p>{{ t('connectorPackages.environmentHint') }}</p>
+        <label>{{ t('connectorPackages.instanceLabel') }}
+          <input v-model.trim="configuring.label" type="text" required maxlength="120" autocomplete="off">
+        </label>
+        <label v-for="slot in configuring.slots" :key="slot.slotId">
+          {{ slot.slotId }}{{ slot.required ? ' *' : '' }}
+          <input v-model.trim="environmentNames[slot.slotId]" type="text" :required="slot.required"
+            pattern="[A-Za-z_][A-Za-z0-9_]*" maxlength="128" autocomplete="off" spellcheck="false"
+            :placeholder="t('connectorPackages.environmentPlaceholder')">
+        </label>
+        <div class="connector-actions">
+          <button type="submit" :disabled="busy">{{ t('connectorPackages.saveEnvironment') }}</button>
+          <button type="button" :disabled="busy" @click="configuring = null">{{ t('common.cancel') }}</button>
+        </div>
+      </form>
     </article>
     <h3 v-if="instances.length">{{ t('connectorPackages.instances') }}</h3>
     <article v-for="instance in instances" :key="instance.instanceId" class="connector-row">
@@ -61,6 +77,8 @@ const notice = ref('')
 const confirmingInstance = ref('')
 const selected = ref(null)
 const audit = ref([])
+const configuring = ref(null)
+const environmentNames = ref({})
 function hasInstalledVersion(item) {
   return packages.value.some(other => other.packageId !== item.packageId
     && other.connectorId === item.connectorId && other.state === 'installed')
@@ -76,6 +94,8 @@ async function run(action) {
     packages.value = []
     instances.value = []
     selected.value = null
+    configuring.value = null
+    environmentNames.value = {}
     notice.value = ''
     error.value = translateError(caught)
   } finally { busy.value = false }
@@ -83,6 +103,8 @@ async function run(action) {
 function importPackage() { return run(() => api.import()) }
 function perform(action, item) {
   selected.value = null
+  configuring.value = null
+  environmentNames.value = {}
   return run(() => api[action](item.packageId))
 }
 function inspect(item) {
@@ -102,14 +124,30 @@ function deleteInstance(instance) {
   return run(() => api.delete(instance.instanceId))
 }
 function configure(item) {
+  configuring.value = null
+  environmentNames.value = {}
   return run(async () => {
     const detail = await api.inspect(item.packageId)
     if (detail.manifest.credentials.slots.length) {
-      notice.value = t('connectorPackages.credentialsUnavailable')
+      configuring.value = { packageId: item.packageId, label: item.label, slots: detail.manifest.credentials.slots }
+      environmentNames.value = {}
       return
     }
     await api.configure({ manifestId: item.manifestId, label: item.label, credentials: null })
     notice.value = t('connectorPackages.configured')
+  })
+}
+function saveEnvironment() {
+  const input = configuring.value
+  if (!input) return
+  return run(async () => {
+    const environmentKeys = Object.fromEntries(Object.entries(environmentNames.value).filter(([, value]) => value))
+    const result = await api.configureFromEnvironment({ packageId: input.packageId, label: input.label, environmentKeys })
+    if (!result.canceled) {
+      configuring.value = null
+      environmentNames.value = {}
+      notice.value = t('connectorPackages.configured')
+    }
   })
 }
 onMounted(() => run(async () => {}))
@@ -121,7 +159,11 @@ onMounted(() => run(async () => {}))
 .connector-heading h2 { font-size: 18px; }
 .connector-row { padding: 14px 0; border-bottom: 1px solid var(--border); }
 .connector-row:has(.connector-detail) { flex-wrap: wrap; }
+.connector-row:has(.connector-configure) { flex-wrap: wrap; }
 .connector-detail { flex-basis: 100%; overflow-wrap: anywhere; }
+.connector-configure { flex-basis: 100%; display: grid; gap: 10px; }
+.connector-configure label { display: grid; gap: 4px; color: var(--muted); }
+.connector-configure input { width: 100%; max-width: 360px; padding: 9px 12px; border: 0; border-radius: 8px; background: var(--surface); color: var(--text); }
 .connector-row p { color: var(--muted); margin: 4px 0 0; }
 .connector-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .connector-actions button { border: 0; background: transparent; color: var(--accent-text); cursor: pointer; padding: 8px; }

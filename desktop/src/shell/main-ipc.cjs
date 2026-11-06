@@ -7,6 +7,7 @@ const { ATTACHMENT_FILE_EXTENSIONS } = require('../attachments/attachment-record
 const { registerDeliveryIpc } = require('./delivery-ipc.cjs')
 const { loadedWorkPreferences, parseWorkPreferences } = require('../workspace/work-preferences.cjs')
 const { NATIVE_CONFIG_DIRECTORIES, validateNativeConfigDirectory } = require('../agents/native-config-directory.cjs')
+const { nativeSecretEnvKeys } = require('../agents/cli/native-secret-environment.cjs')
 
 const LOCAL_GROUP_IDENTIFIER = /^[^\u0000-\u001f\u007f]{1,100}$/u
 const LOCAL_RUN_IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/
@@ -195,6 +196,7 @@ function registerDesktopIpc(options) {
     openExternalUrl,
     refreshLocalAgentState,
     registerTrustedHandle,
+    resolveConnectorEnvironment,
     skillCatalog,
   } = options
 
@@ -699,6 +701,47 @@ function registerDesktopIpc(options) {
     })
     await refreshLocalAgentState()
     return result
+  })
+  registerTrustedHandle('local-agent-connector:configure-from-environment', async (...args) => {
+    if (args.length !== 1 || !isPlainObject(args[0])
+        || Reflect.ownKeys(args[0]).sort().join(',') !== 'environmentKeys,label,packageId'
+        || typeof args[0].packageId !== 'string' || typeof args[0].label !== 'string'
+        || !isPlainObject(args[0].environmentKeys)) throw new Error('AGENT_CONNECTOR_REQUEST_INVALID')
+    const connectors = getAgentConnectors?.()
+    if (!connectors || typeof resolveConnectorEnvironment !== 'function') throw new Error('AGENT_CONNECTOR_RUNTIME_UNAVAILABLE')
+    const inspected = connectors.inspectPackage(args[0].packageId)
+    if (inspected.state !== 'installed') throw new Error('AGENT_CONNECTOR_PACKAGE_NOT_INSTALLED')
+    const slots = inspected.manifest.credentials.slots
+    const entries = Object.entries(args[0].environmentKeys)
+    if (!slots.length || entries.length > slots.length
+        || entries.some(([slot, name]) => !slots.some(item => item.slotId === slot)
+          || typeof name !== 'string' || nativeSecretEnvKeys([name])[0] !== name)
+        || slots.some(slot => slot.required && !Object.hasOwn(args[0].environmentKeys, slot.slotId))) {
+      throw new Error('AGENT_CONNECTOR_CREDENTIAL_INVALID')
+    }
+    const locale = String(app.getLocale?.() || 'en').toLowerCase()
+    const names = [...new Set(entries.map(([, name]) => name))]
+    const decision = await dialog.showMessageBox(getMainWindow(), {
+      type: 'warning',
+      title: locale.startsWith('zh') ? '配置 Connector 凭据' : 'Configure Connector credentials',
+      message: locale.startsWith('zh') ? '允许此 Connector 使用以下环境变量？' : 'Allow this Connector to use these environment variables?',
+      detail: `${inspected.manifest.label}\n${entries.map(([slot, name]) => `${slot}: ${name}`).join('\n')}\n${inspected.manifest.outboundDestinations.join(', ')}`,
+      buttons: locale.startsWith('zh') ? ['允许', '取消'] : ['Allow', 'Cancel'],
+      defaultId: 1, cancelId: 1, noLink: true,
+    })
+    if (decision.response !== 0) return { canceled: true }
+    if (isShutdownStarted()) throw new Error('DESKTOP_CLIENT_SHUTTING_DOWN')
+    const env = await resolveConnectorEnvironment(names)
+    if (isShutdownStarted()) throw new Error('DESKTOP_CLIENT_SHUTTING_DOWN')
+    const credentials = Object.fromEntries(entries.map(([slot, name]) => [slot, env?.[name]]))
+    if (Object.values(credentials).some(value => typeof value !== 'string' || !value.trim())) {
+      throw new Error('AGENT_CONNECTOR_CREDENTIAL_ENV_MISSING')
+    }
+    connectors.refresh(await installer.detectedAgents())
+    if (isShutdownStarted()) throw new Error('DESKTOP_CLIENT_SHUTTING_DOWN')
+    const instance = connectors.configure({ manifestId: inspected.manifest.manifestId, label: args[0].label, credentials })
+    await refreshLocalAgentState()
+    return { canceled: false, instance }
   })
   registerTrustedHandle('local-agent-connector:delete', async (...args) => {
     if (args.length !== 1 || typeof args[0] !== 'string') {

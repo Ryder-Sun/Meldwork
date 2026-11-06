@@ -69,6 +69,7 @@ const LOCAL_IPC_CHANNELS = Object.freeze([
   'local-agent-connector:upgrade',
   'local-agent-connector:remove',
   'local-agent-connector:configure',
+  'local-agent-connector:configure-from-environment',
   'local-agent-connector:delete',
   'local-agent-connector:test',
   'local-attachments:pick',

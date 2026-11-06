@@ -58,16 +58,79 @@ describe('Connector package settings', () => {
     wrapper.unmount()
   })
 
-  it('does not request credentials in the renderer', async () => {
+  it('configures credentials by environment variable name without receiving secret values', async () => {
     const item = { packageId: 'package', manifestId: 'manifest', state: 'installed', label: 'Example', connectorVersion: '1.0.0', publisher: { name: 'Publisher' } }
-    const api = { packages: vi.fn().mockResolvedValue([item]), list: vi.fn().mockResolvedValue([]), inspect: vi.fn().mockResolvedValue({ manifest: { credentials: { slots: [{ slotId: 'key' }] } } }), configure: vi.fn() }
+    const api = { packages: vi.fn().mockResolvedValue([item]), list: vi.fn().mockResolvedValue([]),
+      inspect: vi.fn().mockResolvedValue({ manifest: { credentials: { slots: [{ slotId: 'key', required: true }] } } }),
+      configure: vi.fn(), configureFromEnvironment: vi.fn().mockResolvedValue({ canceled: false }) }
     window.meldworkDesktop = { localAgentConnector: api }
     const wrapper = mount(ConnectorPackagesPanel)
     await flushPromises()
     await wrapper.findAll('button').find(button => button.text() === t('connectorPackages.configure')).trigger('click')
     await flushPromises()
+    await wrapper.get('input:not([pattern])').setValue('Work account')
+    await wrapper.get('input[pattern]').setValue('MY_CONNECTOR_KEY')
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
     expect(api.configure).not.toHaveBeenCalled()
-    expect(wrapper.text()).toContain(t('connectorPackages.credentialsUnavailable'))
+    expect(api.configureFromEnvironment).toHaveBeenCalledWith({ packageId: 'package', label: 'Work account', environmentKeys: { key: 'MY_CONNECTOR_KEY' } })
+    expect(wrapper.text()).toContain(t('connectorPackages.configured'))
+    expect(wrapper.find('input').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('keeps the environment form available after native confirmation is cancelled', async () => {
+    const item = { packageId: 'package', manifestId: 'manifest', state: 'installed', label: 'Example', connectorVersion: '1.0.0', publisher: { name: 'Publisher' } }
+    const api = { packages: vi.fn().mockResolvedValue([item]), list: vi.fn().mockResolvedValue([]),
+      inspect: vi.fn().mockResolvedValue({ manifest: { credentials: { slots: [{ slotId: 'key', required: true }] } } }),
+      configureFromEnvironment: vi.fn().mockResolvedValue({ canceled: true }) }
+    window.meldworkDesktop = { localAgentConnector: api }
+    const wrapper = mount(ConnectorPackagesPanel)
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text() === t('connectorPackages.configure')).trigger('click')
+    await flushPromises()
+    await wrapper.get('input[pattern]').setValue('MY_CONNECTOR_KEY')
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+    expect(wrapper.get('input[pattern]').element.value).toBe('MY_CONNECTOR_KEY')
+    expect(wrapper.text()).not.toContain(t('connectorPackages.configured'))
+    wrapper.unmount()
+  })
+
+  it('closes credential configuration when the package is disabled', async () => {
+    const item = { packageId: 'package', manifestId: 'manifest', state: 'installed', label: 'Example', connectorVersion: '1.0.0', publisher: { name: 'Publisher' } }
+    const api = { packages: vi.fn().mockResolvedValue([item]), list: vi.fn().mockResolvedValue([]),
+      inspect: vi.fn().mockResolvedValue({ manifest: { credentials: { slots: [{ slotId: 'key', required: true }] } } }),
+      disable: vi.fn(async () => { item.state = 'disabled' }) }
+    window.meldworkDesktop = { localAgentConnector: api }
+    const wrapper = mount(ConnectorPackagesPanel)
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text() === t('connectorPackages.configure')).trigger('click')
+    await flushPromises()
+    expect(wrapper.find('form').exists()).toBe(true)
+    await wrapper.findAll('button').find(button => button.text() === t('connectorPackages.disable')).trigger('click')
+    await flushPromises()
+    expect(wrapper.find('form').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('does not retain another package credential form when inspection fails', async () => {
+    const base = { manifestId: 'manifest', state: 'installed', connectorVersion: '1.0.0', publisher: { name: 'Publisher' } }
+    const items = [{ ...base, packageId: 'first', label: 'First' }, { ...base, packageId: 'second', label: 'Second' }]
+    const api = { packages: vi.fn().mockResolvedValue(items), list: vi.fn().mockResolvedValue([]),
+      inspect: vi.fn().mockResolvedValueOnce({ manifest: { credentials: { slots: [{ slotId: 'key', required: true }] } } })
+        .mockRejectedValueOnce(new Error('inspection failed')) }
+    window.meldworkDesktop = { localAgentConnector: api }
+    const wrapper = mount(ConnectorPackagesPanel)
+    await flushPromises()
+    const rows = wrapper.findAll('.connector-row')
+    await rows[0].findAll('button').find(button => button.text() === t('connectorPackages.configure')).trigger('click')
+    await flushPromises()
+    expect(wrapper.find('form').exists()).toBe(true)
+    await rows[1].findAll('button').find(button => button.text() === t('connectorPackages.configure')).trigger('click')
+    await flushPromises()
+    expect(wrapper.find('form').exists()).toBe(false)
+    expect(wrapper.find('[role="alert"]').exists()).toBe(true)
     wrapper.unmount()
   })
 

@@ -859,6 +859,9 @@ function registerIpc() {
     getSkillTrustStore: () => skillTrustStore,
     refreshLocalAgentState,
     registerTrustedHandle,
+    resolveConnectorEnvironment: async names => (await resolveNativeShellEnvironment({
+      home: app.getPath('home'), extraEnvKeys: names, refresh: true,
+    })).env,
     skillCatalog,
   })
 }

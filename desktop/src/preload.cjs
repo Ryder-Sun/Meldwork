@@ -178,6 +178,7 @@ if (isLocalDocument) Object.assign(desktopApi, {
     approve: packageId => ipcRenderer.invoke('local-agent-connector:approve', packageId),
     install: packageId => ipcRenderer.invoke('local-agent-connector:install', packageId),
     configure: input => ipcRenderer.invoke('local-agent-connector:configure', input),
+    configureFromEnvironment: input => ipcRenderer.invoke('local-agent-connector:configure-from-environment', input),
     test: instanceId => ipcRenderer.invoke('local-agent-connector:test', instanceId),
     disable: packageId => ipcRenderer.invoke('local-agent-connector:disable', packageId),
     revoke: packageId => ipcRenderer.invoke('local-agent-connector:revoke', packageId),

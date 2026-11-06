@@ -942,6 +942,87 @@ test('Agent Connector package IPC keeps paths private and requires native approv
   assert.equal((await invoke('remove')(harness.event(), packageId)).state, 'removed')
 })
 
+test('Connector credentials can be read from the native shell only after native confirmation', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-connector-env-ipc-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const { createAgentConnectorManifest } = require('../../src/agents/connectors/agent-connector-manifest.cjs')
+  const { createAgentConnectorPackage, SDK_HTTP_JSON_RECIPE_ID } = require('../../src/agents/connectors/agent-connector-package-store.cjs')
+  const manifest = createAgentConnectorManifest({ connectorId: 'external.env-test', connectorVersion: '1.0.0',
+    kind: 'agent', label: 'Env test', description: 'Environment credential test.',
+    transport: { type: 'http', protocol: 'json' }, upstream: { id: 'meldwork-sdk', minVersion: '1.0.0', maxVersion: '1.0.0' },
+    invocation: { recipeId: SDK_HTTP_JSON_RECIPE_ID }, domains: ['general'],
+    session: { supported: false, resume: false, cancel: false, checkpoint: false }, inputTypes: ['text'],
+    permissionModes: ['read-only'], eventProtocolVersion: 1, eventTypes: ['Completed', 'Failed', 'Cancelled'],
+    usage: { inputTokens: false, outputTokens: false, costMicros: false, toolCalls: false, outboundBytes: false, elapsedMs: false },
+    outboundDestinations: ['https://connector.example.com'],
+    credentials: { mode: 'credential-ref', slots: [{ slotId: 'access-token', type: 'token', required: true }] }, license: 'MIT' })
+  const pkg = createAgentConnectorPackage({ publisher: { id: 'example', name: 'Example' },
+    provider: { id: SDK_HTTP_JSON_RECIPE_ID, config: { endpoint: 'https://connector.example.com/run', authSlotId: 'access-token' } }, manifest })
+  const packagePath = path.join(directory, 'connector.json')
+  fs.writeFileSync(packagePath, serializeAgentConnectorPackage(pkg))
+  const decision = { response: 0 }
+  const reads = []
+  const { harness } = loadMain(directory, {
+    dialogResult: { canceled: false, filePaths: [packagePath] }, messageBoxResult: decision,
+    nativeShellEnvironment: input => {
+      if (input.extraEnvKeys) reads.push(input.extraEnvKeys)
+      return { source: 'native-shell', env: {
+        ...(input.extraEnvKeys?.includes('CONNECTOR_API_KEY') ? { CONNECTOR_API_KEY: 'synthetic-private-value' } : {}),
+        ...(input.extraEnvKeys?.includes('SECOND_API_KEY') ? { SECOND_API_KEY: 'second-private-value' } : {}),
+      } }
+    },
+  })
+  await harness.ready()
+  const invoke = name => harness.ipcHandlers.get(`local-agent-connector:${name}`)
+  await invoke('import')(harness.event())
+  await invoke('approve')(harness.event(), pkg.packageId)
+  await invoke('install')(harness.event(), pkg.packageId)
+  const request = { packageId: pkg.packageId, label: 'Private account', environmentKeys: { 'access-token': 'CONNECTOR_API_KEY' } }
+  decision.response = 1
+  assert.deepEqual(await invoke('configure-from-environment')(harness.event(), request), { canceled: true })
+  assert.equal(reads.some(keys => keys.includes('CONNECTOR_API_KEY')), false)
+  decision.response = 0
+  const configured = await invoke('configure-from-environment')(harness.event(), request)
+  assert.equal(configured.canceled, false)
+  assert.equal(configured.instance.credentialConfigured, true)
+  assert.doesNotMatch(JSON.stringify(configured), /synthetic-private-value|credential-ref/)
+  const stored = fs.readFileSync(path.join(directory, 'meldwork-private', 'agent-connector-credentials.json'), 'utf8')
+  assert.doesNotMatch(stored, /synthetic-private-value/)
+  const instanceStore = harness.workspaceInstances[0].input.connectorRuntime.instanceStore
+  const internal = instanceStore.listRecords().find(item => item.instanceId === configured.instance.instanceId)
+  assert.deepEqual(instanceStore.resolveCredential(internal.credentialRef), { 'access-token': 'synthetic-private-value' })
+  assert.match(harness.dialogCalls.at(-1)[1].detail, /CONNECTOR_API_KEY/)
+  assert.doesNotMatch(harness.dialogCalls.at(-1)[1].detail, /synthetic-private-value/)
+  const second = await invoke('configure-from-environment')(harness.event(), {
+    ...request, label: 'Second account', environmentKeys: { 'access-token': 'SECOND_API_KEY' },
+  })
+  const secondInternal = instanceStore.listRecords().find(item => item.instanceId === second.instance.instanceId)
+  assert.notEqual(secondInternal.credentialRef, internal.credentialRef)
+  assert.deepEqual(instanceStore.resolveCredential(secondInternal.credentialRef), { 'access-token': 'second-private-value' })
+  const connectorRuntime = harness.workspaceInstances[0].input.connectorRuntime
+  const authorizations = []
+  connectorRuntime.fetch = async (_endpoint, options) => {
+    authorizations.push(options.headers.authorization)
+    return { ok: true, text: async () => '{"text":"ok"}' }
+  }
+  const agents = await harness.workspaceInstances[0].input.detectAgents()
+  for (const [index, instance] of [configured.instance, second.instance].entries()) {
+    const agent = agents.find(item => item.kind === instance.instanceId)
+    const result = await connectorRuntime.run(agent, 'hello', directory, {
+      runId: `run-env-${index}`, agentRunId: `agent-run-env-${index}`, sandbox: 'read-only',
+    })
+    assert.equal(result.outcome, 'completed')
+    assert.doesNotMatch(JSON.stringify(result), /private-value|credential-ref/)
+  }
+  assert.deepEqual(authorizations, ['Bearer synthetic-private-value', 'Bearer second-private-value'])
+  await assert.rejects(() => invoke('configure-from-environment')(harness.event(), {
+    ...request, environmentKeys: { 'access-token': 'NODE_OPTIONS' },
+  }), { message: 'AGENT_CONNECTOR_CREDENTIAL_INVALID' })
+  await assert.rejects(() => invoke('configure-from-environment')(harness.event(), {
+    ...request, environmentKeys: { 'access-token': 'MISSING_KEY' },
+  }), { message: 'AGENT_CONNECTOR_CREDENTIAL_ENV_MISSING' })
+})
+
 test('unsigned Skill trust uses native approval and exposes only review and revocation', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-skill-trust-ipc-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
