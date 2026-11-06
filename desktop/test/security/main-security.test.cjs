@@ -350,6 +350,45 @@ test('an explicitly installed Agent Connector is available through generic catal
   assert.equal(Object.hasOwn(result.connector, 'credentialRefId'), false)
   assert.equal(harness.runAgentCalls.length, 1)
   assert.equal(harness.runAgentCalls[0][0].executable, '/private/bin/codex')
+  const tested = await harness.ipcHandlers.get('local-agent-connector:test')(
+    harness.event(), connector.kind,
+  )
+  assert.equal(tested.passed, true)
+  const testWorkdir = harness.runAgentCalls.at(-1)[2]
+  assert.notEqual(testWorkdir, directory)
+  assert.equal(path.dirname(testWorkdir), os.tmpdir())
+  assert.match(path.basename(testWorkdir), /^meldwork-connector-test-/)
+  assert.equal(fs.existsSync(testWorkdir), false)
+})
+
+test('Connector test removes its temporary workspace when execution fails', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-connector-failure-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const manifestDirectory = path.join(directory, 'agent-connectors', 'manifests')
+  fs.mkdirSync(manifestDirectory, { recursive: true })
+  fs.writeFileSync(path.join(manifestDirectory, `${SAMPLE_AGENT_CONNECTOR_MANIFEST.manifestId}.json`),
+    serializeAgentConnectorManifest(SAMPLE_AGENT_CONNECTOR_MANIFEST))
+  let testWorkdir
+  const { harness } = loadMain(directory, {
+    detectedAgents: [{ kind: 'codex', name: 'Codex CLI', executable: '/private/bin/codex',
+      version: 'codex-cli 0.147.0', compatibilityState: 'compatible' }],
+    moduleMocks: { './agents/cli/cli-adapters.cjs': {
+      detectAgents: async () => [], imageAttachmentLimit: () => 0,
+      runAgent: async (_agent, _prompt, workdir) => {
+        testWorkdir = workdir
+        assert.deepEqual(fs.readdirSync(workdir), [])
+        throw new Error('simulated failure')
+      },
+    } },
+  })
+  await harness.ready()
+  const configured = await harness.ipcHandlers.get('local-agent-connector:configure')(harness.event(), {
+    manifestId: SAMPLE_AGENT_CONNECTOR_MANIFEST.manifestId, label: 'Failing connector', credentials: null,
+  })
+  const result = await harness.ipcHandlers.get('local-agent-connector:test')(harness.event(), configured.instanceId)
+  assert.equal(result.passed, false)
+  assert.equal(path.dirname(testWorkdir), os.tmpdir())
+  assert.equal(fs.existsSync(testWorkdir), false)
 })
 
 test('Agent Connector IPC persists isolated accounts without returning CredentialRefs or secrets', async (t) => {

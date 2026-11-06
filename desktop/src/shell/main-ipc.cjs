@@ -1,3 +1,6 @@
+const fs = require('node:fs')
+const os = require('node:os')
+const path = require('node:path')
 const { ADOPTION_ACTION_STATUSES } = require('../collaboration/outcome-records.cjs')
 const { statusForHumanGateOption } = require('../gates/human-gate-coordinator.cjs')
 const { ATTACHMENT_FILE_EXTENSIONS } = require('../attachments/attachment-records.cjs')
@@ -683,7 +686,12 @@ function registerDesktopIpc(options) {
     const connectors = getAgentConnectors?.()
     if (!connectors) throw new Error('AGENT_CONNECTOR_RUNTIME_UNAVAILABLE')
     connectors.refresh(await installer.detectedAgents())
-    return connectors.test(args[0], app.getPath('userData'))
+    const workdir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'meldwork-connector-test-'))
+    try {
+      return await connectors.test(args[0], workdir)
+    } finally {
+      await fs.promises.rm(workdir, { recursive: true, force: true })
+    }
   })
   registerTrustedHandle('local-attachments:pick', async (remainingCapacity) => {
     attachments.availableStore()

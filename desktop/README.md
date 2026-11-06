@@ -24,6 +24,8 @@ API Key 或任意 Shell 执行能力。
 - Qwen Code
 - OpenCodeReview
 
+Connector 包的当前支持范围、示例与验证方法见 [Agent Connector SDK](AGENT_CONNECTOR_SDK.md)。
+
 Agent 管理面板提供经过白名单约束的安装入口。安装命令和下载地址由主进程固定，不会根据页面
 输入执行任意命令。内置 Agent 通过各自支持的原生权限模式或 Meldwork 托管工具策略执行；无法
 满足当前权限契约的 Agent 会安全失败。群聊级工作目录写入默认关闭，只有用户明确授权后才会
