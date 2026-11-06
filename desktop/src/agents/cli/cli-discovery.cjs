@@ -5,6 +5,7 @@ const os = require('node:os')
 const path = require('node:path')
 const { promisify } = require('node:util')
 const { networkEnvironment } = require('./cli-network-environment.cjs')
+const { NATIVE_CONFIG_DIRECTORIES } = require('../native-config-directory.cjs')
 const { redactChildSecrets } = require('./cli-runtime-event-sanitizer.cjs')
 const {
   assessAgentVersion,
@@ -47,10 +48,6 @@ const SYSTEM_CHILD_ENV_KEYS = Object.freeze([
   'PROGRAMFILES', 'PROGRAMFILES(X86)', 'PROGRAMW6432',
   'OS', 'PROCESSOR_ARCHITECTURE', 'PROCESSOR_IDENTIFIER', 'NUMBER_OF_PROCESSORS',
 ])
-const NATIVE_CONFIG_DIR_KEYS = Object.freeze({
-  codex: 'CODEX_HOME', claude: 'CLAUDE_CONFIG_DIR', pi: 'PI_CODING_AGENT_DIR',
-})
-
 function envValue(env, name) {
   const match = Object.hasOwn(env, name) ? name
     : Object.keys(env).find(key => key.toLowerCase() === name.toLowerCase())
@@ -58,9 +55,10 @@ function envValue(env, name) {
 }
 
 function nativeConfigDirectoryEnvironment(kind, env) {
-  const key = NATIVE_CONFIG_DIR_KEYS[kind]
-  const value = key && envValue(env, key)
-  return typeof value === 'string' && value ? { [key]: value } : {}
+  const key = Object.hasOwn(NATIVE_CONFIG_DIRECTORIES, kind) ? NATIVE_CONFIG_DIRECTORIES[kind].key : ''
+  const keys = kind === 'deepseek' ? [key, 'DSH_AGENTS_HOME'] : [key]
+  return Object.fromEntries(keys.filter(Boolean).map(name => [name, envValue(env, name)])
+    .filter(([, value]) => typeof value === 'string' && value))
 }
 
 function systemChildEnvironment(sourceEnv = process.env, platform = process.platform) {

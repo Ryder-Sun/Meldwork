@@ -12,6 +12,7 @@ const {
   createServer,
   AGENT_DEFINITIONS,
   invocationFor,
+  listSkills,
   parentSessionDetached,
   parseAgentOutput,
   runAgent,
@@ -22,6 +23,28 @@ test('remote discovery covers every built-in Agent profile and command alias', (
   assert.deepEqual(new Set(AGENT_DEFINITIONS.map(agent => agent.id)), new Set(Object.keys(AGENT_PROFILES)))
   for (const definition of AGENT_DEFINITIONS) {
     assert.deepEqual(definition.commands || [definition.id], AGENT_PROFILES[definition.id].commands)
+  }
+})
+
+test('remote Skill discovery follows each CLI native configuration directory', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-remote-skills-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const entries = [
+    ['custom-codex', 'skills', 'codex-new'], ['.codex', 'skills', 'codex-old'],
+    ['custom-hermes', 'skills', 'hermes-new'], ['.hermes', 'skills', 'hermes-old'],
+    ['custom-claude', 'skills', 'claude-new'], ['.claude', 'skills', 'claude-old'],
+    ['xdg', 'opencode', 'skill', 'opencode-new'], ['.agents', 'skills', 'shared'],
+  ]
+  for (const parts of entries) fs.mkdirSync(path.join(home, ...parts), { recursive: true })
+  const env = { CODEX_HOME: '~/custom-codex', HERMES_HOME: 'custom-hermes',
+    CLAUDE_CONFIG_DIR: path.join(home, 'custom-claude'), XDG_CONFIG_HOME: path.join(home, 'xdg') }
+  for (const [kind, expected] of [
+    ['codex', ['codex-new', 'shared']], ['hermes', ['hermes-new', 'shared']],
+    ['claude', ['claude-new', 'shared']], ['opencode', ['opencode-new']],
+  ]) {
+    const result = listSkills(kind, { home, env })
+    assert.deepEqual(result.map(skill => skill.slug), expected)
+    assert.doesNotMatch(JSON.stringify(result), new RegExp(home))
   }
 })
 

@@ -71,10 +71,20 @@ function commandResult(spawnSyncFn, command, args) {
 function listSkills(kind, options = {}) {
   const readdirSync = options.readdirSync || fs.readdirSync
   const home = options.home || os.homedir()
+  const env = options.env || process.env
+  const nativeRoot = (key, fallback) => {
+    const configured = typeof env[key] === 'string' ? env[key] : ''
+    if (!configured.trim()) return fallback
+    if (configured === '~') return home
+    if (configured.startsWith('~/')) return path.join(home, configured.slice(2))
+    return path.resolve(home, configured)
+  }
   const roots = {
-    codex: [path.join(home, '.codex', 'skills'), path.join(home, '.agents', 'skills')],
-    hermes: [path.join(home, '.hermes', 'skills'), path.join(home, '.agents', 'skills')],
-    claude: [path.join(home, '.claude', 'skills'), path.join(home, '.agents', 'skills')],
+    codex: [path.join(nativeRoot('CODEX_HOME', path.join(home, '.codex')), 'skills'), path.join(home, '.agents', 'skills')],
+    hermes: [path.join(nativeRoot('HERMES_HOME', path.join(home, '.hermes')), 'skills'), path.join(home, '.agents', 'skills')],
+    claude: [path.join(nativeRoot('CLAUDE_CONFIG_DIR', path.join(home, '.claude')), 'skills'), path.join(home, '.agents', 'skills')],
+    opencode: [path.join(nativeRoot('XDG_CONFIG_HOME', path.join(home, '.config')), 'opencode', 'skills'),
+      path.join(nativeRoot('XDG_CONFIG_HOME', path.join(home, '.config')), 'opencode', 'skill')],
   }[kind] || []
   const names = new Set()
   for (const root of roots) {

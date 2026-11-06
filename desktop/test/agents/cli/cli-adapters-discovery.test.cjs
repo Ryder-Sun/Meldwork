@@ -1229,6 +1229,27 @@ test('direct capability probes use only their own native configuration directory
   }
 })
 
+test('direct probes use every supported native directory without leaking other Agents configuration', async () => {
+  const entries = { codex: 'CODEX_HOME', hermes: 'HERMES_HOME', claude: 'CLAUDE_CONFIG_DIR',
+    pi: 'PI_CODING_AGENT_DIR', deepseek: 'DSH_HOME', workbuddy: 'CODEBUDDY_CONFIG_DIR' }
+  const env = Object.fromEntries(Object.entries(entries).map(([kind, key]) => [key, `/native/${kind}`]))
+  env.DSH_AGENTS_HOME = '/native/shared'
+  for (const [kind, key] of Object.entries(entries)) {
+    const seen = []
+    await probeAgentCapabilities(kind, `/tmp/${kind}-native-direct`, {
+      env, execFileFn: async (_command, _args, options) => { seen.push(options.env); throw new Error('unavailable') },
+    })
+    if (!seen.length) continue // Agents without capability probes launch no child process.
+    for (const child of seen) {
+      assert.equal(child[key], env[key], kind)
+      for (const [otherKind, otherKey] of Object.entries(entries)) {
+        if (otherKind !== kind) assert.equal(child[otherKey], undefined, `${kind}: ${otherKey}`)
+      }
+      assert.equal(child.DSH_AGENTS_HOME, kind === 'deepseek' ? env.DSH_AGENTS_HOME : undefined)
+    }
+  }
+})
+
 test('runAgent hides executable paths from spawn failures', async () => {
   const child = new EventEmitter()
   child.stdin = new PassThrough()
