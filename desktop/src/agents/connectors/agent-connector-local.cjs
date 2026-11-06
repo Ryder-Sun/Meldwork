@@ -764,6 +764,7 @@ class LocalAgentConnectors {
     }
     let credential = ''
     let timedOut = false
+    let requestSent = false
     const controller = new AbortController()
     const abortTransport = () => controller.abort()
     input.transportSignal?.addEventListener('abort', abortTransport, { once: true })
@@ -789,6 +790,7 @@ class LocalAgentConnectors {
       }
       controller.signal.throwIfAborted()
       timer = setTimeout(() => { timedOut = true; controller.abort() }, this.httpTimeoutMs)
+      requestSent = true
       const response = await this.fetch(endpoint, {
         method: 'POST',
         redirect: 'error',
@@ -830,7 +832,7 @@ class LocalAgentConnectors {
         input.emit({ ...terminal, type: 'Failed', ...failure })
         return { outcome: 'failed', failure }
       }
-      if (input.transportSignal?.aborted && !input.connector.capabilities.session.cancel) {
+      if (input.transportSignal?.aborted && (requestSent || !input.connector.capabilities.session.cancel)) {
         const failure = { code: 'AGENT_CONNECTOR_HTTP_TRANSPORT_ABORTED', category: 'unknown', retryable: false }
         input.emit({ ...terminal, type: 'Failed', ...failure })
         return { outcome: 'failed', failure }

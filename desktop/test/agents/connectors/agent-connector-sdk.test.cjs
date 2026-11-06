@@ -184,7 +184,7 @@ test('HTTP timeout closes a response body that stops streaming', async t => {
   })
 })
 
-test('stopping a non-cancellable HTTP Connector aborts transport without claiming remote cancellation', async t => {
+for (const cancel of [false, true]) test(`stopping an HTTP Connector with cancel=${cancel} does not claim remote cancellation`, async t => {
   let started
   const requestStarted = new Promise(resolve => { started = resolve })
   let aborted = false
@@ -192,7 +192,7 @@ test('stopping a non-cancellable HTTP Connector aborts transport without claimin
     signal.addEventListener('abort', () => { aborted = true; reject(Object.assign(new Error('aborted'), { name: 'AbortError' })) }, { once: true })
     started()
   }))
-  const pkg = httpPackage({ cancel: false })
+  const pkg = httpPackage({ cancel })
   install(packageStore, pkg)
   connectors.refresh([])
   connectors.configure({ manifestId: pkg.manifest.manifestId, label: 'No cancel', credentials: { 'access-token': 'private-token' } })
