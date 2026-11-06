@@ -20,6 +20,8 @@ test('Zcode prompts explicitly select permissions and only resume the requested 
 })
 
 test('Zcode reports its explicit missing-provider credential without a write retry', () => {
+  assert.equal(failedAgentProcessError('ProviderBusinessError: [1113][Insufficient balance or no resource package. Please recharge.]',
+    { kind: 'zcode' }).code, 'LOCAL_AGENT_PROVIDER_QUOTA_EXHAUSTED')
   assert.equal(failedAgentProcessError('Error: Turn execution failed\nCause: AiSdkModelAdapterError: Model provider is missing an API key: zai',
     { kind: 'zcode' }).code, 'LOCAL_AGENT_AUTH_REQUIRED')
   assert.equal(failedAgentProcessError('Error: Turn execution failed', { kind: 'zcode' }).code, 'LOCAL_AGENT_PROCESS_FAILED')

@@ -39,6 +39,9 @@
     "artifactName": "Meldwork-${version}-${arch}.${ext}",
     "afterPack": "scripts/after-pack.cjs",
     "afterAllArtifactBuild": "scripts/after-all-artifact-build.cjs",
+    "asarUnpack": [
+      "src/agents/cli/deepseek-*.yml"
+    ],
     "files": [
       "src/**/*",
       "samples/**/*",

@@ -11,6 +11,13 @@ const {
   retryDecision,
 } = require('../../src/runs/failure-policy.cjs')
 
+test('provider balance failures require configuration changes rather than retries', () => {
+  const { agentExecutionError } = require('../../src/agents/cli/cli-process-support.cjs')
+  const failure = normalizeFailure(agentExecutionError('LOCAL_AGENT_PROVIDER_QUOTA_EXHAUSTED'))
+  assert.equal(failure.category, 'provider')
+  assert.equal(failure.retryability, 'never')
+})
+
 test('normalizes only bounded structured attempt history without raw failure details', () => {
   const entry = normalizeAttemptHistoryEntry({
     sequence: 1,

@@ -186,6 +186,7 @@ function classifiedCategory(error, code, status) {
 }
 
 function retryability(category, error) {
+  if (failureCode(error) === 'LOCAL_AGENT_PROVIDER_QUOTA_EXHAUSTED') return 'never'
   if (category === 'session') return 'refresh_session'
   if (category === 'authentication') return 'never'
   if (category === 'compatibility') return 'never'

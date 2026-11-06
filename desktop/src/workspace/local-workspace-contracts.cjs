@@ -7,6 +7,7 @@ const AGENT_LABELS = {
   pi: 'Pi Agent',
   kimi: 'Kimi',
   mimo: 'MiMo',
+  deepseek: 'DeepSeek Harness',
   claude: 'Claude',
   qwen: 'Qwen',
   gemini: 'Gemini',

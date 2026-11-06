@@ -89,8 +89,8 @@ describe('Meldwork workbench', () => {
     expect(wrapper.findAll('.sidebar-agent')).toHaveLength(1)
     expect(wrapper.get('.sidebar-agent-main').text()).toContain('Codex')
     await wrapper.get('.sidebar-settings-entry').trigger('click')
-    expect(wrapper.get('.agent-card .agent-capability-list').text()).toContain('12 local skills')
-    expect(wrapper.get('.agent-card .agent-capability-list').text()).toContain('Up to 4 images')
+    expect(wrapper.find('.agent-card .agent-capability-list').exists()).toBe(false)
+    expect(wrapper.get('.agent-card').text()).not.toContain('Up to 4 images')
 
     await wrapper.get('.sidebar-agent-new').trigger('click')
     await flushPromises()

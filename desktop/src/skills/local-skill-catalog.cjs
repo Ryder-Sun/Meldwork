@@ -28,6 +28,10 @@ const AGENT_SKILL_ROOTS = Object.freeze({
     ['.kimi-code', 'skills'],
     ['.kimi', 'skills'],
   ],
+  deepseek: [
+    ['.dsh', 'skills'],
+    ['.agents', 'skills'],
+  ],
   claude: [
     ['.claude', 'skills'],
     ['.agents', 'skills'],

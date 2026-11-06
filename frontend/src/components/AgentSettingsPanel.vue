@@ -12,8 +12,7 @@
       <SettingsCardRail v-if="category.agents.length" :label="t(category.titleKey)">
         <template #heading>
           <header class="agent-catalog-category-header"><div>
-            <h2>{{ t(category.titleKey) }}</h2>
-            <p>{{ t(category.subtitleKey) }}</p>
+            <h2><component :is="category.id === 'cloud' ? CloudOutline : TerminalOutline" class="category-icon" />{{ t(category.titleKey) }}<slot v-if="category.id === 'cloud'" name="toolbar" /></h2>
           </div></header>
         </template>
         <article
@@ -21,12 +20,13 @@
           :key="agent.kind"
           class="agent-card settings-agent-card"
           :class="{ focused: focusedAgentKind === agent.kind }"
+          @click="$emit('open-agent-detail', agent)"
         >
+          <div class="rail-card-surface">
           <button
             class="agent-card-main"
             type="button"
-            :title="t('systemSettings.openAgentDetail', { agent: agent.label })"
-            @click="$emit('open-agent-detail', agent)"
+            :aria-label="t('systemSettings.openAgentDetail', { agent: agent.label })"
           >
             <span class="settings-agent-logo" :class="{ cloud: agent.cloud }">
               <img :src="agent.logo" :alt="agent.label" />
@@ -35,18 +35,12 @@
             <span class="agent-card-copy">
               <span class="agent-name-row">
                 <strong>{{ agent.label }}</strong>
-                <span class="agent-state" :class="agentState(agent).tone">
+                <span class="agent-state" :class="agentState(agent).tone" :title="agentState(agent).description || agentState(agent).label">
                   <component :is="agentState(agent).icon" />
                   {{ agentState(agent).label }}
                 </span>
               </span>
-              <span class="agent-card-description">{{ agentDescription(agent.kind) }}</span>
-              <span class="agent-capability-list">
-                <span v-if="agent.ready">{{ agentSkillLabel(agent.kind) }}</span>
-                <span>{{ agentImageLabel(agent) }}</span>
-              </span>
             </span>
-            <ChevronForwardOutline class="card-chevron" />
           </button>
           <div v-if="installConfirmKind === agent.kind" class="install-confirm">
             <strong>{{ t('installer.confirm', { agent: agent.label }) }}</strong>
@@ -55,22 +49,9 @@
           <div v-if="installerState.kind === agent.kind && installerState.phase !== 'idle'" class="install-progress">
             <span>{{ installerPhaseLabel }}</span>
           </div>
-          <p v-if="agentStateNote(agent)" class="agent-card-note" :data-tone="agentState(agent).tone">
-            <span>{{ agentStateNote(agent) }}</span>
-            <button type="button" :disabled="refreshing" @click.stop="$emit(agent.cloud ? 'refresh-cloud-agents' : 'refresh-agents')">
-              {{ t('home.refresh') }}
-            </button>
-          </p>
-          <WorkBuddySettings v-if="agent.kind === 'workbuddy' && agent.installed" @changed="$emit('refresh-agents')" />
           <div class="agent-card-meta-row">
-            <span
-              v-if="agent.version"
-              class="agent-version"
-              :title="t('agent.detectedVersion', { version: agent.version })"
-            >
-              {{ t('agent.detectedVersion', { version: agent.version }) }}
-            </span>
             <div class="agent-card-actions settings-agent-actions">
+              <button v-if="agent.installed && !agent.ready" class="agent-card-recheck" type="button" :title="t('home.refresh')" :aria-label="t('home.refresh')" :disabled="refreshing" @click.stop="$emit(agent.cloud ? 'refresh-cloud-agents' : 'refresh-agents')"><RefreshOutline /></button>
               <button
                 v-if="agent.ready"
                 type="button"
@@ -105,11 +86,16 @@
               </button>
             </div>
           </div>
+          </div>
         </article>
       </SettingsCardRail>
       <div v-else class="custom-agent-empty">
         <span>{{ t('customAgent.empty') }}</span>
       </div>
+    </section>
+    <section v-if="!agentCatalogGroups.some(category => category.id === 'cloud')" class="agent-catalog-category cloud-empty-section">
+      <header class="agent-catalog-category-header"><h2><CloudOutline class="category-icon" />{{ t('systemSettings.cloudAgents') }}<slot name="toolbar" /></h2></header>
+      <p class="cloud-empty-copy">{{ t('cloudAgents.empty') }}</p>
     </section>
   </section>
 </template>
@@ -117,13 +103,12 @@
 <script setup>
 import {
   ChatbubbleEllipsesOutline,
-  ChevronForwardOutline,
+  TerminalOutline,
   CloudOutline,
   DownloadOutline,
   RefreshOutline,
 } from '@vicons/ionicons5'
 import { t } from '../i18n.js'
-import WorkBuddySettings from './WorkBuddySettings.vue'
 import SettingsCardRail from './SettingsCardRail.vue'
 
 defineProps({
@@ -153,3 +138,9 @@ defineEmits([
   'request-install',
 ])
 </script>
+
+<style scoped>
+.agent-catalog-category-header h2 { display:flex; align-items:center; gap:8px; margin:0; font-size:14px; }
+.cloud-empty-copy { margin:12px 0 20px; color:var(--muted); font-size:12px; }
+.category-icon { width:17px; height:17px; flex:none; }
+</style>

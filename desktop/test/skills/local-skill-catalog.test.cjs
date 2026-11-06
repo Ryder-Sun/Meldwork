@@ -32,6 +32,7 @@ test('supported Agent scans stay isolated and return targetKind-safe global meta
     openclaw: ['.openclaw', 'workspace', 'skills'],
     workbuddy: ['.workbuddy', 'skills'],
     kimi: ['.kimi-code', 'skills'],
+    deepseek: ['.dsh', 'skills'],
     claude: ['.claude', 'skills'],
     qwen: ['.qwen', 'skills'],
     gemini: ['.gemini', 'skills'],

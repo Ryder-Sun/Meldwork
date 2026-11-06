@@ -82,12 +82,25 @@ describe('Meldwork workbench', () => {
     wrapper.unmount()
   })
 
+  it('shows a compact DeepSeek card without setup information', async () => {
+    const { wrapper } = await mountApp()
+    await wrapper.get('.sidebar-settings-entry').trigger('click')
+    await flushPromises()
+    const card = wrapper.findAll('.settings-agent-card').find(item => item.text().includes('DeepSeek Harness'))
+    expect(card).toBeTruthy()
+    expect(card.get('img').attributes('src')).toBe('./agent-logos/deepseek.png')
+    expect(card.find('details').exists()).toBe(false)
+    expect(card.find('.agent-state').exists()).toBe(true)
+    expect(card.find('.settings-agent-actions').exists()).toBe(true)
+    expect(card.text()).not.toContain('ZGCI_API_KEY')
+    wrapper.unmount()
+  })
   it('keeps one settings navigation shell across all tabs without a visible title block', async () => {
     const { wrapper } = await mountApp()
     await wrapper.get('.sidebar-settings-entry').trigger('click')
     const body = wrapper.get('.system-settings-body').element
     const navigation = wrapper.get('.settings-tabs').element
-    for (const index of [0, 3, 1, 2, 0]) {
+    for (const index of [0, 1, 0]) {
       await wrapper.findAll('.settings-tabs button')[index].trigger('click')
       await flushPromises()
       expect(wrapper.get('.system-settings-body').element).toBe(body)
@@ -98,13 +111,17 @@ describe('Meldwork workbench', () => {
     }
     wrapper.unmount()
   })
-  it('provides a dedicated cloud-server settings tab', async () => {
+  it('expands cloud-server management inline and returns to the catalog', async () => {
     const { wrapper } = await mountApp()
 
     await wrapper.get('.sidebar-settings-entry').trigger('click')
-    const cloudTab = wrapper.findAll('.settings-tabs button')
-      .find(button => button.text().includes('Cloud servers'))
-    await cloudTab.trigger('click')
+    expect(wrapper.find('.cloud-inline').exists()).toBe(false)
+    await wrapper.get('.catalog-cloud-toolbar button').trigger('click')
+    expect(wrapper.find('dialog').exists()).toBe(false)
+    expect(wrapper.find('.cloud-inline').exists()).toBe(true)
+    await wrapper.get('.cloud-back').trigger('click')
+    expect(wrapper.find('.cloud-inline').exists()).toBe(false)
+    await wrapper.get('.catalog-cloud-toolbar button').trigger('click')
 
     expect(wrapper.get('.cloud-agent-bridge-panel h2').text()).toBe('Cloud servers')
     expect(wrapper.get('.cloud-agent-connect-form').exists()).toBe(true)
@@ -255,23 +272,14 @@ describe('Meldwork workbench', () => {
     wrapper.unmount()
   })
 
-  it('re-probes knowledge bases only from their tab', async () => {
+  it('loads knowledge on the unified Agents page and refreshes it explicitly', async () => {
     const { wrapper, bridge } = await mountApp()
-
-    expect(bridge.localKnowledgeBase.status).toHaveBeenCalledTimes(1)
-    expect(wrapper.find('.home-overview-item').exists()).toBe(false)
-
     await wrapper.get('.sidebar-settings-entry').trigger('click')
-    expect(wrapper.get('.system-settings-page').exists()).toBe(true)
-    expect(bridge.localKnowledgeBase.status).toHaveBeenCalledTimes(1)
-
-    await wrapper.findAll('.settings-tabs button')[0].trigger('click')
-    await flushPromises()
-    expect(bridge.localKnowledgeBase.status).toHaveBeenCalledTimes(1)
-
-    await wrapper.findAll('.settings-tabs button')[2].trigger('click')
     await flushPromises()
     expect(bridge.localKnowledgeBase.status).toHaveBeenCalledTimes(2)
+    await wrapper.findAll('.knowledge-base-item .knowledge-base-action')[1].trigger('click')
+    await flushPromises()
+    expect(bridge.localKnowledgeBase.status).toHaveBeenCalledTimes(3)
     expect(wrapper.get('.knowledge-base-ready-summary').text()).toContain('1 ready, 3 total')
     wrapper.unmount()
   })
@@ -296,8 +304,6 @@ describe('Meldwork workbench', () => {
     const { wrapper, bridge } = await mountApp()
 
     await wrapper.get('.sidebar-settings-entry').trigger('click')
-    await wrapper.findAll(".settings-tabs button")[2].trigger("click")
-    await wrapper.vm.selectSystemSettingsSection('knowledge-bases')
     await flushPromises()
 
     expect(bridge.localKnowledgeBase.status).toHaveBeenCalled()
@@ -305,38 +311,22 @@ describe('Meldwork workbench', () => {
     expect(panelText).toContain('Feishu Docs')
     expect(panelText).toContain('DingTalk Docs')
     expect(panelText).toContain('Obsidian')
-    expect(panelText).toContain('Notion')
-    expect(panelText).toContain('Confluence')
-    expect(panelText).toContain('Google Drive')
-    expect(panelText).toContain('SharePoint')
-    expect(panelText).not.toContain('Knowledge bases')
+    expect(panelText).not.toContain('Notion')
+    expect(panelText).not.toContain('Confluence')
+    expect(panelText).not.toContain('Google Drive')
+    expect(panelText).not.toContain('SharePoint')
+    expect(panelText).toContain('Knowledge bases')
     expect(panelText).not.toContain('Connect local document sources')
 
     const sourceGroups = wrapper.findAll('.knowledge-base-group')
-    expect(sourceGroups).toHaveLength(2)
-    expect(sourceGroups[0].get('h3').text()).toBe('Local connections')
+    expect(sourceGroups).toHaveLength(1)
+    expect(sourceGroups[0].get('h3').text()).toBe('Knowledge bases')
     expect(sourceGroups[0].findAll('.knowledge-base-item')).toHaveLength(3)
-    expect(sourceGroups[1].get('h3').text()).toBe('Coming soon')
-    expect(sourceGroups[1].findAll('.knowledge-base-future-item')).toHaveLength(4)
     expect(wrapper.get('.knowledge-base-ready-summary').text()).toContain('1 ready, 3 total')
     expect(wrapper.get('.knowledge-base-panel').attributes('aria-busy')).toBe('false')
     expect(wrapper.get('.knowledge-base-ready-summary').attributes('role')).toBe('status')
 
-    for (const label of ['Notion', 'Confluence', 'Google Drive', 'SharePoint']) {
-      const plannedItem = wrapper.findAll('.knowledge-base-future-item')
-        .find(item => item.text().includes(label))
-      expect(plannedItem.get('.knowledge-base-status').text()).toContain('Coming soon')
-      expect(plannedItem.attributes('aria-disabled')).toBe('true')
-      expect(plannedItem.get('.knowledge-base-action').text()).toContain('Coming soon')
-      expect(plannedItem.get('.knowledge-base-action').attributes()).toHaveProperty('disabled')
-      expect(plannedItem.text()).not.toContain('Not configured')
-    }
-
-    const notionItem = wrapper.findAll('.knowledge-base-future-item')
-      .find(item => item.text().includes('Notion'))
-    await notionItem.get('.knowledge-base-action').trigger('click')
-    await flushPromises()
-    expect(bridge.localKnowledgeBase.openGuide).not.toHaveBeenCalled()
+    expect(wrapper.find('.knowledge-base-future-item').exists()).toBe(false)
 
     const obsidianItem = wrapper.findAll('.knowledge-base-item')
       .find(item => item.text().includes('Obsidian'))
@@ -346,7 +336,7 @@ describe('Meldwork workbench', () => {
     await flushPromises()
 
     expect(bridge.localKnowledgeBase.pickObsidianVault).toHaveBeenCalledTimes(1)
-    expect(wrapper.findAll('.knowledge-base-item').at(2).text()).toContain('/Users/rydersun/Documents/Knowledge')
+    expect(wrapper.findAll('.knowledge-base-item').at(2).find('.knowledge-base-path').exists()).toBe(false)
     wrapper.unmount()
   })
 
@@ -388,7 +378,6 @@ describe('Meldwork workbench', () => {
     })
 
     await wrapper.get('.sidebar-settings-entry').trigger('click')
-    await wrapper.findAll(".settings-tabs button")[2].trigger("click")
     await flushPromises()
 
     expect(wrapper.get('.knowledge-base-ready-summary').text()).toContain('2 ready, 3 total')
@@ -397,8 +386,7 @@ describe('Meldwork workbench', () => {
         .find(item => item.text().includes(label))
       expect(card.get('.knowledge-base-status').text()).toContain('Ready')
       const tags = card.findAll('.knowledge-base-tag')
-      expect(tags).toHaveLength(1)
-      expect(tags[0].text()).toContain('Official CLI')
+      expect(tags).toHaveLength(0)
       expect(card.text()).not.toContain('Read enabled')
       expect(card.text()).not.toContain('Write not verified')
     }
@@ -412,7 +400,6 @@ describe('Meldwork workbench', () => {
     })
 
     await wrapper.get('.sidebar-settings-entry').trigger('click')
-    await wrapper.findAll(".settings-tabs button")[2].trigger("click")
     await wrapper.vm.$nextTick()
 
     const localItems = wrapper.findAll('.knowledge-base-item')
@@ -420,7 +407,7 @@ describe('Meldwork workbench', () => {
     for (const item of localItems) {
       expect(item.get('.knowledge-base-status').text()).toContain('Checking')
       const tags = item.findAll('.knowledge-base-tag')
-      expect(tags).toHaveLength(1)
+      expect(tags).toHaveLength(0)
       expect(item.get('.knowledge-base-action').text()).toContain('Checking')
       expect(item.get('.knowledge-base-action').attributes()).toHaveProperty('disabled')
       expect(item.text()).not.toMatch(/CLI not installed|CLI missing|Obsidian not installed|App missing|Vault not selected/)
@@ -428,13 +415,7 @@ describe('Meldwork workbench', () => {
     expect(wrapper.get('.knowledge-base-panel').attributes('aria-busy')).toBe('true')
     expect(wrapper.get('.knowledge-base-ready-summary').text()).toBe('Checking')
 
-    const plannedItems = wrapper.findAll('.knowledge-base-future-item')
-    expect(plannedItems).toHaveLength(4)
-    for (const item of plannedItems) {
-      expect(item.get('.knowledge-base-status').text()).toContain('Coming soon')
-      expect(item.get('.knowledge-base-action').text()).toContain('Coming soon')
-      expect(item.get('.knowledge-base-action').attributes()).toHaveProperty('disabled')
-    }
+    expect(wrapper.findAll('.knowledge-base-future-item')).toHaveLength(0)
 
     statusResult.resolve([])
     await flushPromises()
@@ -444,7 +425,7 @@ describe('Meldwork workbench', () => {
     const unknownItems = wrapper.findAll('.knowledge-base-item')
     for (const item of unknownItems) {
       expect(item.get('.knowledge-base-status').text()).toContain('Could not verify')
-      expect(item.findAll('.knowledge-base-tag')).toHaveLength(1)
+      expect(item.findAll('.knowledge-base-tag')).toHaveLength(0)
       expect(item.text()).not.toContain('Read not verified')
       expect(item.text()).not.toContain('Write not verified')
       expect(item.get('.knowledge-base-action').text()).toContain('Recheck')
@@ -469,7 +450,6 @@ describe('Meldwork workbench', () => {
     })
 
     await wrapper.get('.sidebar-settings-entry').trigger('click')
-    await wrapper.findAll(".settings-tabs button")[2].trigger("click")
     await flushPromises()
 
     const feishuCard = wrapper.findAll('.knowledge-base-item')

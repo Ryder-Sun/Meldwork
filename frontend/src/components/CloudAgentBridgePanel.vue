@@ -120,3 +120,19 @@ function agentSummary(agents) {
   return agents.map(agent => agent.label || agent.id).filter(Boolean).join(', ')
 }
 </script>
+
+<style scoped>
+.cloud-agent-bridge-panel { border:0; padding:0; }
+.cloud-agent-bridge-panel .manager-toolbar { display:flex; justify-content:space-between; align-items:center; gap:20px; }
+.cloud-agent-bridge-panel .manager-toolbar h2 { font-size:18px; }
+.cloud-agent-bridge-panel .manager-toolbar p { max-width:520px; font-size:12px; }
+.cloud-agent-connect-form { display:grid; grid-template-columns: minmax(0,1.3fr) minmax(0,1fr) auto; gap:16px; align-items:end; margin:24px 0; }
+.cloud-agent-connect-form label { display:flex; flex-direction:column; gap:8px; font-size:12px; color:var(--muted); }
+.cloud-agent-connect-form input { box-sizing:border-box; width:100%; height:46px; padding:0 14px; border:0; border-radius:10px; background:color-mix(in srgb,var(--text) 5%,var(--surface)); color:var(--text); box-shadow:none; }
+.cloud-agent-connect-form input:focus { outline:2px solid var(--accent-text); outline-offset:2px; }
+.cloud-agent-connect-form .primary-button { height:46px; border:0; border-radius:10px; padding:0 18px; }
+.cloud-agent-bridge-item { border:0; border-radius:0; padding:18px 0; border-top:1px solid var(--border); background:transparent; }
+.cloud-agent-bridge-item-main { gap:8px 14px; }
+.cloud-agent-bridge-panel .secondary-button { border:0; background:transparent; padding:8px; font-size:12px; }
+@media (max-width:900px) { .cloud-agent-connect-form { grid-template-columns:1fr; } }
+</style>

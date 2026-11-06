@@ -9,6 +9,7 @@ const AGENT_VERSION_IDENTITIES = Object.freeze({
   pi: [/\bpi(?:\s+agent)?\b/i],
   kimi: [/\bkimi(?:\s+code)?\b/i],
   mimo: [/\bmimo(?:\s+code)?\b/i, /\bmimocode\b/i],
+  deepseek: [/\b(?:deepseek|dsh)\b/i],
   claude: [/\bclaude(?:\s+code)?\b/i],
   gemini: [/\bgemini(?:\s+cli)?\b/i],
   opencode: [/\bopencode\b/i, /\bopen\s+code\b/i],
@@ -24,6 +25,7 @@ const AGENT_EXECUTABLE_NAMES = Object.freeze({
   pi: ['pi', 'pi-agent', 'piagent'],
   kimi: ['kimi'],
   mimo: ['mimo'],
+  deepseek: ['dsh'],
   claude: ['claude'],
   gemini: ['gemini'],
   opencode: ['opencode'],
@@ -77,6 +79,9 @@ const AGENT_COMPATIBILITY = Object.freeze({
       '--pure', '--agent', '--format', '--dir', '--session', 'json',
     ]),
   ]),
+  deepseek: profile('0.2.1', '0.2.1', [
+    probe('deepseek-acp', ['--profile', 'acp', '--help'], ['ACP', 'stdio']),
+  ], ['0.2.1-rc.2']),
   claude: profile('2.1.165', '2.1.221', [
     probe('claude-print', ['--help'], [
       '--print', '--output-format', '--include-partial-messages', '--verbose',

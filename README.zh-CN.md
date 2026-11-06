@@ -2,10 +2,6 @@
   <img src="frontend/public/logos/meldwork-readme-banner-cn.png" alt="Meldwork README banner" width="100%">
 </p>
 
-<p align="center">
-  <a href="README.md">English</a> · <strong>简体中文</strong>
-</p>
-
 # Meldwork：让 Agent 自主协作推进任务
 
 **提出目标，让 Agent 们协作完成。Meldwork 把你已有的 Agent 组织成一个工作小组，共享上下文、讨论方案、协作执行并相互检查，减少你在它们之间转述、催办和整合结果的工作。**
@@ -15,9 +11,11 @@ Meldwork 是一个本地优先的多 Agent 协作工作空间，用来连接你�
 你无需安排每一轮发言，但仍负责目标、权限和关键决策。遇到信息缺失、权限请求或需要取舍的问题时，任务可能等待你处理。工作区写入需要明确授权；协作过程、运行状态和产物保存在本地，方便回看和继续工作。
 
 <p align="center">
-  <a href="https://github.com/Ryder-Sun/Meldwork/releases"><strong>下载 Meldwork</strong></a>
-  · <a href="architecture.md">架构</a>
-  · <a href="LICENSE">许可证</a>
+  <a href="https://github.com/Ryder-Sun/Meldwork/releases"><img src="https://img.shields.io/badge/下载-macOS-1677FF?style=plastic&amp;logo=apple&amp;logoColor=white" alt="下载 macOS 安装包" height="26"></a>
+  &nbsp; <a href="https://youtu.be/ttyJxo1s9ns"><img src="https://img.shields.io/badge/演示-YouTube-EC4899?style=plastic&amp;logo=youtube&amp;logoColor=white" alt="在 YouTube 观看演示" height="26"></a>
+  &nbsp; <a href="architecture.md"><img src="https://img.shields.io/badge/架构-文档-8B5CF6?style=plastic" alt="项目架构文档" height="26"></a>
+  &nbsp; <a href="LICENSE"><img src="https://img.shields.io/badge/许可-查看-14B8A6?style=plastic" alt="查看许可证" height="26"></a>
+  &nbsp; <a href="README.md"><img src="https://img.shields.io/badge/language-English-1677FF?style=plastic" alt="Switch to English" height="26"></a>
 </p>
 
 ## Meldwork 适合什么工作
@@ -25,6 +23,22 @@ Meldwork 是一个本地优先的多 Agent 协作工作空间，用来连接你�
 [![在 YouTube 观看 Meldwork 产品宣传视频](assets/media/meldwork-handoff-preview.jpg)](https://youtu.be/ttyJxo1s9ns)
 
 [在 YouTube 观看产品宣传视频](https://youtu.be/ttyJxo1s9ns)
+<table>
+  <tr>
+    <td width="33%" align="center" valign="top">
+      <a href="assets/meldwork-agent-discovery.png"><img src="assets/readme/agent-discovery.svg" alt="Agent 发现" width="240" height="150"></a>
+      <p><sub>Agent 发现</sub></p>
+    </td>
+    <td width="33%" align="center" valign="top">
+      <a href="assets/meldwork-auto-discussion.png"><img src="assets/readme/auto-discussion.svg" alt="自动讨论与运行详情" width="240" height="150"></a>
+      <p><sub>自动讨论与运行详情</sub></p>
+    </td>
+    <td width="33%" align="center" valign="top">
+      <a href="assets/meldwork-direct-multimodal.png"><img src="assets/readme/direct-multimodal.svg" alt="多模态直接会话" width="240" height="150"></a>
+      <p><sub>多模态直接会话</sub></p>
+    </td>
+  </tr>
+</table>
 
 当一个任务需要多个 Agent 共同推进，而你不想反复传递上下文、协调下一步时，Meldwork 更适合：
 
@@ -79,10 +93,13 @@ Meldwork 在本地保留任务上下文、Agent 回复、运行状态和产物�
     <td align="center" valign="top"><img src="frontend/public/agent-logos/opencode.svg" alt="OpenCode logo" width="32" height="32"><br><strong>OpenCode</strong></td>
     <td align="center" valign="top"><img src="frontend/public/agent-logos/qwen.svg" alt="Qwen Code logo" width="32" height="32"><br><strong>Qwen Code</strong></td>
     <td align="center" valign="top"><img src="frontend/public/agent-logos/opencodereview.svg" alt="OpenCodeReview logo" width="32" height="32"><br><strong>OpenCodeReview</strong></td>
+    <td align="center" valign="top"><img src="frontend/public/agent-logos/deepseek.png" alt="DeepSeek Harness 图标" width="32" height="32"><br><strong>DeepSeek Harness</strong></td>
   </tr>
 </table>
 
 已批准的 Agent Connector 和自定义可执行 Agent 使用桌面端的连接器入口。完整的适配器、安装、Provider 和能力矩阵见[桌面端指南](desktop/README.md)。
+
+DeepSeek Harness（`dsh`）通过 ACP 支持私聊与群聊，各对话使用独立、可续接的原生会话，并遵守工作区权限。默认模型为 ZGCI `smart-router-v2`；凭据通过原生服务或启动环境中的 `ZGCI_API_KEY` 提供。在「设置 → Agent → DeepSeek Harness」中可查看配置及输入能力说明。图标使用官方 macOS 客户端资源。
 
 ## 上下文与本地边界
 

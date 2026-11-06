@@ -1824,8 +1824,10 @@ test('every supported built-in Agent produces an explicit completion outcome', (
     }),
   }
 
-  assert.deepEqual(Object.keys(outputs).sort(), [...ALLOWED_KINDS].sort())
-  for (const kind of ALLOWED_KINDS) {
+  // DeepSeek uses ACP exclusively and is covered by deepseek-acp.test.cjs.
+  const outputKinds = ALLOWED_KINDS.filter(kind => kind !== 'deepseek')
+  assert.deepEqual(Object.keys(outputs).sort(), [...outputKinds].sort())
+  for (const kind of outputKinds) {
     const result = profileOutput(
       kind,
       outputs[kind],
@@ -2047,7 +2049,7 @@ test('recorded fixtures cover every supported built-in output schema', () => {
   assert.equal(manifest.schemaVersion, 1)
   assert.deepEqual(
     manifest.fixtures.map(fixture => fixture.kind).sort(),
-    [...ALLOWED_KINDS].sort(),
+    ALLOWED_KINDS.filter(kind => kind !== 'deepseek').sort(),
   )
   const expectedText = {
     zcode: 'Zcode fixture reply',

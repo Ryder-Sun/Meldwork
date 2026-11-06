@@ -1,6 +1,6 @@
 function normalizedSection(section) {
   if (section === 'cloud-agents') return 'cloud-agents'
-  if (section === 'knowledge-bases') return 'knowledge-bases'
+  if (section === 'knowledge-bases') return 'agents'
   if (section === 'general') return 'general'
   return 'agents'
 }
@@ -28,7 +28,7 @@ export function useSystemSettingsNavigation({
     focusedAgentKind.value = systemSettingsSection.value === 'agents' ? kind : ''
     installConfirmKind.value = ''
     formError.value = ''
-    if (systemSettingsSection.value === 'knowledge-bases') {
+    if (systemSettingsSection.value !== 'general') {
       void loadKnowledgeBaseStatuses()
     }
   }
@@ -37,7 +37,7 @@ export function useSystemSettingsNavigation({
     if (section === systemSettingsSection.value) return
     systemSettingsSection.value = normalizedSection(section)
     formError.value = ''
-    if (systemSettingsSection.value === 'knowledge-bases') {
+    if (systemSettingsSection.value !== 'general') {
       void loadKnowledgeBaseStatuses()
     }
   }

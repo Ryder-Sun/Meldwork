@@ -122,6 +122,7 @@ export const DESKTOP_ERROR_MESSAGE_KEYS = Object.freeze({
   LOCAL_RUN_TERMINAL_PERSIST_FAILED: 'error.runPersistFailed',
   LOCAL_RUN_CIRCUIT_BREAKER: 'error.runCircuitBreaker',
   LOCAL_AGENT_PROCESS_FAILED: 'error.agentProcessFailed',
+  LOCAL_AGENT_PROVIDER_QUOTA_EXHAUSTED: 'error.agentProviderQuotaExhausted',
   LOCAL_AGENT_EXITED: 'error.agentExited',
   LOCAL_AGENT_EMPTY_RESPONSE: 'error.agentEmptyResponse',
   LOCAL_AGENT_UNKNOWN_FAILURE: 'error.agentUnknownFailure',

@@ -13,6 +13,7 @@ export const AGENTS = Object.freeze([
     imageLimit: 1,
     attachmentTypes: ['file'],
   },
+  { kind: 'deepseek', label: 'DeepSeek Harness', logo: publicAsset('agent-logos/deepseek.png'), imageLimit: 0, attachmentTypes: ['file'] },
   { kind: 'workbuddy', label: 'WorkBuddy', logo: publicAsset('agent-logos/workbuddy.png'), imageLimit: 0, attachmentTypes: ['file'] },
   { kind: 'openclaw', label: 'OpenClaw', logo: publicAsset('agent-logos/openclaw-transparent.png'), imageLimit: 0, attachmentTypes: ['file'] },
   // Official asset: https://zcode.z.ai/favicon-192x192.png?v=20260707-transparent

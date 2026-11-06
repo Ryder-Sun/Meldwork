@@ -111,6 +111,49 @@ function runRecord(runId, groupId, status = 'running', agentRuns = []) {
   }
 }
 
+test('recovers legacy multi-writer discussions as interrupted history with original backups', (t) => {
+  const { directory, storagePath } = fixture(t)
+  const ledger = new RunLedger({ storagePath, now: () => 1000 })
+  const targetKinds = ['codex', 'hermes']
+  const orchestration = createOrchestrationV4({
+    workflow: 'auto', template: 'discussion', targetKinds, phase: 'proposal', round: 1,
+    snapshot: discussionSnapshot(targetKinds, 1),
+  }, { targetKinds, now: 1000 })
+  ledger.checkpoint({ ...runRecord('legacy-run', 'legacy-group', 'running', [{
+    agentRunId: 'legacy-agent', kind: 'codex', round: 1, status: 'completed',
+    output: 'Preserved answer', sourceMessageIds: [], startedAt: 1000, lastActivityAt: 1000,
+    context: { includedCount: 0, omittedCount: 0, charCount: 0 },
+  }]), mode: 'auto',
+    targetKinds, orchestration })
+  const makeLegacy = (record) => {
+    if (record.orchestration) record.orchestration.slots.forEach(slot => { slot.permission = 'workspace-write' })
+    for (const agent of record.agentRuns || []) agent.context.taskDecision = {
+      status: 'completed', reason: 'Done', deliverables: ['answer'], reviewedVersion: 'old',
+    }
+  }
+  const snapshot = JSON.parse(fs.readFileSync(storagePath, 'utf8'))
+  snapshot.runs.forEach(makeLegacy)
+  const originalSnapshot = JSON.stringify(snapshot) + '\n'
+  fs.writeFileSync(storagePath, originalSnapshot)
+  const journalPath = `${storagePath}.journal`
+  const entries = fs.readFileSync(journalPath, 'utf8').trim().split('\n').map(JSON.parse)
+  for (const entry of entries) for (const run of entry.change?.upserts || []) makeLegacy(run)
+  const originalJournal = entries.map(entry => JSON.stringify(entry)).join('\n') + '\n'
+  fs.writeFileSync(journalPath, originalJournal)
+
+  const restored = new RunLedger({ storagePath, now: () => 1100 })
+  assert.equal(restored.loadError, null)
+  assert.equal(restored.get('legacy-run').status, 'interrupted')
+  assert.equal(restored.get('legacy-run').orchestration, undefined)
+  assert.equal(restored.get('legacy-run').agentRuns[0].output, 'Preserved answer')
+  assert.equal(restored.get('legacy-run').agentRuns[0].context.taskDecision, undefined)
+  const backups = fs.readdirSync(path.dirname(storagePath)).filter(name => name.includes('.legacy-backup-'))
+  assert.equal(backups.length, 2)
+  assert.equal(fs.readFileSync(path.join(path.dirname(storagePath), backups.find(name => !name.includes('.journal'))), 'utf8'), originalSnapshot)
+  assert.equal(fs.readFileSync(path.join(path.dirname(storagePath), backups.find(name => name.includes('.journal'))), 'utf8'), originalJournal)
+  assert.equal(new RunLedger({ storagePath, now: () => 1200 }).loadError, null)
+})
+
 function budgetSnapshot(overrides = {}) {
   const dimensions = [
     'inputTokens', 'outputTokens', 'costMicros', 'toolCalls', 'outboundBytes', 'elapsedMs',

@@ -20,6 +20,7 @@ const AGENT_PROFILES = {
   pi: { label: 'Pi Agent', commands: ['pi', 'pi-agent', 'piagent'] },
   kimi: { label: 'Kimi', commands: ['kimi'] },
   mimo: { label: 'MiMo', commands: ['mimo'] },
+  deepseek: { label: 'DeepSeek Harness', commands: ['dsh'] },
   claude: { label: 'Claude', commands: ['claude'] },
   gemini: { label: 'Gemini', commands: ['gemini'] },
   opencode: { label: 'OpenCode', commands: ['opencode'] },

@@ -46,6 +46,11 @@ const PROFILE_EXPECTATIONS = {
     source: 'acp', answerMode: 'delta', tools: { start: true, update: true, result: true },
     plan: true, reasoning: false, session: true, terminal: true,
   },
+  deepseek: {
+    profileId: 'acp-jsonrpc-v1', protocol: 'acp', framing: 'jsonrpc-jsonl',
+    source: 'acp', answerMode: 'delta', tools: { start: true, update: true, result: true },
+    plan: true, reasoning: false, session: true, terminal: true,
+  },
   mimo: {
     profileId: 'mimo-json-events-v1', protocol: 'mimo-json-events', framing: 'jsonl',
     source: 'stdout', answerMode: 'delta', tools: { start: false, update: false, result: false },
@@ -130,6 +135,7 @@ test('every built-in invocation transport resolves its reusable profile and capa
     },
     { kind: 'workbuddy', profileId: 'anthropic-stream-json-v1', limited: false },
     { kind: 'kimi', profileId: 'acp-jsonrpc-v1', limited: false },
+    { kind: 'deepseek', profileId: 'acp-jsonrpc-v1', limited: false },
     {
       kind: 'kimi', options: { sandbox: 'workspace-write' },
       profileId: 'acp-jsonrpc-v1', limited: false,

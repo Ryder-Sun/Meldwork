@@ -27,12 +27,12 @@ describe('Agent compatibility state', () => {
     expect(catalog.agentState(agent).label).toBe('Bridge support needed')
     expect(catalog.agentStateNote(agent)).toContain('cannot run it yet')
   })
-  it('shows an invocable local CLI as unverified until its credentials are confirmed', () => {
+  it('shows an invocable local CLI as available without a warning', () => {
     setLocale('en')
     expect(catalogFor({ kind: 'zcode', installed: true, available: true,
-      credentialState: 'unknown', availabilitySource: 'local-cli' }).label).toBe('Available · unverified')
+      credentialState: 'unknown', availabilitySource: 'local-cli' }).label).toBe('CLI detected')
     expect(catalogFor({ kind: 'zcode', installed: true, available: true,
-      credentialState: 'ready', availabilitySource: 'native-credential' }).label).toBe('Available · unverified')
+      credentialState: 'ready', availabilitySource: 'native-credential' }).label).toBe('CLI detected')
     expect(catalogFor({ kind: 'zcode', installed: true, available: true,
       credentialState: 'ready', availabilitySource: 'verified-run', recentlyVerified: true }).label).toBe('Ready')
   })

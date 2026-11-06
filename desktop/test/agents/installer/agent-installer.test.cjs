@@ -153,7 +153,7 @@ test('catalog reports installed and recommended Agents', async () => {
   assert.equal(result.platform, 'darwin')
   assert.deepEqual(result.agents.map(agent => agent.kind), [
     'codex', 'claude', 'hermes', 'workbuddy', 'openclaw', 'pi',
-    'opencode', 'opencodereview', 'kimi', 'mimo', 'qwen',
+    'opencode', 'opencodereview', 'kimi', 'mimo', 'deepseek', 'qwen',
   ])
   assert.equal(result.agents.find(agent => agent.kind === 'workbuddy').installed, true)
   assert.equal(result.agents.find(agent => agent.kind === 'hermes').recommended, true)
@@ -292,7 +292,7 @@ test('cache invalidation does not let an older in-flight detection overwrite fre
 test('recipes are fixed by Agent and platform', () => {
   const npmKinds = [
     'codex', 'claude', 'openclaw', 'qwen', 'workbuddy', 'gemini',
-    'opencode', 'kimi', 'mimo', 'opencodereview', 'pi',
+    'opencode', 'kimi', 'mimo', 'deepseek', 'opencodereview', 'pi',
   ]
   for (const platform of ['darwin', 'win32']) {
     for (const kind of npmKinds) {

@@ -3,6 +3,7 @@ import {
   CheckmarkCircleOutline,
   DownloadOutline,
   WarningOutline,
+  TerminalOutline,
 } from '@vicons/ionicons5'
 import { AGENTS, agentLogo } from '../catalog.js'
 import { MAX_ATTACHMENTS } from './useComposerAttachments.js'
@@ -147,7 +148,7 @@ export function useAgentCatalog({
     }
     if (agent.ready && !agent.recentlyVerified
         && ['local-cli', 'native-credential', 'native-shell'].includes(agent.availabilitySource)) {
-      return { label: t('agent.availableUnverified'), tone: 'neutral', icon: WarningOutline }
+      return { label: t('agent.availableUnverified'), tone: 'neutral', icon: TerminalOutline, description: t('agent.availableUnverifiedHint') }
     }
     if (agent.ready) return { label: t('agent.ready'), tone: 'ready', icon: CheckmarkCircleOutline }
     if (agent.custom) return { label: t('customAgent.executableUnavailable'), tone: 'warning', icon: WarningOutline }

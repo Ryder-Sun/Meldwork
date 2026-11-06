@@ -17,6 +17,7 @@ API Key 或任意 Shell 执行能力。
 - Pi Agent
 - Kimi Code
 - MiMo Code
+- DeepSeek Harness
 - Claude Code
 - Gemini CLI
 - OpenCode
@@ -75,6 +76,17 @@ CLI 解锁；可在 Meldwork 中选择桌面配置里已有且已配置鉴权的
 Meldwork 仅保存模型标识，运行时由主进程读取原生配置，不向渲染层返回密钥。
 Zcode 沿用默认配置；若其默认 Provider 缺少 API Key，需要先修复本机原生配置。
 
+DeepSeek Harness 使用 `dsh` 的 ACP profile，默认连接 ZGCI 的 `smart-router-v2`。可在 DeepSeek Harness
+的原生凭据服务中配置 `ZGCI_API_KEY`，或在启动 Meldwork 的环境中提供该变量；
+Meldwork 不保存该密钥。默认只读，授权工作区写入后才允许修改工作区；权限模式改变时会建立
+新的原生会话并由 Meldwork 补充对话上下文。需要超出所选工作区权限的原生升级请求会被拒绝。
+
+客户端「设置 → Agent → DeepSeek Harness → 模型与使用说明」列出默认模型、凭据配置和能力范围。
+配置凭据后点击刷新，再打开私聊或将其加入群聊。私聊与群聊分别保留原生会话；群聊可选择并发回复、
+顺序讨论或自动讨论。文件附件通过受控暂存路径提供，本地 Skill 可从输入框选择；当前没有原生图片输入。
+图标取自官方 macOS 客户端的 `Contents/Resources/icon.png`，资源来源记录在
+`frontend/public/agent-logos/deepseek-source.md`。
+
 ## 本地 CLI 支持矩阵
 
 | Agent | 检测命令 | macOS 安装 | Windows 安装 | 用户 Provider |
@@ -87,6 +99,7 @@ Zcode 沿用默认配置；若其默认 Provider 缺少 API Key，需要先修�
 | Pi Agent | `pi` | npm：`@mariozechner/pi-coding-agent` | npm：`@mariozechner/pi-coding-agent` | 沿用本机配置 |
 | Kimi Code | `kimi` | 官方 `install.sh` | 官方 `install.ps1` | 不注入；沿用 Kimi 本机配置 |
 | MiMo Code | `mimo` | npm：`@mimo-ai/cli@latest` | npm：`@mimo-ai/cli@latest` | 不注入；沿用 MiMo 本机配置，按授权使用 `plan` / `build` 模式 |
+| DeepSeek Harness | `dsh` | npm：`@deepseek-ai/dsh@0.2.1-rc.2` | npm：`@deepseek-ai/dsh@0.2.1-rc.2` | ZGCI `smart-router-v2`，使用原生凭据或环境变量 |
 | Claude Code | `claude` | npm：`@anthropic-ai/claude-code@latest` | npm：`@anthropic-ai/claude-code@latest` | 不注入；沿用 Claude 本机配置 |
 | Gemini CLI | `gemini` | npm：`@google/gemini-cli@latest` | npm：`@google/gemini-cli@latest` | 不注入；沿用 Gemini 本机配置 |
 | OpenCode | `opencode` | npm：`opencode-ai@latest` | npm：`opencode-ai@latest` | 不注入；沿用 OpenCode 本机配置 |

@@ -26,7 +26,7 @@ const OPENCLAW_RUNTIME_PATH_KEYS = Object.freeze([
   'OPENCLAW_CONFIG_PATH',
   'OPENCLAW_WORKSPACE_DIR',
 ])
-const CONTROLLED_RUNTIME_ENV = /^(?:AWS_|AZURE_|GOOGLE_|GEMINI_|ANTHROPIC_|OPENAI_|OPENROUTER_|CODEX_|CODEBUDDY_|HERMES_|PI_|KIMI_|MIMO_|MIMOCODE_|OPENCODE_|QWEN_|DASHSCOPE_|CLAUDE_|OCR_|CLOUDSDK_|VERTEX_|CLOUD_ML_|MOONSHOT_|CONNECTOR_TEST_|MELDWORK_TEST_)/
+const CONTROLLED_RUNTIME_ENV = /^(?:AWS_|AZURE_|GOOGLE_|GEMINI_|ANTHROPIC_|OPENAI_|OPENROUTER_|CODEX_|CODEBUDDY_|HERMES_|PI_|KIMI_|MIMO_|MIMOCODE_|ZGCI_API_KEY$|DSH_HOME$|OPENCODE_|QWEN_|DASHSCOPE_|CLAUDE_|OCR_|CLOUDSDK_|VERTEX_|CLOUD_ML_|MOONSHOT_|CONNECTOR_TEST_|MELDWORK_TEST_)/
 const BLOCKED_RUNTIME_ENV = /^(?:NODE_OPTIONS|NODE_PATH|LD_PRELOAD|LD_LIBRARY_PATH|DYLD_|ELECTRON_RUN_AS_NODE)$/
 
 function agentExecutionError(code, diagnostic = '') {
@@ -54,6 +54,9 @@ function invalidSessionFailure(detail) {
 
 function failedAgentProcessError(detail, options = {}) {
   if (!detail) return agentExecutionError('LOCAL_AGENT_EXITED')
+  if (options.kind === 'zcode' && /\b1113\b|insufficient balance|no resource package/i.test(detail)) {
+    return agentExecutionError('LOCAL_AGENT_PROVIDER_QUOTA_EXHAUSTED', 'The configured provider has insufficient balance or no active resource package.')
+  }
   if (options.kind === 'zcode' && /\bModel provider is missing an API key:/i.test(detail)) {
     return agentExecutionError('LOCAL_AGENT_AUTH_REQUIRED', 'Missing API key for the configured Zcode provider.')
   }

@@ -101,6 +101,11 @@ const NPM_RELEASES = Object.freeze({
     detectedVersion: '0.1.0',
     integrity: 'sha512-YFqiotp1sHDmj2BOiw2AbgCY2zm+c7Z36lh5JNL6KACEvYgerB5kqqldqcy/xI4Erry501DsTN1YPxo2mw6fAQ==',
   }),
+  deepseek: Object.freeze({
+    packageName: '@deepseek-ai/dsh',
+    version: '0.2.1-rc.2',
+    integrity: 'sha512-tvY+yhfKRifthbqPe/OK0AYxM5ZkvqfYq/jMYgJcEUxiRRL1Vwra3Ti5TB6AXgSWQdiPHYh/Vp6SJa9yHwMNuw==',
+  }),
   opencodereview: Object.freeze({
     packageName: '@alibaba-group/open-code-review',
     version: '1.8.6',
@@ -120,6 +125,7 @@ const AGENT_CATALOG = Object.freeze([
   { kind: 'opencodereview', label: 'OpenCodeReview', recommended: false },
   { kind: 'kimi', label: 'Kimi Code', recommended: false },
   { kind: 'mimo', label: 'MiMo Code', recommended: false },
+  { kind: 'deepseek', label: 'DeepSeek Harness', recommended: false },
   { kind: 'qwen', label: 'Qwen Code', recommended: false },
 ])
 

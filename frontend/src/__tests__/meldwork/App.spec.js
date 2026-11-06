@@ -240,7 +240,7 @@ describe('Meldwork workbench', () => {
     const cloudCard = wrapper.findAll('.settings-agent-card')
       .find(card => card.text().includes('Codex @ Research server'))
     expect(cloudCard.get('.settings-agent-logo.cloud').exists()).toBe(true)
-    expect(cloudCard.text()).toContain('Version 0.146.1')
+    expect(cloudCard.text()).not.toContain('Version 0.146.1')
     await cloudCard.get('.agent-card-main').trigger('click')
     await flushPromises()
 
@@ -294,7 +294,7 @@ describe('Meldwork workbench', () => {
 
     await wrapper.get('.sidebar-settings-entry').trigger('click')
     expect(wrapper.findAll('.agent-catalog-category').map(category => category.get('h2').text()))
-      .toEqual(['Official Agents', 'Custom Agents'])
+      .toEqual(['Local Agents', 'Custom Agents', 'Cloud AgentsConfigure servers'])
     expect(wrapper.get('.manager-toolbar-actions').text()).not.toContain('Add custom Agent')
     expect(wrapper.find('.custom-agent-form').exists()).toBe(false)
     expect(wrapper.findAll('.agent-card').some(card => card.text().includes('Repository Reviewer'))).toBe(true)

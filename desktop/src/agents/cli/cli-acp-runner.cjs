@@ -555,9 +555,13 @@ async function closeAcpChild(child, platform, spawnFn) {
   destroyChildPipes(child)
 }
 
-function acpProtocolError(error, childEnv, sessionRef = '') {
+function acpProtocolError(error, childEnv, sessionRef = '', kind = '') {
   if (/^LOCAL_AGENT_[A-Z_]+$/.test(String(error?.message || ''))) return error
   const detail = redactChildSecrets(error?.diagnostic || error?.message || error, childEnv).trim()
+  if (kind === 'deepseek'
+      && /^Internal error: turn failed: llm-pi-ai: no credential for provider route "zgci"/i.test(detail)) {
+    return agentExecutionError('LOCAL_AGENT_AUTH_REQUIRED', 'Missing API key for the configured ZGCI provider.')
+  }
   return detail
     ? failedAgentProcessError(detail, { sessionRef })
     : agentExecutionError('LOCAL_AGENT_PROCESS_FAILED')
@@ -752,6 +756,11 @@ async function createAcpRuntime(input) {
     async requestPermission(params) {
       const turn = runtime.activeTurn
       if (turn?.completion?.completed) return { outcome: { outcome: 'cancelled' } }
+      // DeepSeek escalation can escape its sandbox. Meldwork's selected
+      // workspace mode is the entire grant for this process.
+      if (runtime.agent.kind === 'deepseek') {
+        return selectedPermissionOutcome(permissionRejection(params?.options))
+      }
       if (runtime.agent.kind === 'mimo' && runtime.replyState.promptTerminalSequence != null) {
         runtime.replyState.permissionPendingAtPromptTerminal = true
         return { outcome: { outcome: 'cancelled' } }
@@ -977,22 +986,25 @@ async function runAcpTurn(runtime, prompt, options, spec, profile) {
   try {
     if (!protocolSessionRef) {
       if (spec.acpSessionStrategy !== 'new' && options.sessionRef) {
-        protocolSessionRef = String(options.sessionRef)
+        protocolSessionRef = runtime.agent.kind === 'deepseek'
+          ? String(options.sessionRef).slice(`dsh-${spec.deepSeekMode}:`.length)
+          : String(options.sessionRef)
         await operation(runtime.connection.resumeSession({
           sessionId: protocolSessionRef,
           cwd: runtime.workdir,
           mcpServers: [],
         }))
-        visibleSessionRef = protocolSessionRef
+        visibleSessionRef = runtime.agent.kind === 'deepseek'
+          ? String(options.sessionRef) : protocolSessionRef
       } else {
         const session = await operation(runtime.connection.newSession({
           cwd: runtime.workdir,
           mcpServers: [],
         }))
         protocolSessionRef = String(session.sessionId || '')
-        visibleSessionRef = String(
-          spec.publicSessionRef || options.sessionRef || protocolSessionRef,
-        )
+        visibleSessionRef = runtime.agent.kind === 'deepseek'
+          ? `dsh-${spec.deepSeekMode}:${protocolSessionRef}`
+          : String(spec.publicSessionRef || options.sessionRef || protocolSessionRef)
       }
       if (!protocolSessionRef) throw agentExecutionError('LOCAL_AGENT_SESSION_INVALID')
       runtime.protocolSessionRef = protocolSessionRef
@@ -1058,7 +1070,7 @@ async function runAcpTurn(runtime, prompt, options, spec, profile) {
       runtimeEvents.finalize({ status: 'failed' })
       throw error
     }
-    const normalized = acpProtocolError(error, runtime.childEnv, visibleSessionRef)
+    const normalized = acpProtocolError(error, runtime.childEnv, visibleSessionRef, runtime.agent.kind)
     runtimeEvents.finalize({
       status: timeoutRequested
         ? 'timeout'
@@ -1216,6 +1228,10 @@ async function runDisposableAcpAgent(agent, prompt, workdir, options, spec, prof
 }
 
 async function runAcpAgent(agent, prompt, workdir, options, spec, profile) {
+  if (agent.kind === 'deepseek' && options.sessionRef
+      && !new RegExp(`^dsh-${spec.deepSeekMode}:[A-Za-z0-9][A-Za-z0-9._-]{0,200}$`).test(options.sessionRef)) {
+    throw agentExecutionError('LOCAL_AGENT_SESSION_INVALID')
+  }
   if (options.signal?.aborted
       || options.acpShutdownGeneration != null
         && options.acpShutdownGeneration !== acpShutdownGeneration) {

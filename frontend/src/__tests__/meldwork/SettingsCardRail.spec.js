@@ -11,6 +11,34 @@ async function pointer(node, type, clientX, pointerId = 1) {
 }
 
 describe('settings card rail', () => {
+  it('preserves the scroll position and selection when the parent updates for a theme change', async () => {
+    const wrapper = mount(SettingsCardRail, { props: { label: 'Light theme' }, slots: { default: '<article><div class="rail-card-surface"><button class="agent-card-main">Agent</button></div></article>' } })
+    const track = wrapper.get('[role="region"]')
+    Object.defineProperties(track.element, { clientWidth: { value: 320 }, scrollWidth: { value: 960 }, scrollLeft: { value: 320, writable: true } })
+    await track.trigger('scroll')
+    wrapper.get('article').element.classList.add('rail-selected')
+    for (let index = 0; index < 10; index++) {
+      await wrapper.setProps({ label: index % 2 ? 'Light theme' : 'Dark theme' })
+      expect(track.element.scrollLeft).toBe(320)
+      expect(track.element.style.height).toBe('')
+      expect(wrapper.get('article').classes()).toContain('rail-selected')
+    }
+    wrapper.unmount()
+  })
+  it('selects and enlarges only the clicked card without invoking its action', async () => {
+    const wrapper = mount(SettingsCardRail, { props: { label: 'Agents' }, slots: { default: '<article><button class="agent-card-main">One</button><button class="action">Chat</button></article><article><button class="agent-card-main">Two</button></article>' } })
+    await wrapper.findAll('.agent-card-main')[0].trigger('click')
+    expect(wrapper.findAll('.rail-selected')).toHaveLength(1)
+    expect(wrapper.findAll('.agent-card-main')[0].attributes('aria-pressed')).toBe('true')
+    await wrapper.get('.action').trigger('click')
+    expect(wrapper.findAll('article')[0].classes()).toContain('rail-selected')
+    await wrapper.findAll('.agent-card-main')[1].trigger('click')
+    expect(wrapper.findAll('article')[0].classes()).not.toContain('rail-selected')
+    expect(wrapper.findAll('article')[1].classes()).toContain('rail-selected')
+    await wrapper.findAll('.agent-card-main')[1].trigger('click')
+    expect(wrapper.findAll('.rail-selected')).toHaveLength(0)
+    wrapper.unmount()
+  })
   it('updates paging controls and keeps nested inputs independent of arrow navigation', async () => {
     const wrapper = mount(SettingsCardRail, { props: { label: 'Agents' }, slots: { default: '<article><input /></article><article>Second</article>' } })
     const track = wrapper.get('[role="region"]')

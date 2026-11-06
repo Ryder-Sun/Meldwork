@@ -4,6 +4,7 @@ const path = require('node:path')
 
 const { hasValidStoredRecordShape } = require('./run-ledger-records.cjs')
 const { atomicWritePrivateFile } = require('../security/private-file.cjs')
+const { isLegacyMultiWriter, recoverLegacyRecord } = require('./run-ledger-legacy.cjs')
 
 const JOURNAL_VERSION = 1
 const DEFAULT_COMPACTION_BYTES = 4 * 1024 * 1024
@@ -99,6 +100,7 @@ class RunJournal {
     this.hasBaseline = false
     this.runs = new Map()
     this.pending = new Map()
+    this.legacyRunIds = new Set()
     this.load()
   }
 
@@ -117,6 +119,14 @@ class RunJournal {
       if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('RUN_JOURNAL_STORE_INVALID')
       const buffer = this.repairTruncatedTail(fs.readFileSync(this.storagePath))
       const lines = buffer.toString('utf8').split('\n').filter(Boolean)
+      // Detect legacy run IDs across the complete journal before replaying
+      // partial patches, so none can restore a previously unsafe policy.
+      for (const line of lines) {
+        const entry = JSON.parse(line)
+        for (const run of entry?.change?.upserts || []) {
+          if (isLegacyMultiWriter(run)) this.legacyRunIds.add(run.runId)
+        }
+      }
       const committed = new Set()
       for (const line of lines) {
         const entry = JSON.parse(line)
@@ -130,6 +140,11 @@ class RunJournal {
         }
         this.sequence = entry.sequence
         if (entry.phase === 'prepare') {
+          if (entry.change && Array.isArray(entry.change.upserts)) {
+            entry.change.upserts = entry.change.upserts.map(run => (
+              this.legacyRunIds.has(run?.runId) ? recoverLegacyRecord(run) : run
+            ))
+          }
           if (!validChange(entry.change) || this.pending.has(entry.transactionId)
               || committed.has(entry.transactionId)) {
             throw new Error('RUN_JOURNAL_STORE_INVALID')

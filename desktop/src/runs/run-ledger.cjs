@@ -1,7 +1,9 @@
 const fs = require('node:fs')
+const { randomBytes } = require('node:crypto')
 
 const { atomicWritePrivateFile } = require('../security/private-file.cjs')
 const { RunJournal } = require('./run-journal.cjs')
+const { isLegacyMultiWriter, recoverLegacyRecord } = require('./run-ledger-legacy.cjs')
 const {
   DEFAULT_MAX_DURABLE_AGENT_RUNS,
   RUN_STATUSES,
@@ -170,6 +172,27 @@ class RunLedger {
       compactionBytes: options.journalCompactionBytes,
     })
     this.runs = this.load()
+    if (!this.loadError && this.journal.legacyRunIds.size) this.backupLegacyFiles()
+  }
+
+  backupLegacyFiles() {
+    try {
+      const suffix = `.legacy-backup-${Date.now()}-${randomBytes(6).toString('hex')}`
+      for (const filename of [this.storagePath, this.journalPath]) {
+        if (!fs.existsSync(filename)) continue
+        const target = `${filename}${suffix}`
+        const descriptor = fs.openSync(target, 'wx', 0o600)
+        try {
+          fs.writeFileSync(descriptor, fs.readFileSync(filename))
+          fs.fsyncSync(descriptor)
+        } finally {
+          fs.closeSync(descriptor)
+        }
+      }
+    } catch (error) {
+      this.loadError = error
+      this.runs = []
+    }
   }
 
   timestamp() {
@@ -183,6 +206,11 @@ class RunLedger {
       if (!isRecord(parsed) || parsed.version !== STORE_VERSION || !Array.isArray(parsed.runs)) {
         throw new Error('RUN_LEDGER_STORE_INVALID')
       }
+      for (const record of parsed.runs) {
+        if (isLegacyMultiWriter(record)) this.journal.legacyRunIds.add(record.runId)
+      }
+      parsed.runs = parsed.runs.map(record => this.journal.legacyRunIds.has(record.runId)
+        ? recoverLegacyRecord(record) : record)
       const runIds = new Set()
       const agentRunIds = new Set()
       for (const rawRecord of parsed.runs) {

@@ -7,22 +7,19 @@
       <span class="knowledge-base-ready-summary visually-hidden" role="status" aria-live="polite">
         {{ loading ? t('knowledgeBase.status.checking') : t('knowledgeBase.readyCount', { ready: readyCount, total: localEntries.length }) }}
       </span>
-      <button class="secondary-button" type="button" :disabled="loading" @click="$emit('refresh')">
-        <RefreshOutline :class="{ spinning: loading }" />
-        {{ t('knowledgeBase.refresh') }}
-      </button>
+
     </div>
     <div class="knowledge-base-sections">
       <section class="knowledge-base-group" aria-labelledby="knowledge-base-group-local">
-        <SettingsCardRail :label="t('knowledgeBase.group.local')">
-          <template #heading><header class="knowledge-base-group-header"><h3 id="knowledge-base-group-local">{{ t('knowledgeBase.group.local') }}</h3></header></template>
+        <SettingsCardRail compact :label="t('systemSettings.knowledgeBases')">
+          <template #heading><header class="knowledge-base-group-header"><h3 id="knowledge-base-group-local"><LibraryOutline class="knowledge-title-icon" />{{ t('systemSettings.knowledgeBases') }}</h3></header></template>
           <article
             v-for="source in localEntries"
             :key="source.kind"
             class="knowledge-base-item"
             :class="{ pending: pending(source) }"
           >
-            <div class="knowledge-base-item-main">
+            <button type="button" class="knowledge-base-item-main" aria-pressed="false">
               <img class="knowledge-base-logo" :src="source.logo" :alt="t(`knowledgeBase.source.${source.kind}`)" />
               <div class="knowledge-base-item-copy">
                 <div class="knowledge-base-item-title-row">
@@ -32,22 +29,9 @@
                     {{ statusLabel(source) }}
                   </span>
                 </div>
-                <div class="knowledge-base-tag-row">
-                  <span
-                    v-for="tag in tagItems(source)"
-                    :key="tag.key"
-                    class="knowledge-base-tag"
-                    :class="tag.tone"
-                  >
-                    {{ tag.label }}
-                  </span>
-                </div>
-                <span class="knowledge-base-card-description">{{ t(`knowledgeBase.description.${source.kind}`) }}</span>
-                <p v-if="locationLabel(source)" class="knowledge-base-path">
-                  <code>{{ locationLabel(source) }}</code>
-                </p>
+
               </div>
-            </div>
+            </button>
             <button
               class="knowledge-base-action"
               type="button"
@@ -61,41 +45,13 @@
           </article>
         </SettingsCardRail>
       </section>
-      <section class="knowledge-base-group" aria-labelledby="knowledge-base-group-planned">
-        <SettingsCardRail :label="t('knowledgeBase.group.planned')">
-          <template #heading><header class="knowledge-base-group-header"><h3 id="knowledge-base-group-planned">{{ t('knowledgeBase.group.planned') }}</h3></header></template>
-          <article
-            v-for="source in plannedEntries"
-            :key="source.kind"
-            class="knowledge-base-future-item"
-            aria-disabled="true"
-          >
-            <div class="knowledge-base-item-main">
-              <img class="knowledge-base-logo" :src="source.logo" :alt="t(`knowledgeBase.source.${source.kind}`)" />
-              <div class="knowledge-base-item-copy">
-                <div class="knowledge-base-item-title-row">
-                  <strong>{{ t(`knowledgeBase.source.${source.kind}`) }}</strong>
-                  <span class="knowledge-base-status">
-                    <CloudOutline />
-                    {{ statusLabel(source) }}
-                  </span>
-                </div>
-                <span class="knowledge-base-card-description">{{ t(`knowledgeBase.description.${source.kind}`) }}</span>
-              </div>
-            </div>
-            <button class="knowledge-base-action ghost" type="button" disabled>
-              <CloudOutline />
-              {{ statusLabel(source) }}
-            </button>
-          </article>
-        </SettingsCardRail>
-      </section>
+
     </div>
   </section>
 </template>
 
 <script setup>
-import { ChevronForwardOutline, CloudOutline, RefreshOutline } from '@vicons/ionicons5'
+import { ChevronForwardOutline, LibraryOutline, RefreshOutline } from '@vicons/ionicons5'
 import { t } from '../i18n.js'
 import SettingsCardRail from './SettingsCardRail.vue'
 
@@ -115,3 +71,8 @@ defineProps({
 
 defineEmits(['primary-action', 'refresh'])
 </script>
+
+<style scoped>
+.knowledge-base-group-header h3 { display:flex; align-items:center; gap:8px; }
+.knowledge-title-icon { width:17px; height:17px; }
+</style>

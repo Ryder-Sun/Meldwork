@@ -226,6 +226,18 @@ function invocation(kind, executable, workdir, sessionRef = '', options = {}) {
       promptArg: true,
     }
   }
+  if (kind === 'deepseek') {
+    const mode = options.sandbox === 'workspace-write' ? 'write' : 'read'
+    // The external dsh process cannot read files inside Electron's ASAR.
+    const policyDirectory = __dirname.replace(/app\.asar(?=[\\/])/, 'app.asar.unpacked')
+    return {
+      command: executable,
+      args: ['--profile', 'acp', '--patch', path.join(policyDirectory, 'deepseek-zgci.yml'),
+        '--patch', path.join(policyDirectory, `deepseek-${mode}.yml`)],
+      eventTransport: 'acp',
+      deepSeekMode: mode,
+    }
+  }
   if (kind === 'claude') {
     return {
       command: executable,

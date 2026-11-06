@@ -96,6 +96,10 @@ const AGENT_RUNTIME_CAPABILITIES = Object.freeze({
     domains: ['general', 'software-development'],
     toolClasses: ['filesystem', 'shell'],
   }),
+  deepseek: generalProfile({
+    domains: ['general', 'software-development', 'research', 'tool-use'],
+    toolClasses: ['filesystem', 'shell'],
+  }),
   claude: generalProfile({
     domains: ['general', 'software-development', 'research', 'document-production'],
     toolClasses: ['filesystem', 'shell'],
@@ -243,6 +247,7 @@ function failureCategory(code) {
   if (value === 'LOCAL_AGENT_SESSION_INVALID') return 'session'
   if (value === 'LOCAL_AGENT_AUTH_REQUIRED' || value === 'LOCAL_WORKBUDDY_PROVIDER_AUTH') return 'authentication'
   if (value === 'LOCAL_AGENT_ACCESS_DENIED') return 'provider'
+  if (value === 'LOCAL_AGENT_PROVIDER_QUOTA_EXHAUSTED') return 'provider'
   if (value === 'LOCAL_AGENT_TIMEOUT') return 'timeout'
   if (value === 'LOCAL_AGENT_EXECUTION_STOPPED') return 'cancellation'
   if (value === 'LOCAL_AGENT_REFUSED') return 'refusal'

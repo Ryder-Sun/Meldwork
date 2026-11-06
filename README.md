@@ -2,10 +2,6 @@
   <img src="frontend/public/logos/meldwork-readme-banner-en.png" alt="Meldwork README banner" width="100%">
 </p>
 
-<p align="center">
-  <strong>English</strong> · <a href="README.zh-CN.md">简体中文</a>
-</p>
-
 # Meldwork — Let Agents collaborate to move tasks forward
 
 **Set the goal. Let Agents work together. Meldwork brings your existing Agents into one working group to share context, discuss approaches, carry out work, and check each other's results — with less relaying, prompting, and stitching outputs together.**
@@ -15,9 +11,11 @@ Meldwork is a local-first multi-Agent collaboration workspace for the Agent tool
 You do not need to direct every round, but you still set the goal, grant permissions, and make key decisions. Missing information, permission requests, or tradeoffs may require your input. Workspace writes are opt-in; collaboration history, run state, and deliverables stay local so you can revisit the work and continue it.
 
 <p align="center">
-  <a href="https://github.com/Ryder-Sun/Meldwork/releases"><strong>Download Meldwork</strong></a>
-  · <a href="architecture.md">Architecture</a>
-  · <a href="LICENSE">License</a>
+  <a href="https://github.com/Ryder-Sun/Meldwork/releases"><img src="https://img.shields.io/badge/download-macOS-1677FF?style=plastic&amp;logo=apple&amp;logoColor=white" alt="Download for macOS" height="26"></a>
+  &nbsp; <a href="https://youtu.be/ttyJxo1s9ns"><img src="https://img.shields.io/badge/demo-YouTube-EC4899?style=plastic&amp;logo=youtube&amp;logoColor=white" alt="Watch demo on YouTube" height="26"></a>
+  &nbsp; <a href="architecture.md"><img src="https://img.shields.io/badge/architecture-docs-8B5CF6?style=plastic" alt="Architecture documentation" height="26"></a>
+  &nbsp; <a href="LICENSE"><img src="https://img.shields.io/badge/license-view-14B8A6?style=plastic" alt="View license" height="26"></a>
+  &nbsp; <a href="README.zh-CN.md"><img src="https://img.shields.io/badge/语言-简体中文-1677FF?style=plastic" alt="切换为简体中文" height="26"></a>
 </p>
 
 ## What Meldwork is for
@@ -25,6 +23,22 @@ You do not need to direct every round, but you still set the goal, grant permiss
 [![Watch the Meldwork product video on YouTube](assets/media/meldwork-handoff-preview.jpg)](https://youtu.be/ttyJxo1s9ns)
 
 [Watch the product video on YouTube](https://youtu.be/ttyJxo1s9ns)
+<table>
+  <tr>
+    <td width="33%" align="center" valign="top">
+      <a href="assets/meldwork-agent-discovery.png"><img src="assets/readme/agent-discovery.svg" alt="Agent discovery" width="240" height="150"></a>
+      <p><sub>Agent discovery</sub></p>
+    </td>
+    <td width="33%" align="center" valign="top">
+      <a href="assets/meldwork-auto-discussion.png"><img src="assets/readme/auto-discussion.svg" alt="Auto discussion &amp; run details" width="240" height="150"></a>
+      <p><sub>Auto discussion &amp; run details</sub></p>
+    </td>
+    <td width="33%" align="center" valign="top">
+      <a href="assets/meldwork-direct-multimodal.png"><img src="assets/readme/direct-multimodal.svg" alt="Direct multimodal conversation" width="240" height="150"></a>
+      <p><sub>Direct multimodal conversation</sub></p>
+    </td>
+  </tr>
+</table>
 
 Meldwork is useful when several Agents need to advance the same task and you want to spend less time passing context and coordinating next steps. Typical work includes:
 
@@ -79,10 +93,13 @@ Meldwork detects and invokes compatible locally installed Agent commands. The ca
     <td align="center" valign="top"><img src="frontend/public/agent-logos/opencode.svg" alt="OpenCode logo" width="32" height="32"><br><strong>OpenCode</strong></td>
     <td align="center" valign="top"><img src="frontend/public/agent-logos/qwen.svg" alt="Qwen Code logo" width="32" height="32"><br><strong>Qwen Code</strong></td>
     <td align="center" valign="top"><img src="frontend/public/agent-logos/opencodereview.svg" alt="OpenCodeReview logo" width="32" height="32"><br><strong>OpenCodeReview</strong></td>
+    <td align="center" valign="top"><img src="frontend/public/agent-logos/deepseek.png" alt="DeepSeek Harness icon" width="32" height="32"><br><strong>DeepSeek Harness</strong></td>
   </tr>
 </table>
 
 Approved Agent Connectors and custom executable Agents use the desktop connector paths. The [desktop guide](desktop/README.md) contains the current adapter, installation, provider, and capability matrix.
+
+DeepSeek Harness (`dsh`) supports direct chats and group replies through ACP, with separate resumable sessions and workspace permissions. Its default route is ZGCI `smart-router-v2`; provide `ZGCI_API_KEY` through native credentials or the launch environment. Settings → Agents → DeepSeek Harness explains setup and supported inputs. The icon comes from the official macOS application.
 
 ## Context and local boundaries
 

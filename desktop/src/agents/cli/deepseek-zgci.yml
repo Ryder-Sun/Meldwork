@@ -1,0 +1,15 @@
+- id: llm-pi-ai
+  config:
+    providers:
+      zgci:
+        displayName: ZGCI
+        apiKeyEnv: ZGCI_API_KEY
+        api: openai-completions
+        baseURL: https://hub.zgci.org/v1
+        models:
+          - id: smart-router-v2
+            name: smart-router-v2
+- id: acp
+  config:
+    provider: zgci
+    model: smart-router-v2
