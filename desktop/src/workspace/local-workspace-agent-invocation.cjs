@@ -1335,8 +1335,20 @@ class LocalWorkspaceAgentInvocation {
           await settleWithin(Promise.allSettled(cleanupPromises), graceMs)
         }
         if (terminationFailure || (process.platform === 'win32' && !runSettled)) {
+          let failure = terminationFailure
+          if (!failure) {
+            failure = Object.assign(new Error('LOCAL_AGENT_TERMINATION_FAILED'), {
+              code: 'LOCAL_AGENT_TERMINATION_FAILED',
+            })
+            const pendingExit = runPromise.then(() => undefined, lateError => {
+              if (lateError?.code !== 'LOCAL_AGENT_TERMINATION_FAILED'
+                  && lateError?.message !== 'LOCAL_AGENT_TERMINATION_FAILED') return undefined
+              return lateError[Symbol.for('meldwork.pending-process-exit')] || new Promise(() => {})
+            })
+            Object.defineProperty(failure, Symbol.for('meldwork.pending-process-exit'), { value: pendingExit })
+          }
           stop = resolveInvocationStop({
-            caughtError: terminationFailure || new Error('LOCAL_AGENT_TERMINATION_FAILED'),
+            caughtError: failure,
             signal, parentAbortObserved, activeRun, agentController, watchdog,
           })
         }

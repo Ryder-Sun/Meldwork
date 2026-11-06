@@ -1348,6 +1348,66 @@ test('a failed process termination is recorded as failure instead of a successfu
   assert.equal(scheduler.snapshot().active.global, 0)
 })
 
+test('a slow Windows cancellation retains the lease through a late termination failure', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const started = deferred()
+  const runner = deferred()
+  const exited = deferred()
+  const { RunScheduler } = require('../../src/runs/run-scheduler.cjs')
+  const scheduler = new RunScheduler({ globalLimit: 1 })
+  options.runScheduler = scheduler
+  options.runAgent = async () => { started.resolve(); return runner.promise }
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Slow termination', agentKinds: ['codex'], workdir: directory })
+  const pending = workspace.sendMessage({ groupId: group.id, text: 'Run a task', targetKinds: ['codex'] })
+  await started.promise
+  const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')
+  Object.defineProperty(process, 'platform', { value: 'win32' })
+  t.after(() => Object.defineProperty(process, 'platform', originalPlatform))
+  const controller = workspace.activeRuns.get(group.id)
+  assert.equal(workspace.stop(group.id, controller.runId), true)
+  await pending
+  await controller.done
+  assert.equal(scheduler.snapshot().active.global, 1)
+  const error = Object.assign(new Error('LOCAL_AGENT_TERMINATION_FAILED'), { code: 'LOCAL_AGENT_TERMINATION_FAILED' })
+  Object.defineProperty(error, Symbol.for('meldwork.pending-process-exit'), { value: exited.promise })
+  runner.reject(error)
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(scheduler.snapshot().active.global, 1)
+  exited.resolve()
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(scheduler.snapshot().active.global, 0)
+})
+
+test('a slow Windows cancellation releases the lease when the runner later stops', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const started = deferred()
+  const runner = deferred()
+  const { RunScheduler } = require('../../src/runs/run-scheduler.cjs')
+  const scheduler = new RunScheduler({ globalLimit: 1 })
+  options.runScheduler = scheduler
+  options.runAgent = async () => { started.resolve(); return runner.promise }
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Slow stop', agentKinds: ['codex'], workdir: directory })
+  const pending = workspace.sendMessage({ groupId: group.id, text: 'Run a task', targetKinds: ['codex'] })
+  await started.promise
+  const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')
+  Object.defineProperty(process, 'platform', { value: 'win32' })
+  t.after(() => Object.defineProperty(process, 'platform', originalPlatform))
+  const controller = workspace.activeRuns.get(group.id)
+  assert.equal(workspace.stop(group.id, controller.runId), true)
+  await pending
+  await controller.done
+  assert.equal(scheduler.snapshot().active.global, 1)
+  runner.reject(Object.assign(new Error('LOCAL_AGENT_EXECUTION_STOPPED'), { code: 'LOCAL_AGENT_EXECUTION_STOPPED' }))
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(scheduler.snapshot().active.global, 0)
+})
+
 test('a stale controller cannot clear a newer active run for the same group', async (t) => {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
