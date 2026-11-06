@@ -376,7 +376,7 @@ test('Claude readiness uses the official auth status without exposing OAuth data
   try {
     const result = await resolveNativeCredentialState('claude', {
       home,
-      env: { PATH: '/usr/bin', MELDWORK_PRIVATE_VALUE: 'desktop-private-value' },
+      env: { PATH: '/usr/bin', XDG_RUNTIME_DIR: '/native/runtime', XDG_CACHE_HOME: '', MELDWORK_PRIVATE_VALUE: 'desktop-private-value' },
       executable: '/tmp/claude',
       execFileFn: async (command, args, options) => {
         calls.push({ command, args, env: options.env })
@@ -386,6 +386,8 @@ test('Claude readiness uses the official auth status without exposing OAuth data
 
     assert.deepEqual(result, { state: 'ready', source: 'native-auth-status' })
     assert.deepEqual(calls[0].args, ['auth', 'status', '--json'])
+    assert.equal(calls[0].env.XDG_RUNTIME_DIR, '/native/runtime')
+    assert.equal(calls[0].env.XDG_CACHE_HOME, '')
     assert.equal(calls[0].env.MELDWORK_PRIVATE_VALUE, undefined)
   } finally {
     fs.rmSync(home, { recursive: true, force: true })

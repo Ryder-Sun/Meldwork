@@ -445,9 +445,11 @@ function probeEnvironment(kind, options = {}) {
     'USERPROFILE', 'HOMEDRIVE', 'HOMEPATH', 'USERNAME',
     'SYSTEMROOT', 'WINDIR', 'COMSPEC', 'PATHEXT',
     'APPDATA', 'LOCALAPPDATA',
-    'XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'XDG_STATE_HOME', 'XDG_CACHE_HOME',
   ]) {
     if (typeof source[key] === 'string' && source[key]) env[key] = source[key]
+  }
+  for (const key of CONFIG_DIRECTORY_ENV_KEYS) {
+    if (typeof source[key] === 'string') env[key] = source[key]
   }
   if (platform === 'win32') env.USERPROFILE ||= home
   else env.HOME = home
