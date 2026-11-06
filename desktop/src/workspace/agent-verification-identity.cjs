@@ -24,7 +24,13 @@ function selectedConfigurationIdentity(agent, preferences) {
     } catch (error) {
       if (error.code !== 'ENOENT') return ['unreadable-directory', randomBytes(32).toString('hex')]
     }
-    entries.push([name, fileIdentity(root), children.map(child => [child, fileIdentity(path.join(root, child))])])
+    entries.push([name, fileIdentity(root), children.map(child => {
+      const childPath = path.join(root, child)
+      const nested = agent.kind === 'deepseek' && name === 'profiles'
+        ? ['cordis.yml', 'cordis.patch.yml', '.credentials.yaml']
+          .map(file => [file, fileIdentity(path.join(childPath, file))]) : null
+      return [child, fileIdentity(childPath), nested]
+    })])
   }
   return entries
 }

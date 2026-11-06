@@ -174,6 +174,30 @@ test('credential files inside selected native directories participate in verific
   assert.notEqual(agentVerificationIdentity(agent, preferences), first)
 })
 
+test('DeepSeek profile edits immediately invalidate routing verification without a catalog refresh', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-dsh-profile-identity-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const profile = path.join(directory, 'profiles', 'acp')
+  fs.mkdirSync(profile, { recursive: true })
+  const config = path.join(profile, 'cordis.patch.yml')
+  fs.writeFileSync(config, 'model: first\n')
+  const agent = { kind: 'deepseek', executable: '/tmp/dsh', version: '1', compatibilityState: 'compatible' }
+  const { catalog, state, agents } = fixture({ detectAgents: async () => [{ ...agent }],
+    credentialState: async () => ({ state: 'unknown', source: 'unverified' }) })
+  state.agentPreferences.deepseek = { nativeConfigDirectory: directory }
+  await catalog.refresh()
+  catalog.markRuntimeCredential('deepseek', 'ready')
+  assert.equal(catalog.isRecentlyVerified('deepseek'), true)
+  const { AgentRouter } = require('../../src/agents/agent-routing.cjs')
+  const router = new AgentRouter({ isRecentlyVerified: item => catalog.isRecentlyVerified(item.kind) })
+  const request = { agents: agents(), group: { id: 'group', agentKinds: ['deepseek'], allowWrite: false },
+    input: { routingMode: 'automatic', targetKinds: [] }, mode: 'manual', inputTypes: ['text'], minContextChars: 20 }
+  assert.deepEqual(router.route(request).selectedKinds, ['deepseek'])
+  fs.writeFileSync(config, 'model: second-provider\n')
+  assert.equal(catalog.isRecentlyVerified('deepseek'), false)
+  assert.throws(() => router.route(request), { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
+})
+
 test('Agent catalog module exposes only its coordinator', () => {
   assert.deepEqual(Object.keys(catalogApi), ['LocalWorkspaceAgentCatalog'])
 })
