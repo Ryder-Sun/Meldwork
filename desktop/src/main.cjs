@@ -808,6 +808,7 @@ if (!hasSingleInstanceLock) {
     const attachmentReferences = persistedAttachmentReferences(workspaceStoragePath())
     customAgentStore = new CustomAgentStore({
       storagePath: path.join(app.getPath('userData'), 'meldwork-custom-agents.json'),
+      environment: async () => (await nativeShellEnvironment()).env,
     })
     cloudAgentBridges = new CloudAgentBridgeStore({
       storagePath: path.join(app.getPath('userData'), 'meldwork-cloud-agent-bridges.json'),

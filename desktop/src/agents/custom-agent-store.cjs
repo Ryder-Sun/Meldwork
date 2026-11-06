@@ -34,6 +34,7 @@ class CustomAgentStore {
     storagePath,
     platform = process.platform,
     execFileFn = execFileAsync,
+    environment = async () => ({}),
     createId = randomUUID,
     now = () => new Date().toISOString(),
   }) {
@@ -41,6 +42,7 @@ class CustomAgentStore {
     this.storagePath = path.resolve(storagePath)
     this.platform = platform
     this.execFileFn = execFileFn
+    this.environment = environment
     this.createId = createId
     this.now = now
     this.definitions = this.load()
@@ -82,10 +84,11 @@ class CustomAgentStore {
 
   async probeVersion(definition) {
     try {
+      const source = { ...process.env, ...await this.environment() }
       const result = await this.execFileFn(definition.executable, ['--version'], {
         timeout: 5000,
         windowsHide: true,
-        env: childEnvironment(process.env, this.platform),
+        env: childEnvironment(source, this.platform),
       })
       return [result?.stdout, result?.stderr]
         .flatMap(output => String(output || '').split(/\r?\n/))
@@ -206,7 +209,7 @@ class CustomAgentStore {
         promptMode: definition.promptMode,
       }))
     }
-    const env = childEnvironment(options.env || process.env, this.platform)
+    const env = childEnvironment({ ...process.env, ...await this.environment(), ...options.env }, this.platform)
     return await new Promise((resolve, reject) => {
       let child
       try {

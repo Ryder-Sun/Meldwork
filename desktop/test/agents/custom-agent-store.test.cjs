@@ -63,6 +63,7 @@ function fixture(t, options = {}) {
     storagePath: path.join(directory, 'custom-agents.json'),
     createId: () => options.id || '0123456789abcdef',
     execFileFn: options.execFileFn || (async () => ({ stdout: 'review-agent 1.0.0\n', stderr: '' })),
+    environment: options.environment,
     now: () => '2026-08-03T00:00:00.000Z',
   })
   return { directory, executable, store }
@@ -100,6 +101,38 @@ test('custom Agent probe and execution both receive the configured proxy', async
   })
   assert.equal(probeEnv.HTTP_PROXY, process.env.HTTP_PROXY)
   assert.equal(runEnv.HTTP_PROXY, process.env.HTTP_PROXY)
+})
+
+test('custom Agent probe and execution inherit filtered login shell settings', async t => {
+  let probeEnv
+  const { executable, store } = fixture(t, {
+    environment: async () => ({ HTTP_PROXY: 'http://shell-proxy:3128', XDG_CONFIG_HOME: '/shell/config', PRIVATE_TOKEN: 'secret' }),
+    execFileFn: async (_command, _args, options) => {
+      probeEnv = options.env
+      return { stdout: 'review-agent 1.0.0', stderr: '' }
+    },
+  })
+  store.create({ label: 'Review Agent', args: [], promptMode: 'stdin' }, executable)
+  await store.detectAgents()
+  let runEnv
+  await store.run('custom-0123456789abcdef', 'Review', '/tmp', {
+    sandbox: 'workspace-write',
+    spawnFn: (_command, _args, options) => {
+      runEnv = options.env
+      const child = new EventEmitter()
+      child.stdout = new PassThrough()
+      child.stderr = new PassThrough()
+      child.stdin = new PassThrough()
+      child.kill = () => true
+      setImmediate(() => { child.stdout.write('Done'); child.emit('close', 0) })
+      return child
+    },
+  })
+  for (const env of [probeEnv, runEnv]) {
+    assert.equal(env.HTTP_PROXY, 'http://shell-proxy:3128')
+    assert.equal(env.XDG_CONFIG_HOME, '/shell/config')
+    assert.equal(env.PRIVATE_TOKEN, undefined)
+  }
 })
 
 test('stores private definitions while exposing only sanitized Custom Agent metadata', async (t) => {
