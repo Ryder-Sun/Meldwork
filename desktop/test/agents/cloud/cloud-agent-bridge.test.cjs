@@ -171,8 +171,13 @@ test('keeps installed but unavailable cloud Agents in the catalog and out of run
   })
   unavailableManifest.agents.push({
     id: 'pi', sourceKind: 'pi', label: 'Pi Agent', version: '1.2.3',
-    available: false, executionSupported: false, credentialState: 'unknown',
+    available: true, executionSupported: false, credentialState: 'unknown',
     skills: [], domains: ['general'], inputTypes: ['text'], permissionModes: ['read-only'],
+  })
+  unavailableManifest.agents.push({
+    id: 'writeonly', sourceKind: 'writeonly', label: 'Write-only Agent', version: '1.0.0',
+    available: true, credentialState: 'ready', skills: [], domains: ['general'],
+    inputTypes: ['text'], permissionModes: ['workspace-write'],
   })
   const store = new CloudAgentBridgeStore({
     storagePath,
@@ -185,10 +190,12 @@ test('keeps installed but unavailable cloud Agents in the catalog and out of run
       ['codex', true],
       ['claude', false],
       ['pi', false],
+      ['writeonly', false],
     ])
     const claude = store.catalogEntries().find(agent => agent.sourceKind === 'claude')
     assert.equal(claude.credentialState, 'missing')
     assert.equal(store.catalogEntries().find(agent => agent.sourceKind === 'pi').availabilitySource, 'cloud-bridge-unsupported')
+    assert.equal(store.catalogEntries().find(agent => agent.sourceKind === 'writeonly').availabilitySource, 'cloud-bridge-unsupported')
     assert.deepEqual(store.skillsForInstance(claude.kind), [])
     const codex = store.catalogEntries().find(agent => agent.sourceKind === 'codex')
     assert.deepEqual(store.skillsForInstance(codex.kind), [
@@ -241,11 +248,12 @@ test('generates a valid manifest from a persisted bridge record', () => {
     label: 'Server',
   }, {
     id: 'codex', label: 'Codex', version: '1.0.0', domains: ['general'],
-    inputTypes: ['text', 'image', 'file'], permissionModes: ['read-only'],
+    inputTypes: ['text', 'image', 'file'], permissionModes: ['read-only', 'workspace-write'],
     session: { supported: true, resume: true, cancel: true, checkpoint: false },
   })
   assert.equal(manifestRecord.connectorVersion, '1.0.0')
   assert.deepEqual(manifestRecord.inputTypes, ['text'])
+  assert.deepEqual(manifestRecord.permissionModes, ['read-only'])
   assert.deepEqual(manifestRecord.outboundDestinations, ['https://203.0.113.10:8443'])
 })
 

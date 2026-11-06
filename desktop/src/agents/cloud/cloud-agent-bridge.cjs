@@ -137,8 +137,9 @@ function normalizeAgent(input) {
   return {
     id, sourceKind, label, version,
     description: cleanText(input.description, 400),
-    executionSupported: input.executionSupported !== false,
-    available: input.available !== false,
+    executionSupported: input.executionSupported !== false && permissionModes.includes('read-only'),
+    available: input.available !== false && input.executionSupported !== false
+      && permissionModes.includes('read-only'),
     credentialState,
     skills,
     domains: [...new Set(domains)].slice(0, 16),
@@ -194,7 +195,7 @@ function manifestFor(record, agent) {
     // The current bridge request carries text only, regardless of what the
     // remote Agent itself says it can accept.
     inputTypes: ['text'],
-    permissionModes: agent.permissionModes,
+    permissionModes: ['read-only'],
     eventProtocolVersion: 1,
     eventTypes: ['Completed', 'Failed', 'Cancelled'],
     usage: {
