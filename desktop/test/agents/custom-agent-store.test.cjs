@@ -51,6 +51,7 @@ test('custom Agent environment preserves network settings without unrelated cred
   assert.equal(env.NODE_USE_ENV_PROXY, '1')
   assert.equal(env.UNRELATED_API_KEY, undefined)
   assert.equal(customAgentStoreApi.childEnvironment({ Http_Proxy: 'http://proxy' }, 'win32').HTTP_PROXY, 'http://proxy')
+  assert.equal(customAgentStoreApi.childEnvironment({ Path: 'old', PATH: 'new' }, 'win32').PATH, 'new')
 })
 
 function fixture(t, options = {}) {

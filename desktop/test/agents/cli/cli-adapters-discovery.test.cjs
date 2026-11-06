@@ -1053,6 +1053,21 @@ test('Agent detection accepts ambiguous product versions after successful capabi
   }])
 })
 
+test('Windows discovery uses the canonical PATH when casing variants coexist', async () => {
+  let detectedPath
+  await detectAgents({
+    platform: 'win32', env: { Path: 'C:\\old', PATH: 'C:\\new' },
+    resolveExecutableFn: async kind => kind === 'kimi' ? 'C:\\new\\kimi.exe' : null,
+    probeAgentCapabilitiesFn: async (_kind, _executable, options) => {
+      detectedPath = options.childEnv.PATH
+      return { compatibilityState: 'compatible', incompatibilityReason: '', incompatibilityProbe: '' }
+    },
+    execFileFn: async () => ({ stdout: 'Kimi Code 0.19.2', stderr: '' }),
+  })
+  assert.ok(detectedPath.split(';').includes('C:\\new'))
+  assert.equal(detectedPath.split(';').includes('C:\\old'), false)
+})
+
 test('Agent detection passes only allowlisted system environment to version commands', async () => {
   const calls = []
   const found = await detectAgents({

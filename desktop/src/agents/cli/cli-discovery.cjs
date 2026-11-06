@@ -48,7 +48,8 @@ const SYSTEM_CHILD_ENV_KEYS = Object.freeze([
 ])
 
 function envValue(env, name) {
-  const match = Object.keys(env).find(key => key.toLowerCase() === name.toLowerCase())
+  const match = Object.hasOwn(env, name) ? name
+    : Object.keys(env).find(key => key.toLowerCase() === name.toLowerCase())
   return match ? env[match] : ''
 }
 

@@ -112,7 +112,8 @@ function executablePath(filename, platform = process.platform) {
 function childEnvironment(source = process.env, platform = process.platform) {
   const env = networkEnvironment(source, platform)
   for (const name of CHILD_ENV_KEYS) {
-    const key = Object.keys(source).find(candidate => candidate.toLowerCase() === name.toLowerCase())
+    const key = Object.hasOwn(source, name) ? name
+      : Object.keys(source).find(candidate => candidate.toLowerCase() === name.toLowerCase())
     const value = key ? source[key] : ''
     if (typeof value === 'string' && value) env[name] = value
   }
