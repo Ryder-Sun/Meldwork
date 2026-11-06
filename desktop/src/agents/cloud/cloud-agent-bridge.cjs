@@ -191,7 +191,9 @@ function manifestFor(record, agent) {
     invocation: { recipeId: ssh ? SSH_RECIPE_ID : BRIDGE_RECIPE_ID, idempotencyMode: 'durable' },
     domains: agent.domains,
     session: agent.session,
-    inputTypes: agent.inputTypes,
+    // The current bridge request carries text only, regardless of what the
+    // remote Agent itself says it can accept.
+    inputTypes: ['text'],
     permissionModes: agent.permissionModes,
     eventProtocolVersion: 1,
     eventTypes: ['Completed', 'Failed', 'Cancelled'],

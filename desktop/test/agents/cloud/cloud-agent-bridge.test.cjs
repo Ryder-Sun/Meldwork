@@ -241,10 +241,11 @@ test('generates a valid manifest from a persisted bridge record', () => {
     label: 'Server',
   }, {
     id: 'codex', label: 'Codex', version: '1.0.0', domains: ['general'],
-    inputTypes: ['text'], permissionModes: ['read-only'],
+    inputTypes: ['text', 'image', 'file'], permissionModes: ['read-only'],
     session: { supported: true, resume: true, cancel: true, checkpoint: false },
   })
   assert.equal(manifestRecord.connectorVersion, '1.0.0')
+  assert.deepEqual(manifestRecord.inputTypes, ['text'])
   assert.deepEqual(manifestRecord.outboundDestinations, ['https://203.0.113.10:8443'])
 })
 
