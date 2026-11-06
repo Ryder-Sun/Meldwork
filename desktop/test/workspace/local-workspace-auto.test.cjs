@@ -346,6 +346,37 @@ test('task graph does not count fabricated outcome references as evidence', asyn
   assert.deepEqual(calls, ['codex'])
 })
 
+test('task graph retains verified evidence and filters fabricated references on successful nodes', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const ledger = new RunLedger({ storagePath: path.join(directory, 'run-ledger.json') })
+  options.runLedger = ledger
+  const forgedArtifact = `artifact-${'c'.repeat(64)}`
+  const forgedEvidence = `evidence-${'d'.repeat(64)}`
+  const calls = []
+  options.runAgent = async agent => {
+    calls.push(agent.kind)
+    return { text: `${agent.kind} provided a real conclusion.`, outcome: 'completed', outcomeRefs: {
+      artifactIds: [forgedArtifact], evidenceIds: [forgedEvidence],
+    } }
+  }
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Mixed graph evidence', agentKinds: ['codex', 'hermes'], workdir: directory, allowWrite: false })
+  await workspace.sendMessage({ groupId: group.id, text: 'Complete the task.', mode: 'auto', maxRounds: 2,
+    targetKinds: ['codex', 'hermes'], workflow: { template: 'task-graph', nodes: [graphNode(),
+      graphNode({ nodeId: 'review-hermes', role: 'reviewer', agentKind: 'hermes',
+        dependsOn: ['primary-codex'], inputNodeIds: ['primary-codex'], terminal: true })] } })
+  await workspace.activeRuns.get(group.id).promise
+  const run = ledger.list(group.id)[0]
+  assert.equal(run.status, 'completed')
+  assert.deepEqual(calls, ['codex', 'hermes'])
+  assert.ok(run.orchestration.taskGraph.nodeStates.every(state => state.artifactIds.length && state.evidenceIds.length))
+  const persisted = JSON.stringify({ graph: run.orchestration.taskGraph, collaboration: run.orchestration.collaboration })
+  assert.equal(persisted.includes(forgedArtifact), false)
+  assert.equal(persisted.includes(forgedEvidence), false)
+})
+
 test('task graph runs independent branches in parallel and completes from typed Evidence', async (t) => {
   const { directory, calls, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
