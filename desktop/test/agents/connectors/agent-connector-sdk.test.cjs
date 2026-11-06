@@ -309,6 +309,23 @@ test('HTTP transport times out and releases its request', async t => {
   assert.deepEqual(result.failure, { code: 'AGENT_CONNECTOR_HTTP_TIMEOUT', category: 'timeout', retryable: false })
 })
 
+for (const stage of ['headers', 'body']) {
+  test(`HTTP Connector timeout settles when ${stage} ignores abort`, { timeout: 3000 }, async t => {
+    const never = () => new Promise(() => {})
+    const { connectors, directory, packageStore } = fixture(t,
+      stage === 'headers' ? never : async () => ({ ok: true, text: never }), { httpTimeoutMs: 20 })
+    const pkg = httpPackage()
+    install(packageStore, pkg)
+    connectors.refresh([])
+    connectors.configure({ manifestId: pkg.manifest.manifestId, label: 'Timeout', credentials: { 'access-token': 'private-token' } })
+    const [agent] = connectors.detectAgents()
+    const result = await connectors.run(agent, 'request', directory, {
+      runId: 'run-hung-http', agentRunId: 'agent-hung-http', sandbox: 'read-only',
+    })
+    assert.deepEqual(result.failure, { code: 'AGENT_CONNECTOR_HTTP_TIMEOUT', category: 'timeout', retryable: false })
+  })
+}
+
 test('HTTP timeout closes a response body that stops streaming', async t => {
   let closed
   const responseClosed = new Promise(resolve => { closed = resolve })

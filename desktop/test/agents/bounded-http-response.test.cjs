@@ -1,6 +1,32 @@
 const assert = require('node:assert/strict')
 const test = require('node:test')
-const { boundedHttpResponseText } = require('../../src/agents/bounded-http-response.cjs')
+const { abortableHttpOperation, boundedHttpResponseText, discardLateHttpResponse } = require('../../src/agents/bounded-http-response.cjs')
+
+test('an aborted stream cancels its reader without waiting for cancellation to finish', async () => {
+  let cancelled = false
+  const controller = new AbortController()
+  const response = { body: new ReadableStream({
+    cancel() { cancelled = true; return new Promise(() => {}) },
+  }) }
+  const pending = abortableHttpOperation(boundedHttpResponseText(response, 16, 'TOO_LARGE', controller.signal), controller.signal)
+  controller.abort()
+  await assert.rejects(pending, { name: 'AbortError' })
+  assert.equal(cancelled, true)
+})
+
+test('a response arriving after abort has its body discarded', async () => {
+  let resolveResponse
+  let cancelled = false
+  const controller = new AbortController()
+  const pending = new Promise(resolve => { resolveResponse = resolve })
+  discardLateHttpResponse(pending, controller.signal)
+  const result = abortableHttpOperation(pending, controller.signal)
+  controller.abort()
+  await assert.rejects(result, { name: 'AbortError' })
+  resolveResponse({ body: { cancel: () => { cancelled = true } } })
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(cancelled, true)
+})
 
 test('an oversized response fails even if stream cancellation never settles', async () => {
   let cancelled = false

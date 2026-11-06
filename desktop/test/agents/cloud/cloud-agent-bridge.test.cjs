@@ -75,6 +75,18 @@ test('Bridge requests cancel oversized streams and respect a pre-aborted caller'
 })
 
 for (const stage of ['headers', 'body']) {
+  test(`Bridge timeout settles when ${stage} never resolves after abort`, { timeout: 3000 }, async t => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-cloud-hung-response-'))
+    t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+    const never = () => new Promise(() => {})
+    const store = new CloudAgentBridgeStore({
+      storagePath: path.join(directory, 'bridges.json'),
+      fetch: stage === 'headers' ? never : async () => ({ ok: true, text: never }),
+    })
+    await assert.rejects(store.request('/test', { address: 'https://203.0.113.10', timeoutMs: 1000 }),
+      { code: 'CLOUD_AGENT_BRIDGE_TIMEOUT' })
+  })
+
   test(`Bridge timeout rejects a late ${stage} response even when the transport ignores abort`, async t => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-cloud-late-response-'))
     t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

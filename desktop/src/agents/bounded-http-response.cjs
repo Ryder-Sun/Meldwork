@@ -1,4 +1,28 @@
-async function boundedHttpResponseText(response, limit, errorCode) {
+async function abortableHttpOperation(operation, signal) {
+  const pending = Promise.resolve(operation)
+  if (!signal) return pending
+  if (signal.aborted) {
+    pending.catch(() => {})
+    throw signal.reason
+  }
+  let onAbort
+  const aborted = new Promise((_resolve, reject) => {
+    onAbort = () => reject(signal.reason)
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
+  try { return await Promise.race([pending, aborted]) }
+  finally { signal.removeEventListener('abort', onAbort) }
+}
+
+function discardLateHttpResponse(operation, signal) {
+  Promise.resolve(operation).then(response => {
+    if (signal?.aborted && typeof response?.body?.cancel === 'function') {
+      try { Promise.resolve(response.body.cancel()).catch(() => {}) } catch { /* already closed */ }
+    }
+  }, () => {})
+}
+
+async function boundedHttpResponseText(response, limit, errorCode, signal) {
   const invalid = () => { throw Object.assign(new Error(errorCode), { code: errorCode }) }
   if (!response.body?.getReader) {
     const text = await response.text()
@@ -6,6 +30,11 @@ async function boundedHttpResponseText(response, limit, errorCode) {
     return text
   }
   const reader = response.body.getReader()
+  const onAbort = () => {
+    try { Promise.resolve(reader.cancel()).catch(() => {}) } catch { /* already closed */ }
+  }
+  signal?.addEventListener('abort', onAbort, { once: true })
+  if (signal?.aborted) onAbort()
   const chunks = []
   let total = 0
   try {
@@ -20,8 +49,11 @@ async function boundedHttpResponseText(response, limit, errorCode) {
       }
       chunks.push(chunk)
     }
-  } finally { reader.releaseLock() }
+  } finally {
+    signal?.removeEventListener('abort', onAbort)
+    reader.releaseLock()
+  }
   return Buffer.concat(chunks, total).toString('utf8')
 }
 
-module.exports = { boundedHttpResponseText }
+module.exports = { abortableHttpOperation, boundedHttpResponseText, discardLateHttpResponse }

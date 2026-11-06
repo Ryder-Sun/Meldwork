@@ -1,7 +1,7 @@
 const crypto = require('node:crypto')
 const fs = require('node:fs')
 const path = require('node:path')
-const { boundedHttpResponseText } = require('../bounded-http-response.cjs')
+const { abortableHttpOperation, boundedHttpResponseText, discardLateHttpResponse } = require('../bounded-http-response.cjs')
 const { createHttpOutboundPayload } = require('../../collaboration/outbound-payload.cjs')
 
 const {
@@ -829,18 +829,23 @@ class LocalAgentConnectors {
       timer = setTimeout(() => { timedOut = true; controller.abort() }, this.httpTimeoutMs)
       requestSent = true
       this.httpRequests.add(activeRequest)
-      const response = await this.fetch(endpoint, {
+      const pendingResponse = this.fetch(endpoint, {
         method: 'POST',
         redirect: 'error',
         headers,
         signal: controller.signal,
         body,
       })
+      discardLateHttpResponse(pendingResponse, controller.signal)
+      const response = await abortableHttpOperation(pendingResponse, controller.signal)
       controller.signal.throwIfAborted()
       if (!response?.ok) throw Object.assign(new Error('AGENT_CONNECTOR_HTTP_FAILED'), {
         code: 'AGENT_CONNECTOR_HTTP_FAILED', retryable: response?.status >= 500,
       })
-      const text = await boundedHttpResponseText(response, MAX_HTTP_RESPONSE_BYTES, 'AGENT_CONNECTOR_HTTP_RESPONSE_INVALID')
+      const text = await abortableHttpOperation(
+        boundedHttpResponseText(response, MAX_HTTP_RESPONSE_BYTES, 'AGENT_CONNECTOR_HTTP_RESPONSE_INVALID', controller.signal),
+        controller.signal,
+      )
       controller.signal.throwIfAborted()
       let parsed
       try { parsed = JSON.parse(text) } catch { fail('AGENT_CONNECTOR_HTTP_RESPONSE_INVALID') }
