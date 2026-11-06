@@ -319,12 +319,27 @@ test('locally detected compatible Agents remain invocable when native configurat
     available: agent.available,
     availabilitySource: agent.availabilitySource,
   })), [{
-    kind: 'pi', configured: true, authenticated: true, invocable: true,
+    kind: 'pi', configured: false, authenticated: false, invocable: true,
     available: true, availabilitySource: 'local-cli',
   }, {
-    kind: 'opencode', configured: true, authenticated: true, invocable: true,
+    kind: 'opencode', configured: false, authenticated: false, invocable: true,
     available: true, availabilitySource: 'local-cli',
   }])
+})
+
+test('a discovered credential allows a manual attempt without claiming verified authentication', async () => {
+  const { agents, catalog } = fixture({
+    detectAgents: async () => [{ kind: 'codex', executable: '/tmp/codex', compatibilityState: 'compatible' }],
+    credentialState: async () => ({ state: 'ready', source: 'native-credential' }),
+  })
+  await catalog.refresh()
+  assert.equal(agents()[0].configured, true)
+  assert.equal(agents()[0].authenticated, false)
+  assert.equal(agents()[0].invocable, true)
+  assert.equal(agents()[0].recentlyVerified, false)
+  catalog.markRuntimeCredential('codex', 'ready')
+  assert.equal(agents()[0].authenticated, true)
+  assert.equal(agents()[0].recentlyVerified, true)
 })
 
 test('native readiness cannot override a recorded runtime auth failure', async () => {

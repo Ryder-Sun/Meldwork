@@ -274,6 +274,8 @@ test('a detected local Agent stays usable while native credential state is unver
   const initialKimi = initial.agents.find(agent => agent.kind === 'kimi')
   assert.equal(initialKimi.available, true)
   assert.equal(initialKimi.credentialState, 'unknown')
+  assert.equal(initialKimi.configured, false)
+  assert.equal(initialKimi.authenticated, false)
   assert.equal(initialKimi.availabilitySource, 'local-cli')
   const group = workspace.createGroup({
     name: '首次验证', agentKinds: ['kimi'], workdir: directory,
@@ -283,8 +285,22 @@ test('a detected local Agent stays usable while native credential state is unver
   assert.equal(calls[0].agent.kind, 'kimi')
   const kimi = workspace.snapshot().agents.find(agent => agent.kind === 'kimi')
   assert.equal(kimi.credentialState, 'ready')
+  assert.equal(kimi.authenticated, true)
   assert.equal(kimi.available, true)
   assert.equal(kimi.availabilitySource, 'verified-run')
+})
+
+test('unverified Agents can be explicitly used in direct and group conversations', async t => {
+  const { directory, calls, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  options.credentialState = async () => ({ state: 'unknown', source: 'unverified' })
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const direct = workspace.createGroup({ conversationType: 'direct', directAgentKind: 'kimi', workdir: directory })
+  await workspace.sendMessage({ groupId: direct.id, text: 'Hello', targetKinds: ['kimi'] })
+  const group = workspace.createGroup({ name: 'Group', agentKinds: ['codex', 'hermes'], workdir: directory })
+  await workspace.sendMessage({ groupId: group.id, text: 'Review', targetKinds: ['codex', 'hermes'] })
+  assert.deepEqual(calls.map(call => call.agent.kind).sort(), ['codex', 'hermes', 'kimi'])
 })
 
 test('an authentication failure keeps an Agent unavailable when later detection is unverified', async (t) => {

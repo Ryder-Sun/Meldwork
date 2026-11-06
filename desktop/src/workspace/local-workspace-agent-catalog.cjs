@@ -40,9 +40,10 @@ function sidebarVisible(agent, preferred) {
   return !(agent.custom === true && agent.task && agent.task !== 'general')
 }
 
-function agentInvocable({ installed, versionIdentified, compatible, configured, authenticated, runtimePrerequisitesReady, unavailable }) {
-  return installed !== false && versionIdentified && compatible && configured
-    && authenticated && runtimePrerequisitesReady !== false && !unavailable
+function agentInvocable({ installed, versionIdentified, compatible, configured, authenticated, canAttempt, runtimePrerequisitesReady, unavailable }) {
+  return installed !== false && versionIdentified && compatible
+    && ((configured && authenticated) || canAttempt === true)
+    && runtimePrerequisitesReady !== false && !unavailable
 }
 
 function recentlyVerified(runtime, now) {
@@ -164,21 +165,22 @@ class LocalWorkspaceAgentCatalog {
         && nativeState === 'unknown'
         && native?.source !== 'native-runtime-unavailable'
         && native?.source !== 'native-probe-failed'
-      const configured = retained !== null
+      const configured = retained?.configured === true
         || nativeState === 'ready'
         || native?.source === 'native-auth-status'
         || native?.source === 'native-runtime-unavailable'
         || verifiedReady
         || runtimeMissing
-        || nativeConfigurationUnknown
-      const authenticated = retained !== null || (!runtimeMissing && nativeState !== 'missing' && (
-        nativeState === 'ready' || verifiedReady || nativeConfigurationUnknown
+      const authenticated = retained?.authenticated === true || (!runtimeMissing && nativeState !== 'missing' && (
+        verifiedReady || (nativeState === 'ready' && native?.source === 'native-auth-status')
       ))
       const runtimePrerequisitesReady = retained !== null
         || (native?.source !== 'native-runtime-unavailable'
           && (native?.source !== 'native-probe-failed' || verifiedReady))
       const invocable = agentInvocable({ installed, versionIdentified, compatible, configured,
-        authenticated, runtimePrerequisitesReady, unavailable: workBuddyUnavailable })
+        authenticated, canAttempt: retained !== null || nativeConfigurationUnknown
+          || (!runtimeMissing && nativeState === 'ready'),
+        runtimePrerequisitesReady, unavailable: workBuddyUnavailable })
       const verifiedRecently = matchesRecentVerification(runtime, agent, this.now(), state.agentPreferences)
       const available = invocable
       const preferred = state.agentPreferences[agent.kind]?.showInSidebar
@@ -244,6 +246,8 @@ class LocalWorkspaceAgentCatalog {
     return {
       credentialState: previous.credentialState,
       availabilitySource: previous.availabilitySource || 'native-probe-failed',
+      configured: previous.configured === true,
+      authenticated: previous.authenticated === true,
     }
   }
 
@@ -276,7 +280,7 @@ class LocalWorkspaceAgentCatalog {
       agent.compatible = agentCompatible(agent)
       agent.configured = credentialState !== 'unknown'
       agent.authenticated = credentialState === 'ready'
-      agent.invocable = agentInvocable({ ...agent,
+      agent.invocable = agentInvocable({ ...agent, canAttempt: credentialState === 'unknown' && agent.available === true,
         unavailable: Boolean(agent.runtimeBlockSource) })
       agent.recentlyVerified = this.isRecentlyVerified(kind)
       agent.available = agent.invocable
