@@ -311,6 +311,30 @@ test('Natural automatic discussion does not override a peer blocker with owner c
   )), false)
 })
 
+for (const clearsBlocker of [false, true]) {
+  test(`Natural sequential retains a peer blocker across owner-only rounds until ${clearsBlocker ? 'cleared' : 'the limit'}`, async t => {
+    const { directory, options } = fixture()
+    t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+    const ledger = new RunLedger({ storagePath: path.join(directory, 'run-ledger.json') })
+    let peerTurns = 0
+    const workspace = new LocalWorkspace({
+      ...options, runLedger: ledger, naturalAgentResponses: true,
+      runAgent: async agent => {
+        if (agent.kind === 'codex') return { outcome: 'completed', text: decisionReply('The answer is ready.') }
+        peerTurns += 1
+        return { outcome: 'completed', text: clearsBlocker && peerTurns > 1
+          ? decisionReply('The missing evidence has been supplied.')
+          : decisionReply('The required evidence is unavailable.', 'blocked') }
+      },
+    })
+    await workspace.refreshAgents()
+    const group = workspace.createGroup({ name: 'Persistent blocker', agentKinds: ['codex', 'hermes'], workdir: directory, allowWrite: false })
+    const controller = await runDiscussion(workspace, group, { discussionStyle: 'sequential', maxRounds: 5 })
+    assert.equal(ledger.get(controller.runId).status, clearsBlocker ? 'completed' : 'round-limit')
+    assert.ok(peerTurns >= 2)
+  })
+}
+
 for (const discussionStyle of ['agent-led', 'sequential']) {
   for (const answer of ['EXACT_ANSWER_OK', '{"ok":true}']) {
     test(`Natural ${discussionStyle} preserves exact visible ${answer.startsWith('{') ? 'JSON' : 'text'} separately from completion`, async t => {
@@ -526,6 +550,44 @@ test('Natural V4 requires a prior peer discussion round before the owner complet
     await workspace.autoRunner.v4NaturalRoundOutcome(
       group, controller, 'thread', 2, ['codex', 'hermes'],
     ),
+    { status: 'completed' },
+  )
+
+  const turn = (kind, round, status, runId = 'run') => ({
+    groupId: 'group', threadRootId: 'thread', role: 'agent', agentKind: kind,
+    trace: { phase: 'discussion', runId, round, context: { taskDecision: {
+      status, reason: status, deliverables: status === 'completed' ? ['answer'] : [],
+    } } },
+  })
+  const turns = [turn('hermes', 1, 'blocked', 'old-run'), turn('codex', 2, 'completed')]
+  workspace.autoRunner.v4NaturalMessageMatchesBinding = message => message.trace.runId === 'run'
+  workspace.autoRunner.state = () => ({ messages: turns })
+  // A blocker from a different run must never affect this task.
+  turns.unshift(turn('hermes', 1, 'continue'))
+  assert.deepEqual(
+    await workspace.autoRunner.v4NaturalRoundOutcome(group, controller, 'thread', 2, ['codex', 'hermes']),
+    { status: 'completed' },
+  )
+  turns[0] = turn('hermes', 1, 'blocked')
+  assert.deepEqual(
+    await workspace.autoRunner.v4NaturalRoundOutcome(group, controller, 'thread', 2, ['codex', 'hermes']),
+    { nextKinds: ['hermes'], ownerReview: true },
+  )
+  turns.push(turn('hermes', 3, 'continue'), turn('codex', 4, 'completed'))
+  assert.deepEqual(
+    await workspace.autoRunner.v4NaturalRoundOutcome(group, controller, 'thread', 4, ['codex', 'hermes']),
+    { nextKinds: ['hermes'], ownerReview: true },
+  )
+  const invalidClearance = turn('hermes', 5, 'completed')
+  invalidClearance.trace.context.taskDecision.deliverables = []
+  turns.push(invalidClearance, turn('codex', 6, 'completed'))
+  assert.deepEqual(
+    await workspace.autoRunner.v4NaturalRoundOutcome(group, controller, 'thread', 6, ['codex', 'hermes']),
+    { nextKinds: ['hermes'], ownerReview: true },
+  )
+  turns.push(turn('hermes', 7, 'completed'), turn('codex', 8, 'completed'))
+  assert.deepEqual(
+    await workspace.autoRunner.v4NaturalRoundOutcome(group, controller, 'thread', 8, ['codex', 'hermes']),
     { status: 'completed' },
   )
 })

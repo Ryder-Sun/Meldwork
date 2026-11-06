@@ -92,6 +92,11 @@ const v4NaturalDecisionMethods = {
       return { status: 'partial' }
     }
     if (decision.status === 'completed') {
+      const unresolved = this.v4NaturalUnresolvedBlockers(group, controller, threadRootId, round)
+      if (unresolved.length) {
+        const available = unresolved.filter(kind => activeKinds.includes(kind))
+        return available.length ? { nextKinds: available, ownerReview: true } : { status: 'partial' }
+      }
       // The owner may not close the task before selected peers had one discussion
       // round of their own; otherwise a single full round collapses into an
       // owner-only review and peers never get to challenge the result.
@@ -125,6 +130,27 @@ const v4NaturalDecisionMethods = {
       params: { reason: decision.reason },
     })
     return { status: 'partial' }
+  },
+
+  v4NaturalUnresolvedBlockers(group, controller, threadRootId, round) {
+    const unresolved = new Set()
+    const messages = this.state().messages.filter(message => (
+      message.groupId === group.id && message.threadRootId === threadRootId
+      && message.role === 'agent' && message.trace?.phase === 'discussion'
+      && Number(message.trace?.round) <= round
+      && this.v4NaturalMessageMatchesBinding(message, controller)
+    )).map((message, index) => ({ message, index })).sort((left, right) => (
+      Number(left.message.trace.round) - Number(right.message.trace.round)
+      || (Number(left.message.turnSeq) || 0) - (Number(right.message.turnSeq) || 0)
+      || left.index - right.index
+    ))
+    for (const { message } of messages) {
+      let status
+      try { status = parseLenientTaskDecision(message.trace?.context?.taskDecision).status } catch { continue }
+      if (status === 'blocked' || status === 'needs-human') unresolved.add(message.agentKind)
+      else if (status === 'completed') unresolved.delete(message.agentKind)
+    }
+    return [...unresolved]
   },
 
   v4NaturalNextKinds(group, controller, threadRootId, round, activeKinds) {
