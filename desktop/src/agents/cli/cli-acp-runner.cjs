@@ -3,6 +3,7 @@ const { createHash } = require('node:crypto')
 const fs = require('node:fs')
 const path = require('node:path')
 const { PassThrough, Readable, Writable } = require('node:stream')
+const { SECRET_ENV_KEYS, nativeSecretEnvKeys } = require('./native-secret-environment.cjs')
 const { AGENT_PROFILES, prepareCommand } = require('./cli-discovery.cjs')
 const {
   outcomeForAcpStopReason,
@@ -629,6 +630,7 @@ function runtimeSignature(agent, workdir, spec, profile, childEnv) {
     // is already part of the environment below.
     profileId: profile.profileId,
     environment,
+    secretEnvironmentKeys: nativeSecretEnvKeys(childEnv[SECRET_ENV_KEYS]),
   })).digest('hex')
 }
 

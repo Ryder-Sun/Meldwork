@@ -162,6 +162,43 @@ input.on('line', (line) => {
     && error.failure?.category === 'authentication')
 })
 
+test('Hermes ACP does not reuse a process when credential redaction rules change', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-secret-reuse-'))
+  const count = path.join(directory, 'count')
+  const cli = executable(directory, 'hermes-acp.cjs', `
+const fs = require('node:fs'), readline = require('node:readline')
+const count = process.env.MELDWORK_TEST_SPAWN_COUNT_FILE
+fs.writeFileSync(count, String((fs.existsSync(count) ? Number(fs.readFileSync(count, 'utf8')) : 0) + 1))
+const send = value => process.stdout.write(JSON.stringify(value) + '\\n')
+readline.createInterface({ input: process.stdin }).on('line', line => {
+  const m = JSON.parse(line), sessionId = m.params?.sessionId || 'test-session'
+  if (m.method === 'initialize') send({ jsonrpc: '2.0', id: m.id, result: { protocolVersion: 1 } })
+  else if (m.method === 'session/new') send({ jsonrpc: '2.0', id: m.id, result: { sessionId } })
+  else if (m.method === 'session/resume' || m.method === 'session/set_mode') send({ jsonrpc: '2.0', id: m.id, result: {} })
+  else if (m.method === 'session/prompt') {
+    send({ jsonrpc: '2.0', method: 'session/update', params: { sessionId, update: {
+      sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'value=' + process.env.OPENAI_BASE_URL },
+    } } })
+    send({ jsonrpc: '2.0', id: m.id, result: { stopReason: 'end_turn' } })
+  }
+})
+`)
+  t.after(async () => { await adapters.shutdownAcpSessionRuntime(); fs.rmSync(directory, { recursive: true, force: true }) })
+  const agent = { kind: 'hermes', name: 'Hermes', executable: cli }
+  const options = { acpPersistenceKey: 'workspace:hermes:secret',
+    env: { OPENAI_BASE_URL: 'private-endpoint', MELDWORK_TEST_SPAWN_COUNT_FILE: count } }
+  const first = await adapters.runAgent(agent, 'first', directory, options)
+  assert.equal(first.text, 'value=private-endpoint')
+  await assert.rejects(adapters.runAgent(agent, 'second', directory, {
+    ...options, sessionRef: first.sessionRef, sessionTransport: 'acp', nativeCredentialKeys: ['OPENAI_BASE_URL'],
+  }), { code: 'LOCAL_AGENT_SESSION_INVALID' })
+  const second = await adapters.runAgent(agent, 'second', directory, {
+    ...options, nativeCredentialKeys: ['OPENAI_BASE_URL'],
+  })
+  assert.equal(second.text, 'value=[redacted]')
+  assert.equal(fs.readFileSync(count, 'utf8'), '2')
+})
+
 test('Hermes ACP receives image attachments as content blocks or falls back when unsupported', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-acp-image-'))
   const image = path.join(directory, 'diagram.png')
