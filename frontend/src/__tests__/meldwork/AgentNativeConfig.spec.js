@@ -5,6 +5,19 @@ import { t } from '../../i18n.js'
 
 afterEach(() => { delete window.meldworkDesktop })
 
+it('explains the expected Kimi native configuration when selection is invalid', async () => {
+  window.meldworkDesktop = { localAgentNativeConfig: {
+    get: vi.fn().mockResolvedValue({ directory: '' }),
+    choose: vi.fn().mockRejectedValue(new Error('LOCAL_NATIVE_CONFIG_INVALID')),
+  } }
+  const wrapper = mount(AgentNativeConfig, { props: { kind: 'kimi' } })
+  await flushPromises()
+  await wrapper.findAll('button').find(button => button.text() === t('nativeConfig.choose')).trigger('click')
+  await flushPromises()
+  expect(wrapper.get('[role="alert"]').text()).toContain('config.toml')
+  wrapper.unmount()
+})
+
 it('selects and clears the native configuration directory', async () => {
   const api = { get: vi.fn().mockResolvedValue({ directory: '' }),
     choose: vi.fn().mockResolvedValue({ canceled: false, directory: '/native/hermes' }),

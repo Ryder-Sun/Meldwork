@@ -57,10 +57,20 @@ test('DeepSeek Harness accepts its native profiles directory and scopes DSH_HOME
   assert.deepEqual(nativeConfigEnvironment('hermes', preferences), {})
 })
 
+test('Kimi accepts a credentials-only native directory', t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-kimi-config-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  assert.throws(() => validateNativeConfigDirectory('kimi', directory), { message: 'LOCAL_NATIVE_CONFIG_INVALID' })
+  fs.mkdirSync(path.join(directory, 'credentials'))
+  const selected = validateNativeConfigDirectory('kimi', directory)
+  assert.equal(nativeConfigEnvironment('kimi', { kimi: { nativeConfigDirectory: selected } }).KIMI_CODE_HOME, selected)
+})
+
 for (const [kind, key, file] of [
   ['codex', 'CODEX_HOME', 'config.toml'],
   ['claude', 'CLAUDE_CONFIG_DIR', 'settings.json'],
   ['pi', 'PI_CODING_AGENT_DIR', 'models.json'],
+  ['kimi', 'KIMI_CODE_HOME', 'config.toml'],
   ['workbuddy', 'CODEBUDDY_CONFIG_DIR', 'models.json'],
 ]) {
   test(`${kind} uses its selected native configuration directory`, t => {

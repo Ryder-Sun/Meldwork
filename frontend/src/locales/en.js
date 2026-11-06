@@ -8,6 +8,7 @@ export default {
     'nativeConfig.expected.codex': 'Expected config.toml or auth.json.',
     'nativeConfig.expected.claude': 'Expected settings.json or .credentials.json.',
     'nativeConfig.expected.pi': 'Expected settings.json, auth.json or models.json.',
+    'nativeConfig.expected.kimi': 'Expected config.toml or a credentials directory.',
     'nativeConfig.expected.deepseek': 'Expected a profiles directory, cordis.patch.yml or .credentials.yaml.',
     'nativeConfig.expected.workbuddy': 'Expected models.json, settings.json or .credentials.json.',
     'skillTrust.title': 'Skill trust',

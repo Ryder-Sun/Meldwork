@@ -317,6 +317,33 @@ test('Skill discovery follows native shell directories and explicit selections t
   assert.equal(catalog.input.configDirectoryForKind('hermes'), selected)
 })
 
+test('Kimi native directory selection reaches detection, execution, and Skill discovery', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-kimi-config-ipc-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const native = path.join(directory, 'kimi-home')
+  fs.mkdirSync(native)
+  fs.writeFileSync(path.join(native, 'config.toml'), '')
+  let detected
+  const { harness } = loadMain(directory, {
+    dialogResult: { canceled: false, filePaths: [native] },
+    nativeShellEnvironment: () => ({ env: { KIMI_CODE_HOME: '/previous' }, source: 'native-shell' }),
+    nativeEnvironment: (_kind, env) => ({ KIMI_CODE_HOME: env.KIMI_CODE_HOME }),
+    detectAgents: input => { detected = input.nativeEnvironmentForKind('kimi'); return [] },
+  })
+  await harness.ready()
+  const workspace = harness.workspaceInstances[0]
+  workspace.state.agentPreferences = {}
+  workspace.state.agentRuntime = {}
+  workspace.activeRuns = new Map()
+  workspace.save = () => {}
+  const chosen = await harness.ipcHandlers.get('local-agent-native-config:choose')(harness.event(), 'kimi')
+  await harness.installerInstances[0].input.detectAgents()
+  assert.equal(detected.KIMI_CODE_HOME, chosen.directory)
+  await workspace.input.runAgent({ kind: 'kimi', executable: '/tmp/kimi' }, 'hello', directory, {})
+  assert.equal(harness.runAgentCalls.at(-1)[3].env.KIMI_CODE_HOME, chosen.directory)
+  assert.equal(harness.skillCatalogInstances[0].input.configDirectoryForKind('kimi'), chosen.directory)
+})
+
 test('DeepSeek native directory selection reaches detection, execution, and Skill discovery', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-dsh-config-ipc-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

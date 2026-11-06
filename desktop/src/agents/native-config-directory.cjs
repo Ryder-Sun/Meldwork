@@ -6,6 +6,7 @@ const NATIVE_CONFIG_DIRECTORIES = Object.freeze({
   codex: { key: 'CODEX_HOME', files: ['config.toml', 'auth.json'] },
   claude: { key: 'CLAUDE_CONFIG_DIR', files: ['settings.json', '.credentials.json'] },
   pi: { key: 'PI_CODING_AGENT_DIR', files: ['settings.json', 'auth.json', 'models.json'] },
+  kimi: { key: 'KIMI_CODE_HOME', files: ['config.toml'], directories: ['credentials'] },
   deepseek: { key: 'DSH_HOME', files: ['cordis.patch.yml', '.credentials.yaml'], directories: ['profiles'] },
   workbuddy: { key: 'CODEBUDDY_CONFIG_DIR', files: ['models.json', 'settings.json', '.credentials.json'] },
 })

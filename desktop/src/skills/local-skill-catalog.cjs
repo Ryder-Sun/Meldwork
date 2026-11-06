@@ -173,7 +173,8 @@ function globalRoots(kind, home, configDirectory = '', sharedDirectory = '') {
     const nativeParts = kind === 'pi' && parts[0] === '.pi' && parts[1] === 'agent'
       ? parts.slice(2)
       : (['codex', 'hermes', 'claude', 'workbuddy'].includes(kind) && parts[0] === `.${kind}`)
-        || (kind === 'deepseek' && parts[0] === '.dsh') ? parts.slice(1) : null
+        || (kind === 'deepseek' && parts[0] === '.dsh')
+        || (kind === 'kimi' && parts[0] === '.kimi-code') ? parts.slice(1) : null
     const directory = configDirectory && nativeParts
       ? path.join(configDirectory, ...nativeParts) : path.join(home, ...parts)
     return { directory, boundary: directory, namespace: 'global' }
