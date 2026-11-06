@@ -108,15 +108,21 @@ class LocalWorkspaceAutoRunner {
         rootSkillsByKind.set(kind, validated)
       }
       let storedKnowledgeBaseHints = []
-      try {
+      const requestedKnowledge = rootMessage?.knowledgeBaseHints || []
+      if (requestedKnowledge.length) {
         const validated = await this.validateKnowledgeBaseSelections(
           controller.targetKinds,
-          rootMessage?.knowledgeBaseHints || [],
+          requestedKnowledge,
         )
-        storedKnowledgeBaseHints = (Array.isArray(validated) ? validated : [])
-          .map(normalizeKnowledgeBaseHint)
-          .filter(Boolean)
-      } catch { /* unavailable knowledge bases are omitted when resuming */ }
+        if (!Array.isArray(validated) || validated.length !== requestedKnowledge.length) {
+          throw new Error('LOCAL_KNOWLEDGE_BASE_SELECTION_INVALID')
+        }
+        storedKnowledgeBaseHints = validated.map(normalizeKnowledgeBaseHint)
+        if (storedKnowledgeBaseHints.some((source, index) => {
+          const expected = normalizeKnowledgeBaseHint(requestedKnowledge[index])
+          return !source || !expected || canonicalJson(source) !== canonicalJson(expected)
+        })) throw new Error('LOCAL_KNOWLEDGE_BASE_SELECTION_INVALID')
+      }
       rootKnowledgeBasesByKind = new Map(controller.targetKinds.map(kind => [
         kind,
         storedKnowledgeBaseHints.filter(source => source.targetKinds.includes(kind)),

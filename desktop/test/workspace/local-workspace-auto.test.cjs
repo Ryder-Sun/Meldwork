@@ -3850,6 +3850,48 @@ test('legacy group recovery fails closed when a selected Skill cannot be restore
   assert.equal(runs, 1)
 })
 
+test('legacy group recovery fails closed when a selected knowledge base changes or is unavailable', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Recovered knowledge', agentKinds: ['codex'], workdir: directory })
+  const knowledge = { kind: 'dingtalk', name: 'DingTalk', accessMode: 'cli', commandName: 'dws', targetKinds: ['codex'] }
+  workspace.state.messages.push({ id: 'knowledge-root', groupId: group.id, role: 'user', knowledgeBaseHints: [knowledge] })
+  const controller = { targetKinds: ['codex'], orchestration: { version: 2 } }
+  const durable = { threadRootId: 'knowledge-root', maxRounds: 2 }
+  let runs = 0
+  workspace.autoRunner.runRounds = async (_group, _controller, _root, _max, context) => {
+    runs += 1
+    assert.deepEqual(context.rootKnowledgeBasesByKind.get('codex'), [knowledge])
+    return 'completed'
+  }
+  for (const validate of [
+    async () => { throw new Error('LOCAL_KNOWLEDGE_BASE_SELECTION_INVALID') },
+    async () => [],
+    async () => [{ ...knowledge, commandName: 'different' }],
+    async () => [{ ...knowledge, targetKinds: ['hermes'] }],
+  ]) {
+    workspace.validateKnowledgeBaseSelectionsFn = validate
+    await assert.rejects(workspace.autoRunner.resume(group, durable, controller), {
+      message: 'LOCAL_KNOWLEDGE_BASE_SELECTION_INVALID',
+    })
+    assert.equal(runs, 0)
+  }
+  const vault = { kind: 'obsidian', name: 'Obsidian', accessMode: 'vault',
+    location: path.join(directory, 'vault-a'), targetKinds: ['codex'] }
+  workspace.state.messages.at(-1).knowledgeBaseHints = [vault]
+  workspace.validateKnowledgeBaseSelectionsFn = async () => [{ ...vault, location: path.join(directory, 'vault-b') }]
+  await assert.rejects(workspace.autoRunner.resume(group, durable, controller), {
+    message: 'LOCAL_KNOWLEDGE_BASE_SELECTION_INVALID',
+  })
+  assert.equal(runs, 0)
+  workspace.state.messages.at(-1).knowledgeBaseHints = [knowledge]
+  workspace.validateKnowledgeBaseSelectionsFn = async (_targets, selections) => selections
+  assert.equal(await workspace.autoRunner.resume(group, durable, controller), 'completed')
+  assert.equal(runs, 1)
+})
+
 test('auto send rejects failed preflight without persisting a root or starting an Agent', async (t) => {
   const { directory, calls, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
