@@ -6,6 +6,7 @@ const path = require('node:path')
 const { agentRuntimeError } = require('../../src/agents/agent-runtime-contract.cjs')
 const { MAX_RUN_AGENT_ATTEMPTS } = require('../../src/runs/failure-policy.cjs')
 const { LocalWorkspace } = require('../../src/workspace/local-workspace.cjs')
+const { taskGraphMethods } = require('../../src/workspace/local-workspace-auto-runner-task-graph.cjs')
 const {
   createCollaborationReceipt,
   createOrchestrationV4,
@@ -44,6 +45,14 @@ function graphNode(overrides = {}) {
     ...overrides,
   }
 }
+
+test('task graph does not accept a truncated required conclusion', () => {
+  const node = graphNode({ acceptance: { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 } })
+  const result = { message: { content: 'Partial conclusion', trace: { status: 'completed', truncated: true } } }
+  assert.equal(taskGraphMethods.taskGraphResultAccepted(node, result), false)
+  result.message.trace.truncated = false
+  assert.equal(taskGraphMethods.taskGraphResultAccepted(node, result), true)
+})
 
 function challengeBindingInput(workspace, targetKinds, round, bodyHash = 'a'.repeat(64), runId = 'run-binding') {
   const controller = workspace.createRunController('auto', targetKinds, 'root-binding', 8, false)

@@ -101,7 +101,8 @@ const taskGraphMethods = {
     const artifactIds = result?.outcomeRefs?.artifactIds || []
     const evidenceIds = result?.outcomeRefs?.evidenceIds || []
     return result?.message?.trace?.status === 'completed'
-      && (!node.acceptance.requireConclusion || Boolean(conclusion))
+      && (!node.acceptance.requireConclusion
+        || (Boolean(conclusion) && result.message.trace.truncated !== true))
       && artifactIds.length >= node.acceptance.minArtifactRefs
       && evidenceIds.length >= node.acceptance.minEvidenceRefs
   },
