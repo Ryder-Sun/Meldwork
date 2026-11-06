@@ -529,6 +529,35 @@ test('Zcode receives only its native provider credential', async t => {
   assert.equal(harness.runAgentCalls.at(-1)[3].env.ACME_API_KEY, undefined)
 })
 
+test('Zcode execution captures the provider for its current project only', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-zcode-project-main-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const projects = ['alpha', 'beta'].map(name => {
+    const project = path.join(directory, name)
+    fs.mkdirSync(project)
+    fs.writeFileSync(path.join(project, 'zcode.json'), JSON.stringify({ model: { main: `${name}/model` } }))
+    return project
+  })
+  const readiness = require('../../src/agents/local-agent-readiness.cjs')
+  const { harness } = loadMain(directory, {
+    zcodeDeclaredCredentialKeys: readiness.zcodeDeclaredCredentialKeys,
+    nativeEnvironment: readiness.nativeCredentialEnvironment,
+    nativeShellEnvironment: input => ({ source: 'native-shell', env: Object.fromEntries(
+      (input.extraEnvKeys || []).map(key => [key, `value-${key}`]),
+    ) }),
+  })
+  await harness.ready()
+  const workspace = harness.workspaceInstances[0]
+  for (const [index, project] of projects.entries()) {
+    await workspace.input.runAgent({ kind: 'zcode', executable: '/tmp/zcode' }, 'hello', project, {})
+    const env = harness.runAgentCalls.at(-1)[3].env
+    const selected = index === 0 ? 'ALPHA_API_KEY' : 'BETA_API_KEY'
+    const other = index === 0 ? 'BETA_API_KEY' : 'ALPHA_API_KEY'
+    assert.equal(env[selected], `value-${selected}`)
+    assert.equal(env[other], undefined)
+  }
+})
+
 test('Hermes environment-selected provider is captured without a native config file', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-env-provider-main-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

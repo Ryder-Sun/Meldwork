@@ -150,6 +150,22 @@ test('Zcode captures credentials only for configured native models', async t => 
   assert.deepEqual(zcodeDeclaredCredentialKeys({ home }), [])
 })
 
+test('Zcode discovers native project model overrides and their credentials', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-zcode-project-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const project = path.join(home, 'project')
+  const child = path.join(project, 'child')
+  fs.mkdirSync(path.join(project, '.git'), { recursive: true })
+  fs.mkdirSync(path.join(child, '.zcode'), { recursive: true })
+  fs.writeFileSync(path.join(project, 'zcode.json'), JSON.stringify({ model: { main: 'root/model' } }))
+  fs.writeFileSync(path.join(child, '.zcode', 'config.json'), JSON.stringify({
+    model: { main: 'project/model' }, provider: { project: { name: 'Project service' } },
+  }))
+  assert.deepEqual(zcodeDeclaredCredentialKeys({ home, workdir: child }), ['PROJECT_API_KEY', 'PROJECT_SERVICE_API_KEY'])
+  assert.deepEqual(zcodeDeclaredCredentialKeys({ home, workdir: child, env: { ZCODE_MODEL: 'override/model' } }), ['OVERRIDE_API_KEY'])
+  assert.deepEqual(zcodeDeclaredCredentialKeys({ home, workdir: home }), [])
+})
+
 test('Hermes captures only safe credential names declared by its selected YAML config', async t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-declared-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))

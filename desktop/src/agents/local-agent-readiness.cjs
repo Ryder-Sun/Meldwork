@@ -85,7 +85,8 @@ const RUNTIME_ENV_KEYS = Object.freeze({
     'CODEBUDDY_API_KEY', 'CODEBUDDY_AUTH_TOKEN', 'CODEBUDDY_BASE_URL', 'CODEBUDDY_MODEL',
     'CODEBUDDY_CONFIG_DIR',
   ],
-  zcode: ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL', 'ZCODE_API_KEY', 'ZCODE_BASE_URL'],
+  zcode: ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL', 'ZCODE_API_KEY', 'ZCODE_BASE_URL',
+    'ZCODE_MODEL', 'ZCODE_HTTP_PROXY', 'ZCODE_NO_PROXY', 'ZCODE_AGENT_CA_CERT'],
   pi: [
     'PI_API_KEY', 'PI_BASE_URL', 'PI_MODEL',
     'OPENAI_API_KEY', 'OPENAI_BASE_URL', 'OPENAI_MODEL', 'ANTHROPIC_API_KEY',
@@ -334,13 +335,39 @@ function hermesDeclaredCredentialKeys(options = {}) {
 function zcodeDeclaredCredentialKeys(options = {}) {
   const home = options.home || os.homedir()
   try {
-    const filename = path.join(home, '.zcode', 'cli', 'config.json')
-    const stat = fs.statSync(filename)
-    if (!stat.isFile() || stat.size > 1024 * 1024) return []
-    const config = JSON.parse(fs.readFileSync(filename, 'utf8'))
-    const model = config?.model && typeof config.model === 'object' && !Array.isArray(config.model) ? config.model : {}
-    const models = [model.main, model.lite, ...(Array.isArray(model.available) ? model.available.slice(0, 32) : [])]
-    const providers = config?.provider && typeof config.provider === 'object' && !Array.isArray(config.provider) ? config.provider : {}
+    const files = [path.join(home, '.zcode', 'cli', 'config.json')]
+    if (typeof options.workdir === 'string' && path.isAbsolute(options.workdir)) {
+      const directories = []
+      let current = path.resolve(options.workdir)
+      let foundGit = false
+      for (;;) {
+        directories.push(current)
+        try { if (fs.statSync(path.join(current, '.git')).isDirectory() || fs.statSync(path.join(current, '.git')).isFile()) { foundGit = true; break } } catch {}
+        const parent = path.dirname(current)
+        if (parent === current) break
+        current = parent
+      }
+      for (const directory of (foundGit ? directories.reverse() : directories.slice(0, 1))) {
+        files.push(path.join(directory, 'zcode.json'), path.join(directory, '.zcode', 'config.json'))
+      }
+    }
+    let model = {}
+    const providers = Object.create(null)
+    for (const filename of files) {
+      let config
+      try {
+        const stat = fs.statSync(filename)
+        if (!stat.isFile() || stat.size > 1024 * 1024) continue
+        config = JSON.parse(fs.readFileSync(filename, 'utf8'))
+      } catch { continue }
+      if (config?.model && typeof config.model === 'object' && !Array.isArray(config.model)) model = { ...model, ...config.model }
+      if (config?.provider && typeof config.provider === 'object' && !Array.isArray(config.provider)) {
+        for (const [id, entry] of Object.entries(config.provider)) {
+          if (entry && typeof entry === 'object' && !Array.isArray(entry)) providers[id] = { ...providers[id], ...entry }
+        }
+      }
+    }
+    const models = [options.env?.ZCODE_MODEL || model.main, model.lite, ...(Array.isArray(model.available) ? model.available.slice(0, 32) : [])]
     const names = []
     for (const item of models) {
       const provider = typeof item === 'string' ? item.split('/')[0]
