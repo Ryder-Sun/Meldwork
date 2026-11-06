@@ -676,7 +676,8 @@ class LocalAgentConnectors {
         operationId: input.operationId,
         idempotencyKey: input.idempotencyKey,
         connectorResume: input.resume,
-        ...(input.credentialRefId ? { connectorCredentialIsolation: true } : {}),
+        ...(input.credentialRefId ? { connectorCredentialIsolation: true,
+          connectorInstanceId: input.connector.instanceId } : {}),
         ...(Object.keys(credentialEnv).length ? { env: credentialEnv } : {}),
       })
       const outcome = String(result?.outcome || 'completed')

@@ -681,8 +681,27 @@ test('Agent Connector IPC persists isolated accounts without returning Credentia
   assert.equal(harness.runAgentCalls.at(-1)[3].env.OPENAI_API_KEY, 'connector-main-secret-a')
   assert.equal(Object.hasOwn(harness.runAgentCalls.at(-1)[3].env, 'OPENAI_BASE_URL'), false)
   assert.equal(Object.hasOwn(harness.runAgentCalls.at(-1)[3].env, 'OPENAI_MODEL'), false)
-  assert.equal(Object.hasOwn(harness.runAgentCalls.at(-1)[3].env, 'XDG_CONFIG_HOME'), false)
+  const firstEnv = harness.runAgentCalls.at(-1)[3].env
+  const firstOptions = harness.runAgentCalls.at(-1)[3]
+  assert.match(firstEnv.CODEX_HOME, /connector-native/)
+  assert.equal(firstEnv.XDG_CONFIG_HOME, path.join(firstEnv.CODEX_HOME, 'config'))
+  assert.equal(fs.statSync(firstEnv.CODEX_HOME).isDirectory(), true)
   assert.equal(Object.hasOwn(harness.runAgentCalls.at(-1)[3], 'connectorCredentialIsolation'), false)
+  assert.equal(Object.hasOwn(harness.runAgentCalls.at(-1)[3], 'connectorInstanceId'), false)
+  const { childEnvironment } = require('../../src/agents/cli/cli-process-support.cjs')
+  const previousXdg = process.env.XDG_CONFIG_HOME
+  process.env.XDG_CONFIG_HOME = '/unrelated/global-profile'
+  let child
+  try {
+    child = childEnvironment({ kind: 'codex', executable: '/private/bin/codex' }, directory,
+      harness.runAgentCalls.at(-1)[3], process.platform)
+  } finally {
+    if (previousXdg === undefined) delete process.env.XDG_CONFIG_HOME
+    else process.env.XDG_CONFIG_HOME = previousXdg
+  }
+  assert.equal(child.CODEX_HOME, firstEnv.CODEX_HOME)
+  assert.equal(child.XDG_CONFIG_HOME, firstEnv.XDG_CONFIG_HOME)
+  assert.equal(child.OPENAI_API_KEY, 'connector-main-secret-a')
 
   await workspace.input.connectorRuntime.run(
     agents.find(agent => agent.kind === second.instanceId),
@@ -691,6 +710,21 @@ test('Agent Connector IPC persists isolated accounts without returning Credentia
     { runId: 'run-account-b', agentRunId: 'agent-run-account-b', sandbox: 'read-only' },
   )
   assert.equal(harness.runAgentCalls.at(-1)[3].env.OPENAI_API_KEY, 'connector-main-secret-b')
+  const secondOptions = harness.runAgentCalls.at(-1)[3]
+  assert.notEqual(secondOptions.env.CODEX_HOME, firstEnv.CODEX_HOME)
+  const { executable } = require('../support/cli-adapters-test-helpers.cjs')
+  const { runAgent } = require('../../src/agents/cli/cli-adapters.cjs')
+  const cli = executable(directory, 'connector-codex.cjs', [
+    'const path = require("node:path")',
+    'const home = process.env.CODEX_HOME',
+    'const scoped = process.env.XDG_CONFIG_HOME === path.join(home, "config")',
+    'const account = process.env.OPENAI_API_KEY === "connector-main-secret-a" ? "a" : process.env.OPENAI_API_KEY === "connector-main-secret-b" ? "b" : "other"',
+    'process.stdout.write(JSON.stringify({type:"item.completed",item:{type:"agent_message",text:`${account}:${scoped}`}}) + "\\n")',
+  ].join('\n'))
+  for (const [options, expected] of [[firstOptions, 'a:true'], [secondOptions, 'b:true']]) {
+    const result = await runAgent({ kind: 'codex', name: 'Codex', executable: cli }, 'hello', directory, options)
+    assert.equal(result.text, expected)
+  }
 
   const instanceFile = fs.readFileSync(
     path.join(directory, 'agent-connectors', 'instances.json'),
@@ -710,6 +744,13 @@ test('Agent Connector IPC persists isolated accounts without returning Credentia
     restarted.event(),
   )
   assert.deepEqual(restored.map(item => item.label), ['Codex account A', 'Codex account B'])
+  const restartedWorkspace = restarted.workspaceInstances[0]
+  const restartedAgents = await restartedWorkspace.input.detectAgents()
+  await restartedWorkspace.input.connectorRuntime.run(
+    restartedAgents.find(agent => agent.kind === first.instanceId), 'Resume account A', directory,
+    { runId: 'run-account-a-restart', agentRunId: 'agent-run-account-a-restart', sandbox: 'read-only' },
+  )
+  assert.equal(restarted.runAgentCalls.at(-1)[3].env.CODEX_HOME, firstEnv.CODEX_HOME)
   await restarted.ipcHandlers.get('local-agent-connector:delete')(
     restarted.event(), first.instanceId,
   )

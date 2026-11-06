@@ -376,9 +376,28 @@ async function validateKnowledgeBaseSelections(targetKinds, selections) {
 
 async function runCoreAgent(agent, prompt, workdir, options = {}) {
   const connectorCredentialIsolation = options.connectorCredentialIsolation === true
+  const connectorInstanceId = options.connectorInstanceId
   const runOptions = { ...options }
   delete runOptions.connectorCredentialIsolation
+  delete runOptions.connectorInstanceId
   delete runOptions.nativeCredentialKeys
+  let connectorConfigEnv = {}
+  if (connectorCredentialIsolation) {
+    if (agent.kind !== 'codex' || !/^custom-[a-f0-9]{16}$/.test(String(connectorInstanceId || ''))) {
+      throw new Error('AGENT_CONNECTOR_CREDENTIAL_ISOLATION_UNSUPPORTED')
+    }
+    const privateRoot = path.join(app.getPath('userData'), 'meldwork-private')
+    const connectorRoot = path.join(privateRoot, 'connector-native')
+    const instanceRoot = path.join(connectorRoot, connectorInstanceId)
+    for (const directory of [privateRoot, connectorRoot, instanceRoot]) ensurePrivateDirectory(directory)
+    connectorConfigEnv = { CODEX_HOME: instanceRoot }
+    for (const [key, name] of [['XDG_CONFIG_HOME', 'config'], ['XDG_DATA_HOME', 'data'],
+      ['XDG_STATE_HOME', 'state'], ['XDG_CACHE_HOME', 'cache'], ['XDG_RUNTIME_DIR', 'runtime']]) {
+      const directory = path.join(instanceRoot, name)
+      ensurePrivateDirectory(directory)
+      connectorConfigEnv[key] = directory
+    }
+  }
   const shellEnvironment = connectorCredentialIsolation ? null : await nativeShellEnvironment()
   const selectedNativeEnv = shellEnvironment
     ? nativeConfigEnvironment(agent.kind, workspace?.state.agentPreferences, shellEnvironment.env) : null
@@ -426,6 +445,7 @@ async function runCoreAgent(agent, prompt, workdir, options = {}) {
       ...nativeEnv, ...callerEnv,
       ...(connectorCredentialIsolation ? {} : nativeConfigEnvironment(agent.kind, workspace?.state.agentPreferences)),
       ...injected.env,
+      ...connectorConfigEnv,
     },
   })
 }

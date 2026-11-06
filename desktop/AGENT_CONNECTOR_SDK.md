@@ -2,6 +2,8 @@
 
 Meldwork 的 Connector 包是经校验的本地 JSON 文件。包通过内容哈希标识，导入后必须经用户批准和安装，才能配置实例。每个实例独立保存 CredentialRef；凭据由 Electron 的系统安全存储加密，Connector 列表不会返回凭据明文。
 
+使用实例凭据的 Codex 委托 Connector 在每个实例独立的私有原生配置目录中运行，不读取全局 Codex 或 XDG 配置。该目录保留会话数据，以支持实例自己的续聊。
+
 ## 当前支持范围
 
 SDK 版本为 `1.0.0`，目前提供两个内置 Provider：
