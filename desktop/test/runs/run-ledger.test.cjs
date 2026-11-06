@@ -2228,6 +2228,28 @@ test('retention evicts the oldest terminal record before active records', (t) =>
   assert.equal(new RunLedger({ storagePath, maxRuns: 3 }).get('active-last').status, 'completed')
 })
 
+test('uncertain journal compaction cannot append with a stale sequence', t => {
+  if (process.platform === 'win32') return t.skip('directory sync is not portable on Windows')
+  const { storagePath } = fixture(t)
+  const ledger = new RunLedger({ storagePath, now: () => 1000 })
+  ledger.checkpoint(runRecord('active-compaction', 'group-compaction'))
+  const originalSync = fs.fsyncSync
+  fs.fsyncSync = fd => {
+    if (fs.fstatSync(fd).isDirectory()) throw Object.assign(new Error('SYNC_FAILED'), { code: 'EIO' })
+    return originalSync(fd)
+  }
+  try {
+    assert.throws(() => ledger.journal.compact(ledger.journalBaseline(), 1001), { message: 'SYNC_FAILED' })
+  } finally { fs.fsyncSync = originalSync }
+  assert.throws(() => ledger.checkpoint(runRecord('another-run', 'group-compaction')), { message: 'RUN_LEDGER_WRITE_FAILED' })
+  const restarted = new RunLedger({ storagePath })
+  assert.equal(restarted.loadError, null)
+  assert.equal(restarted.get('active-compaction').status, 'running')
+  assert.equal(restarted.get('another-run'), null)
+  restarted.checkpoint(runRecord('another-run', 'group-compaction'))
+  assert.equal(new RunLedger({ storagePath }).get('another-run').status, 'running')
+})
+
 test('deleteGroup removes only matching records and persists the result', (t) => {
   const { storagePath } = fixture(t)
   let now = 0

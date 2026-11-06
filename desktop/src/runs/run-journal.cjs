@@ -277,10 +277,17 @@ class RunJournal {
         phase: 'commit',
       },
     ]
-    atomicWritePrivateFile(
-      this.storagePath,
-      `${entries.map(entry => JSON.stringify(entry)).join('\n')}\n`,
-    )
+    try {
+      atomicWritePrivateFile(
+        this.storagePath,
+        `${entries.map(entry => JSON.stringify(entry)).join('\n')}\n`,
+      )
+    } catch (error) {
+      // The rename may already have succeeded even when the parent sync failed.
+      // Do not append using the old sequence until the journal is reloaded.
+      this.loadError = error
+      throw error
+    }
     this.sequence = 2
     this.runs.clear()
     this.pending.clear()
