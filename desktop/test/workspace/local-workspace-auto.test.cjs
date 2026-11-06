@@ -385,7 +385,7 @@ for (const failed of [true, false]) test(`task graph waits for independent branc
   const calls = []
   options.runAgent = async agent => {
     calls.push(agent.kind)
-    return { text: `${agent.kind} response`, outcome: failed && agent.kind === 'hermes' ? 'partial' : 'completed' }
+    return { text: 'Shared conclusion', outcome: failed && agent.kind === 'hermes' ? 'partial' : 'completed' }
   }
   const workspace = new LocalWorkspace(options)
   await workspace.refreshAgents()
@@ -606,6 +606,50 @@ test('task graph runs independent branches in parallel and completes from typed 
   assert.equal(workspace.snapshot().messages.filter(message => (
     message.threadRootId === started.threadRootId && message.role === 'agent'
   )).length, 4)
+})
+
+test('a terminal reviewer cannot complete a task graph with unresolved conflicts', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const ledger = new RunLedger({ storagePath: path.join(directory, 'run-ledger.json') })
+  options.runLedger = ledger
+  options.runAgent = async agent => ({ text: agent.kind === 'codex' ? 'The release is ready.'
+    : agent.kind === 'hermes' ? 'The release is blocked.' : 'Review completed.', outcome: 'completed' })
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Unresolved review',
+    agentKinds: ['codex', 'hermes', 'workbuddy'], workdir: directory, allowWrite: false })
+  const workflow = evidenceTaskGraph()
+  workflow.nodes.pop()
+  workflow.nodes.at(-1).terminal = true
+  await workspace.sendMessage({ groupId: group.id, text: 'Assess the release.', mode: 'auto', maxRounds: 6,
+    targetKinds: group.agentKinds, workflow })
+  await workspace.activeRuns.get(group.id).promise
+  const durable = ledger.list(group.id)[0]
+  assert.ok(durable.orchestration.collaboration.entries.some(entry => entry.entryType === 'conflict'))
+  assert.notEqual(durable.status, 'completed')
+  assert.equal(durable.orchestration.taskGraph.nodeStates.find(state => state.nodeId === 'review-workbuddy').status, 'failed')
+})
+
+test('conflicting terminal primary branches cannot both complete the task graph', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const ledger = new RunLedger({ storagePath: path.join(directory, 'run-ledger.json') })
+  options.runLedger = ledger
+  options.runAgent = async agent => ({ text: agent.kind === 'codex' ? 'The release is ready.' : 'The release is blocked.', outcome: 'completed' })
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Conflicting terminal branches',
+    agentKinds: ['codex', 'hermes'], workdir: directory, allowWrite: false })
+  const workflow = { template: 'task-graph', nodes: [graphNode({ terminal: true, parallel: true }),
+    graphNode({ nodeId: 'primary-hermes', agentKind: 'hermes', terminal: true, parallel: true })] }
+  await workspace.sendMessage({ groupId: group.id, text: 'Assess the release.', mode: 'auto', maxRounds: 4,
+    targetKinds: group.agentKinds, workflow })
+  await workspace.activeRuns.get(group.id).promise
+  const durable = ledger.list(group.id)[0]
+  assert.ok(durable.orchestration.collaboration.entries.some(entry => entry.entryType === 'conflict'))
+  assert.notEqual(durable.status, 'completed')
+  assert.equal(durable.orchestration.taskGraph.nodeStates.some(state => state.status === 'failed'), true)
 })
 
 for (const failure of ['explicit failure', 'missing evidence']) test(`a task graph arbiter with ${failure} cannot resolve a conflict`, async t => {

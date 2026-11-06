@@ -147,7 +147,7 @@ const taskGraphMethods = {
     const conflicts = this.unresolvedTaskGraphConflicts(controller.orchestration.collaboration)
     const verifiedRefs = this.taskGraphVerifiedOutcomeRefs(node, result, controller)
     const verifiedResult = { ...result, outcomeRefs: verifiedRefs }
-    const accepted = this.taskGraphResultAccepted(node, result, controller, verifiedRefs)
+    let accepted = this.taskGraphResultAccepted(node, result, controller, verifiedRefs)
     const acceptedDecision = node.role === 'arbiter' && accepted
     const subject = node.role === 'primary'
       ? `task:${controller.taskId}:conclusion` : `task:${controller.taskId}:node:${node.nodeId}`
@@ -181,6 +181,10 @@ const taskGraphMethods = {
         refs: acceptedDecision ? conflicts.map(entry => entry.entryId) : [],
       },
     )
+    if (accepted && node.terminal && node.role !== 'arbiter'
+        && this.unresolvedTaskGraphConflicts(controller.orchestration.collaboration).length) {
+      accepted = false
+    }
     const { artifactIds, evidenceIds } = verifiedRefs
     let cursor = updateTaskGraphCursor(
       controller.orchestration.taskGraph,
