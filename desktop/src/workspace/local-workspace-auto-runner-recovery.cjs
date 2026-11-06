@@ -420,7 +420,8 @@ const recoveryMethods = {
         // Only explicit sign-in failures reach this point. Mark the Agent as
         // needing a fresh login; the catalog clears it on the next refresh
         // after the retry window or as soon as native credentials verify.
-        this.markRuntimeCredential(kind, 'missing', { verificationIdentity: error.verificationIdentity })
+        this.markRuntimeCredential(kind, 'missing', { verificationIdentity: error.verificationIdentity,
+          workdir: group.workdir, projectIdentity: error.projectIdentity })
         this.recordAttempt(group, controller, {
           agentKind: kind,
           phase,

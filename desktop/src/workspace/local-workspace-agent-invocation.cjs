@@ -313,7 +313,10 @@ class LocalWorkspaceAgentInvocation {
     const activeRun = this.activeRuns.get(group.id)
     const candidate = detected.find(item => item.kind === kind)
     const snapshotKey = `${group.id}:${activeRun?.runId || 'active'}:${kind}`
-    const runtimeBlocked = this.state()?.agentRuntime?.[kind]?.credentialState === 'missing'
+    const runtime = this.state()?.agentRuntime?.[kind]
+    const projectIdentity = projectVerificationIdentity(kind, group.workdir)
+    const runtimeBlocked = runtime?.credentialState === 'missing'
+      || Boolean(projectIdentity && runtime?.projectFailureIdentity === projectIdentity)
     const usable = item => item.installed !== false && item.invocable !== false
       && item.runtimePrerequisitesReady !== false && !item.runtimeBlockSource
       && item.compatibilityState !== 'incompatible' && item.credentialState !== 'missing'
@@ -331,7 +334,6 @@ class LocalWorkspaceAgentInvocation {
           : null))
     if (!agent) throw new Error('LOCAL_AGENT_UNAVAILABLE')
     const verificationIdentity = agentVerificationIdentity(agent, this.state()?.agentPreferences)
-    const projectIdentity = projectVerificationIdentity(kind, group.workdir)
     const revalidateApprovedSkills = async () => {
       if (!context.skillHints?.some(skill => skill?.approvedSkillManifest)) return
       const previous = context.skillHints
@@ -1395,13 +1397,14 @@ class LocalWorkspaceAgentInvocation {
       // provider refusals stay run-scoped so a healthy Agent remains usable.
       if (error?.code === 'LOCAL_AGENT_AUTH_REQUIRED'
           && context.deferCredentialFailure !== true) {
-        this.markRuntimeCredential(kind, 'missing', { verificationIdentity })
+        this.markRuntimeCredential(kind, 'missing', { verificationIdentity, workdir: group.workdir, projectIdentity })
       }
       // Failure and stop notices take the turn's slot in the timeline.
       attachErrorMetadata(error, {
         runTrace: finishHarness(stop.status),
         turnSeq: context.turnSeq,
         verificationIdentity,
+        projectIdentity,
       })
       throw attachInvocationFailure(error, {
         outcomeCertainty: terminalFailureKnown

@@ -86,6 +86,29 @@ for (const [kind, config] of [['zcode', 'zcode.json'], ['opencode', 'opencode.js
   })
 }
 
+test('project authentication failures clear on CLI replacement or retry refresh', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-project-failure-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  let current = { kind: 'zcode', executable: '/tmp/zcode-old', version: '1', available: true }
+  let now = '2026-08-03T00:00:00.000Z'
+  const { catalog, state } = fixture({ initialAgents: [current], detectAgents: async () => [current],
+    credentialState: async () => ({ state: 'ready', source: 'native-auth-status' }), now: () => now })
+  const fail = () => catalog.markRuntimeCredential('zcode', 'missing', {
+    verificationIdentity: agentVerificationIdentity(current), workdir: directory,
+    projectIdentity: projectVerificationIdentity('zcode', directory),
+  })
+  fail()
+  await catalog.refresh()
+  assert.ok(state.agentRuntime.zcode.projectFailureIdentity)
+  now = '2026-08-03T00:00:31.000Z'
+  await catalog.refresh()
+  assert.equal(state.agentRuntime.zcode?.projectFailureIdentity, undefined)
+  fail()
+  current = { ...current, executable: '/tmp/zcode-new', version: '2' }
+  await catalog.refresh()
+  assert.equal(state.agentRuntime.zcode?.projectFailureIdentity, undefined)
+})
+
 test('a late result from an older CLI cannot verify its replacement', () => {
   const oldAgent = { kind: 'codex', executable: '/tmp/codex-old', version: '1' }
   const current = { kind: 'codex', executable: '/tmp/codex-new', version: '2', available: false, recentlyVerified: false }

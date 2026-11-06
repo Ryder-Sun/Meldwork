@@ -14,7 +14,7 @@ const INDETERMINATE_PROBE_GRACE_MS = 10 * 60 * 1000
 const INDETERMINATE_PROBE_SOURCES = new Set(['native-probe-failed'])
 
 function expiredAuthFailure(runtime, now) {
-  if (runtime?.credentialState !== 'missing') return false
+  if (runtime?.credentialState !== 'missing' && !runtime?.projectFailureIdentity) return false
   const checkedAt = Date.parse(String(runtime.checkedAt || ''))
   const current = Date.parse(String(now || ''))
   return !Number.isFinite(checkedAt) || (Number.isFinite(current)
@@ -127,7 +127,7 @@ class LocalWorkspaceAgentCatalog {
       const nativeState = ['ready', 'missing'].includes(native?.state) ? native.state : 'unknown'
       const workBuddyUnavailable = ['workbuddy-desktop-locked', 'workbuddy-model-unavailable'].includes(native?.source)
       const authoritativeNativeState = native?.source === 'native-auth-status'
-      if (runtime?.credentialState === 'missing' && runtime.failureIdentity
+      if ((runtime?.credentialState === 'missing' || runtime?.projectFailureIdentity) && runtime.failureIdentity
           && runtime.failureIdentity !== agentVerificationIdentity(agent, state.agentPreferences)
           && runtime === runtimeAtRefreshStart.get(agent.kind)) {
         delete state.agentRuntime[agent.kind]
@@ -136,7 +136,7 @@ class LocalWorkspaceAgentCatalog {
       }
       // Give corrected native credentials a retry after the cooldown, never erase a newer failure.
       if (expiredAuthFailure(runtime, this.now())
-          && !(authoritativeNativeState && nativeState === 'ready')
+          && (runtime?.projectFailureIdentity || !(authoritativeNativeState && nativeState === 'ready'))
           && runtime === runtimeAtRefreshStart.get(agent.kind)) {
         delete state.agentRuntime[agent.kind]
         runtime = undefined
@@ -145,6 +145,7 @@ class LocalWorkspaceAgentCatalog {
       // A probe that started before a newer runtime failure cannot clear that failure.
       if (authoritativeNativeState && nativeState === 'ready'
           && ['missing', 'unknown'].includes(runtime?.credentialState)
+          && !runtime?.projectFailureIdentity
           && runtime === runtimeAtRefreshStart.get(agent.kind)) {
         runtime = {
           credentialState: 'ready',
@@ -286,34 +287,37 @@ class LocalWorkspaceAgentCatalog {
     if (verificationIdentity && (!agent || verificationIdentity !== agentVerificationIdentity(agent, state.agentPreferences))) return
     if (projectIdentity !== undefined && projectIdentity !== projectVerificationIdentity(kind, workdir)) return
     const identity = verificationIdentity || agentVerificationIdentity(agent, state.agentPreferences)
+    const projectFailure = credentialState === 'missing' && typeof projectIdentity === 'string' && Boolean(projectIdentity)
+    const effectiveState = projectFailure ? 'unknown' : credentialState
     state.agentRuntime[kind] = {
-      credentialState,
+      credentialState: effectiveState,
       checkedAt: this.now(),
+      ...(projectFailure ? { projectFailureIdentity: projectIdentity } : {}),
       ...(credentialState === 'missing' && verificationIdentity ? { failureIdentity: verificationIdentity } : {}),
       ...(credentialState === 'ready' && verifiedRun && identity
         ? { verificationSource: 'successful-run', verificationIdentity: identity,
           ...(projectIdentity ? { projectVerificationIdentity: projectIdentity } : {}) } : {}),
     }
     if (credentialState === 'ready') this.indeterminateSince.delete(kind)
-    if (agent && !(credentialState === 'unknown' && agent.authenticated === true)) {
-      agent.credentialState = credentialState
+    if (agent && !(effectiveState === 'unknown' && agent.authenticated === true)) {
+      agent.credentialState = effectiveState
       agent.versionIdentified = agentVersionIdentified(agent)
       agent.compatible = agentCompatible(agent)
-      agent.configured = credentialState !== 'unknown'
-      agent.authenticated = credentialState === 'ready'
-      agent.invocable = agentInvocable({ ...agent, canAttempt: credentialState === 'unknown' && agent.available === true,
+      agent.configured = effectiveState !== 'unknown'
+      agent.authenticated = effectiveState === 'ready'
+      agent.invocable = agentInvocable({ ...agent, canAttempt: effectiveState === 'unknown' && agent.available === true,
         unavailable: Boolean(agent.runtimeBlockSource) })
       agent.recentlyVerified = this.isRecentlyVerified(kind)
       agent.available = agent.invocable
       agent.availabilitySource = !agent.compatible
         ? 'incompatible'
-        : credentialState === 'missing'
+        : effectiveState === 'missing'
           ? 'runtime-auth-failure'
           : agent.runtimeBlockSource
             ? agent.runtimeBlockSource
           : agent.runtimePrerequisitesReady === false
             ? agent.runtimePrerequisitesSource || 'native-runtime-unavailable'
-            : credentialState === 'ready' ? (agent.recentlyVerified ? 'verified-run' : 'native-credential') : 'unverified'
+            : effectiveState === 'ready' ? (agent.recentlyVerified ? 'verified-run' : 'native-credential') : 'unverified'
       const preferred = state.agentPreferences[kind]?.showInSidebar
       agent.showInSidebar = sidebarVisible(agent, preferred)
     }
@@ -325,7 +329,7 @@ class LocalWorkspaceAgentCatalog {
     const state = this.state()
     let changed = false
     for (const [kind, runtime] of Object.entries(state.agentRuntime)) {
-      if (runtime?.credentialState !== 'missing') continue
+      if (runtime?.credentialState !== 'missing' && !runtime?.projectFailureIdentity) continue
       delete state.agentRuntime[kind]
       changed = true
     }
