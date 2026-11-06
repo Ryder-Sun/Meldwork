@@ -699,6 +699,26 @@ test('OpenRouter credentials loaded from the native shell mark Hermes ready', as
   assert.deepEqual(result, { state: 'ready', source: 'native-shell' })
 })
 
+test('Hermes environment readiness follows its selected native provider', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-selected-provider-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const root = path.join(home, '.hermes')
+  fs.mkdirSync(root)
+  const filename = path.join(root, 'config.yaml')
+  fs.writeFileSync(filename, 'model:\n  provider: openrouter\n  key_env: ROUTER_SECRET\n')
+  const env = { OPENAI_API_KEY: 'other-account' }
+  assert.deepEqual(nativeCredentialState('hermes', { home, env }), { state: 'unknown', source: 'unverified' })
+  assert.deepEqual(nativeCredentialState('hermes', { home, env: { ...env, ROUTER_SECRET: 'selected' } }),
+    { state: 'ready', source: 'native-credential' })
+  assert.deepEqual(nativeCredentialState('hermes', { home, env: { ...env, OPENROUTER_API_KEY: 'selected' } }),
+    { state: 'ready', source: 'native-credential' })
+  fs.writeFileSync(filename, 'model:\n  provider: openrouter\nfallback_providers:\n  - provider: openai\n')
+  assert.equal(nativeCredentialState('hermes', { home, env }).state, 'ready')
+  fs.rmSync(filename)
+  assert.deepEqual(nativeCredentialState('hermes', { home, env: { ...env, HERMES_INFERENCE_PROVIDER: 'anthropic' } }),
+    { state: 'unknown', source: 'unverified' })
+})
+
 test('WorkBuddy readiness requires a selected model and never exposes configured keys', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-workbuddy-readiness-'))
   const secret = 'workbuddy-secret-value'

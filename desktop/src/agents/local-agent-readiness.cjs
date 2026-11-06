@@ -414,6 +414,22 @@ function codexDeclaredCredentialKeys(options = {}) {
   return nativeSecretEnvKeys([codexProviderCredentialKey(options)])
 }
 
+function hermesSelectedEnvironmentKeys(root, env) {
+  try {
+    const content = readCredentialFile(path.join(root, 'config.yaml'))
+    const config = content ? yaml.load(content) : {}
+    if (!config || typeof config !== 'object' || Array.isArray(config)) return null
+    if ([config.fallback_providers, config.fallback_model].some(value =>
+      Array.isArray(value) ? value.length > 0 : value && typeof value === 'object')) return null
+    const model = config.model && typeof config.model === 'object' && !Array.isArray(config.model) ? config.model : {}
+    const provider = String(model.provider || env.HERMES_INFERENCE_PROVIDER || '').trim().toLowerCase()
+    const canonical = { openai: 'OPENAI_API_KEY', openrouter: 'OPENROUTER_API_KEY', anthropic: 'ANTHROPIC_API_KEY' }
+    if (!Object.hasOwn(canonical, provider)) return null
+    return nativeSecretEnvKeys([canonical[provider], model.key_env, model.api_key_env,
+      config.providers?.[provider]?.key_env, config.providers?.[provider]?.api_key_env])
+  } catch { return null }
+}
+
 function nativeCredentialEnvironment(kind, env = process.env, declaredKeys = []) {
   const result = {}
   const keys = [...(RUNTIME_ENV_KEYS[kind] || []), ...(kind === 'claude'
@@ -626,7 +642,12 @@ function nativeCredentialState(kind, options = {}) {
     }
   }
   const piProvider = kind === 'pi' ? piDefaultProvider(piHome) : ''
-  const credentialEnv = nativeCredentialKeyEnvironment(kind, env)
+  let credentialEnv = nativeCredentialKeyEnvironment(kind, env)
+  if (kind === 'hermes') {
+    const keys = hermesSelectedEnvironmentKeys(hermesHome, env)
+    if (keys) credentialEnv = Object.fromEntries(keys.filter(key => typeof env[key] === 'string' && env[key].trim())
+      .map(key => [key, env[key]]))
+  }
   const selectedPiKey = Object.hasOwn(PI_PROVIDER_CREDENTIAL_KEYS, piProvider) ? PI_PROVIDER_CREDENTIAL_KEYS[piProvider] : ''
   const hasCredentialEnv = kind !== 'pi' || piProvider === ''
     ? Object.keys(credentialEnv).length > 0
