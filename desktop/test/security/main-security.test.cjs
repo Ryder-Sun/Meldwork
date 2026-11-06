@@ -226,7 +226,7 @@ test('Hermes selected config captures only its declared native credential for ex
   assert.equal(options.env.CUSTOM_CREDENTIAL, 'synthetic-secret')
   assert.equal(options.env.FALLBACK_CREDENTIAL, 'synthetic-backup')
   assert.equal(options.env.UNRELATED_SECRET, undefined)
-  assert.deepEqual(options.nativeCredentialKeys, ['CUSTOM_CREDENTIAL', 'FALLBACK_CREDENTIAL'])
+  assert.deepEqual(options.nativeCredentialKeys, ['ALTERNATE_API_KEY', 'CUSTOM_CREDENTIAL', 'FALLBACK_CREDENTIAL'])
   await harness.workspaceInstances[0].input.runAgent({ kind: 'codex', executable: '/tmp/codex' }, 'hello', directory, {})
   assert.equal(harness.runAgentCalls.at(-1)[3].env.CUSTOM_CREDENTIAL, undefined)
   assert.equal(harness.runAgentCalls.at(-1)[3].env.FALLBACK_CREDENTIAL, undefined)

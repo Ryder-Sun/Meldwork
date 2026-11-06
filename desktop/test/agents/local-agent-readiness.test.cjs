@@ -47,7 +47,7 @@ test('Hermes captures only safe credential names declared by its selected YAML c
     '  - name: lower', '    key_env: lower_secret',
   ].join('\n'))
   const keys = hermesDeclaredCredentialKeys({ home, env: { HERMES_HOME: selected } })
-  assert.deepEqual(keys, ['CUSTOM_CREDENTIAL', 'SECOND_VALUE', 'lower_secret'])
+  assert.deepEqual(keys, ['ANOTHER_API_KEY', 'CUSTOM_CREDENTIAL', 'SECOND_VALUE', 'lower_secret'])
   assert.deepEqual(hermesDeclaredCredentialKeys({ home, env: {} }), [])
   const result = await resolveNativeShellEnvironment({ cache: false, platform: 'win32', extraEnvKeys: keys,
     env: { Custom_Credential: 'test-private', SECOND_VALUE: 'other-private', LOWER_SECRET: 'lower-private', UNRELATED_SECRET: 'not-shared' } })
@@ -84,11 +84,11 @@ test('Hermes declared credentials follow selected and fallback providers, includ
     'fallback_model:', '  - provider: "custom:second"', '    model: fallback', '    key_env: FALLBACK_KEY',
   ].join('\n')
   fs.writeFileSync(file, config)
-  assert.deepEqual(hermesDeclaredCredentialKeys({ home, env: {} }), ['FALLBACK_KEY', 'FIRST_KEY', 'SECOND_KEY'])
+  assert.deepEqual(hermesDeclaredCredentialKeys({ home, env: {} }), ['FALLBACK_KEY', 'FIRST_API_KEY', 'FIRST_KEY', 'SECOND_KEY'])
   fs.writeFileSync(file, config.replace('provider: first', 'provider: auto'))
   assert.deepEqual(hermesDeclaredCredentialKeys({ home, env: {} }), ['FALLBACK_KEY', 'FIRST_KEY', 'SECOND_KEY'])
   fs.writeFileSync(file, config.replace('provider: first', 'provider: absent').replace('  - provider: "custom:second"', '  - provider: absent'))
-  assert.deepEqual(hermesDeclaredCredentialKeys({ home, env: {} }), ['FALLBACK_KEY'])
+  assert.deepEqual(hermesDeclaredCredentialKeys({ home, env: {} }), ['ABSENT_API_KEY', 'FALLBACK_KEY'])
 })
 
 test('Hermes captures credentials for the native fallback provider chain and legacy fallback', async t => {
@@ -105,7 +105,7 @@ test('Hermes captures credentials for the native fallback provider chain and leg
     '  unused:', '    key_env: UNRELATED_SECRET',
   ].join('\n'))
   const keys = hermesDeclaredCredentialKeys({ home, env: {} })
-  assert.deepEqual(keys, ['ALTERNATE_KEY', 'BACKUP_KEY', 'LEGACY_KEY', 'MAIN_KEY'])
+  assert.deepEqual(keys, ['ALTERNATE_API_KEY', 'ALTERNATE_KEY', 'BACKUP_KEY', 'LEGACY_API_KEY', 'LEGACY_KEY', 'MAIN_API_KEY', 'MAIN_KEY'])
   const captured = await resolveNativeShellEnvironment({ cache: false, platform: 'win32', extraEnvKeys: keys,
     env: { BACKUP_KEY: 'backup-private', ALTERNATE_KEY: 'alternate-private',
       LEGACY_KEY: 'legacy-private', UNRELATED_SECRET: 'not-shared' } })
@@ -113,6 +113,19 @@ test('Hermes captures credentials for the native fallback provider chain and leg
     ALTERNATE_KEY: 'alternate-private', BACKUP_KEY: 'backup-private', LEGACY_KEY: 'legacy-private',
   })
   assert.equal(captured.env.UNRELATED_SECRET, undefined)
+})
+
+test('Hermes receives the selected native provider key without an endpoint override', async t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-native-provider-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const root = path.join(home, '.hermes'); fs.mkdirSync(root)
+  fs.writeFileSync(path.join(root, 'config.yaml'), 'model:\n  provider: north-star\n  default: native-model\n')
+  const keys = hermesDeclaredCredentialKeys({ home, env: {} })
+  const captured = await resolveNativeShellEnvironment({ cache: false, platform: 'win32', extraEnvKeys: keys,
+    env: { NORTH_STAR_API_KEY: 'native-private', OTHER_API_KEY: 'unrelated' } })
+  assert.deepEqual(keys, ['NORTH_STAR_API_KEY'])
+  assert.deepEqual(nativeCredentialEnvironment('hermes', captured.env, keys), { NORTH_STAR_API_KEY: 'native-private' })
+  assert.equal(captured.env.OTHER_API_KEY, undefined)
 })
 
 test('native environment cache observes credential and proxy changes without a PATH change', async () => {

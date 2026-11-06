@@ -216,6 +216,9 @@ function hermesDeclaredCredentialKeys(options = {}) {
     const nestedModel = model.default && typeof model.default === 'object' ? model.default : {}
     const currentProvider = String(model.provider || nestedModel.provider || env.HERMES_INFERENCE_PROVIDER || 'auto').trim().toLowerCase()
     const references = [currentProvider, ...fallbacks.map(entry => String(entry.provider || '').trim().toLowerCase())].filter(Boolean)
+    const providerKeys = references.filter(name => /^[a-z][a-z0-9_-]*$/.test(name)
+      && !['auto', 'custom'].includes(name))
+      .map(name => `${name.replace(/[-]+/g, '_').toUpperCase()}_API_KEY`)
     const allCandidates = references.includes('auto') || (currentProvider === 'custom' && !model.base_url)
       || fallbacks.some(entry => String(entry.provider || '').trim().toLowerCase() === 'custom' && !entry.base_url)
     const endpoints = [model, ...fallbacks].map(entry => String(entry.base_url || '').trim().replace(/\/+$/, '')).filter(Boolean)
@@ -239,9 +242,9 @@ function hermesDeclaredCredentialKeys(options = {}) {
       ? Object.entries(config.providers).slice(0, 256).filter(([key, value]) => matches(value, key)).map(([, value]) => value) : []
     const custom = Array.isArray(config.custom_providers) ? config.custom_providers.slice(0, 256).filter(entry => matches(entry)) : []
     const entries = [model, ...fallbacks, ...providers, ...custom]
-    return nativeSecretEnvKeys(entries.flatMap(entry => (
+    return nativeSecretEnvKeys([...entries.flatMap(entry => (
       entry && typeof entry === 'object' && !Array.isArray(entry) ? [entry.key_env, entry.api_key_env] : []
-    )))
+    )), ...providerKeys])
   } catch { return [] }
 }
 
