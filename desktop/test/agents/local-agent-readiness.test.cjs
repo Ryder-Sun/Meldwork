@@ -1588,6 +1588,23 @@ test('native cloud configuration is forwarded only to compatible Agents', () => 
   assert.deepEqual(nativeCredentialEnvironment('codex', cloud), {})
 })
 
+test('Gemini retains its native Vertex AI selection from the shell through execution', async () => {
+  const execFile = require('node:util').promisify(require('node:child_process').execFile)
+  const result = await resolveNativeShellEnvironment({
+    cache: false, platform: 'darwin', shell: '/bin/sh', env: {},
+    execFileFn: (command, args, options) => execFile(command, ['-c', [
+      'export GOOGLE_GENAI_USE_VERTEXAI=true', 'export GOOGLE_API_KEY=synthetic-key', args[1],
+    ].join('\n')], options),
+  })
+  assert.equal(result.source, 'native-shell')
+  const native = nativeCredentialEnvironment('gemini', result.env)
+  assert.deepEqual(native, { GOOGLE_API_KEY: 'synthetic-key', GOOGLE_GENAI_USE_VERTEXAI: 'true' })
+  const execution = childEnvironment({ kind: 'gemini' }, '/tmp/workspace', { env: native }, 'darwin')
+  assert.equal(execution.GOOGLE_GENAI_USE_VERTEXAI, 'true')
+  assert.equal(execution.GOOGLE_API_KEY, 'synthetic-key')
+  assert.deepEqual(nativeCredentialEnvironment('codex', result.env), {})
+})
+
 test('AWS SDK options survive shell discovery and are shared by cloud Agent probes and execution', async () => {
   const cloud = {
     AWS_SDK_LOAD_CONFIG: '1', AWS_EC2_METADATA_DISABLED: 'true',
