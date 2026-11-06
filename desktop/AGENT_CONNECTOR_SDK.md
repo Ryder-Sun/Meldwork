@@ -54,4 +54,4 @@ NODE
 npm --prefix desktop run connector:conformance
 ```
 
-该命令运行 Manifest、注册表、运行时、实例、安装包和 SDK 的项目测试，包括非委托的本地回展示例。它验证当前内置 Provider 的行为，不代表第三方服务已经通过独立认证。
+该命令运行 Manifest、注册表、运行时、实例、安装包、SDK、实际 Connector 接线和主进程安全测试，包括非委托的本地回展示例、多账号凭据隔离以及渲染进程边界。它验证当前内置 Provider 的行为，不代表第三方服务已经通过独立认证。
