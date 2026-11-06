@@ -147,6 +147,8 @@ function validateGraphRelations(graph, targetKinds = null) {
 function createTaskGraph(input, targetKinds = null) {
   const parsed = graphInputSchema.safeParse(input)
   if (!parsed.success) fail('TASK_GRAPH_SCHEMA_INVALID')
+  if (parsed.data.nodes.some(node => new Set(node.decisionOptions.map(option => option.optionId)).size
+      !== node.decisionOptions.length)) fail('TASK_GRAPH_SCHEMA_INVALID')
   const body = {
     version: TASK_GRAPH_VERSION,
     recordType: 'task-graph',

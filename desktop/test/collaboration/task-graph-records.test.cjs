@@ -183,6 +183,15 @@ test('rejects cycles, unknown Agents, malformed Human decisions, and tampering',
       decisionOptions: [{ optionId: 'accept', name: 'Accept', kind: 'allow_once' }],
     })],
   }), { message: 'TASK_GRAPH_SCHEMA_INVALID' })
+  assert.throws(() => createTaskGraph({
+    template: 'task-graph',
+    nodes: [node({
+      nodeId: 'human', role: 'human', agentKind: null, terminal: true, parallel: false,
+      acceptance: { requireConclusion: false, minArtifactRefs: 0, minEvidenceRefs: 0 },
+      decisionOptions: [{ optionId: 'same', name: 'Accept', kind: 'allow_once' },
+        { optionId: 'same', name: 'Reject', kind: 'reject_once' }],
+    })],
+  }), { message: 'TASK_GRAPH_SCHEMA_INVALID' })
 
   const graph = createTaskGraph(workflow())
   assert.throws(() => parseTaskGraph({ ...graph, graphId: `task-graph-${'0'.repeat(64)}` }), {
