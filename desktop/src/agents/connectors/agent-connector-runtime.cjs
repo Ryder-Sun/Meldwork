@@ -17,6 +17,9 @@ const MAX_INPUT_RESPONSE_BYTES = 128 * 1024
 // Keep this aligned with the workspace message attachment limit.
 const MAX_ATTACHMENTS = 32
 const OUTBOUND_TRANSPORTS = new Set(['http', 'a2a'])
+const ABORTABLE_TRANSPORT_RECIPES = new Set([
+  SDK_HTTP_JSON_RECIPE_ID, 'external.cloud-agent-bridge', 'external.cloud-agent-ssh',
+])
 
 function runtimeError(code) {
   const error = new Error(code)
@@ -487,7 +490,7 @@ class AgentConnectorRuntime {
       sessionRef,
       attachments,
       signal: connector.capabilities.session.cancel ? options.signal : undefined,
-      transportSignal: execution.recipeId === SDK_HTTP_JSON_RECIPE_ID ? options.signal : undefined,
+      transportSignal: ABORTABLE_TRANSPORT_RECIPES.has(execution.recipeId) ? options.signal : undefined,
       onActivity: options.onActivity,
       emit,
       onProgress: this.trustedLegacyEventRecipes.has(execution.recipeId) ? options.onProgress : undefined,

@@ -915,10 +915,11 @@ class LocalAgentConnectors {
         permissionMode: 'read-only',
         operationId: input.operationId,
         resume: input.resume,
-        signal: input.signal,
+        signal: input.transportSignal,
         onActivity: input.onActivity,
         onOutboundPayload: input.onOutboundPayload,
       })
+      if (input.transportSignal?.aborted) fail('CLOUD_AGENT_BRIDGE_TRANSPORT_ABORTED')
       if (!result || typeof result !== 'object' || Array.isArray(result)
           || typeof result.text !== 'string' || result.text.includes('\u0000')
           || (result.sessionRef !== undefined
@@ -943,9 +944,10 @@ class LocalAgentConnectors {
         outcome: result.outcome || 'completed',
       }
     } catch (error) {
-      if (input.signal?.aborted || error?.name === 'AbortError') {
-        input.emit({ ...terminal, type: 'Cancelled', reason: 'user' })
-        return { outcome: 'cancelled', sessionRef: input.sessionRef || '' }
+      if (input.transportSignal?.aborted || error?.name === 'AbortError') {
+        const failure = { code: 'CLOUD_AGENT_BRIDGE_TRANSPORT_ABORTED', category: 'unknown', retryable: false }
+        input.emit({ ...terminal, type: 'Failed', ...failure })
+        return { outcome: 'failed', failure }
       }
       const failure = failureDetails(error)
       input.emit({ ...terminal, type: 'Failed', ...failure })

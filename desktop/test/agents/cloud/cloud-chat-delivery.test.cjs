@@ -68,3 +68,44 @@ for (const transport of ['bridge', 'ssh-tunnel', 'ssh']) {
     assert.equal(sent, '')
   })
 }
+
+for (const cancel of [false, true]) test(`cloud HTTP stop aborts the actual transport without asserting remote cancellation (cancel=${cancel})`, async t => {
+  const { directory } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  let started
+  const ready = new Promise(resolve => { started = resolve })
+  let transportAborted = false
+  const store = new CloudAgentBridgeStore({
+    storagePath: path.join(directory, 'bridges.json'),
+    fetch: (_url, request) => new Promise((_resolve, reject) => {
+      request.signal.addEventListener('abort', () => {
+        transportAborted = true
+        reject(Object.assign(new Error('aborted'), { name: 'AbortError' }))
+      }, { once: true })
+      started()
+    }),
+  })
+  const record = store.normalizeRecord({
+    bridgeId: 'cloud-bridge-0123456789abcdef01234567', address: 'https://203.0.113.10:8443',
+    label: 'Cloud', available: true, agents: [{ id: 'codex', sourceKind: 'codex', label: 'Codex',
+      version: '1.0.0', available: true, domains: ['general'],
+      session: { supported: true, resume: true, cancel, checkpoint: false } }],
+  })
+  store.records = [record]
+  const connectors = new LocalAgentConnectors({
+    manifestDirectory: path.join(directory, 'manifests'), cloudBridges: store,
+    instanceStore: new AgentConnectorInstanceStore({ instanceStoragePath: path.join(directory, 'instances.json'),
+      credentialStoragePath: path.join(directory, 'credentials.json'),
+      safeStorage: { isEncryptionAvailable: () => true, encryptString: Buffer.from, decryptString: value => value.toString() } }),
+    runAgent: async () => { throw new Error('unexpected local execution') },
+  })
+  const [agent] = connectors.refresh([])
+  const controller = new AbortController()
+  const pending = connectors.run(agent, 'cloud task', directory, { runId: 'cloud-stop', agentRunId: 'cloud-stop-agent',
+    operationId: 'cloud-stop-operation', sandbox: 'read-only', signal: controller.signal })
+  await ready
+  controller.abort()
+  const result = await pending
+  assert.equal(transportAborted, true)
+  assert.deepEqual(result.failure, { code: 'CLOUD_AGENT_BRIDGE_TRANSPORT_ABORTED', category: 'unknown', retryable: false })
+})

@@ -190,6 +190,45 @@ test('discovers and runs an Agent exposed by a Cloud Agent Bridge', async (t) =>
   assert.equal(cloudRunInput, null)
 })
 
+for (const transport of ['bridge', 'ssh-tunnel', 'ssh']) {
+  for (const cancel of [false, true]) test(`${transport} transport stop does not claim remote cancellation (cancel=${cancel})`, async t => {
+    const record = { bridgeId: 'cloud-bridge-0123456789abcdef01234567', transport,
+      address: transport === 'bridge' ? 'https://203.0.113.10:8443' : '10.1.132.21',
+      label: 'Server', available: true }
+    const agent = { id: 'codex', sourceKind: 'codex', label: 'Codex', version: '1.0.0',
+      domains: ['general'], inputTypes: ['text'], permissionModes: ['read-only'],
+      session: { supported: true, resume: true, cancel, checkpoint: false } }
+    const manifest = manifestFor(record, agent)
+    const entry = { record, agent, manifest, instance: {
+      instanceId: manifest.connectorId, connectorId: manifest.connectorId,
+      connectorVersion: manifest.connectorVersion, upstreamVersion: '1.0.0',
+      label: manifest.label, credentialRef: null, manifestId: manifest.manifestId,
+      bridgeId: record.bridgeId, agentId: agent.id,
+    } }
+    let started
+    const ready = new Promise(resolve => { started = resolve })
+    const { connectors } = fixture(t, { cloudBridges: {
+      connectorEntries: () => [entry], bridgeForInstance: () => entry,
+      run: input => new Promise(resolve => {
+        input.signal.addEventListener('abort', () => resolve({ text: 'late reply', outcome: 'completed' }), { once: true })
+        started()
+      }),
+    } })
+    const [detected] = connectors.refresh([])
+    const controller = new AbortController()
+    const pending = connectors.run(detected, 'hello', '/tmp/workspace', {
+      runId: 'run-cloud-stop', agentRunId: 'agent-cloud-stop', operationId: 'operation-cloud-stop',
+      sandbox: 'read-only', signal: controller.signal,
+    })
+    await ready
+    controller.abort()
+    const result = await pending
+    assert.equal(result.outcome, 'failed')
+    assert.deepEqual(result.failure, { code: 'CLOUD_AGENT_BRIDGE_TRANSPORT_ABORTED', category: 'unknown', retryable: false })
+    assert.deepEqual(result.connectorEventState.events.map(event => event.type), ['Failed'])
+  })
+}
+
 test('runs a Codex Agent discovered through SSH without declaring an HTTP outbound destination', async (t) => {
   const record = {
     bridgeId: 'cloud-bridge-0123456789abcdef01234567',
