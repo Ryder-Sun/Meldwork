@@ -221,6 +221,26 @@ test('automatic routing respects permissions and capability requirements', () =>
   )
 })
 
+for (const writer of [
+  agent('codex', { recentlyVerified: false }),
+  agent('codex', { available: false, invocable: false }),
+]) test(`automatic routing ignores ${writer.available ? 'unverified' : 'unavailable'} writers when choosing permissions`, () => {
+  const reader = agent('custom-aaaaaaaaaaaaaaaa', { routingCapabilities: {
+    domains: ['general'], inputTypes: ['text'], outputTypes: ['text'], toolClasses: ['agent-native'],
+    permissionModes: ['read-only'], latencyBand: 'low', costBand: 'low',
+    contextLimitChars: 20000, resumable: false,
+  } })
+  const router = new AgentRouter()
+  const input = { routingMode: 'automatic', targetKinds: [] }
+  const args = request({ agents: [reader, writer],
+    group: { id: 'group-routing', agentKinds: [reader.kind, writer.kind], allowWrite: true }, input })
+  const result = router.route(args)
+  assert.deepEqual(result.selectedKinds, [reader.kind])
+  assert.equal(result.requirements.permissionMode, 'read-only')
+  assert.throws(() => router.route({ ...args, input: { ...input, routingRequirements: { permissionMode: 'workspace-write' } } }),
+    { code: 'LOCAL_AGENT_ROUTING_REQUIREMENTS_INVALID' })
+})
+
 test('frozen Eval Harness evidence influences routing without static brand preference', () => {
   const router = new AgentRouter({
     fitMatrix: {

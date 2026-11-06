@@ -575,6 +575,27 @@ test('automatic routing waits for an explicit successful first run', async t => 
     targetKinds: [], routingMode: 'automatic' }), { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
 })
 
+test('automatic routing starts the verified read-only Agent when the only writer is unverified', async t => {
+  const { directory, calls, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  options.detectAgents = async () => [
+    { kind: 'codex', name: 'Codex', executable: '/tmp/codex', version: '1' },
+    { kind: 'hermes', name: 'Hermes', executable: '/tmp/hermes', version: '2', routingCapabilities: {
+      domains: ['general'], inputTypes: ['text'], outputTypes: ['text'], toolClasses: ['agent-native'],
+      permissionModes: ['read-only'], latencyBand: 'low', costBand: 'low', contextLimitChars: 20000, resumable: false,
+    } },
+  ]
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  workspace.markRuntimeCredential('hermes', 'ready')
+  const group = workspace.createGroup({ name: 'Read-only candidate', agentKinds: ['codex', 'hermes'],
+    workdir: directory, allowWrite: true })
+  await workspace.sendMessage({ groupId: group.id, text: 'Choose an Agent', targetKinds: [], routingMode: 'automatic' })
+  assert.deepEqual(calls.map(call => call.agent.kind), ['hermes'])
+  assert.equal(calls[0].runOptions.sandbox, 'read-only')
+  assert.equal(workspace.snapshot().messages.find(message => message.role === 'user').routingDecision.requirements.permissionMode, 'read-only')
+})
+
 test('a successful authentication probe does not count as a successful Agent run', async t => {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

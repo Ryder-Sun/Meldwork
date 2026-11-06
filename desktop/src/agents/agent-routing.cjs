@@ -343,12 +343,15 @@ class AgentRouter {
       && explicitTargets.every(kind => isCodeReviewAgentKind(kind))
     const detected = new Map((Array.isArray(agents) ? agents : []).map(agent => [agent.kind, agent]))
     const permissionTargets = effectiveMode === 'explicit' ? explicitTargets : approvedKinds
-    const targetWriteSupport = permissionTargets.map((kind) => (
-      agentRuntimeCapabilities(kind, {
+    const targetWriteSupport = permissionTargets.map((kind) => {
+      const candidate = detected.get(kind)
+      return (effectiveMode === 'explicit' || (candidate
+        && (candidate.invocable ?? candidate.available) && this.isRecentlyVerified(candidate)))
+      && agentRuntimeCapabilities(kind, {
         agent: detected.get(kind),
         attachmentSupport: this.attachmentSupport(kind),
       }).permissionModes.includes('workspace-write')
-    ))
+    })
     const writePermissionCompatible = effectiveMode === 'explicit'
       ? targetWriteSupport.every(Boolean)
       : targetWriteSupport.some(Boolean)
