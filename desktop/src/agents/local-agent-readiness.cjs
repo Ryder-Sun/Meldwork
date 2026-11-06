@@ -64,7 +64,7 @@ const RUNTIME_ENV_KEYS = Object.freeze({
   hermes: [
     'OPENAI_API_KEY', 'OPENROUTER_API_KEY', 'ANTHROPIC_API_KEY',
     'OPENAI_BASE_URL', 'OPENAI_MODEL', 'HERMES_INFERENCE_PROVIDER', 'HERMES_INFERENCE_MODEL',
-    'HERMES_HOME',
+    'HERMES_HOME', 'HERMES_DATA_DIR_SUFFIX',
   ],
   openclaw: ['OPENAI_API_KEY', 'OPENROUTER_API_KEY'],
   workbuddy: [
@@ -350,7 +350,12 @@ function nativeCredentialState(kind, options = {}) {
   const env = options.env || process.env
   const codexHome = env.CODEX_HOME || path.join(home, '.codex')
   const claudeHome = env.CLAUDE_CONFIG_DIR || path.join(home, '.claude')
-  const piHome = env.PI_CODING_AGENT_DIR || path.join(home, '.pi', 'agent')
+  const expandHome = value => String(value).replace(/^~(?=$|[\\/])/, home)
+  const piHome = env.PI_CODING_AGENT_DIR ? expandHome(env.PI_CODING_AGENT_DIR) : path.join(home, '.pi', 'agent')
+  const hermesHome = env.HERMES_HOME ? expandHome(env.HERMES_HOME)
+    : (options.platform || process.platform) === 'win32'
+      ? path.join(env.LOCALAPPDATA || path.join(home, 'AppData', 'Local'), `hermes${env.HERMES_DATA_DIR_SUFFIX || ''}`)
+      : path.join(home, `.hermes${env.HERMES_DATA_DIR_SUFFIX || ''}`)
   if (Object.keys(nativeCredentialKeyEnvironment(kind, env)).length) {
     return {
       state: 'ready',
@@ -361,15 +366,17 @@ function nativeCredentialState(kind, options = {}) {
   const jsonFiles = {
     zcode: [path.join(home, '.zcode', 'cli', 'config.json')],
     codex: [path.join(codexHome, 'auth.json'), path.join(codexHome, 'config.json')],
-    hermes: [path.join(home, '.hermes', 'auth.json'), path.join(home, '.hermes', 'config.json')],
+    hermes: [path.join(hermesHome, 'auth.json'), path.join(hermesHome, 'config.json')],
     openclaw: [path.join(home, '.openclaw', 'openclaw.json')],
     pi: [
       path.join(piHome, 'auth.json'),
       path.join(piHome, 'models.json'),
-      path.join(home, '.pi', 'auth.json'),
-      path.join(home, '.pi', 'config.json'),
-      path.join(home, '.pi-agent', 'auth.json'),
-      path.join(home, '.pi-agent', 'config.json'),
+      ...(env.PI_CODING_AGENT_DIR ? [] : [
+        path.join(home, '.pi', 'auth.json'),
+        path.join(home, '.pi', 'config.json'),
+        path.join(home, '.pi-agent', 'auth.json'),
+        path.join(home, '.pi-agent', 'config.json'),
+      ]),
     ],
     kimi: [path.join(home, '.kimi-code', 'credentials', 'kimi-code.json')],
     claude: [
@@ -392,12 +399,12 @@ function nativeCredentialState(kind, options = {}) {
   const textFiles = {
     codex: [path.join(codexHome, '.env'), path.join(codexHome, 'config.toml')],
     hermes: [
-      path.join(home, '.hermes', '.env'),
-      path.join(home, '.hermes', 'config.yaml'),
-      path.join(home, '.hermes', 'config.yml'),
+      path.join(hermesHome, '.env'),
+      path.join(hermesHome, 'config.yaml'),
+      path.join(hermesHome, 'config.yml'),
     ],
     openclaw: [path.join(home, '.openclaw', '.env')],
-    pi: [
+    pi: env.PI_CODING_AGENT_DIR ? [] : [
       path.join(home, '.pi', '.env'),
       path.join(home, '.pi', 'config.toml'),
       path.join(home, '.pi-agent', '.env'),

@@ -114,6 +114,7 @@ test('native readiness respects custom config roots and the Pi coding agent auth
   const cases = [
     ['pi', {}, path.join(home, '.pi', 'agent', 'auth.json')],
     ['pi', { PI_CODING_AGENT_DIR: path.join(home, 'custom-pi') }, path.join(home, 'custom-pi', 'auth.json')],
+    ['hermes', { HERMES_HOME: path.join(home, 'custom-hermes') }, path.join(home, 'custom-hermes', 'auth.json')],
     ['codex', { CODEX_HOME: path.join(home, 'custom-codex') }, path.join(home, 'custom-codex', 'auth.json')],
     ['claude', { CLAUDE_CONFIG_DIR: path.join(home, 'custom-claude') }, path.join(home, 'custom-claude', '.credentials.json')],
     ['opencode', { XDG_DATA_HOME: path.join(home, 'data') }, path.join(home, 'data', 'opencode', 'auth.json')],
@@ -134,6 +135,39 @@ test('native readiness respects custom config roots and the Pi coding agent auth
   } finally {
     fs.rmSync(home, { recursive: true, force: true })
   }
+})
+
+test('Hermes and Pi readiness do not fall back to unrelated credentials when custom roots are set', (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-custom-native-root-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  fs.mkdirSync(path.join(home, '.hermes'), { recursive: true })
+  fs.writeFileSync(path.join(home, '.hermes', '.env'), 'OPENAI_API_KEY=default-test-secret\n')
+  fs.mkdirSync(path.join(home, '.pi'), { recursive: true })
+  fs.writeFileSync(path.join(home, '.pi', 'auth.json'), JSON.stringify({ apiKey: 'default-test-secret' }))
+  assert.deepEqual(nativeCredentialState('hermes', { home, env: { HERMES_HOME: '~/custom-hermes' } }), {
+    state: 'unknown', source: 'unverified',
+  })
+  assert.deepEqual(nativeCredentialState('pi', { home, env: { PI_CODING_AGENT_DIR: '~/custom-pi' } }), {
+    state: 'unknown', source: 'unverified',
+  })
+  fs.mkdirSync(path.join(home, 'custom-hermes'))
+  fs.writeFileSync(path.join(home, 'custom-hermes', '.env'), 'OPENAI_API_KEY=custom-test-secret\n')
+  fs.mkdirSync(path.join(home, 'custom-pi'))
+  fs.writeFileSync(path.join(home, 'custom-pi', 'auth.json'), JSON.stringify({ apiKey: 'custom-test-secret' }))
+  assert.equal(nativeCredentialState('hermes', { home, env: { HERMES_HOME: '~/custom-hermes' } }).state, 'ready')
+  assert.equal(nativeCredentialState('pi', { home, env: { PI_CODING_AGENT_DIR: '~/custom-pi' } }).state, 'ready')
+})
+
+test('Hermes readiness follows the native Windows default and configured data suffix', (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-windows-root-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const localAppData = path.join(home, 'Local')
+  const directory = path.join(localAppData, 'hermes-test')
+  fs.mkdirSync(directory, { recursive: true })
+  fs.writeFileSync(path.join(directory, '.env'), 'OPENAI_API_KEY=synthetic-secret\n')
+  const env = { LOCALAPPDATA: localAppData, HERMES_DATA_DIR_SUFFIX: '-test' }
+  assert.equal(nativeCredentialState('hermes', { home, env, platform: 'win32' }).state, 'ready')
+  assert.equal(nativeCredentialEnvironment('hermes', env).HERMES_DATA_DIR_SUFFIX, '-test')
 })
 
 test('Pi native OAuth credentials use access and refresh fields', () => {
