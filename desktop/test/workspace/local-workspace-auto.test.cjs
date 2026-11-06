@@ -421,7 +421,7 @@ for (const failed of [true, false]) test(`task graph waits for independent branc
   assert.deepEqual(calls, failed ? ['hermes'] : ['hermes', 'codex'])
 })
 
-test('task graph fails closed if a nonterminal node depends on a terminal node', async t => {
+test('task graph rejects a nonterminal node depending on a terminal node before creating a run', async t => {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
   const ledger = new RunLedger({ storagePath: path.join(directory, 'run-ledger.json') })
@@ -432,14 +432,13 @@ test('task graph fails closed if a nonterminal node depends on a terminal node',
   await workspace.refreshAgents()
   const group = workspace.createGroup({ name: 'Invalid ordering', agentKinds: ['codex', 'hermes'], workdir: directory, allowWrite: false })
   const acceptance = { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 }
-  await workspace.sendMessage({ groupId: group.id, text: 'Run both branches.', mode: 'auto', maxRounds: 4,
+  await assert.rejects(workspace.sendMessage({ groupId: group.id, text: 'Run both branches.', mode: 'auto', maxRounds: 4,
     targetKinds: ['codex', 'hermes'], workflow: { template: 'task-graph', nodes: [
       graphNode({ terminal: true, acceptance }),
       graphNode({ nodeId: 'primary-hermes', agentKind: 'hermes', dependsOn: ['primary-codex'],
         inputNodeIds: ['primary-codex'], acceptance }),
-    ] } })
-  await workspace.activeRuns.get(group.id)?.promise
-  assert.equal(ledger.list(group.id)[0].status, 'failed')
+    ] } }), /LOCAL_WORKFLOW_INVALID/)
+  assert.equal(ledger.list(group.id).length, 0)
   assert.equal(calls, 0)
 })
 

@@ -156,6 +156,10 @@ function createTaskGraph(input, targetKinds = null) {
   }
   const graph = JSON.parse(canonicalJson({ graphId: deriveId('task-graph', body), ...body }))
   validateGraphRelations(graph, targetKinds)
+  const terminalIds = new Set(graph.nodes.filter(node => node.terminal).map(node => node.nodeId))
+  if (graph.nodes.some(node => !node.terminal && node.dependsOn.some(id => terminalIds.has(id)))) {
+    fail('TASK_GRAPH_SCHEMA_INVALID')
+  }
   return graph
 }
 
