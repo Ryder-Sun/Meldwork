@@ -17,14 +17,11 @@ const NATIVE_CONFIG_DIRECTORIES = Object.freeze({
   claude: { key: 'CLAUDE_CONFIG_DIR', files: ['settings.json', '.credentials.json'] },
   pi: { key: 'PI_CODING_AGENT_DIR', files: ['settings.json', 'auth.json', 'models.json'] },
   opencode: { key: 'OPENCODE_CONFIG_DIR', files: ['opencode.json', 'opencode.jsonc'] },
+  gemini: { key: 'GEMINI_CLI_HOME', files: ['oauth_creds.json', 'gemini-credentials.json', 'google_accounts.json', 'settings.json', '.env'] },
   kimi: { key: 'KIMI_CODE_HOME', files: ['config.toml'], directories: ['credentials'] },
   deepseek: { key: 'DSH_HOME', files: ['cordis.patch.yml', '.credentials.yaml'], directories: ['profiles'] },
   workbuddy: { key: 'CODEBUDDY_CONFIG_DIR', files: ['models.json', 'settings.json', '.credentials.json'] },
 })
-const NATIVE_IDENTITY_ONLY_DIRECTORIES = Object.freeze({
-  gemini: { files: ['oauth_creds.json', 'gemini-credentials.json', 'google_accounts.json', 'settings.json', '.env'] },
-})
-
 function nativeIdentityDirectory(kind, env, home, platform = process.platform) {
   if (kind === 'gemini') {
     const base = env?.GEMINI_CLI_HOME || home
@@ -54,13 +51,15 @@ function nativeConfigEnvironment(kind, preferences, env = {}) {
   if (!spec || directory === undefined || directory === '') return env
   if (typeof directory !== 'string' || directory.length > 4096
       || directory.includes('\u0000') || !path.isAbsolute(directory)) throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
-  return { ...env, [spec.key]: directory }
+  if (kind === 'gemini' && path.basename(path.resolve(directory)) !== '.gemini') throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
+  return { ...env, [spec.key]: kind === 'gemini' ? path.dirname(path.resolve(directory)) : directory }
 }
 
 function validateNativeConfigDirectory(kind, directory) {
   const spec = Object.hasOwn(NATIVE_CONFIG_DIRECTORIES, kind) ? NATIVE_CONFIG_DIRECTORIES[kind] : null
   if (!spec || typeof directory !== 'string' || directory.length > 4096
       || directory.includes('\u0000') || !path.isAbsolute(directory)) throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
+  if (kind === 'gemini' && path.basename(path.resolve(directory)) !== '.gemini') throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
   let resolved
   try {
     resolved = fs.realpathSync(directory)
@@ -71,9 +70,9 @@ function validateNativeConfigDirectory(kind, directory) {
           try { return fs.statSync(path.join(resolved, name)).isDirectory() } catch { return false }
         }))) throw new Error('invalid directory')
   } catch { throw new Error('LOCAL_NATIVE_CONFIG_INVALID') }
-  return resolved
+  return kind === 'gemini' ? path.resolve(directory) : resolved
 }
 
-module.exports = { NATIVE_CONFIG_DIRECTORIES, NATIVE_IDENTITY_ONLY_DIRECTORIES, NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_ENVIRONMENT_IDENTITY,
+module.exports = { NATIVE_CONFIG_DIRECTORIES, NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_ENVIRONMENT_IDENTITY,
   nativeEnvironmentIdentity, nativeConfigEnvironment,
   nativeIdentityDirectory, validateNativeConfigDirectory }

@@ -263,6 +263,29 @@ test('selected OpenCode configuration supplies its declared credentials to execu
   assert.equal(options.env.SELECTED_KEY, 'selected-secret')
 })
 
+test('selected Gemini configuration uses its parent as the native CLI home', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-gemini-selected-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const selected = path.join(directory, '.gemini'); fs.mkdirSync(selected)
+  fs.writeFileSync(path.join(selected, 'settings.json'), '{}')
+  const readiness = require('../../src/agents/local-agent-readiness.cjs')
+  const { harness } = loadMain(directory, {
+    dialogResult: { canceled: false, filePaths: [selected] },
+    nativeShellEnvironment: () => ({ env: { GEMINI_CLI_HOME: '/previous' }, source: 'native-shell' }),
+    nativeEnvironment: readiness.nativeCredentialEnvironment,
+  })
+  await harness.ready()
+  const workspace = harness.workspaceInstances[0]
+  workspace.state.agentPreferences = {}
+  workspace.state.agentRuntime = {}
+  workspace.activeRuns = new Map()
+  workspace.save = () => {}
+  const chosen = await harness.ipcHandlers.get('local-agent-native-config:choose')(harness.event(), 'gemini')
+  assert.equal(chosen.directory, selected)
+  await workspace.input.runAgent({ kind: 'gemini', executable: '/tmp/gemini' }, 'hello', directory, {})
+  assert.equal(harness.runAgentCalls.at(-1)[3].env.GEMINI_CLI_HOME, directory)
+})
+
 test('native credentials from multiple Agents are captured in bounded batches without restoring unset values', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-env-batches-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

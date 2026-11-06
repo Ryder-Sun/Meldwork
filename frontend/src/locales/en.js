@@ -12,6 +12,7 @@ export default {
     'nativeConfig.expected.deepseek': 'Expected a profiles directory, cordis.patch.yml or .credentials.yaml.',
     'nativeConfig.expected.workbuddy': 'Expected models.json, settings.json or .credentials.json.',
     'nativeConfig.expected.opencode': 'Expected opencode.json or opencode.jsonc.',
+    'nativeConfig.expected.gemini': 'Choose a .gemini directory containing settings or credentials.',
     'skillTrust.title': 'Skill trust',
     'skillTrust.hint': 'Review trust granted to an Agent and exact Skill content. Changed content requires approval again.',
     'skillTrust.refresh': 'Refresh',

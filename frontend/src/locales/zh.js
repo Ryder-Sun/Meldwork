@@ -12,6 +12,7 @@ export default {
     'nativeConfig.expected.deepseek': '需要 profiles 目录、cordis.patch.yml 或 .credentials.yaml。',
     'nativeConfig.expected.workbuddy': '需要 models.json、settings.json 或 .credentials.json。',
     'nativeConfig.expected.opencode': '需要 opencode.json 或 opencode.jsonc。',
+    'nativeConfig.expected.gemini': '请选择包含设置或认证文件的 .gemini 目录。',
     'skillTrust.title': 'Skill 信任',
     'skillTrust.hint': '查看按 Agent 和内容绑定的信任授权。内容变化后需要重新授权。',
     'skillTrust.refresh': '刷新',

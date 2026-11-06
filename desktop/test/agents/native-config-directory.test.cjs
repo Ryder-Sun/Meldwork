@@ -79,6 +79,26 @@ test('Kimi accepts a credentials-only native directory', t => {
   assert.equal(nativeConfigEnvironment('kimi', { kimi: { nativeConfigDirectory: selected } }).KIMI_CODE_HOME, selected)
 })
 
+test('Gemini selected .gemini directory maps to its native home and preserves symlinks', t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-gemini-config-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const actual = path.join(directory, 'actual'); fs.mkdirSync(actual)
+  fs.writeFileSync(path.join(actual, 'settings.json'), '{}')
+  const parent = path.join(directory, 'home'); fs.mkdirSync(parent)
+  const selected = path.join(parent, '.gemini')
+  try { fs.symlinkSync(actual, selected, 'dir') } catch (error) {
+    if (process.platform !== 'win32' || !['EPERM', 'EACCES'].includes(error.code)) throw error
+    fs.mkdirSync(selected)
+    fs.copyFileSync(path.join(actual, 'settings.json'), path.join(selected, 'settings.json'))
+  }
+  assert.throws(() => validateNativeConfigDirectory('gemini', actual), /LOCAL_NATIVE_CONFIG_INVALID/)
+  assert.equal(validateNativeConfigDirectory('gemini', selected), selected)
+  const env = nativeConfigEnvironment('gemini', { gemini: { nativeConfigDirectory: selected } })
+  assert.equal(env.GEMINI_CLI_HOME, parent)
+  assert.equal(nativeIdentityDirectory('gemini', env, directory), selected)
+  assert.throws(() => nativeConfigEnvironment('gemini', { gemini: { nativeConfigDirectory: actual } }), /LOCAL_NATIVE_CONFIG_INVALID/)
+})
+
 for (const [kind, key, file] of [
   ['codex', 'CODEX_HOME', 'config.toml'],
   ['claude', 'CLAUDE_CONFIG_DIR', 'settings.json'],
