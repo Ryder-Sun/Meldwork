@@ -140,6 +140,27 @@ test('installs and runs the non-delegate local echo sample end to end', async (t
   }), { message: 'AGENT_CONNECTOR_PERMISSION_MODE_UNSUPPORTED' })
 })
 
+test('local echo respects a stateless manifest', async t => {
+  const { connectors, directory, packageStore } = fixture(t)
+  const { manifestId, schemaVersion, recordType, ...content } = SAMPLE_LOCAL_ECHO_AGENT_CONNECTOR_PACKAGE.manifest
+  const manifest = createAgentConnectorManifest({ ...content,
+    session: { supported: false, resume: false, cancel: true, checkpoint: false } })
+  const packageRecord = createAgentConnectorPackage({
+    publisher: SAMPLE_LOCAL_ECHO_AGENT_CONNECTOR_PACKAGE.publisher,
+    provider: SAMPLE_LOCAL_ECHO_AGENT_CONNECTOR_PACKAGE.provider, manifest,
+  })
+  install(packageStore, packageRecord)
+  connectors.refresh([])
+  connectors.configure({ manifestId: manifest.manifestId, label: 'Stateless echo', credentials: null })
+  const [agent] = connectors.detectAgents()
+  const result = await connectors.run(agent, 'stateless reply', directory, {
+    runId: 'run-stateless', agentRunId: 'agent-run-stateless', sandbox: 'read-only',
+  })
+  assert.equal(result.outcome, 'completed')
+  assert.equal(result.text, 'stateless reply')
+  assert.equal(result.sessionRef, '')
+})
+
 test('HTTP JSON provider enforces destinations, credentials, cancellation, and failure semantics', async (t) => {
   const calls = []
   const { connectors, directory, packageStore } = fixture(t, async (url, options) => {
@@ -185,6 +206,23 @@ test('HTTP JSON provider enforces destinations, credentials, cancellation, and f
   assert.doesNotMatch(outboundWirePayloadBytes(recordedOutbound).toString('utf8'), /private-token/)
 
   const originalFetch = connectors.fetch
+  for (const outcome of ['partial', 'failed', 'cancelled', 'unexpected']) {
+    connectors.fetch = async () => ({ ok: true, text: async () => JSON.stringify({ text: 'remote reply', outcome }) })
+    const remote = await connectors.run(agent, 'check outcome', directory, {
+      runId: `run-outcome-${outcome}`, agentRunId: `agent-run-outcome-${outcome}`, sandbox: 'read-only',
+    })
+    assert.equal(remote.outcome, outcome === 'unexpected' ? 'failed' : outcome)
+    if (outcome === 'failed') assert.equal(remote.failure.code, 'AGENT_CONNECTOR_HTTP_REMOTE_FAILED')
+    if (outcome === 'unexpected') assert.equal(remote.failure.code, 'AGENT_CONNECTOR_HTTP_RESPONSE_INVALID')
+  }
+  for (const extra of [{ success: false }, { error: { message: 'request failed' } }]) {
+    connectors.fetch = async () => ({ ok: true, text: async () => JSON.stringify({ text: 'no delivery', ...extra }) })
+    const remote = await connectors.run(agent, 'check failure', directory, {
+      runId: 'run-explicit-failure', agentRunId: 'agent-run-explicit-failure', sandbox: 'read-only',
+    })
+    assert.equal(remote.outcome, 'failed')
+    assert.equal(remote.failure.code, 'AGENT_CONNECTOR_HTTP_REMOTE_FAILED')
+  }
   for (const leaked of [{ text: 'response contains private-token' },
     { text: 'response', sessionRef: 'session-private-token' }]) {
     connectors.fetch = async () => ({ ok: true, text: async () => JSON.stringify(leaked) })

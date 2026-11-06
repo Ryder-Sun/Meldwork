@@ -742,7 +742,8 @@ class LocalAgentConnectors {
     }
     const text = input.resume?.type === 'input' ? input.resume.response : input.prompt
     input.emit({ ...terminal, type: 'Completed', outcome: 'completed' })
-    return { text, outcome: 'completed', sessionRef: input.sessionRef || 'local-echo-session' }
+    return { text, outcome: 'completed', sessionRef: input.connector.capabilities.session.supported
+      ? input.sessionRef || 'local-echo-session' : '' }
   }
 
   async runHttpJson(input) {
@@ -790,6 +791,7 @@ class LocalAgentConnectors {
       try { parsed = JSON.parse(text) } catch { fail('AGENT_CONNECTOR_HTTP_RESPONSE_INVALID') }
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)
           || typeof parsed.text !== 'string' || parsed.text.includes('\u0000')
+          || (parsed.outcome !== undefined && !['completed', 'partial', 'failed', 'cancelled'].includes(parsed.outcome))
           || (parsed.sessionRef !== undefined
             && (typeof parsed.sessionRef !== 'string' || parsed.sessionRef.length > 8192
               || /[\u0000-\u001f\u007f]/.test(parsed.sessionRef)))
@@ -797,8 +799,18 @@ class LocalAgentConnectors {
             || parsed.sessionRef?.includes(credential)))) {
         fail('AGENT_CONNECTOR_HTTP_RESPONSE_INVALID')
       }
-      input.emit({ ...terminal, type: 'Completed', outcome: 'completed' })
-      return { text: parsed.text, sessionRef: parsed.sessionRef || '', outcome: 'completed' }
+      const outcome = parsed.outcome || 'completed'
+      if (outcome === 'failed' || parsed.success === false || parsed.error) {
+        const failure = { code: 'AGENT_CONNECTOR_HTTP_REMOTE_FAILED', category: 'execution', retryable: false }
+        input.emit({ ...terminal, type: 'Failed', ...failure })
+        return { outcome: 'failed', failure }
+      }
+      if (outcome === 'cancelled') {
+        input.emit({ ...terminal, type: 'Cancelled', reason: 'other' })
+        return { outcome: 'cancelled', sessionRef: parsed.sessionRef || '' }
+      }
+      input.emit({ ...terminal, type: 'Completed', outcome })
+      return { text: parsed.text, sessionRef: parsed.sessionRef || '', outcome }
     } catch (error) {
       if (input.signal?.aborted || error?.name === 'AbortError') {
         input.emit({ ...terminal, type: 'Cancelled', reason: 'user' })

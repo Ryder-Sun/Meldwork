@@ -9,6 +9,8 @@ SDK 版本为 `1.0.0`，目前提供两个内置 Provider：
 - `sdk.local-echo.v1`：本地回显，仅支持文本、只读，无需网络或凭据。
 - `sdk.http-json.v1`：向清单声明的 HTTPS 目标发送 JSON 请求，支持文本和只读权限，可选一个必填的 API key 或 token 凭据槽；不跟随 HTTP 重定向。
 
+HTTP 响应为 JSON 对象，必须包含字符串 `text`，可包含字符串 `sessionRef` 和 `outcome`。`outcome` 可为 `completed`、`partial`、`failed` 或 `cancelled`；省略时视为 `completed`。如果响应同时包含非空 `error` 或 `success: false`，则视为失败。失败结果使用通用错误码，避免把服务返回的敏感信息写入运行记录。取消结果要求清单声明取消能力。
+
 第三方可以为这些 Provider 制作包，无需重建 Meldwork；**当前尚不能通过包注册任意第三方可执行代码或新的传输实现**。清单本身支持的能力不代表每个 Provider 都实现了该能力，包校验会拒绝超出 Provider 范围的声明。参见 [包校验实现](src/agents/connectors/agent-connector-package-store.cjs) 和 [端到端示例测试](test/agents/connectors/agent-connector-sdk.test.cjs)。
 
 ## 生成本地示例包
