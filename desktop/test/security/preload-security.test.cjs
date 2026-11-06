@@ -101,7 +101,7 @@ test('local preload exposes the local-only Meldwork API', async () => {
   const configuration = {
     manifestId: `connector-manifest-${'a'.repeat(64)}`,
     label: 'Review account',
-    credentials: { account: 'renderer-entered-secret' },
+    credentials: null,
   }
   const environmentConfiguration = { packageId, label: 'Shell account', environmentKeys: { account: 'ACCOUNT_KEY' } }
   await api.localAgentConnector.list()

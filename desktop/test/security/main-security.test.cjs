@@ -741,7 +741,7 @@ test('Connector test removes its temporary workspace when execution fails', asyn
   assert.equal(fs.existsSync(testWorkdir), false)
 })
 
-test('Agent Connector IPC persists isolated accounts without returning CredentialRefs or secrets', async (t) => {
+test('Agent Connector main process persists isolated accounts without returning CredentialRefs or secrets', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-agent-connector-accounts-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
   const manifestDirectory = path.join(directory, 'agent-connectors', 'manifests')
@@ -766,12 +766,14 @@ test('Agent Connector IPC persists isolated accounts without returning Credentia
   const list = harness.ipcHandlers.get('local-agent-connector:list')
   const remove = harness.ipcHandlers.get('local-agent-connector:delete')
 
-  const first = await configure(harness.event(), {
+  const workspace = harness.workspaceInstances[0]
+  await workspace.input.detectAgents()
+  const first = workspace.input.connectorRuntime.configure({
     manifestId: SAMPLE_CREDENTIAL_AGENT_CONNECTOR_MANIFEST.manifestId,
     label: 'Codex account A',
     credentials: { 'openai-api-key': 'connector-main-secret-a' },
   })
-  const second = await configure(harness.event(), {
+  const second = workspace.input.connectorRuntime.configure({
     manifestId: SAMPLE_CREDENTIAL_AGENT_CONNECTOR_MANIFEST.manifestId,
     label: 'Codex account B',
     credentials: { 'openai-api-key': 'connector-main-secret-b' },
@@ -782,7 +784,6 @@ test('Agent Connector IPC persists isolated accounts without returning Credentia
   assert.deepEqual(listed.map(item => item.label), ['Codex account A', 'Codex account B'])
   assert.doesNotMatch(JSON.stringify(listed), /credential-ref|connector-main-secret/i)
 
-  const workspace = harness.workspaceInstances[0]
   const agents = await workspace.input.detectAgents()
   const result = await workspace.input.connectorRuntime.run(
     agents.find(agent => agent.kind === first.instanceId),
@@ -886,7 +887,7 @@ test('Agent Connector IPC persists isolated accounts without returning Credentia
       label: 'Invalid account',
       credentials: { unexpected: 'connector-main-secret-c' },
     }),
-    { message: 'AGENT_CONNECTOR_CREDENTIAL_INVALID' },
+    { message: 'AGENT_CONNECTOR_REQUEST_INVALID' },
   )
 })
 

@@ -687,7 +687,8 @@ function registerDesktopIpc(options) {
   registerTrustedHandle('local-agent-connector:configure', async (...args) => {
     if (args.length !== 1 || !args[0] || typeof args[0] !== 'object'
         || Array.isArray(args[0])
-        || Reflect.ownKeys(args[0]).sort().join(',') !== 'credentials,label,manifestId') {
+        || Reflect.ownKeys(args[0]).sort().join(',') !== 'credentials,label,manifestId'
+        || args[0].credentials !== null) {
       throw new Error('AGENT_CONNECTOR_REQUEST_INVALID')
     }
     const connectors = getAgentConnectors?.()
@@ -697,7 +698,7 @@ function registerDesktopIpc(options) {
     const result = connectors.configure({
       manifestId: input.manifestId,
       label: input.label,
-      credentials: input.credentials === null ? null : input.credentials,
+      credentials: null,
     })
     await refreshLocalAgentState()
     return result
