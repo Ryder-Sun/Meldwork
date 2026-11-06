@@ -5,6 +5,17 @@ import { t } from '../../i18n.js'
 
 afterEach(() => { delete window.meldworkDesktop })
 
+it('does not claim automatic discovery when the saved directory cannot be read', async () => {
+  window.meldworkDesktop = { localAgentNativeConfig: {
+    get: vi.fn().mockRejectedValue(new Error('LOCAL_WORKSPACE_UNAVAILABLE')),
+  } }
+  const wrapper = mount(AgentNativeConfig, { props: { kind: 'hermes' } })
+  await flushPromises()
+  expect(wrapper.find('[role="alert"]').exists()).toBe(true)
+  expect(wrapper.text()).not.toContain(t('nativeConfig.automatic'))
+  wrapper.unmount()
+})
+
 it('explains the expected Kimi native configuration when selection is invalid', async () => {
   window.meldworkDesktop = { localAgentNativeConfig: {
     get: vi.fn().mockResolvedValue({ directory: '' }),

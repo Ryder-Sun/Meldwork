@@ -1,7 +1,7 @@
 <template>
   <section class="agent-detail-section">
     <h3>{{ t('nativeConfig.title') }}</h3>
-    <p>{{ directory || t('nativeConfig.automatic') }}</p>
+    <p v-if="directory !== null">{{ directory || t('nativeConfig.automatic') }}</p>
     <p v-if="error" class="form-error" role="alert">{{ error }} <template v-if="invalid">{{ t(`nativeConfig.expected.${kind}`) }}</template></p>
     <button type="button" class="secondary-button" :disabled="busy" @click="update('choose')">{{ t('nativeConfig.choose') }}</button>
     <button v-if="directory" type="button" class="secondary-button" :disabled="busy" @click="update('clear')">{{ t('nativeConfig.clear') }}</button>
@@ -15,7 +15,7 @@ import { t, translateError } from '../i18n.js'
 
 const props = defineProps({ kind: { type: String, required: true } })
 const api = desktopApi().localAgentNativeConfig
-const directory = ref('')
+const directory = ref(null)
 const busy = ref(false)
 const error = ref('')
 const invalid = ref(false)
