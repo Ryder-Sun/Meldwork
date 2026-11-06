@@ -168,6 +168,51 @@ test('stores private definitions while exposing only sanitized Custom Agent meta
   assert.equal('args' in catalog[0], false)
 })
 
+test('custom Agent changes durably replace the private configuration', t => {
+  const { directory, executable, store } = fixture(t)
+  const file = path.join(directory, 'custom-agents.json')
+  const original = fs.fsyncSync
+  const synced = []
+  fs.fsyncSync = fd => { synced.push(fs.fstatSync(fd).isDirectory() ? 'directory' : 'file'); return original(fd) }
+  t.after(() => { fs.fsyncSync = original })
+  const profile = store.create({ label: 'Review Agent', args: [], promptMode: 'stdin' }, executable)
+  store.remove(profile.kind)
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')).agents, [])
+  assert.equal(synced.filter(kind => kind === 'file').length, 2)
+  if (process.platform !== 'win32') assert.equal(synced.filter(kind => kind === 'directory').length, 2)
+  assert.equal(fs.readdirSync(directory).some(name => name.endsWith('.tmp')), false)
+})
+
+test('a failed custom Agent configuration replacement preserves the previous file', t => {
+  const { directory, executable, store } = fixture(t)
+  const file = path.join(directory, 'custom-agents.json')
+  const profile = store.create({ label: 'Review Agent', args: [], promptMode: 'stdin' }, executable)
+  const before = fs.readFileSync(file, 'utf8')
+  const rename = fs.renameSync
+  fs.renameSync = () => { throw new Error('REPLACE_FAILED') }
+  t.after(() => { fs.renameSync = rename })
+  assert.throws(() => store.remove(profile.kind), { message: 'REPLACE_FAILED' })
+  assert.equal(fs.readFileSync(file, 'utf8'), before)
+  assert.equal(store.has(profile.kind), true)
+  assert.equal(fs.readdirSync(directory).some(name => name.endsWith('.tmp')), false)
+})
+
+test('custom Agent memory follows the renamed file when directory sync fails', t => {
+  if (process.platform === 'win32') return t.skip('directory handles are not portable on Windows')
+  const { directory, executable, store } = fixture(t)
+  const file = path.join(directory, 'custom-agents.json')
+  const profile = store.create({ label: 'Review Agent', args: [], promptMode: 'stdin' }, executable)
+  const original = fs.fsyncSync
+  fs.fsyncSync = fd => {
+    if (fs.fstatSync(fd).isDirectory()) throw Object.assign(new Error('SYNC_FAILED'), { code: 'EIO' })
+    return original(fd)
+  }
+  t.after(() => { fs.fsyncSync = original })
+  assert.throws(() => store.remove(profile.kind), { message: 'SYNC_FAILED' })
+  assert.equal(store.has(profile.kind), false)
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')).agents, [])
+})
+
 test('rejects secret-like fixed arguments and invalid executable selections', (t) => {
   const { directory, executable, store } = fixture(t)
 

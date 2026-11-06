@@ -3,6 +3,7 @@ const { randomUUID } = require('node:crypto')
 const fs = require('node:fs')
 const path = require('node:path')
 const { promisify } = require('node:util')
+const { atomicWritePrivateFile } = require('../security/private-file.cjs')
 const {
   CUSTOM_AGENT_KIND,
   KILL_SETTLE_MS,
@@ -61,13 +62,12 @@ class CustomAgentStore {
   }
 
   save() {
-    fs.mkdirSync(path.dirname(this.storagePath), { recursive: true })
-    const tempPath = `${this.storagePath}.tmp`
-    fs.writeFileSync(tempPath, `${JSON.stringify({ version: 1, agents: this.definitions }, null, 2)}\n`, {
-      mode: 0o600,
-    })
-    fs.renameSync(tempPath, this.storagePath)
-    try { fs.chmodSync(this.storagePath, 0o600) } catch { /* Windows ignores POSIX file modes. */ }
+    try {
+      atomicWritePrivateFile(this.storagePath, `${JSON.stringify({ version: 1, agents: this.definitions }, null, 2)}\n`)
+    } catch (error) {
+      this.definitions = this.load()
+      throw error
+    }
   }
 
   has(kind) {
