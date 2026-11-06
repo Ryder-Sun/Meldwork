@@ -248,11 +248,11 @@ function piModelsContainCredential(root, env, selected) {
   } catch { return false }
 }
 
-function textContainsCredential(filename) {
+function textContainsCredential(filename, allowedKeys = null) {
   try {
     return readCredentialFile(filename).split(/\r?\n/).some((line) => {
-      const match = line.match(/^\s*([A-Za-z][A-Za-z0-9_-]*)\s*[:=]\s*(.+?)\s*$/)
-      if (!match || !CREDENTIAL_FIELD.test(match[1])) return false
+      const match = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_-]*)\s*[:=]\s*(.+?)\s*$/)
+      if (!match || (allowedKeys ? !allowedKeys.includes(match[1]) : !CREDENTIAL_FIELD.test(match[1]))) return false
       const raw = match[2].trim()
       const value = (/^['"]/.test(raw) ? raw : raw.replace(/\s+#.*$/, ''))
         .replace(/^['"]|['"]$/g, '').trim()
@@ -642,10 +642,10 @@ function nativeCredentialState(kind, options = {}) {
     }
   }
   const piProvider = kind === 'pi' ? piDefaultProvider(piHome) : ''
+  const hermesKeys = kind === 'hermes' ? hermesSelectedEnvironmentKeys(hermesHome, env) : null
   let credentialEnv = nativeCredentialKeyEnvironment(kind, env)
-  if (kind === 'hermes') {
-    const keys = hermesSelectedEnvironmentKeys(hermesHome, env)
-    if (keys) credentialEnv = Object.fromEntries(keys.filter(key => typeof env[key] === 'string' && env[key].trim())
+  if (hermesKeys) {
+    credentialEnv = Object.fromEntries(hermesKeys.filter(key => typeof env[key] === 'string' && env[key].trim())
       .map(key => [key, env[key]]))
   }
   const selectedPiKey = Object.hasOwn(PI_PROVIDER_CREDENTIAL_KEYS, piProvider) ? PI_PROVIDER_CREDENTIAL_KEYS[piProvider] : ''
@@ -717,7 +717,8 @@ function nativeCredentialState(kind, options = {}) {
     ],
     opencodereview: [path.join(home, '.opencodereview', '.env')],
   }[kind] || []
-  if (textFiles.some(textContainsCredential)) {
+  if (textFiles.some(filename => textContainsCredential(filename,
+    kind === 'hermes' && filename === path.join(hermesHome, '.env') ? hermesKeys : null))) {
     return { state: 'ready', source: 'native-credential' }
   }
 
