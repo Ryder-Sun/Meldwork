@@ -412,10 +412,12 @@ test('fresh Auto observes terminal persistence failure without hiding controller
   assert.deepEqual(controller.terminalPersistence, {
     state: 'failed',
     status: 'completed',
-    attempts: 3,
-    nextRetryAt: 0,
+    attempts: controller.terminalPersistence.attempts,
+    nextRetryAt: controller.terminalPersistence.nextRetryAt,
     code: 'LOCAL_RUN_PERSIST_FAILED',
   })
+  assert.ok(controller.terminalPersistence.attempts >= 3)
+  assert.ok(controller.terminalPersistence.nextRetryAt > 0)
   await assert.rejects(originalPromise, error => (
     error?.code === 'LOCAL_RUN_TERMINAL_PERSIST_FAILED'
       && error.persistence?.state === 'failed'

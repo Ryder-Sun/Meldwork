@@ -570,9 +570,10 @@ test('permanent terminal persistence failure retains the controller and typed ou
     state: 'failed',
     status: 'completed',
     attempts: 3,
-    nextRetryAt: 0,
+    nextRetryAt: controller.terminalPersistence.nextRetryAt,
     code: 'LOCAL_RUN_PERSIST_FAILED',
   })
+  assert.ok(controller.terminalPersistence.nextRetryAt > 0)
   assert.equal(calls.filter(call => call[0] === 'ledger-finish').length, 3)
   assert.equal(calls.some(call => call[0] === 'emit' && call[1] === 'run-finished'), false)
   assert.equal(controller.finishingPromise, null)
@@ -604,6 +605,37 @@ test('a retained terminal outbox can be retried without downgrading its original
   assert.equal(event.status, 'completed')
   assert.equal(controller.terminalPersistence.state, 'committed')
   assert.equal(activeRuns.has('group-1'), false)
+})
+
+test('terminal outbox resumes automatically after the initial retry budget is exhausted', async () => {
+  let writable = false
+  let scheduled
+  const { activeRuns, calls, coordinator } = fixture({
+    hasRunLedger: true,
+    setTimeout: (callback) => {
+      scheduled = callback
+      return { unref() {} }
+    },
+    finishRunCheckpoint: () => writable,
+  })
+  const controller = coordinator.createController('manual', ['codex'], 'task-1')
+  activeRuns.set('group-1', controller)
+  await assert.rejects(coordinator.finish('group-1', controller, 'completed'), {
+    code: 'LOCAL_RUN_TERMINAL_PERSIST_FAILED',
+  })
+  assert.equal(typeof scheduled, 'function')
+  assert.equal(calls.some(call => call[0] === 'emit' && call[1] === 'run-finished'), false)
+  scheduled()
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(controller.terminalPersistence.attempts, 6)
+  assert.equal(controller.terminalPersistence.state, 'failed')
+  assert.equal(calls.some(call => call[0] === 'emit' && call[1] === 'run-finished'), false)
+  writable = true
+  scheduled()
+  await controller.done
+  assert.equal(activeRuns.has('group-1'), false)
+  assert.equal(controller.terminalPersistence.state, 'committed')
+  assert.equal(calls.filter(call => call[0] === 'emit' && call[1] === 'run-finished').length, 1)
 })
 
 test('RunHarness and silence warnings remain lazy, dynamic, and checkpointed in order', () => {

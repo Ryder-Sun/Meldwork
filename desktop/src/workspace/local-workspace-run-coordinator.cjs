@@ -108,6 +108,7 @@ class LocalWorkspaceRunCoordinator {
     controller.terminalOutbox = null
     controller.terminalPersistence = null
     controller.finishingPromise = null
+    controller.terminalRetryTimer = null
     return controller
   }
 
@@ -340,6 +341,10 @@ class LocalWorkspaceRunCoordinator {
   finish(groupId, controller, status) {
     if (controller.finished) return controller.done
     if (controller.finishingPromise) return controller.finishingPromise
+    if (controller.terminalRetryTimer) {
+      this.clearTimeout(controller.terminalRetryTimer)
+      controller.terminalRetryTimer = null
+    }
     this.clearRunSilence(controller)
     const preserveContinuation = status === 'interrupted'
       && ['pending', 'ready', 'resuming'].includes(controller.continuation?.state)
@@ -366,9 +371,23 @@ class LocalWorkspaceRunCoordinator {
     finishing.then(() => {}, () => {
       if (!controller.finished && controller.finishingPromise === finishing) {
         controller.finishingPromise = null
+        this.scheduleTerminalRetry(groupId, controller)
       }
     })
     return finishing
+  }
+
+  scheduleTerminalRetry(groupId, controller) {
+    if (controller.finished || controller.terminalRetryTimer || this.isShuttingDown()) return
+    const delayMs = this.terminalRetryMaxDelayMs
+    controller.terminalPersistence.nextRetryAt = Date.now() + delayMs
+    controller.terminalRetryTimer = this.setTimeout(() => {
+      controller.terminalRetryTimer = null
+      if (controller.finished || this.isShuttingDown()) return
+      this.finish(groupId, controller, controller.terminalOutbox.status).catch(() => {})
+    }, delayMs)
+    controller.terminalRetryTimer?.unref?.()
+    try { this.emitChanged() } catch {}
   }
 
   async commitTerminal(groupId, controller) {

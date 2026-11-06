@@ -1406,8 +1406,10 @@ test('Manual V4 startup recovery owns permanent terminal persistence failure', a
   assert.deepEqual(controller.terminalPersistence, {
     state: 'failed',
     status: 'failed',
-    attempts: 3,
-    nextRetryAt: 0,
+    attempts: controller.terminalPersistence.attempts,
+    nextRetryAt: controller.terminalPersistence.nextRetryAt,
     code: 'LOCAL_RUN_PERSIST_FAILED',
   })
+  assert.ok(controller.terminalPersistence.attempts >= 3)
+  assert.ok(controller.terminalPersistence.nextRetryAt > 0)
 })
