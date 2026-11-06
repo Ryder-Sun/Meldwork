@@ -57,6 +57,27 @@ function storedOutput(fixtureValue, content, producer = {}) {
   return { artifact, evidence }
 }
 
+test('candidate evidence binds the exact artifact content reference', t => {
+  const value = fixture(t)
+  const output = storedOutput(value, 'Same bytes, different media type.')
+  const alternateRef = value.contentBlobStore.put('Same bytes, different media type.', {
+    mediaType: 'application/json',
+  })
+  const unrelated = value.outcomeStore.putEvidence({
+    kind: 'observation', level: 'observed',
+    subject: { type: 'artifact', artifactId: output.artifact.artifactId },
+    summary: 'An observation with a different content reference.',
+    recordedBy: { kind: 'system', actorId: 'meldwork-outcome-recorder' },
+    refs: [{ type: 'blob', contentRef: alternateRef, contentHash: alternateRef.hash }],
+  })
+  assert.equal(value.runner.v4EvidenceSupportsArtifact(
+    unrelated.evidenceId, output.artifact.artifactId, output.artifact.contentHash,
+  ), false)
+  assert.equal(value.runner.v4EvidenceSupportsArtifact(
+    output.evidence.evidenceId, output.artifact.artifactId, output.artifact.contentHash,
+  ), true)
+})
+
 function receiptRecord({
   phase,
   agentKind,

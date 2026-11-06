@@ -97,6 +97,8 @@ const v4OutcomeMethods = {
   v4EvidenceSupportsArtifact(evidenceId, artifactId, contentHash, seen = new Set()) {
     if (seen.has(evidenceId)) return false
     seen.add(evidenceId)
+    const identity = this.v4ArtifactIdentity(artifactId)
+    if (identity.contentHash !== contentHash) return false
     const evidence = this.v4EvidenceRecord(
       evidenceId, 'LOCAL_RUN_V4_REVIEW_FINDING_INVALID',
     )
@@ -107,6 +109,7 @@ const v4OutcomeMethods = {
       ))
     const contentBound = evidence.refs.some(reference => (
       reference.type === 'blob' && reference.contentHash === contentHash
+        && canonicalJson(reference.contentRef) === canonicalJson(identity.artifact.contentRef)
     ))
     if (artifactBound && contentBound) return true
     return evidence.refs.some(reference => (
