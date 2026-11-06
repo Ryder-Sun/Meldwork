@@ -22,6 +22,34 @@ const { BRIDGE_RECIPE_ID, SSH_RECIPE_ID } = require('../cloud/cloud-agent-bridge
 
 const LOCAL_DELEGATE_RECIPE_ID = 'external.local-agent.delegate'
 const MAX_LOCAL_MANIFESTS = 64
+const MAX_HTTP_RESPONSE_BYTES = 4 * 1024 * 1024
+
+async function boundedHttpResponseText(response) {
+  if (!response.body?.getReader) {
+    const text = await response.text()
+    if (typeof text !== 'string' || Buffer.byteLength(text) > MAX_HTTP_RESPONSE_BYTES) {
+      fail('AGENT_CONNECTOR_HTTP_RESPONSE_INVALID')
+    }
+    return text
+  }
+  const reader = response.body.getReader()
+  const chunks = []
+  let total = 0
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      const chunk = Buffer.from(value)
+      total += chunk.length
+      if (total > MAX_HTTP_RESPONSE_BYTES) {
+        try { await reader.cancel() } catch { /* response may already be closed */ }
+        fail('AGENT_CONNECTOR_HTTP_RESPONSE_INVALID')
+      }
+      chunks.push(chunk)
+    }
+  } finally { reader.releaseLock() }
+  return Buffer.concat(chunks, total).toString('utf8')
+}
 const SAMPLE_AGENT_CONNECTOR_MANIFEST = createAgentConnectorManifest({
   connectorId: 'external.codex-sample',
   connectorVersion: '1.0.0',
@@ -780,10 +808,7 @@ class LocalAgentConnectors {
       if (!response?.ok) throw Object.assign(new Error('AGENT_CONNECTOR_HTTP_FAILED'), {
         code: 'AGENT_CONNECTOR_HTTP_FAILED', retryable: response?.status >= 500,
       })
-      const text = await response.text()
-      if (typeof text !== 'string' || Buffer.byteLength(text) > 4 * 1024 * 1024) {
-        fail('AGENT_CONNECTOR_HTTP_RESPONSE_INVALID')
-      }
+      const text = await boundedHttpResponseText(response)
       let parsed
       try { parsed = JSON.parse(text) } catch { fail('AGENT_CONNECTOR_HTTP_RESPONSE_INVALID') }
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)

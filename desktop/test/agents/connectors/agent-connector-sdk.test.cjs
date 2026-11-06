@@ -184,6 +184,22 @@ test('HTTP JSON provider enforces destinations, credentials, cancellation, and f
   assert.equal(outboundWirePayloadBytes(recordedOutbound).toString('utf8'), calls[0].options.body)
   assert.doesNotMatch(outboundWirePayloadBytes(recordedOutbound).toString('utf8'), /private-token/)
 
+  const originalFetch = connectors.fetch
+  connectors.fetch = async () => ({ ok: true, body: new ReadableStream({
+    start(controller) {
+      const bytes = Buffer.from(JSON.stringify({ text: '分块回复' }))
+      const split = bytes.indexOf(Buffer.from('分')) + 1
+      controller.enqueue(bytes.subarray(0, split))
+      controller.enqueue(bytes.subarray(split))
+      controller.close()
+    },
+  }) })
+  const streamed = await connectors.run(agent, 'stream response', directory, {
+    runId: 'run-stream', agentRunId: 'agent-run-stream', sandbox: 'read-only',
+  })
+  assert.equal(streamed.text, '分块回复')
+  connectors.fetch = originalFetch
+
   const rejected = await connectors.run(agent, 'blocked', directory, {
     runId: 'run-blocked', agentRunId: 'agent-run-blocked', sandbox: 'read-only',
     onOutboundPayload: async () => {
@@ -201,6 +217,23 @@ test('HTTP JSON provider enforces destinations, credentials, cancellation, and f
   assert.deepEqual(failed.failure, {
     code: 'AGENT_CONNECTOR_HTTP_FAILED', category: 'execution', retryable: true,
   })
+
+  let reads = 0
+  let cancelledStream = false
+  connectors.fetch = async () => ({ ok: true, body: new ReadableStream({
+    pull(controller) {
+      reads += 1
+      controller.enqueue(new Uint8Array(1024 * 1024))
+    },
+    cancel() { cancelledStream = true },
+  }) })
+  const oversized = await connectors.run(agent, 'large response', directory, {
+    runId: 'run-oversized', agentRunId: 'agent-run-oversized', sandbox: 'read-only',
+  })
+  assert.equal(oversized.outcome, 'failed')
+  assert.equal(oversized.failure.code, 'AGENT_CONNECTOR_HTTP_RESPONSE_INVALID')
+  assert.equal(cancelledStream, true)
+  assert.ok(reads <= 6)
 
   connectors.fetch = async () => { throw Object.assign(new Error('aborted'), { name: 'AbortError' }) }
   const controller = new AbortController()
