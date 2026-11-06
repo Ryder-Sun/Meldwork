@@ -1312,6 +1312,26 @@ test('Pi retains its native Bedrock, Azure and Vertex environment without unrela
   assert.equal(result.env.GITHUB_TOKEN, undefined)
 })
 
+test('Claude retains native Bedrock container credentials through shell discovery and execution', async () => {
+  const cloud = {
+    CLAUDE_CODE_USE_BEDROCK: '1',
+    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: '/v2/credentials/example',
+    AWS_CONTAINER_CREDENTIALS_FULL_URI: 'http://127.0.0.1/credentials',
+    AWS_CONTAINER_AUTHORIZATION_TOKEN: 'synthetic-container-token',
+    AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE: '/tmp/container-token',
+  }
+  const result = await resolveNativeShellEnvironment({
+    cache: false, platform: 'win32', env: { ...cloud, GITHUB_TOKEN: 'unrelated' },
+  })
+  const selected = nativeCredentialEnvironment('claude', result.env)
+  assert.deepEqual(selected, cloud)
+  const { childEnvironment } = require('../../src/agents/cli/cli-process-support.cjs')
+  const child = childEnvironment({ kind: 'claude' }, '/workspace', { env: selected }, 'win32')
+  for (const [key, value] of Object.entries(cloud)) assert.equal(child[key], value)
+  assert.deepEqual(nativeCredentialEnvironment('codex', result.env), {})
+  assert.equal(result.env.GITHUB_TOKEN, undefined)
+})
+
 test('an installed Agent without credential evidence remains unverified', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-missing-readiness-'))
   try {

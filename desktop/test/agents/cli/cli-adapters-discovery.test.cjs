@@ -1150,6 +1150,7 @@ test('Agent detection uses each Agent native environment without exposing its va
   const shell = {
     OPENAI_API_KEY: 'codex-private-token', ANTHROPIC_API_KEY: 'claude-private-token',
     AWS_PROFILE: 'native-profile', AWS_REGION: 'us-east-1',
+    AWS_CONTAINER_AUTHORIZATION_TOKEN: 'container-private-token',
     UNRELATED_SECRET: 'unrelated-private-token',
   }
   const seen = new Map()
@@ -1172,6 +1173,7 @@ test('Agent detection uses each Agent native environment without exposing its va
   assert.equal(seen.get('/tmp/claude').ANTHROPIC_API_KEY, shell.ANTHROPIC_API_KEY)
   assert.equal(seen.get('/tmp/claude').AWS_PROFILE, shell.AWS_PROFILE)
   assert.equal(seen.get('/tmp/claude').AWS_REGION, shell.AWS_REGION)
+  assert.equal(seen.get('/tmp/claude').AWS_CONTAINER_AUTHORIZATION_TOKEN, shell.AWS_CONTAINER_AUTHORIZATION_TOKEN)
   assert.equal(seen.get('/tmp/claude').OPENAI_API_KEY, undefined)
   assert.equal(seen.get('/tmp/claude').UNRELATED_SECRET, undefined)
   assert.doesNotMatch(JSON.stringify(found), /(?:codex|claude)-private-token/)
