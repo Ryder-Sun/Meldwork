@@ -596,6 +596,28 @@ test('automatic routing requires a successful Zcode run in the current project',
     targetKinds: [], routingMode: 'automatic' }), { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
 })
 
+test('Qwen automatic routing is bound to its project settings', async t => {
+  const { directory, calls, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const first = path.join(directory, 'first')
+  const second = path.join(directory, 'second')
+  fs.mkdirSync(first); fs.mkdirSync(second)
+  options.detectAgents = async () => [{ kind: 'qwen', name: 'Qwen', executable: '/tmp/qwen', version: '1' }]
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const groupA = workspace.createGroup({ name: 'Project A', agentKinds: ['qwen'], workdir: first })
+  const groupB = workspace.createGroup({ name: 'Project B', agentKinds: ['qwen'], workdir: second })
+  await workspace.sendMessage({ groupId: groupA.id, text: 'Verify', targetKinds: ['qwen'] })
+  await workspace.sendMessage({ groupId: groupA.id, text: 'Route', targetKinds: [], routingMode: 'automatic' })
+  await assert.rejects(workspace.sendMessage({ groupId: groupB.id, text: 'Route',
+    targetKinds: [], routingMode: 'automatic' }), { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
+  fs.mkdirSync(path.join(first, '.qwen'))
+  fs.writeFileSync(path.join(first, '.qwen', 'settings.json'), '{"model":"changed"}')
+  await assert.rejects(workspace.sendMessage({ groupId: groupA.id, text: 'Route again',
+    targetKinds: [], routingMode: 'automatic' }), { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
+  assert.equal(calls.length, 2)
+})
+
 test('a Zcode project authentication failure does not block another project', async t => {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

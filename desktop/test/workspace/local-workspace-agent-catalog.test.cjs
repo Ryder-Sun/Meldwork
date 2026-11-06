@@ -61,7 +61,8 @@ function fixture(overrides = {}) {
 }
 
 for (const [kind, config] of [['zcode', 'zcode.json'], ['opencode', 'opencode.json'],
-  ['mimo', '.mimocode/mimocode.json'], ['mimo', 'mimocode.json'], ['gemini', '.gemini/settings.json']]) {
+  ['mimo', '.mimocode/mimocode.json'], ['mimo', 'mimocode.json'], ['gemini', '.gemini/settings.json'],
+  ['qwen', '.qwen/settings.json']]) {
   test(`${kind} project verification cannot cross directories or survive a configuration change`, t => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-project-verification-'))
     t.after(() => fs.rmSync(root, { recursive: true, force: true }))

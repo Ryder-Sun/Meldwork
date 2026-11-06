@@ -65,6 +65,7 @@ function projectVerificationIdentity(kind, workdir) {
     opencode: ['opencode.json', 'opencode.jsonc', '.opencode/opencode.json', '.opencode/opencode.jsonc'],
     mimo: ['mimocode.json', 'mimocode.jsonc', '.mimocode/mimocode.json', '.mimocode/mimocode.jsonc'],
     gemini: ['.gemini/settings.json'],
+    qwen: ['.qwen/settings.json'],
   }[kind]
   if (!files) return ''
   if (typeof workdir !== 'string' || !path.isAbsolute(workdir)) return null
