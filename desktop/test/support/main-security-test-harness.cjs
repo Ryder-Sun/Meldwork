@@ -758,6 +758,7 @@ function loadMain(userData, options = {}) {
     './agents/local-agent-readiness.cjs': {
       hermesDeclaredCredentialKeys: input => options.hermesDeclaredCredentialKeys?.(input) || [],
       zcodeDeclaredCredentialKeys: input => options.zcodeDeclaredCredentialKeys?.(input) || [],
+      piDeclaredCredentialKeys: input => options.piDeclaredCredentialKeys?.(input) || [],
       nativeCredentialEnvironment: (...args) => options.nativeEnvironment?.(...args) || {},
       resolveNativeShellEnvironment: async input => options.nativeShellEnvironment?.(input) || ({
         env: { PATH: process.env.PATH || '' },

@@ -8,12 +8,35 @@ const { childEnvironment } = require('../../src/agents/cli/cli-process-support.c
 const {
   hermesDeclaredCredentialKeys,
   zcodeDeclaredCredentialKeys,
+  piDeclaredCredentialKeys,
   nativeCredentialEnvironment,
   nativeCredentialState,
   resolveNativeOpenClawRuntime,
   resolveNativeCredentialState,
   resolveNativeShellEnvironment,
 } = require('../../src/agents/local-agent-readiness.cjs')
+
+test('Pi captures only environment references declared by its selected native models configuration', async t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-pi-declared-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const selected = path.join(home, 'selected')
+  fs.mkdirSync(selected)
+  fs.writeFileSync(path.join(selected, 'models.json'), JSON.stringify({ providers: {
+    custom: { apiKey: '${KEY_PREFIX}_$KEY_SUFFIX', headers: { Authorization: 'Bearer $HEADER_TOKEN',
+      Escaped: '$$IGNORED $!ALSO_IGNORED', Command: '!echo $COMMAND_SECRET' },
+    models: [{ headers: { 'X-Model': '$MODEL_KEY' } }],
+    modelOverrides: { a: { headers: { 'X-Override': '${OVERRIDE_KEY}' } } } },
+  } }))
+  const keys = piDeclaredCredentialKeys({ home, env: { PI_CODING_AGENT_DIR: selected } })
+  assert.deepEqual(keys, ['HEADER_TOKEN', 'KEY_PREFIX', 'KEY_SUFFIX', 'MODEL_KEY', 'OVERRIDE_KEY'])
+  const captured = await resolveNativeShellEnvironment({ cache: false, platform: 'win32', extraEnvKeys: keys,
+    env: { KEY_PREFIX: 'private', HEADER_TOKEN: 'header-private', UNRELATED_KEY: 'unrelated' } })
+  assert.deepEqual(nativeCredentialEnvironment('pi', captured.env, keys), {
+    HEADER_TOKEN: 'header-private', KEY_PREFIX: 'private',
+  })
+  assert.equal(captured.env.UNRELATED_KEY, undefined)
+  assert.deepEqual(piDeclaredCredentialKeys({ home, env: {} }), [])
+})
 
 test('Zcode captures credentials only for configured native models', async t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-zcode-declared-'))

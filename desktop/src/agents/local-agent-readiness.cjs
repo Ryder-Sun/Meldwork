@@ -5,6 +5,7 @@ const os = require('node:os')
 const path = require('node:path')
 const { promisify } = require('node:util')
 const yaml = require('js-yaml')
+const JSON5 = require('json5')
 const { nativeSecretEnvKeys } = require('./cli/native-secret-environment.cjs')
 const { prepareCommand, searchPath } = require('./cli/cli-adapters.cjs')
 const { isOpenClawSecretReference } = require('./cli/openclaw-runtime.cjs')
@@ -297,11 +298,49 @@ function zcodeDeclaredCredentialKeys(options = {}) {
   } catch { return [] }
 }
 
+function piDeclaredCredentialKeys(options = {}) {
+  const env = options.env || process.env
+  const home = options.home || os.homedir()
+  const root = env.PI_CODING_AGENT_DIR
+    ? String(env.PI_CODING_AGENT_DIR).replace(/^~(?=$|[\\/])/, home)
+    : path.join(home, '.pi', 'agent')
+  if (!path.isAbsolute(root)) return []
+  try {
+    const file = path.join(root, 'models.json')
+    const stat = fs.statSync(file)
+    if (!stat.isFile() || stat.size > MAX_CREDENTIAL_FILE_BYTES) return []
+    const config = JSON5.parse(fs.readFileSync(file, 'utf8'))
+    const providers = config?.providers
+    if (!providers || typeof providers !== 'object' || Array.isArray(providers)) return []
+    const values = []
+    const headers = value => {
+      if (value && typeof value === 'object' && !Array.isArray(value)) values.push(...Object.values(value))
+    }
+    for (const provider of Object.values(providers).slice(0, 256)) {
+      if (!provider || typeof provider !== 'object' || Array.isArray(provider)) continue
+      values.push(provider.apiKey)
+      headers(provider.headers)
+      for (const model of Array.isArray(provider.models) ? provider.models.slice(0, 256) : []) headers(model?.headers)
+      if (provider.modelOverrides && typeof provider.modelOverrides === 'object' && !Array.isArray(provider.modelOverrides)) {
+        for (const model of Object.values(provider.modelOverrides).slice(0, 256)) headers(model?.headers)
+      }
+    }
+    const keys = []
+    for (const value of values) {
+      if (typeof value !== 'string' || value.startsWith('!')) continue
+      for (const match of value.matchAll(/\$\$|\$!|\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g)) {
+        if (match[1] || match[2]) keys.push(match[1] || match[2])
+      }
+    }
+    return nativeSecretEnvKeys(keys)
+  } catch { return [] }
+}
+
 function nativeCredentialEnvironment(kind, env = process.env, declaredKeys = []) {
   const result = {}
   const keys = [...(RUNTIME_ENV_KEYS[kind] || []), ...(kind === 'claude'
     ? Object.keys(env).filter(key => VERTEX_MODEL_REGION_KEY.test(key)) : []),
-    ...(['hermes', 'zcode', 'mimo'].includes(kind) ? nativeSecretEnvKeys(declaredKeys) : [])]
+    ...(['hermes', 'zcode', 'mimo', 'pi'].includes(kind) ? nativeSecretEnvKeys(declaredKeys) : [])]
   for (const key of keys) {
     if (typeof env[key] === 'string') result[key] = env[key]
   }
@@ -957,6 +996,7 @@ async function resolveNativeCredentialState(kind, options = {}) {
 module.exports = {
   hermesDeclaredCredentialKeys,
   zcodeDeclaredCredentialKeys,
+  piDeclaredCredentialKeys,
   nativeCredentialEnvironment,
   nativeCredentialState,
   resolveNativeOpenClawRuntime,

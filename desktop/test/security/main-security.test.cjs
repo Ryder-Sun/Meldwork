@@ -191,6 +191,30 @@ test('native credential changes invalidate the main-process Agent identity witho
   assert.doesNotMatch(JSON.stringify({ ...first, ...second }), /private-key|OPENAI_API_KEY/)
 })
 
+test('Pi native configuration declarations reach discovery and execution', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-pi-env-main-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  let discoveryKeys
+  let selectedDirectory
+  const { harness } = loadMain(directory, {
+    nativeShellEnvironment: input => ({ env: input.extraEnvKeys?.includes('CUSTOM_TOKEN')
+      ? { CUSTOM_TOKEN: 'private-value' } : {}, source: 'native-shell' }),
+    piDeclaredCredentialKeys: input => { selectedDirectory = input.env.PI_CODING_AGENT_DIR; return ['CUSTOM_TOKEN'] },
+    nativeEnvironment: (_kind, env, keys) => keys?.includes('CUSTOM_TOKEN') ? { CUSTOM_TOKEN: env.CUSTOM_TOKEN } : {},
+    detectAgents: input => { discoveryKeys = input.nativeCredentialKeysForKind('pi'); return [] },
+  })
+  await harness.ready()
+  const workspace = harness.workspaceInstances[0]
+  workspace.state.agentPreferences = { pi: { nativeConfigDirectory: directory } }
+  await harness.installerInstances[0].input.detectAgents()
+  assert.equal(selectedDirectory, directory)
+  assert.deepEqual(discoveryKeys, ['CUSTOM_TOKEN'])
+  await workspace.input.runAgent({ kind: 'pi', executable: '/tmp/pi' }, 'hello', directory, {})
+  const options = harness.runAgentCalls.at(-1)[3]
+  assert.equal(options.env.CUSTOM_TOKEN, 'private-value')
+  assert.deepEqual(options.nativeCredentialKeys, ['CUSTOM_TOKEN'])
+})
+
 test('native Agent configuration selection is validated and used for execution', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-config-ipc-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
@@ -2530,6 +2554,7 @@ test('OpenClaw native auth is routed through the app-owned isolated runtime', as
       './agents/local-agent-readiness.cjs': {
         hermesDeclaredCredentialKeys: () => [],
         zcodeDeclaredCredentialKeys: () => [],
+        piDeclaredCredentialKeys: () => [],
         nativeCredentialEnvironment: kind => kind === 'openclaw'
           ? {
             OPENCLAW_NATIVE_CONFIG: 'available',

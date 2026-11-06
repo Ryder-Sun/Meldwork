@@ -6,6 +6,7 @@ const path = require('node:path')
 const { EventEmitter } = require('node:events')
 
 const { childEnvironment, failedAgentProcessError, terminateWindowsProcessTree } = require('../../../src/agents/cli/cli-process-support.cjs')
+const { redactChildSecrets } = require('../../../src/agents/cli/cli-runtime-event-sanitizer.cjs')
 const { nativeOpenClawOptions } = require('../../../src/agents/cli/openclaw-runtime.cjs')
 const { workBuddyInstall } = require('../../support/cli-adapters-test-helpers.cjs')
 
@@ -106,6 +107,16 @@ test('local Agent child environments keep supported runtime settings but reject 
   assert.equal(Object.hasOwn(env, 'GITHUB_TOKEN'), false)
   assert.equal(Object.hasOwn(env, 'NODE_OPTIONS'), false)
   assert.equal(Object.hasOwn(env, 'DYLD_INSERT_LIBRARIES'), false)
+})
+
+test('Pi receives and redacts credentials declared in native models configuration', () => {
+  const env = childEnvironment({ kind: 'pi' }, '/tmp/workspace', {
+    env: { CUSTOM_PROVIDER_TOKEN: 'synthetic-private-value', UNRELATED_TOKEN: 'not-shared' },
+    nativeCredentialKeys: ['CUSTOM_PROVIDER_TOKEN'],
+  }, 'darwin')
+  assert.equal(env.CUSTOM_PROVIDER_TOKEN, 'synthetic-private-value')
+  assert.equal(env.UNRELATED_TOKEN, undefined)
+  assert.doesNotMatch(redactChildSecrets('failure synthetic-private-value', env), /synthetic-private-value/)
 })
 
 test('native Agent child environments preserve shell-selected XDG directories', () => {
