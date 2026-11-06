@@ -2,7 +2,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 
 const NATIVE_CONFIG_DIRECTORIES = Object.freeze({
-  hermes: { key: 'HERMES_HOME', files: ['config.yaml', 'auth.json'] },
+  hermes: { key: 'HERMES_HOME', files: ['config.yaml', 'auth.json', '.env'] },
   codex: { key: 'CODEX_HOME', files: ['config.toml', 'auth.json'] },
   claude: { key: 'CLAUDE_CONFIG_DIR', files: ['settings.json', '.credentials.json'] },
   pi: { key: 'PI_CODING_AGENT_DIR', files: ['settings.json', 'auth.json', 'models.json'] },

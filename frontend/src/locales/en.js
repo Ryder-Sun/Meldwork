@@ -4,7 +4,7 @@ export default {
     'nativeConfig.choose': 'Choose directory',
     'nativeConfig.clear': 'Restore automatic discovery',
     'nativeConfig.invalid': 'The selected directory does not contain this Agent’s native configuration.',
-    'nativeConfig.expected.hermes': 'Expected config.yaml or auth.json.',
+    'nativeConfig.expected.hermes': 'Expected config.yaml, auth.json, or .env.',
     'nativeConfig.expected.codex': 'Expected config.toml or auth.json.',
     'nativeConfig.expected.claude': 'Expected settings.json or .credentials.json.',
     'nativeConfig.expected.pi': 'Expected settings.json, auth.json or models.json.',

@@ -4,7 +4,7 @@ export default {
     'nativeConfig.choose': '选择目录',
     'nativeConfig.clear': '恢复自动发现',
     'nativeConfig.invalid': '所选目录没有找到此 Agent 的原生配置文件。',
-    'nativeConfig.expected.hermes': '需要 config.yaml 或 auth.json。',
+    'nativeConfig.expected.hermes': '需要 config.yaml、auth.json 或 .env。',
     'nativeConfig.expected.codex': '需要 config.toml 或 auth.json。',
     'nativeConfig.expected.claude': '需要 settings.json 或 .credentials.json。',
     'nativeConfig.expected.pi': '需要 settings.json、auth.json 或 models.json。',

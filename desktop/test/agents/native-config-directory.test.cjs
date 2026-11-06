@@ -4,6 +4,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { nativeConfigEnvironment, validateNativeConfigDirectory } = require('../../src/agents/native-config-directory.cjs')
+const { nativeCredentialState } = require('../../src/agents/local-agent-readiness.cjs')
 const { loadWorkspaceState, saveWorkspaceState } = require('../../src/workspace/local-workspace-state.cjs')
 
 test('validates a selected native directory and scopes it to the owning Agent', t => {
@@ -31,6 +32,18 @@ test('a selected native directory survives workspace restart', t => {
   const restored = loadWorkspaceState(storagePath)
   assert.equal(restored.status, 'ready')
   assert.equal(nativeConfigEnvironment('hermes', restored.state.agentPreferences).HERMES_HOME, selected)
+})
+
+test('Hermes accepts a native directory configured through .env alone', t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-env-config-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  fs.writeFileSync(path.join(directory, '.env'), 'OPENAI_API_KEY=synthetic-secret\n')
+  const selected = validateNativeConfigDirectory('hermes', directory)
+  const env = nativeConfigEnvironment('hermes', { hermes: { nativeConfigDirectory: selected } }, {})
+  assert.equal(env.HERMES_HOME, selected)
+  assert.deepEqual(nativeCredentialState('hermes', { home: directory, env }), {
+    state: 'ready', source: 'native-credential',
+  })
 })
 
 test('DeepSeek Harness accepts its native profiles directory and scopes DSH_HOME', t => {
