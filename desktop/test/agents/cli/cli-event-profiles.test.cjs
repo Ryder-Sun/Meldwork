@@ -235,6 +235,27 @@ test('Hermes legacy state lookup follows the child native profile and data suffi
   }
 })
 
+test('Hermes legacy failed-turn notices remain failures after final recovery', async () => {
+  const legacy = resolveConnectorEventProfile('hermes', { transport: 'legacy' })
+  const notices = [
+    'Your request was not processed. Send it again if you still want me to carry it out.',
+    'This turn did not complete. Some actions may already have run; verify their effects before resending.',
+  ]
+  for (const notice of notices) {
+    for (const source of ['stdout', 'state']) {
+      const result = await legacy.finalizeResult({
+        result: { text: source === 'stdout' ? `Provider said: Connection error.\r\n\r\n${notice}` : 'fallback', outcome: 'completed' },
+        sessionRef: 'session', runContext: { messageWatermark: 2 },
+        options: { hermesFinalResponseFn: () => source === 'state' ? notice : 'old-looking reply' },
+      })
+      assert.equal(result.outcome, 'failed')
+      assert.match(result.diagnostic, /(?:not processed|did not complete)/)
+    }
+  }
+  const quote = `Documentation says:\n${notices[0]}`
+  assert.equal((await legacy.finalizeResult({ result: { text: quote, outcome: 'completed' } })).outcome, 'completed')
+})
+
 test('legacy profile bounds an authoritative DB final to one MiB', async () => {
   const legacy = resolveConnectorEventProfile('hermes', { transport: 'legacy' })
   const sessionRef = 'hermes-session-bounded-final'

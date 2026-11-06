@@ -2,6 +2,7 @@ const { StringDecoder } = require('node:string_decoder')
 const { createHash } = require('node:crypto')
 const os = require('node:os')
 const path = require('node:path')
+const { agentRuntimeFailure } = require('../agent-runtime-contract.cjs')
 const {
   classifyCliOutcome,
   codexProgressEvent,
@@ -224,22 +225,30 @@ async function finalizeHermesLegacyResult(input = {}) {
   if (sessionRef && typeof options.onSessionRef === 'function') {
     await options.onSessionRef(sessionRef, { transport: 'legacy' })
   }
-  if (!sessionRef || !Number.isSafeInteger(runContext?.messageWatermark)) return result
   const finalResponseFn = options.hermesFinalResponseFn || readHermesFinalResponse
   let finalResponse = ''
-  try {
-    finalResponse = finalResponseFn(sessionRef, {
-      home: options.home,
-      hermesHome: runContext.hermesHome,
-      afterMessageId: runContext.messageWatermark,
-      existsFn: options.hermesStateExistsFn,
-      queryFn: options.hermesStateQueryFn,
-    })
-  } catch { /* fall back to the official --quiet stdout */ }
+  if (sessionRef && Number.isSafeInteger(runContext?.messageWatermark)) {
+    try {
+      finalResponse = finalResponseFn(sessionRef, {
+        home: options.home,
+        hermesHome: runContext.hermesHome,
+        afterMessageId: runContext.messageWatermark,
+        existsFn: options.hermesStateExistsFn,
+        queryFn: options.hermesStateQueryFn,
+      })
+    } catch { /* fall back to the official --quiet stdout */ }
+  }
   const text = typeof finalResponse === 'string'
     ? finalResponse.trim().slice(0, MAX_FINAL_TEXT_CHARS)
     : ''
-  return text ? { ...result, text } : result
+  const output = text ? { ...result, text } : result
+  const notice = /^(?:Your request was not processed\. Send it again if you still want me to carry it out\.|This turn did not complete\. Some actions may already have run; verify their effects before resending\.)$/m
+  const failureText = [result.text, text].map(value => String(value || '').replace(/\r/g, '').trim())
+    .find(candidate => notice.test(candidate)
+      && (!candidate.includes('\n') || /^Provider said:\s*\S.*$/m.test(candidate)))
+  return failureText
+    ? { ...output, outcome: 'failed', failure: agentRuntimeFailure('LOCAL_AGENT_PROCESS_FAILED'), diagnostic: failureText }
+    : output
 }
 
 function profile(input) {

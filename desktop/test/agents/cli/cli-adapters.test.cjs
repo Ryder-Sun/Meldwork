@@ -1793,6 +1793,18 @@ process.stderr.write('session_id: selected-home-session\\n')
   assert.deepEqual(databasePaths, [path.join(selectedHome, 'state.db'), path.join(selectedHome, 'state.db')])
 })
 
+test('runAgent rejects a zero-exit Hermes failed turn without a session', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-failed-'))
+  const cli = executable(directory, 'hermes-failed.cjs', `
+process.stdout.write('Provider said: Connection error.\\n\\nYour request was not processed. Send it again if you still want me to carry it out.')
+`)
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  await assert.rejects(runAgent(
+    { kind: 'hermes', executable: cli, name: 'Hermes' }, 'hello', directory,
+    { hermesAcpAvailable: false, hermesMessageWatermarkFn: () => null },
+  ), { code: 'LOCAL_AGENT_PROCESS_FAILED' })
+})
+
 test('runAgent restores the Hermes session id reported on successful stderr', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-session-'))
   const cli = executable(directory, 'hermes-session.cjs', `
