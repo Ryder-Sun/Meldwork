@@ -2417,8 +2417,8 @@ class LocalWorkspace extends EventEmitter {
     return this.agentCatalog.setSidebarVisibility(kind, visible)
   }
 
-  markRuntimeCredential(kind, credentialState) {
-    return this.agentCatalog.markRuntimeCredential(kind, credentialState)
+  markRuntimeCredential(kind, credentialState, options) {
+    return this.agentCatalog.markRuntimeCredential(kind, credentialState, options)
   }
 
   clearRuntimeCredentialFailures() {

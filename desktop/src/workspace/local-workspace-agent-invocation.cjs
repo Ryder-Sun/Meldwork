@@ -1208,7 +1208,7 @@ class LocalWorkspaceAgentInvocation {
         throw new Error('LOCAL_RUN_PERMISSION_REQUEST_NOT_REISSUED')
       }
       result = requireTerminalAgentResult(result)
-      this.markRuntimeCredential(kind, 'ready')
+      this.markRuntimeCredential(kind, 'ready', { verifiedRun: result.outcome === 'completed' })
 
       const collaborationReply = parseV4CollaborationReceipt(
       result,

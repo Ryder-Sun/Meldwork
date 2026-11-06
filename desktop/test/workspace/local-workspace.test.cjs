@@ -575,6 +575,21 @@ test('a successful authentication probe does not count as a successful Agent run
   await workspace.sendMessage({ groupId: group.id, text: 'Choose an Agent', targetKinds: [], routingMode: 'automatic' })
 })
 
+test('a partial Agent result cannot verify it for automatic routing', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  options.runAgent = async () => ({ text: 'Partial response', outcome: 'partial' })
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Partial verification', agentKinds: ['codex'], workdir: directory })
+  await workspace.sendMessage({ groupId: group.id, text: 'Run explicitly', targetKinds: ['codex'] })
+  assert.equal(workspace.state.agentRuntime.codex.credentialState, 'ready')
+  assert.equal(workspace.state.agentRuntime.codex.verificationSource, undefined)
+  assert.equal(workspace.snapshot().agents.find(agent => agent.kind === 'codex').recentlyVerified, false)
+  await assert.rejects(workspace.sendMessage({ groupId: group.id, text: 'Choose an Agent',
+    targetKinds: [], routingMode: 'automatic' }), { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
+})
+
 test('all supported workspace versions preserve stored or omitted read-only permission', (t) => {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
