@@ -101,6 +101,7 @@ class RunJournal {
     this.runs = new Map()
     this.pending = new Map()
     this.legacyRunIds = new Set()
+    this.uncertainCompaction = null
     this.load()
   }
 
@@ -169,6 +170,19 @@ class RunJournal {
   }
 
   assertLoaded() {
+    if (this.loadError && this.uncertainCompaction) {
+      const { serialized, change } = this.uncertainCompaction
+      try {
+        atomicWritePrivateFile(this.storagePath, serialized)
+        this.sequence = 2
+        this.runs.clear()
+        this.pending.clear()
+        this.hasBaseline = false
+        this.apply(change)
+        this.uncertainCompaction = null
+        this.loadError = null
+      } catch (error) { this.loadError = error }
+    }
     if (this.loadError) throw new Error('RUN_JOURNAL_LOAD_FAILED')
   }
 
@@ -284,15 +298,17 @@ class RunJournal {
         phase: 'commit',
       },
     ]
+    const serialized = `${entries.map(entry => JSON.stringify(entry)).join('\n')}\n`
     try {
       atomicWritePrivateFile(
         this.storagePath,
-        `${entries.map(entry => JSON.stringify(entry)).join('\n')}\n`,
+        serialized,
       )
     } catch (error) {
       // The rename may already have succeeded even when the parent sync failed.
-      // Do not append using the old sequence until the journal is reloaded.
+      // Do not append using the old sequence until this baseline is durable again.
       this.loadError = error
+      this.uncertainCompaction = { serialized, change }
       throw error
     }
     this.sequence = 2
