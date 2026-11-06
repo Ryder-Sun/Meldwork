@@ -204,6 +204,27 @@ test('native Agent configuration selection is validated and used for execution',
   assert.equal((await get(harness.event(), 'hermes')).directory, '')
 })
 
+test('Skill discovery follows native shell directories and explicit selections take precedence', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-skill-env-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  let nativeDirectory = '~/custom-hermes'
+  const { harness } = loadMain(directory, {
+    nativeShellEnvironment: () => ({ env: { HERMES_HOME: nativeDirectory }, source: 'native-shell' }),
+  })
+  await harness.ready()
+  const catalog = harness.skillCatalogInstances[0]
+  await harness.installerInstances[0].input.listSkills('hermes')
+  assert.equal(catalog.input.configDirectoryForKind('hermes'), path.join(directory, 'Home', 'custom-hermes'))
+  const invalidations = catalog.invalidateCalls
+  nativeDirectory = path.join(directory, 'other-hermes')
+  await harness.installerInstances[0].input.listSkills('hermes')
+  assert.equal(catalog.invalidateCalls, invalidations + 1)
+  assert.equal(catalog.input.configDirectoryForKind('hermes'), nativeDirectory)
+  const selected = path.join(directory, 'selected-hermes')
+  harness.workspaceInstances[0].state.agentPreferences = { hermes: { nativeConfigDirectory: selected } }
+  assert.equal(catalog.input.configDirectoryForKind('hermes'), selected)
+})
+
 test('native configuration cannot change if a run starts while the picker is open', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-config-race-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
@@ -1770,7 +1791,7 @@ test('Skills IPC uses the installed-Agent gate and the shared local catalog', as
 
   assert.deepEqual(result, skillsResult)
   assert.equal(harness.installerInstances[0].skillsKind, 'codex')
-  assert.deepEqual(harness.installerInstances[0].input.listSkills('codex'), skillsResult)
+  assert.deepEqual(await harness.installerInstances[0].input.listSkills('codex'), skillsResult)
   assert.deepEqual(harness.skillCatalogInstances[0].listCalls, ['codex'])
 })
 

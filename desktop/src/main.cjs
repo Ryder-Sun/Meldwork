@@ -105,6 +105,7 @@ let workspaceChangedListener = null
 let workspaceRunFinishedListener = null
 let workspaceRunEventListener = null
 let installer = null
+let nativeSkillDirectories = {}
 let localAgentRefreshQueue = Promise.resolve()
 let customAgentStore = null
 let agentConnectors = null
@@ -245,9 +246,15 @@ function openExternalUrl(value) {
 async function nativeShellEnvironment(options = {}) {
   const home = app.getPath('home')
   const resolved = await resolveNativeShellEnvironment({ home, refresh: options.refresh === true })
+  const env = { ...process.env, ...resolved.env }
+  for (const [kind, { key }] of Object.entries(NATIVE_CONFIG_DIRECTORIES)) {
+    const directory = typeof env[key] === 'string' ? env[key] : ''
+    if ((nativeSkillDirectories[key] || '') !== directory) skillCatalog?.invalidate(kind)
+    nativeSkillDirectories[key] = directory
+  }
   return {
     ...resolved,
-    env: { ...process.env, ...resolved.env },
+    env,
     home,
   }
 }
@@ -552,7 +559,10 @@ function createWorkspace() {
     captureArtifactOutputs: (workdir, options) => captureArtifactOutputState(workdir, options),
     captureAgentOutcomeDescriptors,
     importAgentOutputs: input => importAgentOutputs(input, attachments.availableStore()),
-    validateSkillSelections: (kind, selections) => skillSnapshotSelections.prepare(kind, selections),
+    validateSkillSelections: async (kind, selections) => {
+      if (selections?.length) await nativeShellEnvironment()
+      return skillSnapshotSelections.prepare(kind, selections)
+    },
     validateKnowledgeBaseSelections,
     imageAttachmentLimit,
     attachmentSupport: localAttachmentSupport,
@@ -840,12 +850,21 @@ if (!hasSingleInstanceLock) {
       home: app.getPath('home'),
       configDirectoryForKind: kind => {
         const key = NATIVE_CONFIG_DIRECTORIES[kind]?.key
-        return key ? nativeConfigEnvironment(kind, workspace?.state.agentPreferences)[key] || '' : ''
+        if (!key) return ''
+        let directory = nativeConfigEnvironment(kind, workspace?.state.agentPreferences, nativeSkillDirectories)[key] || ''
+        if (directory === '~' || directory.startsWith('~/') || (process.platform === 'win32' && directory.startsWith('~\\'))) {
+          directory = path.join(app.getPath('home'), directory.slice(2))
+        }
+        if (directory && !path.isAbsolute(directory)) throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
+        return directory
       },
     })
     installer = new AgentInstaller({
       detectAgents: detectLocalAgents,
-      listSkills: kind => skillCatalog.list(kind),
+      listSkills: async kind => {
+        await nativeShellEnvironment()
+        return skillCatalog.list(kind)
+      },
     })
     installer.on('changed', state => {
       if (mainWindow && !mainWindow.isDestroyed()
