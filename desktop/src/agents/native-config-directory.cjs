@@ -12,13 +12,20 @@ function nativeEnvironmentIdentity(env) {
   return createHmac('sha256', environmentIdentityKey).update(JSON.stringify(entries)).digest('hex')
 }
 
-function nativeAuthIdentityFiles(kind, env, home) {
+function nativeAuthIdentityFiles(kind, env, home, platform = process.platform) {
   if (kind === 'gemini') {
-    const settings = env?.GEMINI_CLI_SYSTEM_SETTINGS_PATH
+    const paths = platform === 'win32' ? path.win32 : path.posix
+    const settings = env?.GEMINI_CLI_SYSTEM_SETTINGS_PATH || (platform === 'darwin'
+      ? '/Library/Application Support/GeminiCli/settings.json' : platform === 'win32'
+        ? 'C:\\ProgramData\\gemini-cli\\settings.json' : '/etc/gemini-cli/settings.json')
     const defaults = env?.GEMINI_CLI_SYSTEM_DEFAULTS_PATH
-      || (typeof settings === 'string' && path.isAbsolute(settings) ? path.join(path.dirname(settings), 'system-defaults.json') : '')
-    return [settings, defaults, env?.GOOGLE_APPLICATION_CREDENTIALS]
-      .filter(filename => typeof filename === 'string' && path.isAbsolute(filename))
+      || (typeof settings === 'string' && paths.isAbsolute(settings) ? paths.join(paths.dirname(settings), 'system-defaults.json') : '')
+    const cloudRoot = platform === 'win32' ? env?.APPDATA : paths.join(env?.HOME || home || '', '.config')
+    const credentials = env?.GOOGLE_APPLICATION_CREDENTIALS
+      || (typeof cloudRoot === 'string' && paths.isAbsolute(cloudRoot)
+        ? paths.join(cloudRoot, 'gcloud', 'application_default_credentials.json') : '')
+    return [settings, defaults, credentials]
+      .filter(filename => typeof filename === 'string' && paths.isAbsolute(filename))
   }
   if (kind === 'zcode') {
     const configured = process.platform === 'win32' ? env?.USERPROFILE : env?.HOME

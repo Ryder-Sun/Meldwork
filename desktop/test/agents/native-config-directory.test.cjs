@@ -53,6 +53,15 @@ test('Gemini authentication identity includes explicitly selected system and clo
   assert.deepEqual(nativeAuthIdentityFiles('gemini', {
     GEMINI_CLI_SYSTEM_SETTINGS_PATH: 'relative', GOOGLE_APPLICATION_CREDENTIALS: 'relative',
   }, home), [])
+  assert.deepEqual(nativeAuthIdentityFiles('gemini', {}, home, 'darwin'), [
+    '/Library/Application Support/GeminiCli/settings.json',
+    '/Library/Application Support/GeminiCli/system-defaults.json',
+    path.join(home, '.config', 'gcloud', 'application_default_credentials.json'),
+  ])
+  assert.deepEqual(nativeAuthIdentityFiles('gemini', { APPDATA: 'C:\\Users\\User\\AppData\\Roaming' }, 'C:\\Users\\User', 'win32'), [
+    'C:\\ProgramData\\gemini-cli\\settings.json', 'C:\\ProgramData\\gemini-cli\\system-defaults.json',
+    'C:\\Users\\User\\AppData\\Roaming\\gcloud\\application_default_credentials.json',
+  ])
 })
 
 test('a selected native directory survives workspace restart', t => {
