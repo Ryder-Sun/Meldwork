@@ -9,6 +9,9 @@ const { LocalSkillCatalog } = require('../../src/skills/local-skill-catalog.cjs'
 const { LocalSkillSnapshotStore } = require('../../src/skills/local-skill-snapshot.cjs')
 const { LocalSkillSnapshotSelections } = require('../../src/skills/local-skill-snapshot-selections.cjs')
 const { LocalSkillTrustStore } = require('../../src/skills/local-skill-trust-store.cjs')
+const { LocalWorkspace } = require('../../src/workspace/local-workspace.cjs')
+const { RunScheduler } = require('../../src/runs/run-scheduler.cjs')
+const { fixture: workspaceFixture, deferred } = require('../support/local-workspace-test-helpers.cjs')
 
 function skillManifest(overrides = {}) {
   return {
@@ -178,6 +181,44 @@ test('content upgrades require a new approval and revoked trust blocks restore',
     selections.prepare('codex', [persistedHint(upgraded)]),
     { message: 'LOCAL_SKILL_TRUST_REQUIRED' },
   )
+})
+
+for (const revokeAt of ['queued', 'after-lease', 'never']) test(`a queued Skill handles trust ${revokeAt}`, async t => {
+  const { catalog, selections, trustStore } = fixture(t)
+  const workspaceSetup = workspaceFixture()
+  t.after(() => fs.rmSync(workspaceSetup.directory, { recursive: true, force: true }))
+  const scheduler = new RunScheduler({ globalLimit: 1 })
+  const blocker = await scheduler.acquire({ taskId: 'blocking-task', workspaceKey: 'blocking-workspace' })
+  t.after(() => blocker.release())
+  const prepared = deferred()
+  let calls = 0
+  let bindingId
+  let validations = 0
+  workspaceSetup.options.runScheduler = scheduler
+  workspaceSetup.options.detectAgents = async () => [{ kind: 'codex', name: 'Codex',
+    executable: '/tmp/codex', version: 'codex-cli 0.146.0', resolvedVersion: '0.146.0', compatibilityState: 'compatible' }]
+  workspaceSetup.options.validateSkillSelections = async (kind, selected) => {
+    const result = await selections.prepare(kind, selected)
+    if (result.length && !bindingId) { bindingId = result[0].trustBindingId; prepared.resolve() }
+    if (result.length && ++validations === 2 && revokeAt === 'after-lease') trustStore.revoke(bindingId)
+    return result
+  }
+  workspaceSetup.options.runAgent = async () => { calls += 1; return { text: 'Skill response', outcome: 'completed' } }
+  const workspace = new LocalWorkspace(workspaceSetup.options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Revoked Skill', agentKinds: ['codex'],
+    workdir: workspaceSetup.directory, allowWrite: false })
+  const pending = workspace.sendMessage({ groupId: group.id, text: 'Review', targetKinds: ['codex'],
+    skillHints: [catalog.list('codex').skills[0]] })
+  await prepared.promise
+  if (revokeAt === 'queued') trustStore.revoke(bindingId)
+  blocker.release()
+  await pending
+  assert.equal(calls, revokeAt === 'never' ? 1 : 0)
+  if (revokeAt !== 'never') assert.ok(workspace.snapshot().messages.some(message => (
+    message.system?.params?.reason === 'LOCAL_SKILL_TRUST_REQUIRED'
+  )))
+  else assert.ok(workspace.snapshot().messages.some(message => message.content === 'Skill response'))
 })
 
 test('rejects missing manifests and manifest upgrades that are not explicitly approved', async (t) => {

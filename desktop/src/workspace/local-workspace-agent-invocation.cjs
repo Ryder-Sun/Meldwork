@@ -207,6 +207,7 @@ class LocalWorkspaceAgentInvocation {
     this.completeHumanGateContinuation = options.completeHumanGateContinuation
     this.connectorRuntime = options.connectorRuntime || null
     this.attachmentSupport = options.attachmentSupport || (() => ({}))
+    this.validateSkillSelections = options.validateSkillSelections || (async (_kind, selections) => selections)
     this.activeAgentSnapshots = new Map()
   }
 
@@ -324,6 +325,23 @@ class LocalWorkspaceAgentInvocation {
           ? snapshot
           : null))
     if (!agent) throw new Error('LOCAL_AGENT_UNAVAILABLE')
+    const revalidateApprovedSkills = async () => {
+      if (!context.skillHints?.some(skill => skill?.approvedSkillManifest)) return
+      const previous = context.skillHints
+      const validated = await this.validateSkillSelections(kind, previous)
+      if (!Array.isArray(validated) || validated.length !== previous.length
+          || validated.some((skill, index) => !skill?.approvedSkillManifest
+            || ['targetKind', 'namespace', 'slug', 'snapshotId', 'manifestHash']
+              .some(field => skill[field] !== previous[index]?.[field])
+            || skill.entryPath !== previous[index]?.entryPath)) {
+        throw new Error('LOCAL_SKILL_SELECTION_INVALID')
+      }
+      if (signal?.aborted || invocation.agentController?.signal.aborted) {
+        throw new Error('LOCAL_AGENT_EXECUTION_STOPPED')
+      }
+      context = { ...context, skillHints: validated }
+    }
+    await revalidateApprovedSkills()
     const reviewOnly = isCodeReviewAgentKind(kind)
     const invocationContext = isolatedInvocationContext(context)
     const isolated = invocationContext?.policy === 'isolated'
@@ -994,7 +1012,10 @@ class LocalWorkspaceAgentInvocation {
           ? { hermesAcpAvailable: HERMES_WORKSPACE_ACP_ENABLED && agent.acpAvailable !== false }
           : {}),
       }
-      const runCurrentSession = () => {
+      const runCurrentSession = async () => {
+        await revalidateApprovedSkills()
+        operationStarted = true
+        if (allowWrite) sideEffectsStarted = true
         const currentRunOptions = {
           ...runOptions, sessionRef: session.ref, sessionTransport: session.transport,
         }
@@ -1074,8 +1095,6 @@ class LocalWorkspaceAgentInvocation {
       const executeCurrentSession = async () => {
         const reusedSessionRef = session.ref
         try {
-          operationStarted = true
-          if (allowWrite) sideEffectsStarted = true
           return await runCurrentSession()
         } catch (error) {
           if (agentController.signal.aborted || !reusedSessionRef
@@ -1086,8 +1105,6 @@ class LocalWorkspaceAgentInvocation {
             resumedPermission = null
           }
           rebuildFreshSession()
-          operationStarted = true
-          if (allowWrite) sideEffectsStarted = true
           return await runCurrentSession()
         }
       }

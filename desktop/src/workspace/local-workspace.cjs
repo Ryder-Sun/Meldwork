@@ -318,6 +318,7 @@ class LocalWorkspace extends EventEmitter {
       completeHumanGateContinuation: (...args) => this.completeHumanGateContinuation(...args),
       connectorRuntime: options.connectorRuntime,
       attachmentSupport: (...args) => this.attachmentSupportFn(...args),
+      validateSkillSelections: (...args) => this.validateSkillSelectionsFn(...args),
     })
     this.autoRunner = new LocalWorkspaceAutoRunner({
       reserveTurnSeqs: (...args) => this.reserveTurnSeqs(...args),
