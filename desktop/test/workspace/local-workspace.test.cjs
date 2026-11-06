@@ -596,6 +596,33 @@ test('automatic routing starts the verified read-only Agent when the only writer
   assert.equal(workspace.snapshot().messages.find(message => message.role === 'user').routingDecision.requirements.permissionMode, 'read-only')
 })
 
+test('V4 automatic collaboration preserves per-Agent permissions for a mixed team', async t => {
+  const { directory, calls, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  options.naturalAgentResponses = true
+  options.detectAgents = async () => [
+    { kind: 'codex', name: 'Codex', executable: '/tmp/codex', version: '1' },
+    { kind: 'hermes', name: 'Hermes', executable: '/tmp/hermes', version: '2', routingCapabilities: {
+      domains: ['general'], inputTypes: ['text'], outputTypes: ['text'], toolClasses: ['agent-native'],
+      permissionModes: ['read-only'], latencyBand: 'low', costBand: 'low', contextLimitChars: 20000, resumable: false,
+    } },
+  ]
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  workspace.markRuntimeCredential('codex', 'ready')
+  workspace.markRuntimeCredential('hermes', 'ready')
+  const group = workspace.createGroup({ name: 'Mixed permissions', agentKinds: ['codex', 'hermes'],
+    workdir: directory, allowWrite: true })
+  await workspace.sendMessage({ groupId: group.id, text: 'Collaborate', targetKinds: [], routingMode: 'automatic',
+    mode: 'auto', maxRounds: 1, protocol: 'v4' })
+  await workspace.activeRuns.get(group.id)?.promise
+  const root = workspace.snapshot().messages.find(message => message.role === 'user')
+  assert.deepEqual(new Set(root.targetKinds), new Set(['codex', 'hermes']))
+  assert.ok(calls.some(call => call.agent.kind === 'codex' && call.runOptions.sandbox === 'workspace-write'))
+  assert.ok(calls.some(call => call.agent.kind === 'hermes'))
+  assert.ok(calls.filter(call => call.agent.kind === 'hermes').every(call => call.runOptions.sandbox === 'read-only'))
+})
+
 test('a successful authentication probe does not count as a successful Agent run', async t => {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

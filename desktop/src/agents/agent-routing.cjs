@@ -198,7 +198,9 @@ function evaluateCandidate(agent, requirements, options = {}) {
   if (requirements.toolClasses.some(type => !capabilities.toolClasses.includes(type))) {
     exclusions.push('tool-class')
   }
-  if (!capabilities.permissionModes.includes(requirements.permissionMode)) {
+  if (!capabilities.permissionModes.includes(requirements.permissionMode)
+      && !(options.allowReadOnlyPeer && requirements.permissionMode === 'workspace-write'
+        && capabilities.permissionModes.includes('read-only'))) {
     exclusions.push('permission')
   }
   if (exceedsBand(capabilities.latencyBand, requirements.maxLatencyBand)) {
@@ -370,11 +372,16 @@ class AgentRouter {
       const kind = explicitTargets.find(target => !approvedKinds.includes(target))
       throw routingError('LOCAL_MESSAGE_TARGET_OUT_OF_GROUP', { kind })
     }
+    const allowReadOnlyPeer = effectiveMode === 'automatic'
+      && requirements.collaboration === 'required'
+      && requirements.permissionMode === 'workspace-write'
+      && input.routingRequirements?.permissionMode == null
     const candidates = approvedKinds.map((kind) => evaluateCandidate(
       detected.get(kind) || { kind, available: false },
       requirements,
       { attachmentSupport: this.attachmentSupport, fitMatrix: this.fitMatrix,
-        requireVerified: effectiveMode === 'automatic', isRecentlyVerified: this.isRecentlyVerified },
+        requireVerified: effectiveMode === 'automatic', isRecentlyVerified: this.isRecentlyVerified,
+        allowReadOnlyPeer },
     ))
     let selectedKinds
     if (effectiveMode === 'explicit') {
@@ -402,6 +409,16 @@ class AgentRouter {
         )
       }
       selectedKinds = eligible.slice(0, requiredCount).map(candidate => candidate.kind)
+      if (allowReadOnlyPeer) {
+        const canWrite = kind => agentRuntimeCapabilities(kind, {
+          agent: detected.get(kind), attachmentSupport: this.attachmentSupport(kind),
+        }).permissionModes.includes('workspace-write')
+        if (!selectedKinds.some(canWrite)) {
+          const writer = eligible.find(candidate => canWrite(candidate.kind))
+          if (!writer) throw routingError('LOCAL_AGENT_ROUTING_NO_MATCH', { eligibleCount: eligible.length, requiredCount })
+          selectedKinds[selectedKinds.length - 1] = writer.kind
+        }
+      }
     }
     const selectedHasEvidence = selectedKinds.some(kind => (
       candidates.find(candidate => candidate.kind === kind)?.evidence
