@@ -796,6 +796,7 @@ class LocalAgentConnectors {
     const abortTransport = () => controller.abort()
     input.transportSignal?.addEventListener('abort', abortTransport, { once: true })
     if (input.transportSignal?.aborted) abortTransport()
+    this.httpRequests.add(activeRequest)
     let timer
     try {
       const body = JSON.stringify({
@@ -828,7 +829,6 @@ class LocalAgentConnectors {
       controller.signal.throwIfAborted()
       timer = setTimeout(() => { timedOut = true; controller.abort() }, this.httpTimeoutMs)
       requestSent = true
-      this.httpRequests.add(activeRequest)
       const pendingResponse = this.fetch(endpoint, {
         method: 'POST',
         redirect: 'error',
@@ -873,7 +873,7 @@ class LocalAgentConnectors {
       return { text: parsed.text, sessionRef: parsed.sessionRef || '', outcome }
     } catch (error) {
       if (activeRequest.trustChanged) {
-        const failure = { code: 'AGENT_CONNECTOR_HTTP_TRUST_CHANGED', category: 'unknown', retryable: false }
+        const failure = { code: 'AGENT_CONNECTOR_HTTP_TRUST_CHANGED', category: requestSent ? 'unknown' : 'execution', retryable: false }
         input.emit({ ...terminal, type: 'Failed', ...failure })
         return { outcome: 'failed', failure }
       }

@@ -199,6 +199,34 @@ test('HTTP transport stops while outbound recording remains pending', async t =>
   assert.equal(result.outcome, 'cancelled')
 })
 
+for (const action of ['disable', 'revoke', 'delete-instance']) {
+  test(`HTTP transport stops pending outbound recording after ${action}`, async t => {
+    let sent = false
+    let entered
+    const recording = new Promise(resolve => { entered = resolve })
+    const { connectors, directory, packageStore } = fixture(t, async () => { sent = true })
+    const pkg = httpPackage()
+    install(packageStore, pkg)
+    connectors.refresh([])
+    connectors.configure({ manifestId: pkg.manifest.manifestId, label: 'Pending record', credentials: { 'access-token': 'private-token' } })
+    const [agent] = connectors.detectAgents()
+    const pending = connectors.run(agent, 'request', directory, {
+      runId: `run-pending-${action}`, agentRunId: `agent-pending-${action}`, sandbox: 'read-only',
+      onOutboundPayload: () => { entered(); return new Promise(() => {}) },
+    })
+    await recording
+    if (action === 'delete-instance') connectors.delete(agent.kind)
+    else if (action === 'revoke') connectors.revokePackage(pkg.packageId)
+    else connectors.disablePackage(pkg.packageId)
+    const result = await pending
+    assert.equal(sent, false)
+    assert.equal(result.outcome, 'failed')
+    assert.equal(result.failure.code, 'AGENT_CONNECTOR_HTTP_TRUST_CHANGED')
+    assert.equal(result.failure.category, 'execution')
+    assert.equal(connectors.httpRequests.size, 0)
+  })
+}
+
 for (const action of ['disable', 'revoke', 'disable-and-reinstall', 'delete-instance']) {
   test(`HTTP transport does not send after ${action} during outbound recording`, async t => {
     let sent = false
