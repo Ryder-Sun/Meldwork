@@ -512,9 +512,9 @@ test('opt-in automatic routing persists the smallest evidence-ranked team', asyn
     ],
   }
   const workspace = new LocalWorkspace(options)
-  workspace.state.agentRuntime.codex = { credentialState: 'ready', checkedAt: options.now(), verificationSource: 'successful-run' }
-  workspace.state.agentRuntime.hermes = { credentialState: 'ready', checkedAt: options.now(), verificationSource: 'successful-run' }
   await workspace.refreshAgents()
+  workspace.markRuntimeCredential('codex', 'ready')
+  workspace.markRuntimeCredential('hermes', 'ready')
   const group = workspace.createGroup({
     name: 'Automatic routing', agentKinds: ['codex', 'hermes'], workdir: directory,
   })
@@ -586,6 +586,23 @@ test('a partial Agent result cannot verify it for automatic routing', async t =>
   assert.equal(workspace.state.agentRuntime.codex.credentialState, 'ready')
   assert.equal(workspace.state.agentRuntime.codex.verificationSource, undefined)
   assert.equal(workspace.snapshot().agents.find(agent => agent.kind === 'codex').recentlyVerified, false)
+  await assert.rejects(workspace.sendMessage({ groupId: group.id, text: 'Choose an Agent',
+    targetKinds: [], routingMode: 'automatic' }), { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
+})
+
+test('a changed CLI identity invalidates automatic routing verification', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  let version = '1'
+  options.detectAgents = async () => [{ kind: 'codex', name: 'Codex CLI', executable: '/tmp/codex', version }]
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Changed CLI', agentKinds: ['codex'], workdir: directory })
+  await workspace.sendMessage({ groupId: group.id, text: 'Verify Agent', targetKinds: ['codex'] })
+  assert.equal(workspace.agentCatalog.isRecentlyVerified('codex'), true)
+  version = '2'
+  await workspace.refreshAgents()
+  assert.equal(workspace.agentCatalog.isRecentlyVerified('codex'), false)
   await assert.rejects(workspace.sendMessage({ groupId: group.id, text: 'Choose an Agent',
     targetKinds: [], routingMode: 'automatic' }), { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
 })

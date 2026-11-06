@@ -1,8 +1,25 @@
 const assert = require('node:assert/strict')
 const test = require('node:test')
+const fs = require('node:fs')
+const os = require('node:os')
+const path = require('node:path')
 
 const catalogApi = require('../../src/workspace/local-workspace-agent-catalog.cjs')
+const { agentVerificationIdentity } = require('../../src/workspace/agent-verification-identity.cjs')
 const { LocalWorkspaceAgentCatalog } = catalogApi
+
+test('Agent verification identity changes when the executable is replaced', t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-agent-identity-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const executable = path.join(directory, 'agent')
+  fs.writeFileSync(executable, 'first binary')
+  const agent = { kind: 'codex', executable, version: '1.0.0' }
+  const first = agentVerificationIdentity(agent)
+  fs.renameSync(executable, path.join(directory, 'old-agent'))
+  fs.writeFileSync(executable, 'second binary')
+  assert.notEqual(agentVerificationIdentity(agent), first)
+  assert.doesNotMatch(first, /agent-identity|codex/)
+})
 
 function deferred() {
   let resolve
@@ -41,6 +58,17 @@ function fixture(overrides = {}) {
   })
   return { agents: () => agents, catalog, events, state }
 }
+
+test('a late result from an older CLI cannot verify its replacement', () => {
+  const oldAgent = { kind: 'codex', executable: '/tmp/codex-old', version: '1' }
+  const current = { kind: 'codex', executable: '/tmp/codex-new', version: '2', available: true }
+  const { catalog, agents } = fixture({ initialAgents: [current] })
+  catalog.markRuntimeCredential('codex', 'ready', {
+    verificationIdentity: agentVerificationIdentity(oldAgent),
+  })
+  assert.equal(catalog.isRecentlyVerified('codex'), false)
+  assert.equal(agents()[0].recentlyVerified, false)
+})
 
 test('Agent catalog module exposes only its coordinator', () => {
   assert.deepEqual(Object.keys(catalogApi), ['LocalWorkspaceAgentCatalog'])

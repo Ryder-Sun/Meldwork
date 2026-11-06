@@ -1,3 +1,4 @@
+const { agentVerificationIdentity } = require('./agent-verification-identity.cjs')
 const {
   agentRuntimeCapabilities,
 } = require('../agents/agent-runtime-contract.cjs')
@@ -52,6 +53,11 @@ function recentlyVerified(runtime, now) {
     && current >= checkedAt && current - checkedAt <= RECENT_VERIFICATION_MS
 }
 
+function matchesRecentVerification(runtime, agent, now) {
+  return runtime?.verificationSource === 'successful-run' && recentlyVerified(runtime, now)
+    && Boolean(runtime.verificationIdentity) && runtime.verificationIdentity === agentVerificationIdentity(agent)
+}
+
 class LocalWorkspaceAgentCatalog {
   constructor(options) {
     this.state = options.state
@@ -72,7 +78,8 @@ class LocalWorkspaceAgentCatalog {
 
   isRecentlyVerified(kind) {
     const runtime = this.state().agentRuntime[kind]
-    return runtime?.verificationSource === 'successful-run' && recentlyVerified(runtime, this.now())
+    const agent = this.detectedAgents().find(item => item.kind === kind)
+    return matchesRecentVerification(runtime, agent, this.now())
   }
 
   async refresh() {
@@ -171,7 +178,7 @@ class LocalWorkspaceAgentCatalog {
           && (native?.source !== 'native-probe-failed' || recentlyVerified(runtime, this.now())))
       const invocable = agentInvocable({ installed, versionIdentified, compatible, configured,
         authenticated, runtimePrerequisitesReady, unavailable: workBuddyUnavailable })
-      const verifiedRecently = this.isRecentlyVerified(agent.kind)
+      const verifiedRecently = matchesRecentVerification(runtime, agent, this.now())
       const available = invocable
       const preferred = state.agentPreferences[agent.kind]?.showInSidebar
       const capabilities = agentRuntimeCapabilities(agent.kind, {
@@ -248,15 +255,17 @@ class LocalWorkspaceAgentCatalog {
     return this.snapshot()
   }
 
-  markRuntimeCredential(kind, credentialState, { verifiedRun = true } = {}) {
+  markRuntimeCredential(kind, credentialState, { verifiedRun = true, verificationIdentity = '' } = {}) {
     const state = this.state()
+    const agent = this.detectedAgents().find(item => item.kind === kind)
+    const identity = verificationIdentity || agentVerificationIdentity(agent)
     state.agentRuntime[kind] = {
       credentialState,
       checkedAt: this.now(),
-      ...(credentialState === 'ready' && verifiedRun ? { verificationSource: 'successful-run' } : {}),
+      ...(credentialState === 'ready' && verifiedRun && identity
+        ? { verificationSource: 'successful-run', verificationIdentity: identity } : {}),
     }
     if (credentialState === 'ready') this.indeterminateSince.delete(kind)
-    const agent = this.detectedAgents().find(item => item.kind === kind)
     if (agent && !(credentialState === 'unknown' && agent.authenticated === true)) {
       agent.credentialState = credentialState
       agent.versionIdentified = agentVersionIdentified(agent)
@@ -265,7 +274,7 @@ class LocalWorkspaceAgentCatalog {
       agent.authenticated = credentialState === 'ready'
       agent.invocable = agentInvocable({ ...agent,
         unavailable: Boolean(agent.runtimeBlockSource) })
-      agent.recentlyVerified = credentialState === 'ready' && verifiedRun
+      agent.recentlyVerified = this.isRecentlyVerified(kind)
       agent.available = agent.invocable
       agent.availabilitySource = !agent.compatible
         ? 'incompatible'
@@ -275,7 +284,7 @@ class LocalWorkspaceAgentCatalog {
             ? agent.runtimeBlockSource
           : agent.runtimePrerequisitesReady === false
             ? agent.runtimePrerequisitesSource || 'native-runtime-unavailable'
-            : credentialState === 'ready' ? (verifiedRun ? 'verified-run' : 'native-credential') : 'unverified'
+            : credentialState === 'ready' ? (agent.recentlyVerified ? 'verified-run' : 'native-credential') : 'unverified'
       const preferred = state.agentPreferences[kind]?.showInSidebar
       agent.showInSidebar = sidebarVisible(agent, preferred)
     }
