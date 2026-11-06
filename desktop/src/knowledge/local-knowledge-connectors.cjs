@@ -17,6 +17,7 @@ const {
 } = require('./knowledge-connector-memory.cjs')
 const { KnowledgeConnectorRegistry } = require('./knowledge-connector-registry.cjs')
 const { redactSecrets } = require('../security/secret-redaction.cjs')
+const { atomicWritePrivateFile } = require('../security/private-file.cjs')
 
 const OBSIDIAN_KIND = 'obsidian'
 const MEMORY_KIND = 'memory'
@@ -239,7 +240,13 @@ class LocalKnowledgeConnectors {
     if (existing) return existing
     const authorized = await this.registry.authorize(connectorId, input)
     this.revokedConnectorIds.delete(connectorId)
-    this.saveRecords()
+    try {
+      this.saveRecords()
+    } catch (error) {
+      this.revokedConnectorIds.add(connectorId)
+      try { await this.registry.revoke(authorized.instanceId) } catch { this.registry = null }
+      throw error
+    }
     return authorized
   }
 
@@ -529,17 +536,12 @@ class LocalKnowledgeConnectors {
   }
 
   saveRecords() {
-    const directory = path.dirname(this.storagePath)
-    const temporaryPath = `${this.storagePath}.tmp`
-    fs.mkdirSync(directory, { recursive: true, mode: 0o700 })
-    fs.writeFileSync(temporaryPath, `${JSON.stringify({
+    atomicWritePrivateFile(this.storagePath, `${JSON.stringify({
       version: 1,
       revokedConnectorIds: [...this.revokedConnectorIds].sort(),
       snapshots: [...this.snapshots.values()],
       citations: [...this.citations.values()].map(result => result.citation),
-    }, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 })
-    fs.chmodSync(temporaryPath, 0o600)
-    fs.renameSync(temporaryPath, this.storagePath)
+    }, null, 2)}\n`)
   }
 }
 

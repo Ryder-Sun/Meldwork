@@ -35,6 +35,27 @@ function fixture(t) {
   return { contentBlobStore, create, filename, vaultPath }
 }
 
+test('knowledge connector records are synced and a failed replacement preserves the previous file', async t => {
+  const { create } = fixture(t)
+  const connectors = create()
+  const originalSync = fs.fsyncSync
+  const synced = []
+  fs.fsyncSync = fd => { synced.push(fs.fstatSync(fd).isDirectory() ? 'directory' : 'file'); return originalSync(fd) }
+  t.after(() => { fs.fsyncSync = originalSync })
+  const instance = (await connectors.list()).find(item => item.connectorId === DEFAULT_FILESYSTEM_CONNECTOR_ID)
+  await connectors.revoke(instance.instanceId)
+  const before = fs.readFileSync(connectors.storagePath, 'utf8')
+  assert.equal(synced.includes('file'), true)
+  if (process.platform !== 'win32') assert.equal(synced.includes('directory'), true)
+  const rename = fs.renameSync
+  fs.renameSync = () => { throw new Error('REPLACE_FAILED') }
+  t.after(() => { fs.renameSync = rename })
+  await assert.rejects(connectors.authorize(DEFAULT_FILESYSTEM_CONNECTOR_ID), { message: 'REPLACE_FAILED' })
+  assert.equal(fs.readFileSync(connectors.storagePath, 'utf8'), before)
+  assert.equal((await connectors.list()).some(item => item.instanceId === instance.instanceId), false)
+  assert.equal(fs.readdirSync(path.dirname(connectors.storagePath)).some(name => name.endsWith('.tmp')), false)
+})
+
 test('exposes two production implementations and a sanitized complete source lifecycle', async (t) => {
   const { create, vaultPath } = fixture(t)
   const connectors = create()
