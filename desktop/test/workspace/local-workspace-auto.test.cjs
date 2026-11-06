@@ -578,6 +578,42 @@ test('task graph checkpoints a completed parallel branch while another branch is
   assert.equal(ledger.list(group.id)[0].status, 'completed')
 })
 
+test('task graph persists a parallel failure and immediately stops peers on circuit breaker', async () => {
+  const acceptance = { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 }
+  const graph = createTaskGraph({ template: 'task-graph', nodes: [
+    graphNode({ nodeId: 'fail', parallel: true, acceptance }),
+    graphNode({ nodeId: 'peer', agentKind: 'hermes', parallel: true, acceptance }),
+    graphNode({ nodeId: 'final', agentKind: 'workbuddy', terminal: true, acceptance }),
+  ] })
+  const aborter = new AbortController()
+  const checkpoints = []
+  let peerAborted = false
+  const controller = { signal: aborter.signal, abort: () => aborter.abort(), currentRound: 0, maxRounds: 3,
+    unlimitedRounds: false, failedKinds: [], completedKinds: [], orchestration: {
+      taskGraph: createTaskGraphCursor(graph), collaboration: emptyCollaborationState(), attachmentRecipients: [],
+    } }
+  const runner = { ...taskGraphMethods, unresolvedTaskGraphConflicts: () => [], emitChanged: () => {},
+    recordAgentFailure: () => {},
+    checkpointTaskGraph: (_group, current, cursor) => {
+      current.orchestration.taskGraph = cursor
+      checkpoints.push(cursor.nodeStates.map(state => [state.nodeId, state.status]))
+      return cursor
+    },
+    executeTaskGraphAgentNode: async (_group, current, _root, _context, node) => {
+      if (node.nodeId === 'fail') throw new Error('LOCAL_RUN_CIRCUIT_BREAKER')
+      return new Promise(resolve => current.signal.addEventListener('abort', () => {
+        peerAborted = true
+        resolve({ error: new Error('stopped') })
+      }, { once: true }))
+    },
+  }
+  await taskGraphMethods.runTaskGraph.call(runner, { id: 'group', allowWrite: false }, controller, '', {})
+  assert.equal(peerAborted, true)
+  assert.equal(controller.stopReason, 'circuit_breaker')
+  assert.ok(checkpoints.some(states => states.some(([id, status]) => id === 'fail' && status === 'failed')
+    && states.some(([id, status]) => id === 'peer' && status === 'running')))
+})
+
 test('task graph runs independent branches in parallel and completes from typed Evidence', async (t) => {
   const { directory, calls, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

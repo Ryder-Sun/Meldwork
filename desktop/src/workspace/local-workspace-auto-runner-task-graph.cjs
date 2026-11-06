@@ -445,11 +445,14 @@ const taskGraphMethods = {
       cursor = this.checkpointTaskGraph(group, controller, cursor, { currentKind })
       this.emitChanged()
       const settled = await Promise.allSettled(batch.map(async node => {
-        const outcome = await this.executeTaskGraphAgentNode(
-          group, controller, threadRootId, context, node, batch.length > 1,
-        )
-        if (outcome?.result) {
-          try {
+        let outcome
+        try {
+          outcome = await this.executeTaskGraphAgentNode(
+            group, controller, threadRootId, context, node, batch.length > 1,
+          )
+        } catch (error) { outcome = { error } }
+        try {
+          if (outcome?.result) {
             if (outcome.result.outcomeRefs?.artifactIds?.length
                 && !controller.orchestration.attachmentRecipients.includes(node.agentKind)) {
               this.checkpointOrchestration(group, controller, {
@@ -458,40 +461,29 @@ const taskGraphMethods = {
             }
             this.applyTaskGraphAgentResult(group, controller, node, outcome.result)
             this.emitChanged()
-          } catch (error) {
-            return { checkpointError: error }
+          } else if (!controller.signal.aborted) {
+            const error = outcome?.error || new Error('LOCAL_AGENT_UNKNOWN_FAILURE')
+            this.recordAgentFailure(group.id, node.agentKind, error, threadRootId, new Set())
+            const failed = updateTaskGraphCursor(controller.orchestration.taskGraph, node.nodeId, { status: 'failed' })
+            this.checkpointTaskGraph(group, controller, failed)
+            if (!controller.failedKinds.includes(node.agentKind)) controller.failedKinds.push(node.agentKind)
+            if (circuitBreakerFailure(error)) {
+              controller.stopReason = 'circuit_breaker'
+              controller.abort()
+            } else if (hardBudgetFailure(error)) {
+              controller.stopReason = 'hard_budget'
+              controller.abort()
+            }
+            this.emitChanged()
           }
+        } catch (error) {
+          return { checkpointError: error }
         }
         return outcome
       }))
-      for (let index = 0; index < batch.length; index += 1) {
-        const node = batch[index]
-        const outcome = settled[index]
+      for (const outcome of settled) {
         if (outcome.status === 'fulfilled' && outcome.value?.checkpointError) throw outcome.value.checkpointError
-        if (outcome.status === 'fulfilled' && outcome.value?.result) {
-          continue
-        }
-        const error = outcome.status === 'rejected'
-          ? outcome.reason
-          : (outcome.value?.error || new Error('LOCAL_AGENT_UNKNOWN_FAILURE'))
-        if (controller.signal.aborted) continue
-        this.recordAgentFailure(group.id, node.agentKind, error, threadRootId, new Set())
-        cursor = updateTaskGraphCursor(
-          controller.orchestration.taskGraph,
-          node.nodeId,
-          { status: 'failed' },
-        )
-        this.checkpointTaskGraph(group, controller, cursor)
-        if (!controller.failedKinds.includes(node.agentKind)) {
-          controller.failedKinds.push(node.agentKind)
-        }
-        if (circuitBreakerFailure(error)) {
-          controller.stopReason = 'circuit_breaker'
-          controller.abort()
-        } else if (hardBudgetFailure(error)) {
-          controller.stopReason = 'hard_budget'
-          controller.abort()
-        }
+        if (outcome.status === 'rejected') throw outcome.reason
       }
       controller.currentKind = ''
       controller.progress = []
