@@ -173,6 +173,24 @@ test('detected Agent verification directory stays internal to the main process',
   assert.doesNotMatch(JSON.stringify({ ...agent }), /private-hermes/)
 })
 
+test('native credential changes invalidate the main-process Agent identity without exposing credentials', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-env-identity-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  let credential = 'first-private-key'
+  const { harness } = loadMain(directory, {
+    nativeShellEnvironment: () => ({ env: { OPENAI_API_KEY: credential }, source: 'native-shell' }),
+    nativeEnvironment: (_kind, env) => ({ OPENAI_API_KEY: env.OPENAI_API_KEY }),
+    detectAgents: () => [{ kind: 'hermes', version: '1', compatibilityState: 'compatible' }],
+  })
+  await harness.ready()
+  const { agentVerificationIdentity } = require('../../src/workspace/agent-verification-identity.cjs')
+  const [first] = await harness.installerInstances[0].input.detectAgents()
+  credential = 'second-private-key'
+  const [second] = await harness.installerInstances[0].input.detectAgents()
+  assert.notEqual(agentVerificationIdentity(first), agentVerificationIdentity(second))
+  assert.doesNotMatch(JSON.stringify({ ...first, ...second }), /private-key|OPENAI_API_KEY/)
+})
+
 test('native Agent configuration selection is validated and used for execution', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-config-ipc-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

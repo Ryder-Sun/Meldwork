@@ -6,6 +6,7 @@ const path = require('node:path')
 
 const catalogApi = require('../../src/workspace/local-workspace-agent-catalog.cjs')
 const { agentVerificationIdentity } = require('../../src/workspace/agent-verification-identity.cjs')
+const { NATIVE_ENVIRONMENT_IDENTITY, nativeEnvironmentIdentity } = require('../../src/agents/native-config-directory.cjs')
 const { LocalWorkspaceAgentCatalog } = catalogApi
 
 test('Agent verification identity changes when the executable is replaced', t => {
@@ -137,6 +138,25 @@ test('a native configuration switch invalidates previous and late verification',
   assert.equal(agents()[0].recentlyVerified, false)
   catalog.markRuntimeCredential('hermes', 'ready', { verificationIdentity: oldIdentity })
   assert.equal(agents()[0].available, false)
+})
+
+test('a native environment change invalidates successful and late verification without exposing values', async () => {
+  let credential = 'first-secret'
+  const detected = () => ({ kind: 'hermes', executable: '/tmp/hermes', version: '1',
+    compatibilityState: 'compatible',
+    [NATIVE_ENVIRONMENT_IDENTITY]: nativeEnvironmentIdentity({ PROVIDER_API_KEY: credential }) })
+  const { catalog, agents, state } = fixture({ detectAgents: async () => [detected()],
+    credentialState: async () => ({ state: 'unknown', source: 'unverified' }) })
+  await catalog.refresh()
+  const oldIdentity = agentVerificationIdentity(agents()[0], state.agentPreferences)
+  catalog.markRuntimeCredential('hermes', 'ready', { verificationIdentity: oldIdentity })
+  assert.equal(agents()[0].recentlyVerified, true)
+  assert.doesNotMatch(JSON.stringify(agents()), /first-secret|PROVIDER_API_KEY/)
+  credential = 'second-secret'
+  await catalog.refresh()
+  assert.equal(agents()[0].recentlyVerified, false)
+  catalog.markRuntimeCredential('hermes', 'ready', { verificationIdentity: oldIdentity })
+  assert.equal(agents()[0].recentlyVerified, false)
 })
 
 test('editing selected native configuration invalidates a previous and late successful run', async t => {

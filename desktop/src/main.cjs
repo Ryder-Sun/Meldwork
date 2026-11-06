@@ -4,8 +4,8 @@ const fs = require('node:fs')
 const path = require('node:path')
 const { redactSecrets } = require('./security/secret-redaction.cjs')
 const { ensurePrivateDirectory } = require('./security/private-file.cjs')
-const { NATIVE_CONFIG_DIRECTORIES, NATIVE_CONFIG_IDENTITY_DIRECTORY, nativeConfigEnvironment,
-  nativeIdentityDirectory } = require('./agents/native-config-directory.cjs')
+const { NATIVE_CONFIG_DIRECTORIES, NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_ENVIRONMENT_IDENTITY,
+  nativeConfigEnvironment, nativeIdentityDirectory, nativeEnvironmentIdentity } = require('./agents/native-config-directory.cjs')
 const { AttachmentStore } = require('./attachments/attachment-store.cjs')
 const { ContentBlobStore } = require('./attachments/content-blob-store.cjs')
 const { ContextPackStore } = require('./collaboration/context-pack-store.cjs')
@@ -301,6 +301,17 @@ async function detectLocalAgents() {
     const directory = nativeIdentityDirectory(agent.kind, shellEnvironment.env, shellEnvironment.home)
     const result = { ...agent }
     if (directory) Object.defineProperty(result, NATIVE_CONFIG_IDENTITY_DIRECTORY, { value: directory })
+    if (agent.kind !== 'openclaw') {
+      const env = nativeConfigEnvironment(agent.kind, workspace?.state.agentPreferences, shellEnvironment.env)
+      const keys = agent.kind === 'hermes' ? shellEnvironment.hermesCredentialKeys
+        : agent.kind === 'zcode' ? shellEnvironment.zcodeCredentialKeys
+          : agent.kind === 'mimo' ? shellEnvironment.mimoCredentialKeys : []
+      const fingerprint = nativeEnvironmentIdentity({
+        ...networkEnvironment(env), ...configDirectoryEnvironment(env),
+        ...nativeCredentialEnvironment(agent.kind, env, keys),
+      })
+      Object.defineProperty(result, NATIVE_ENVIRONMENT_IDENTITY, { value: fingerprint, enumerable: true })
+    }
     return result
   })
 }

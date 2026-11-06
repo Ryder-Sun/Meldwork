@@ -1,6 +1,15 @@
 const fs = require('node:fs')
 const path = require('node:path')
+const { createHmac, randomBytes } = require('node:crypto')
 const NATIVE_CONFIG_IDENTITY_DIRECTORY = Symbol('nativeConfigIdentityDirectory')
+const NATIVE_ENVIRONMENT_IDENTITY = Symbol('nativeEnvironmentIdentity')
+const environmentIdentityKey = randomBytes(32)
+
+function nativeEnvironmentIdentity(env) {
+  const entries = Object.entries(env).filter(([, value]) => typeof value === 'string')
+    .sort(([left], [right]) => left.localeCompare(right))
+  return createHmac('sha256', environmentIdentityKey).update(JSON.stringify(entries)).digest('hex')
+}
 
 const NATIVE_CONFIG_DIRECTORIES = Object.freeze({
   hermes: { key: 'HERMES_HOME', files: ['config.yaml', 'auth.json', '.env'] },
@@ -56,5 +65,6 @@ function validateNativeConfigDirectory(kind, directory) {
   return resolved
 }
 
-module.exports = { NATIVE_CONFIG_DIRECTORIES, NATIVE_CONFIG_IDENTITY_DIRECTORY, nativeConfigEnvironment,
+module.exports = { NATIVE_CONFIG_DIRECTORIES, NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_ENVIRONMENT_IDENTITY,
+  nativeEnvironmentIdentity, nativeConfigEnvironment,
   nativeIdentityDirectory, validateNativeConfigDirectory }

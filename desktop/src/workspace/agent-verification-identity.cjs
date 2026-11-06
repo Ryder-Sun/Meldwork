@@ -1,7 +1,7 @@
 const { createHash, randomBytes } = require('node:crypto')
 const fs = require('node:fs')
 const path = require('node:path')
-const { NATIVE_CONFIG_DIRECTORIES, NATIVE_CONFIG_IDENTITY_DIRECTORY } = require('../agents/native-config-directory.cjs')
+const { NATIVE_CONFIG_DIRECTORIES, NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_ENVIRONMENT_IDENTITY } = require('../agents/native-config-directory.cjs')
 
 function fileIdentity(filename) {
   try {
@@ -51,6 +51,7 @@ function agentVerificationIdentity(agent, preferences = {}) {
   ]
   const configuration = selectedConfigurationIdentity(agent, preferences)
   if (configuration !== null) identity.push(configuration)
+  if (agent[NATIVE_ENVIRONMENT_IDENTITY]) identity.push(agent[NATIVE_ENVIRONMENT_IDENTITY])
   return createHash('sha256').update(JSON.stringify(identity)).digest('hex')
 }
 
