@@ -492,6 +492,9 @@ class AgentConnectorRuntime {
     if (!result || typeof result !== 'object' || Array.isArray(result)) {
       fail('AGENT_CONNECTOR_RESULT_INVALID')
     }
+    if (result.progress != null && !this.trustedLegacyEventRecipes.has(execution.recipeId)) {
+      fail('AGENT_CONNECTOR_EVENT_UNDECLARED')
+    }
     assertResultCapabilities(connector, result, state)
     const usage = observedUsage(state)
     const outcomeRefs = validatedOutcomeRefs(result, state)

@@ -320,6 +320,24 @@ test('rejects every undeclared Connector capability before it crosses the recipe
   ), { message: 'AGENT_CONNECTOR_SESSION_UNSUPPORTED' })
 })
 
+test('non-legacy Connector results cannot bypass event declarations with raw progress', async () => {
+  const handler = async input => {
+    input.emit({ eventId: 'completed', cursor: 'completed', sequence: 1,
+      type: 'Completed', outcome: 'completed' })
+    return { text: 'done', outcome: 'completed', progress: [{ title: 'undeclared tool call' }] }
+  }
+  const { runtime, registry } = runtimeFixture(handler)
+  await assert.rejects(runtime.run(runtime.detectAgents()[0], 'Review', '/tmp/workspace', {
+    runId: 'run-raw-progress', agentRunId: 'agent-raw-progress', sandbox: 'read-only',
+  }), { message: 'AGENT_CONNECTOR_EVENT_UNDECLARED' })
+  const legacy = new AgentConnectorRuntime({ registry, recipes: { 'external.review-agent.run': handler },
+    trustedLegacyEventRecipes: ['external.review-agent.run'] })
+  const result = await legacy.run(legacy.detectAgents()[0], 'Review', '/tmp/workspace', {
+    runId: 'run-legacy-progress', agentRunId: 'agent-legacy-progress', sandbox: 'read-only',
+  })
+  assert.deepEqual(result.progress, [{ title: 'undeclared tool call' }])
+})
+
 test('a generic file declaration cannot bypass media input capabilities', async () => {
   const { runtime } = runtimeFixture(async () => {
     assert.fail('unsupported media must not reach the connector recipe')
