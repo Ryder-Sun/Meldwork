@@ -311,8 +311,10 @@ class CloudAgentBridgeStore {
         headers: { accept: 'application/json', ...(options.body ? { 'content-type': 'application/json' } : {}) },
         ...(options.body ? { body: options.bodyText ?? JSON.stringify(options.body) } : {}),
       })
+      controller.signal.throwIfAborted()
       if (!response?.ok) throw bridgeError(`CLOUD_AGENT_BRIDGE_HTTP_${response?.status || 'FAILED'}`)
       const text = await boundedHttpResponseText(response, MAX_RESPONSE_BYTES, 'CLOUD_AGENT_BRIDGE_RESPONSE_TOO_LARGE')
+      controller.signal.throwIfAborted()
       try { return JSON.parse(text) } catch { fail('CLOUD_AGENT_BRIDGE_RESPONSE_INVALID') }
     } catch (error) {
       if (error?.name === 'AbortError') {

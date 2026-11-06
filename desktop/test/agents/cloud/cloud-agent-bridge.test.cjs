@@ -74,6 +74,26 @@ test('Bridge requests cancel oversized streams and respect a pre-aborted caller'
   }), { code: 'CLOUD_AGENT_BRIDGE_TIMEOUT' })
 })
 
+for (const stage of ['headers', 'body']) {
+  test(`Bridge timeout rejects a late ${stage} response even when the transport ignores abort`, async t => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-cloud-late-response-'))
+    t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+    const store = new CloudAgentBridgeStore({
+      storagePath: path.join(directory, 'bridges.json'),
+      fetch: async (_url, options) => {
+        if (stage === 'headers') return new Promise(resolve => {
+          options.signal.addEventListener('abort', () => resolve(response({ text: 'late' })), { once: true })
+        })
+        return { ok: true, text: () => new Promise(resolve => {
+          options.signal.addEventListener('abort', () => resolve(JSON.stringify({ text: 'late' })), { once: true })
+        }) }
+      },
+    })
+    await assert.rejects(store.request('/test', { address: 'https://203.0.113.10', timeoutMs: 1000 }),
+      { code: 'CLOUD_AGENT_BRIDGE_TIMEOUT' })
+  })
+}
+
 test('reports activity while a cloud Agent request is waiting for its final response', async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-cloud-activity-'))
   const activity = []
@@ -577,7 +597,7 @@ test('passes a caller abort signal through to cloud Agent execution', async () =
     controller.abort()
     assert.equal(receivedSignal.aborted, true)
     resolveRun()
-    await runPromise
+    await assert.rejects(runPromise, { code: 'LOCAL_AGENT_EXECUTION_STOPPED' })
   } finally {
     fs.rmSync(directory, { recursive: true, force: true })
   }
