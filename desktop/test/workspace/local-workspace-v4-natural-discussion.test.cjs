@@ -59,6 +59,9 @@ function acceptedReply(prompt, text, extra = {}) {
 }
 
 test('explicit first-person task failures are distinguished from discussion and quotations', () => {
+  for (const text of ['Error: Permission denied', 'fatal: access denied: /workspace/private', 'Permission denied: /workspace/file']) {
+    assert.equal(explicitTaskFailure(text), true, text)
+  }
   for (const text of ["I couldn't access the requested files.", 'We were unable to finish the task.', 'I failed to complete the task.', '我未能读取所需文件。']) {
     assert.equal(explicitTaskFailure(text), true, text)
   }
@@ -72,7 +75,7 @@ test('explicit first-person task failures are distinguished from discussion and 
     assert.equal(explicitTaskFailure(text), true, text)
   }
   for (const text of ['I cannot reproduce the reported issue; all tests pass.',
-    'The user said: "I cannot access the file."', 'Permission denied was the original error; I can access the file now.', 'I can access the file.', '权限不足的问题已修复，现在可以访问文件。', '问题是用户无法访问文件。', 'An example:\n> I cannot complete the task.', 'Example output:\n```\n权限不足。\n```\nThe issue is resolved.']) {
+    'The user said: "I cannot access the file."', 'Permission denied was the original error; I can access the file now.', 'I can access the file.', '权限不足的问题已修复，现在可以访问文件。', '问题是用户无法访问文件。', 'An example:\n> Error: Permission denied', 'An example:\n> I cannot complete the task.', 'Example output:\n```\n权限不足。\n```\nThe issue is resolved.']) {
     assert.equal(explicitTaskFailure(text), false, text)
   }
 })
@@ -400,6 +403,21 @@ test('Natural discussion never completes a failure that claims completion withou
 })
 
 for (const discussionStyle of ['agent-led', 'sequential']) {
+  test(`Natural ${discussionStyle} rejects a prefixed permission error with a contradictory completion`, async t => {
+    const { directory, options } = fixture()
+    t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+    const ledger = new RunLedger({ storagePath: path.join(directory, 'run-ledger.json') })
+    const workspace = new LocalWorkspace({
+      ...options, runLedger: ledger, naturalAgentResponses: true,
+      runAgent: async (_agent, prompt) => ({ outcome: 'completed', text: naturalPhase(prompt) === 'proposal'
+        ? 'Initial attempt.' : decisionReply('Error: Permission denied: /workspace/private') }),
+    })
+    await workspace.refreshAgents()
+    const group = workspace.createGroup({ name: 'Permission error', agentKinds: ['codex'], workdir: directory, allowWrite: false })
+    const controller = await runDiscussion(workspace, group, { discussionStyle, maxRounds: 4 })
+    assert.notEqual(new RunLedger({ storagePath: ledger.storagePath }).get(controller.runId).status, 'completed')
+  })
+
   test(`Natural ${discussionStyle} rejects a past-tense failure with a contradictory completion`, async t => {
     const { directory, options } = fixture()
     t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
