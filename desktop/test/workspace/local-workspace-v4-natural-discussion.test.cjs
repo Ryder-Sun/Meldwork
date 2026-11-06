@@ -476,6 +476,24 @@ test('Natural discussion retains an explicit peer failure without a structured d
   assert.deepEqual(runner.v4NaturalUnresolvedBlockers({ id: 'group' }, { runId: 'run' }, 'task', 3), [])
 })
 
+test('Natural discussion keeps failed and truncated peer contributions unresolved until a complete retry', () => {
+  const messages = []
+  const runner = { ...v4NaturalDecisionMethods, state: () => ({ messages }),
+    v4NaturalMessageMatchesBinding: () => true, v4NaturalMessageContent: naturalDiscussionMethods.v4NaturalMessageContent }
+  const group = { id: 'group' }
+  const controller = { runId: 'run' }
+  const decision = { status: 'completed', reason: 'Done', deliverables: ['answer'] }
+  const peer = (round, trace) => ({ groupId: 'group', threadRootId: 'task', role: 'agent',
+    agentKind: 'hermes', content: 'The answer.',
+    trace: { phase: 'discussion', round, runId: 'run', context: { taskDecision: decision }, ...trace } })
+  messages.push(peer(1, { status: 'failed' }))
+  assert.deepEqual(runner.v4NaturalUnresolvedBlockers(group, controller, 'task', 1), ['hermes'])
+  messages.push(peer(2, { truncated: true }))
+  assert.deepEqual(runner.v4NaturalUnresolvedBlockers(group, controller, 'task', 2), ['hermes'])
+  messages.push(peer(3, { status: 'completed' }))
+  assert.deepEqual(runner.v4NaturalUnresolvedBlockers(group, controller, 'task', 3), [])
+})
+
 test('Natural discussion forwards a peer failure without a structured decision to the owner', async () => {
   const peer = { agentKind: 'hermes', content: '权限不足。', trace: {} }
   let notice
@@ -488,6 +506,18 @@ test('Natural discussion forwards a peer failure without a structured decision t
   const result = await runner.v4NaturalRoundOutcome({ id: 'group' }, { runId: 'run', discussionStyle: 'agent-led' }, 'task', 1, ['codex', 'hermes'])
   assert.deepEqual(result, { nextKinds: ['codex'], ownerReview: true })
   assert.equal(notice[3], 'system.autoPeerBlockerForwarded')
+})
+
+test('Natural discussion forwards an incomplete peer response to the owner', async () => {
+  const peer = { agentKind: 'hermes', content: 'Incomplete answer.', trace: { truncated: true } }
+  const runner = { ...v4NaturalDecisionMethods,
+    v4NaturalDiscussionRoundMessages: () => [peer], v4NaturalOwner: () => 'codex',
+    v4NaturalMessageContent: naturalDiscussionMethods.v4NaturalMessageContent,
+    agentLabel: kind => kind, v4NaturalNotice: () => {},
+  }
+  assert.deepEqual(await runner.v4NaturalRoundOutcome(
+    { id: 'group' }, { runId: 'run', discussionStyle: 'agent-led' }, 'task', 1, ['codex', 'hermes'],
+  ), { nextKinds: ['codex'], ownerReview: true })
 })
 
 for (const discussionStyle of ['agent-led', 'sequential']) {

@@ -68,8 +68,9 @@ const v4NaturalDecisionMethods = {
     const peerBlocker = messages.find(message => {
       if (message.agentKind === owner) return false
       const status = message.trace?.context?.taskDecision?.status
+      const contribution = this.v4NaturalMessageContent(message)
       return status === 'blocked' || status === 'needs-human'
-        || explicitTaskFailure(this.v4NaturalMessageContent(message).text)
+        || contribution.partial || explicitTaskFailure(contribution.text)
     })
     const ownerSawBlocker = peerBlocker && ownerMessage
       && controller.discussionStyle === 'sequential'
@@ -165,7 +166,7 @@ const v4NaturalDecisionMethods = {
     ))
     for (const { message } of messages) {
       const contribution = this.v4NaturalMessageContent(message)
-      if (explicitTaskFailure(contribution.text)) {
+      if (contribution.partial || explicitTaskFailure(contribution.text)) {
         unresolved.add(message.agentKind)
         continue
       }
