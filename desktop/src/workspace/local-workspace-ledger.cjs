@@ -256,12 +256,16 @@ class LocalWorkspaceRunLedger {
     const timer = this.timers.get(controller.runId)
     if (timer) clearTimeout(timer)
     this.timers.delete(controller.runId)
+    let terminalRecord
     try {
-      this.runLedger.recordTerminalIntent?.(this.record(groupId, controller, status))
+      const current = this.record(groupId, controller, status)
+      terminalRecord = this.runLedger.recordTerminalIntent?.(current) || current
     } catch { return false }
-    if (!this.checkpoint(groupId, controller, status)) return false
     try {
-      this.runLedger.finish?.(controller.runId, status, controller.stopReason || '')
+      this.runLedger.checkpoint(terminalRecord)
+    } catch { return false }
+    try {
+      this.runLedger.finish?.(controller.runId, status, terminalRecord.reason || '')
       try { this.runLedger.clearTerminalIntent?.(controller.runId) } catch { /* committed state is authoritative */ }
       return true
     } catch {

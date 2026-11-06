@@ -188,7 +188,7 @@ class RunLedger {
         || record.contextPackId !== existing.contextPackId) {
       throw new Error('RUN_TERMINAL_OUTBOX_INVALID')
     }
-    this.terminalOutbox.prepare(record)
+    return this.terminalOutbox.prepare(record)
   }
 
   clearTerminalIntent(runId) {

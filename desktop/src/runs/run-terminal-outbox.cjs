@@ -62,11 +62,12 @@ class RunTerminalOutbox {
           || previous.taskId !== record.taskId || previous.contextPackId !== record.contextPackId) {
         throw new Error('RUN_TERMINAL_OUTBOX_CONFLICT')
       }
-      return
+      return previous
     }
     const serialized = `${JSON.stringify({ version: 1, record })}\n`
     if (Buffer.byteLength(serialized) > 64 * 1024 * 1024) throw new Error('RUN_TERMINAL_OUTBOX_INVALID')
     atomicWritePrivateFile(filename, serialized)
+    return record
   }
 
   list() {

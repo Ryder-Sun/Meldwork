@@ -25,6 +25,28 @@ test('terminal checkpoint is not attempted when the durable outbox cannot be wri
   assert.deepEqual(calls, ['intent'])
 })
 
+test('terminal retry commits the original durable outbox record', () => {
+  const original = { runId: 'run-1', status: 'completed', reason: 'original', agentRuns: [{ output: 'original answer' }] }
+  const changed = { ...original, reason: 'changed', agentRuns: [{ output: 'changed answer' }] }
+  let attempts = 0
+  let committed
+  let finalReason
+  const ledger = new LocalWorkspaceRunLedger({
+    runLedger: {
+      recordTerminalIntent: () => original,
+      checkpoint: record => { attempts += 1; if (attempts === 1) throw new Error('WRITE_FAILED'); committed = record },
+      finish: (_runId, _status, reason) => { finalReason = reason },
+    },
+    timers: new Map(),
+  })
+  ledger.record = () => attempts ? changed : original
+  const controller = { runId: 'run-1', stopReason: 'changed' }
+  assert.equal(ledger.finish('group-1', controller, 'completed'), false)
+  assert.equal(ledger.finish('group-1', controller, 'completed'), true)
+  assert.deepEqual(committed, original)
+  assert.equal(finalReason, 'original')
+})
+
 function fixture(overrides = {}) {
   const preparingRuns = new Map()
   const activeRuns = new Map()

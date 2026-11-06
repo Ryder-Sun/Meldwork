@@ -2310,6 +2310,20 @@ test('terminal outbox restores a completed run after snapshot persistence fails 
   assert.deepEqual(fs.readdirSync(`${storagePath}.terminal-outbox`), [])
 })
 
+test('terminal outbox returns its original intent on retry with changed output', t => {
+  const { storagePath } = fixture(t)
+  const ledger = new RunLedger({ storagePath, now: () => 1000 })
+  ledger.checkpoint(runRecord('run-intent', 'group-intent'))
+  const first = runRecord('run-intent', 'group-intent', 'completed', [{
+    agentRunId: 'agent-intent', kind: 'codex', status: 'completed', output: 'First answer',
+  }])
+  const changed = { ...first, agentRuns: [{ ...first.agentRuns[0], output: 'Changed answer' }] }
+  ledger.recordTerminalIntent(first)
+  assert.deepEqual(ledger.recordTerminalIntent(changed), first)
+  const restarted = new RunLedger({ storagePath })
+  assert.equal(restarted.get('run-intent').agentRuns[0].output, 'First answer')
+})
+
 test('terminal intent survives abrupt process exit before the terminal checkpoint', (t) => {
   const { spawnSync } = require('node:child_process')
   const { storagePath } = fixture(t)
