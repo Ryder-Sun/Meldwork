@@ -80,6 +80,23 @@ test('content or manifest upgrades do not inherit approval and revocation is dur
   )
 })
 
+test('a failed revocation sync makes all trust checks unavailable until reload', t => {
+  const { input, storagePath, store } = fixture(t)
+  const binding = store.binding(input)
+  store.approve(binding)
+  const original = fs.fsyncSync
+  fs.fsyncSync = () => { throw Object.assign(new Error('SYNC_FAILED'), { code: 'EIO' }) }
+  try {
+    assert.throws(() => store.revoke(binding.bindingId), { message: 'LOCAL_SKILL_TRUST_STORE_UNAVAILABLE' })
+  } finally { fs.fsyncSync = original }
+  for (const check of [() => store.decision(binding), () => store.assertApproved(binding),
+    () => store.approve(binding), () => store.list()]) {
+    assert.throws(check, { message: 'LOCAL_SKILL_TRUST_STORE_UNAVAILABLE' })
+  }
+  const restored = new LocalSkillTrustStore({ storagePath })
+  assert.throws(() => restored.assertApproved(binding), { message: 'LOCAL_SKILL_TRUST_REQUIRED' })
+})
+
 test('tampered audit state fails closed without throwing during construction', (t) => {
   const { input, storagePath, store } = fixture(t)
   store.approve(input)

@@ -273,8 +273,9 @@ class LocalSkillTrustStore {
       body.previousEventId,
     )
     try { writeLine(this.storagePath, `${canonicalJson(event)}\n`) } catch (error) {
-      if (error?.code?.startsWith('LOCAL_SKILL_')) throw error
-      fail('LOCAL_SKILL_TRUST_STORE_UNAVAILABLE')
+      this.unavailableCode = error?.code?.startsWith('LOCAL_SKILL_')
+        ? error.code : 'LOCAL_SKILL_TRUST_STORE_UNAVAILABLE'
+      fail(this.unavailableCode)
     }
     this.events.push(event)
     this.states.set(binding.bindingId, {
@@ -286,6 +287,7 @@ class LocalSkillTrustStore {
   }
 
   decision(input) {
+    this.requireAvailable()
     const binding = asBinding(input)
     const state = this.states.get(binding.bindingId)
     if (state?.state !== 'approved') return null
