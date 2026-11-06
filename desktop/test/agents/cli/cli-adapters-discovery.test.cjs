@@ -831,6 +831,20 @@ test('Agent detection ignores ANSI warnings with unrelated versions before the p
   }])
 })
 
+test('Agent detection does not identify a runtime version mentioned after its product name', async () => {
+  let probes = 0
+  const found = await detectAgents({
+    platform: 'darwin', env: {},
+    resolveExecutableFn: async kind => kind === 'kimi' ? '/tmp/kimi' : null,
+    probeAgentCapabilitiesFn: async () => { probes += 1; return { compatibilityState: 'compatible' } },
+    execFileFn: async () => ({ stdout: 'Warning: Kimi Code requires Node.js 22.5.1\n', stderr: '' }),
+  })
+  assert.equal(probes, 1)
+  assert.equal(found[0].versionIdentified, false)
+  assert.equal(found[0].resolvedVersion, '')
+  assert.equal(found[0].compatibilityState, 'compatible')
+})
+
 test('Agent detection accepts newer versions when required capabilities are available', async () => {
   let calls = 0
   const found = await detectAgents({

@@ -45,6 +45,12 @@ test('identifies product versions without selecting unrelated warnings', () => {
   assert.equal(identifyAgentVersion('kimi', 'Node.js 22.5.1', {
     executable: '/tmp/kimi',
   }), null)
+  assert.equal(identifyAgentVersion('kimi', 'Warning: Kimi Code requires Node.js 22.5.1', {
+    executable: '/tmp/kimi',
+  }), null)
+  assert.deepEqual(identifyAgentVersion('kimi', 'Warning: Kimi Code requires Node.js 22.5.1\nKimi Code version 0.19.2', {
+    executable: '/tmp/kimi',
+  }), { line: 'Kimi Code version 0.19.2', resolvedVersion: '0.19.2' })
   assert.deepEqual(identifyAgentVersion(
     'kimi',
     'Warning: Node.js 22.5.1 could not initialize Kimi Code 0.19.2',

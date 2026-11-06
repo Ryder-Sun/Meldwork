@@ -196,6 +196,11 @@ function identifiedVersionCandidate(kind, lines) {
     for (const identity of identityMatches) {
       const identityEnd = identity.index + identity[0].length
       for (const version of versions) {
+        const beforeIdentity = version.end <= identity.index
+        if (beforeIdentity && line.slice(0, version.index).trim()) continue
+        const gap = beforeIdentity ? line.slice(version.end, identity.index)
+          : version.index >= identityEnd ? line.slice(identityEnd, version.index) : ''
+        if (!/^[\s:()[\]@_-]*(?:(?:version|ver)\.?[\s:()[\]@_-]*)?$/i.test(gap)) continue
         const distance = version.end <= identity.index
           ? identity.index - version.end
           : version.index >= identityEnd
