@@ -1203,8 +1203,8 @@ class LocalWorkspaceAgentInvocation {
         await Promise.allSettled([...pendingPermissionCallbacks])
         throw new Error('LOCAL_AGENT_PERMISSION_TERMINAL_RACE')
       }
-      terminalFailureKnown = ['failed', 'cancelled']
-        .includes(String(result?.outcome || ''))
+      terminalFailureKnown = result?.outcome === 'cancelled'
+        || (result?.outcome === 'failed' && result?.failure?.category !== 'unknown')
       if (agentController.signal.aborted) throw agentStoppedError()
       if (resumedPermissionError) throw resumedPermissionError
       if (resumedPermission && !resumedPermissionUsed) {
