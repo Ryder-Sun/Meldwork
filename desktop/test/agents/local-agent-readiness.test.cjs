@@ -1596,6 +1596,9 @@ test('Gemini retains its native Vertex AI selection from the shell through execu
     GOOGLE_VERTEX_BASE_URL: 'https://vertex.example', GOOGLE_GENAI_API_VERSION: 'v1',
     GOOGLE_CLOUD_PROJECT_ID: 'native-project', GOOGLE_CLOUD_UNIVERSE_DOMAIN: 'example.test',
     GEMINI_DEFAULT_AUTH_TYPE: 'oauth-personal', GEMINI_CLI_USE_COMPUTE_ADC: 'true',
+    GEMINI_CLI_SYSTEM_SETTINGS_PATH: '/tmp/gemini-system-settings.json',
+    GEMINI_CLI_SYSTEM_DEFAULTS_PATH: '/tmp/gemini-system-defaults.json',
+    GEMINI_CLI_TRUSTED_FOLDERS_PATH: '/tmp/gemini-trusted-folders.json',
   }
   const result = await resolveNativeShellEnvironment({
     cache: false, platform: 'darwin', shell: '/bin/sh', env: {},
