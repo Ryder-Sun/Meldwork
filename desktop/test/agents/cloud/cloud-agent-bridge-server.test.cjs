@@ -191,6 +191,30 @@ test('OpenCode does not report success when output exceeds the response limit', 
   }
 })
 
+test('remote replies preserve UTF-8 characters split across process output chunks', async t => {
+  if (process.platform === 'win32') return t.skip('uses POSIX executable fixtures')
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-cloud-utf8-'))
+  const originalPath = process.env.PATH
+  const streams = {
+    hermes: 'session_id: session-1\n你好，世界\n',
+    codex: `${JSON.stringify({ type: 'thread.started', thread_id: 'session-1' })}\n${JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text: '你好，世界' } })}\n${JSON.stringify({ type: 'turn.completed' })}\n`,
+    opencode: `${JSON.stringify({ type: 'text', sessionID: 'session-1', part: { type: 'text', text: '你好，世界' } })}\n${JSON.stringify({ type: 'step_finish', part: { reason: 'stop' } })}\n`,
+  }
+  for (const [kind, stream] of Object.entries(streams)) {
+    const script = `#!/usr/bin/env node\nconst bytes = Buffer.from(${JSON.stringify(stream)}, 'utf8')\nconst split = bytes.indexOf(Buffer.from('你')) + 1\nprocess.stdout.write(bytes.subarray(0, split))\nsetTimeout(() => process.stdout.end(bytes.subarray(split)), 30)\n`
+    fs.writeFileSync(path.join(directory, kind), script, { mode: 0o755 })
+  }
+  process.env.PATH = `${directory}${path.delimiter}${originalPath}`
+  try {
+    for (const kind of Object.keys(streams)) {
+      assert.deepEqual(await runAgent(kind, 'hello'), { text: '你好，世界', sessionRef: 'session-1', outcome: 'completed' })
+    }
+  } finally {
+    process.env.PATH = originalPath
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
+})
+
 test('cancelling a remote Agent run terminates its native process', async t => {
   if (process.platform === 'win32') return t.skip('uses a POSIX executable fixture')
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-cloud-cancel-'))

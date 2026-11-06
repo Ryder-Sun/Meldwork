@@ -2,6 +2,7 @@ const fs = require('node:fs')
 const http = require('node:http')
 const os = require('node:os')
 const path = require('node:path')
+const { StringDecoder } = require('node:string_decoder')
 const { spawn, spawnSync } = require('node:child_process')
 
 const requestedPort = Number(process.env.MELDWORK_AGENT_BRIDGE_PORT || 8765)
@@ -273,6 +274,8 @@ function runAgent(agentId, prompt, sessionRef = '', signal = null) {
       }) } } : {}),
     })
     let stdout = ''
+    let stdoutBytes = 0
+    const stdoutDecoder = new StringDecoder('utf8')
     let terminalResult = null
     let terminalTimer = null
     let forceTimer = null
@@ -294,11 +297,12 @@ function runAgent(agentId, prompt, sessionRef = '', signal = null) {
     if (signal?.aborted) cancel()
     child.stdout.on('data', chunk => {
       if (invalidOutput) return
-      const text = chunk.toString('utf8')
+      stdoutBytes += chunk.length
+      const text = stdoutBytes <= MAX_RESPONSE_BYTES ? stdoutDecoder.write(chunk) : ''
       stdout += text
       const lines = `${pendingOutputLine}${text}`.split(/\r?\n/)
       pendingOutputLine = lines.pop()
-      if (Buffer.byteLength(stdout) > MAX_RESPONSE_BYTES || (agentId === 'opencode' && hasOpenCodeError(lines.join('\n')))) {
+      if (stdoutBytes > MAX_RESPONSE_BYTES || (agentId === 'opencode' && hasOpenCodeError(lines.join('\n')))) {
         invalidOutput = true
         terminalResult = null
         if (terminalTimer) clearTimeout(terminalTimer)
@@ -326,6 +330,11 @@ function runAgent(agentId, prompt, sessionRef = '', signal = null) {
       if (forceTimer) clearTimeout(forceTimer)
       signal?.removeEventListener('abort', cancel)
       if (cancelled) return resolve({ outcome: 'cancelled' })
+      if (!invalidOutput) {
+        const tail = stdoutDecoder.end()
+        stdout += tail
+        pendingOutputLine += tail
+      }
       if (invalidOutput || (agentId === 'opencode' && hasOpenCodeError(pendingOutputLine))) {
         return resolve({ outcome: 'failed', failure: { code: 'REMOTE_AGENT_RESPONSE_INVALID' } })
       }
