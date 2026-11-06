@@ -204,6 +204,29 @@ test('native Agent configuration selection is validated and used for execution',
   assert.equal((await get(harness.event(), 'hermes')).directory, '')
 })
 
+test('Hermes selected config captures only its declared native credential for execution', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-env-main-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const native = path.join(directory, 'native'); fs.mkdirSync(native)
+  fs.writeFileSync(path.join(native, 'config.yaml'), 'model:\n  key_env: CUSTOM_CREDENTIAL\n')
+  const readiness = require('../../src/agents/local-agent-readiness.cjs')
+  const { harness } = loadMain(directory, {
+    hermesDeclaredCredentialKeys: readiness.hermesDeclaredCredentialKeys,
+    nativeEnvironment: readiness.nativeCredentialEnvironment,
+    nativeShellEnvironment: input => ({ source: 'native-shell', env: input.extraEnvKeys?.includes('CUSTOM_CREDENTIAL')
+      ? { CUSTOM_CREDENTIAL: 'synthetic-secret', UNRELATED_SECRET: 'private' } : {} }),
+  })
+  await harness.ready()
+  harness.workspaceInstances[0].state.agentPreferences = { hermes: { nativeConfigDirectory: native } }
+  await harness.workspaceInstances[0].input.runAgent({ kind: 'hermes', executable: '/tmp/hermes' }, 'hello', directory, {})
+  const options = harness.runAgentCalls.at(-1)[3]
+  assert.equal(options.env.CUSTOM_CREDENTIAL, 'synthetic-secret')
+  assert.equal(options.env.UNRELATED_SECRET, undefined)
+  assert.deepEqual(options.nativeCredentialKeys, ['CUSTOM_CREDENTIAL'])
+  await harness.workspaceInstances[0].input.runAgent({ kind: 'codex', executable: '/tmp/codex' }, 'hello', directory, {})
+  assert.equal(harness.runAgentCalls.at(-1)[3].env.CUSTOM_CREDENTIAL, undefined)
+})
+
 test('Skill discovery follows native shell directories and explicit selections take precedence', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-skill-env-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
@@ -2201,6 +2224,7 @@ test('OpenClaw native auth is routed through the app-owned isolated runtime', as
   const { harness } = loadMain(directory, {
     moduleMocks: {
       './agents/local-agent-readiness.cjs': {
+        hermesDeclaredCredentialKeys: () => [],
         nativeCredentialEnvironment: kind => kind === 'openclaw'
           ? {
             OPENCLAW_NATIVE_CONFIG: 'available',

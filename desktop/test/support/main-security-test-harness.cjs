@@ -755,6 +755,7 @@ function loadMain(userData, options = {}) {
     './agents/custom-agent-store.cjs': { CustomAgentStore: TestCustomAgentStore },
     './attachments/attachment-store.cjs': { AttachmentStore: TestAttachmentStore },
     './agents/local-agent-readiness.cjs': {
+      hermesDeclaredCredentialKeys: input => options.hermesDeclaredCredentialKeys?.(input) || [],
       nativeCredentialEnvironment: (...args) => options.nativeEnvironment?.(...args) || {},
       resolveNativeShellEnvironment: async input => options.nativeShellEnvironment?.(input) || ({
         env: { PATH: process.env.PATH || '' },

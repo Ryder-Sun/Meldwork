@@ -25,6 +25,19 @@ const {
   searchPath,
 } = require('../../../src/agents/cli/cli-adapters.cjs')
 
+test('Hermes discovery redacts configured credentials even when their names are unconventional', async () => {
+  const agents = await detectAgents({
+    platform: 'darwin', env: {},
+    resolveExecutableFn: async kind => kind === 'hermes' ? '/tmp/hermes' : null,
+    nativeEnvironmentForKind: kind => kind === 'hermes' ? { CUSTOM_CREDENTIAL: 'abc' } : {},
+    nativeCredentialKeysForKind: kind => kind === 'hermes' ? ['CUSTOM_CREDENTIAL'] : [],
+    execFileFn: async (_command, args) => ({ stdout: args[0] === '--version' ? 'Hermes 0.19.1 abc\n' : '', stderr: '' }),
+    probeAgentCapabilitiesFn: async () => ({ compatibilityState: 'compatible' }),
+  })
+  assert.equal(agents.length, 1)
+  assert.doesNotMatch(JSON.stringify(agents), /abc/)
+})
+
 test('discovery scans version-manager directories once per pass and rescans on refresh', async () => {
   let scans = 0
   const options = {

@@ -2,6 +2,7 @@ const path = require('node:path')
 const { launchEnvironment, searchPath, systemChildEnvironment } = require('./cli-discovery.cjs')
 const { NETWORK_ENV_KEYS, networkEnvironment } = require('./cli-network-environment.cjs')
 const { CONFIG_DIRECTORY_ENV_KEYS } = require('./cli-config-directories.cjs')
+const { SECRET_ENV_KEYS, nativeSecretEnvKeys } = require('./native-secret-environment.cjs')
 const { redactChildSecrets } = require('./cli-runtime-events.cjs')
 const {
   agentRuntimeError,
@@ -189,13 +190,14 @@ function childEnvironment(agent, workdir, options, platform) {
     openCodeSafetyEnv.MIMOCODE_PERMISSION = JSON.stringify(headlessPermissions)
   }
   const source = { ...process.env, ...options.env }
+  const nativeKeys = agent.kind === 'hermes' ? nativeSecretEnvKeys(options.nativeCredentialKeys) : []
   const controlled = Object.fromEntries(Object.entries(options.env || {}).filter(([key, value]) => (
     typeof value === 'string'
-      && (CONTROLLED_RUNTIME_ENV.test(key) || NETWORK_ENV_KEYS.includes(key)
+      && (CONTROLLED_RUNTIME_ENV.test(key) || nativeKeys.includes(key) || NETWORK_ENV_KEYS.includes(key)
         || CONFIG_DIRECTORY_ENV_KEYS.includes(key))
       && !BLOCKED_RUNTIME_ENV.test(key)
   )))
-  return {
+  const childEnv = {
     ...systemChildEnvironment(process.env, platform),
     ...controlled,
     ...hermesSafetyEnv,
@@ -203,6 +205,8 @@ function childEnvironment(agent, workdir, options, platform) {
     ...launchEnvironment(agent.kind, agent.executable, { platform }),
     PATH: searchPath({ platform, env: source }),
   }
+  Object.defineProperty(childEnv, SECRET_ENV_KEYS, { value: nativeKeys })
+  return childEnv
 }
 
 module.exports = {

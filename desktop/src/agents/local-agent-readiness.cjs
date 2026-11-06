@@ -4,6 +4,8 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { promisify } = require('node:util')
+const yaml = require('js-yaml')
+const { nativeSecretEnvKeys } = require('./cli/native-secret-environment.cjs')
 const { prepareCommand, searchPath } = require('./cli/cli-adapters.cjs')
 const { isOpenClawSecretReference } = require('./cli/openclaw-runtime.cjs')
 const { NETWORK_ENV_KEYS, networkEnvironment } = require('./cli/cli-network-environment.cjs')
@@ -134,7 +136,7 @@ const SHELL_ENV_KEYS = Object.freeze([...new Set([
   ...NETWORK_ENV_KEYS,
   ...Object.values(RUNTIME_ENV_KEYS).flat(),
 ])])
-let shellEnvironmentCache = null
+const shellEnvironmentCache = new Map()
 
 function readCredentialFile(filename) {
   try {
@@ -188,10 +190,36 @@ function textContainsCredential(filename) {
   }
 }
 
-function nativeCredentialEnvironment(kind, env = process.env) {
+function hermesDeclaredCredentialKeys(options = {}) {
+  const env = options.env || process.env
+  const home = options.home || os.homedir()
+  const root = env.HERMES_HOME
+    ? String(env.HERMES_HOME).replace(/^~(?=$|[\\/])/, home)
+    : (options.platform || process.platform) === 'win32'
+      ? path.join(env.LOCALAPPDATA || path.join(home, 'AppData', 'Local'), `hermes${env.HERMES_DATA_DIR_SUFFIX || ''}`)
+      : path.join(home, `.hermes${env.HERMES_DATA_DIR_SUFFIX || ''}`)
+  if (!path.isAbsolute(root)) return []
+  try {
+    const filename = path.join(root, 'config.yaml')
+    const stat = fs.statSync(filename)
+    if (!stat.isFile() || stat.size > 1024 * 1024) return []
+    const config = yaml.load(fs.readFileSync(filename, 'utf8'))
+    if (!config || typeof config !== 'object' || Array.isArray(config)) return []
+    const providers = config.providers && typeof config.providers === 'object' && !Array.isArray(config.providers)
+      ? Object.values(config.providers).slice(0, 256) : []
+    const custom = Array.isArray(config.custom_providers) ? config.custom_providers.slice(0, 256) : []
+    const entries = [config.model, config.fallback_model, ...providers, ...custom]
+    return nativeSecretEnvKeys(entries.flatMap(entry => (
+      entry && typeof entry === 'object' && !Array.isArray(entry) ? [entry.key_env, entry.api_key_env] : []
+    )))
+  } catch { return [] }
+}
+
+function nativeCredentialEnvironment(kind, env = process.env, declaredKeys = []) {
   const result = {}
   const keys = [...(RUNTIME_ENV_KEYS[kind] || []), ...(kind === 'claude'
-    ? Object.keys(env).filter(key => VERTEX_MODEL_REGION_KEY.test(key)) : [])]
+    ? Object.keys(env).filter(key => VERTEX_MODEL_REGION_KEY.test(key)) : []),
+    ...(kind === 'hermes' ? nativeSecretEnvKeys(declaredKeys) : [])]
   for (const key of keys) {
     if (typeof env[key] === 'string') result[key] = env[key]
   }
@@ -206,15 +234,15 @@ function nativeCredentialKeyEnvironment(kind, env = process.env) {
   return result
 }
 
-function allowedShellEnvironment(env = process.env, platform = process.platform) {
+function allowedShellEnvironment(env = process.env, platform = process.platform, extraEnvKeys = []) {
   const source = { ...env, ...networkEnvironment(env, platform) }
   const result = {}
   const sourceKeys = Object.keys(source)
   const regionKeys = sourceKeys.map(key => platform === 'win32' ? key.toUpperCase() : key)
     .filter(key => VERTEX_MODEL_REGION_KEY.test(key))
-  for (const key of [...SHELL_ENV_KEYS, ...regionKeys]) {
+  for (const key of [...SHELL_ENV_KEYS, ...regionKeys, ...nativeSecretEnvKeys(extraEnvKeys)]) {
     const sourceKey = Object.hasOwn(source, key) ? key
-      : platform === 'win32' ? sourceKeys.find(candidate => candidate.toUpperCase() === key) : undefined
+      : platform === 'win32' ? sourceKeys.find(candidate => candidate.toUpperCase() === key.toUpperCase()) : undefined
     const value = sourceKey === undefined ? undefined : source[sourceKey]
     if (typeof value !== 'string' || value.length > MAX_SHELL_ENV_BYTES) continue
     result[key] = value
@@ -222,8 +250,8 @@ function allowedShellEnvironment(env = process.env, platform = process.platform)
   return result
 }
 
-function nativeShellCommand(shellName) {
-  const keys = SHELL_ENV_KEYS.join(' ')
+function nativeShellCommand(shellName, extraEnvKeys = []) {
+  const keys = [...SHELL_ENV_KEYS, ...nativeSecretEnvKeys(extraEnvKeys)].join(' ')
   // Enumerate names only; do not dump unrelated values or depend on Electron RunAsNode.
   const regionNames = shellName === 'zsh'
     ? 'builtin print -rl -- ${(k)parameters[(I)VERTEX_REGION_*]}'
@@ -252,12 +280,12 @@ function nativeShellCommand(shellName) {
   ].join('\n')
 }
 
-function parseNativeShellEnvironment(output) {
+function parseNativeShellEnvironment(output, extraEnvKeys = []) {
   const text = String(output || '')
   const marker = `${SHELL_ENV_MARKER}\u0000`
   const start = text.indexOf(marker)
   if (start < 0) return {}
-  const allowed = new Set(SHELL_ENV_KEYS)
+  const allowed = new Set([...SHELL_ENV_KEYS, ...nativeSecretEnvKeys(extraEnvKeys)])
   const result = {}
   for (const entry of text.slice(start + marker.length).split('\u0000')) {
     const separator = entry.indexOf('=')
@@ -275,7 +303,7 @@ async function queryNativeShellEnvironment(options = {}) {
   const source = options.env || process.env
   const platform = options.platform || process.platform
   const home = options.home || os.homedir()
-  const fallback = allowedShellEnvironment(source, platform)
+  const fallback = allowedShellEnvironment(source, platform, options.extraEnvKeys)
   if (platform === 'win32') return { env: fallback, source: 'process' }
   const shell = String(options.shell || source.SHELL || (platform === 'darwin' ? '/bin/zsh' : '/bin/sh'))
   const shellName = path.basename(shell)
@@ -290,7 +318,7 @@ async function queryNativeShellEnvironment(options = {}) {
   try {
     const result = await execFileFn(
       shell,
-      [shellName === 'sh' ? '-lc' : '-lic', nativeShellCommand(shellName)],
+      [shellName === 'sh' ? '-lc' : '-lic', nativeShellCommand(shellName, options.extraEnvKeys)],
       {
         timeout: SHELL_ENV_TIMEOUT_MS,
         maxBuffer: MAX_SHELL_ENV_BYTES,
@@ -298,7 +326,7 @@ async function queryNativeShellEnvironment(options = {}) {
         env: childEnv,
       },
     )
-    const loaded = parseNativeShellEnvironment(result.stdout)
+    const loaded = parseNativeShellEnvironment(result.stdout, options.extraEnvKeys)
     return {
       env: { ...fallback, ...loaded },
       source: Object.keys(loaded).some(key => key !== 'PATH') ? 'native-shell' : 'process',
@@ -312,7 +340,7 @@ function publicShellEnvironment({ env, source }) {
   return { env, source }
 }
 
-let lastGoodShellEnvironment = null
+const lastGoodShellEnvironment = new Map()
 
 function resolveNativeShellEnvironment(options = {}) {
   const useCache = options.cache !== false && !options.execFileFn
@@ -322,12 +350,12 @@ function resolveNativeShellEnvironment(options = {}) {
   const home = options.home || os.homedir()
   const shell = String(options.shell || source.SHELL || '')
   const environmentHash = createHash('sha256')
-    .update(JSON.stringify(allowedShellEnvironment(source, platform))).digest('hex')
-  const key = [platform, home, shell, environmentHash].join('\u0000')
+    .update(JSON.stringify(allowedShellEnvironment(source, platform, options.extraEnvKeys))).digest('hex')
+  const key = [platform, home, shell, environmentHash, nativeSecretEnvKeys(options.extraEnvKeys).join(',')].join('\u0000')
   const now = Date.now()
-  if (options.refresh !== true && shellEnvironmentCache?.key === key
-      && shellEnvironmentCache.expiresAt > now) {
-    return shellEnvironmentCache.promise
+  const cached = shellEnvironmentCache.get(key)
+  if (options.refresh !== true && cached?.expiresAt > now) {
+    return cached.promise
   }
   // The window is measured from when the capture finishes, so a capture that
   // used up its whole timeout is not already stale when it returns.
@@ -335,20 +363,24 @@ function resolveNativeShellEnvironment(options = {}) {
   entry.promise = queryNativeShellEnvironment(options).then((result) => {
     entry.expiresAt = Date.now() + SHELL_ENV_CACHE_TTL_MS
     if (!result.failed) {
-      if (result.source === 'native-shell') lastGoodShellEnvironment = { key, result }
+      if (result.source === 'native-shell') {
+        if (lastGoodShellEnvironment.size >= 16) lastGoodShellEnvironment.delete(lastGoodShellEnvironment.keys().next().value)
+        lastGoodShellEnvironment.set(key, result)
+      }
       return publicShellEnvironment(result)
     }
     // The login shell did not answer (slow rc file, timeout, startup error).
     // The bare app environment has none of the user's PATH entries or API
     // keys, so an Agent started with it fails with misleading sign-in errors.
     // Keep using what the shell last produced for this account instead.
-    if (lastGoodShellEnvironment?.key === key) {
-      return publicShellEnvironment(lastGoodShellEnvironment.result)
+    if (lastGoodShellEnvironment.has(key)) {
+      return publicShellEnvironment(lastGoodShellEnvironment.get(key))
     }
     entry.expiresAt = Date.now() + SHELL_ENV_FAILURE_TTL_MS
     return publicShellEnvironment(result)
   })
-  shellEnvironmentCache = entry
+  if (shellEnvironmentCache.size >= 16) shellEnvironmentCache.delete(shellEnvironmentCache.keys().next().value)
+  shellEnvironmentCache.set(key, entry)
   return entry.promise
 }
 
@@ -460,7 +492,7 @@ function probeEnvironment(kind, options = {}) {
   if (platform === 'win32') env.USERPROFILE ||= home
   else env.HOME = home
   env.PATH = searchPath({ platform, env: source, home })
-  Object.assign(env, nativeCredentialEnvironment(kind, source))
+  Object.assign(env, nativeCredentialEnvironment(kind, source, options.nativeCredentialKeys))
   return env
 }
 
@@ -826,6 +858,7 @@ async function resolveNativeCredentialState(kind, options = {}) {
 }
 
 module.exports = {
+  hermesDeclaredCredentialKeys,
   nativeCredentialEnvironment,
   nativeCredentialState,
   resolveNativeOpenClawRuntime,

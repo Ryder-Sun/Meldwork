@@ -5,12 +5,48 @@ const path = require('node:path')
 const test = require('node:test')
 
 const {
+  hermesDeclaredCredentialKeys,
   nativeCredentialEnvironment,
   nativeCredentialState,
   resolveNativeOpenClawRuntime,
   resolveNativeCredentialState,
   resolveNativeShellEnvironment,
 } = require('../../src/agents/local-agent-readiness.cjs')
+
+test('Hermes captures only safe credential names declared by its selected YAML config', async t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-declared-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const selected = path.join(home, 'selected'); fs.mkdirSync(selected)
+  fs.writeFileSync(path.join(selected, 'config.yaml'), [
+    'model:', '  key_env: CUSTOM_CREDENTIAL', 'providers:', '  another:', '    api_key_env: SECOND_VALUE',
+    'custom_providers:', '  - name: invalid', '    key_env: NODE_OPTIONS',
+    '  - name: invalid2', '    key_env: PATH', '  - name: invalid3', '    key_env: "X; touch /tmp/bad"',
+    '  - name: lower', '    key_env: lower_secret',
+  ].join('\n'))
+  const keys = hermesDeclaredCredentialKeys({ home, env: { HERMES_HOME: selected } })
+  assert.deepEqual(keys, ['CUSTOM_CREDENTIAL', 'SECOND_VALUE', 'lower_secret'])
+  assert.deepEqual(hermesDeclaredCredentialKeys({ home, env: {} }), [])
+  const result = await resolveNativeShellEnvironment({ cache: false, platform: 'win32', extraEnvKeys: keys,
+    env: { Custom_Credential: 'test-private', SECOND_VALUE: 'other-private', LOWER_SECRET: 'lower-private', UNRELATED_SECRET: 'not-shared' } })
+  assert.deepEqual(nativeCredentialEnvironment('hermes', result.env, keys), {
+    CUSTOM_CREDENTIAL: 'test-private', SECOND_VALUE: 'other-private', lower_secret: 'lower-private',
+  })
+  assert.deepEqual(nativeCredentialEnvironment('codex', result.env, keys), {})
+  assert.equal(result.env.UNRELATED_SECRET, undefined)
+})
+
+test('declared Hermes credentials can be read from a login shell without capturing unrelated variables', { skip: process.platform === 'win32' }, async () => {
+  const execFile = require('node:util').promisify(require('node:child_process').execFile)
+  const result = await resolveNativeShellEnvironment({ cache: false, platform: 'darwin', home: '/tmp/native-home',
+    shell: '/bin/sh', env: { PATH: '/usr/bin' }, extraEnvKeys: ['CUSTOM_CREDENTIAL', 'NODE_OPTIONS'],
+    execFileFn: (command, args, options) => execFile(command, ['-c', [
+      'export CUSTOM_CREDENTIAL=test-private UNRELATED_SECRET=private', args[1],
+    ].join('\n')], options),
+  })
+  assert.equal(result.env.CUSTOM_CREDENTIAL, 'test-private')
+  assert.equal(result.env.UNRELATED_SECRET, undefined)
+  assert.equal(result.env.NODE_OPTIONS, undefined)
+})
 
 test('native environment cache observes credential and proxy changes without a PATH change', async () => {
   const base = { platform: 'win32', home: 'C:\\meldwork-cache-test', env: { PATH: 'C:\\bin',

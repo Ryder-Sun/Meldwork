@@ -47,6 +47,7 @@ const { ChannelIngressRuntime } = require('./channels/channel-ingress-runtime.cj
 const { CustomAgentStore } = require('./agents/custom-agent-store.cjs')
 const { configDirectoryEnvironment } = require('./agents/cli/cli-config-directories.cjs')
 const {
+  hermesDeclaredCredentialKeys,
   nativeCredentialEnvironment,
   resolveNativeOpenClawRuntime,
   resolveNativeCredentialState,
@@ -245,7 +246,15 @@ function openExternalUrl(value) {
 
 async function nativeShellEnvironment(options = {}) {
   const home = app.getPath('home')
-  const resolved = await resolveNativeShellEnvironment({ home, refresh: options.refresh === true })
+  let resolved = await resolveNativeShellEnvironment({ home, refresh: options.refresh === true })
+  const hermesEnv = nativeConfigEnvironment('hermes', workspace?.state.agentPreferences, { ...process.env, ...resolved.env })
+  const hermesCredentialKeys = hermesDeclaredCredentialKeys({ home, env: hermesEnv })
+  if (hermesCredentialKeys.length) {
+    const extended = await resolveNativeShellEnvironment({ home, refresh: options.refresh === true, extraEnvKeys: hermesCredentialKeys })
+    const extra = Object.fromEntries(hermesCredentialKeys.filter(key => Object.hasOwn(extended.env, key))
+      .map(key => [key, extended.env[key]]))
+    resolved = { ...resolved, env: { ...resolved.env, ...extra } }
+  }
   const env = { ...process.env, ...resolved.env }
   for (const [kind, { key }] of Object.entries(NATIVE_CONFIG_DIRECTORIES)) {
     const directory = typeof env[key] === 'string' ? env[key] : ''
@@ -259,6 +268,7 @@ async function nativeShellEnvironment(options = {}) {
     ...resolved,
     env,
     home,
+    hermesCredentialKeys,
   }
 }
 
@@ -267,8 +277,9 @@ async function detectLocalAgents() {
   return detectAgents({
     env: shellEnvironment.env,
     home: shellEnvironment.home,
+    nativeCredentialKeysForKind: kind => kind === 'hermes' ? shellEnvironment.hermesCredentialKeys : [],
     nativeEnvironmentForKind: kind => kind === 'openclaw'
-      ? {} : nativeCredentialEnvironment(kind, nativeConfigEnvironment(kind, workspace?.state.agentPreferences, shellEnvironment.env)),
+      ? {} : nativeCredentialEnvironment(kind, nativeConfigEnvironment(kind, workspace?.state.agentPreferences, shellEnvironment.env), shellEnvironment.hermesCredentialKeys),
   })
 }
 
@@ -361,6 +372,7 @@ async function runCoreAgent(agent, prompt, workdir, options = {}) {
   const connectorCredentialIsolation = options.connectorCredentialIsolation === true
   const runOptions = { ...options }
   delete runOptions.connectorCredentialIsolation
+  delete runOptions.nativeCredentialKeys
   const shellEnvironment = connectorCredentialIsolation ? null : await nativeShellEnvironment()
   const selectedNativeEnv = shellEnvironment
     ? nativeConfigEnvironment(agent.kind, workspace?.state.agentPreferences, shellEnvironment.env) : null
@@ -387,7 +399,7 @@ async function runCoreAgent(agent, prompt, workdir, options = {}) {
     ? {}
     : {
         ...configDirectoryEnvironment(selectedNativeEnv),
-        ...nativeCredentialEnvironment(agent.kind, selectedNativeEnv),
+        ...nativeCredentialEnvironment(agent.kind, selectedNativeEnv, shellEnvironment.hermesCredentialKeys),
         ...(agent.kind === 'workbuddy' ? workBuddyEnvironment({
           env: selectedNativeEnv, home: shellEnvironment.home,
           modelId: workspace?.state.agentPreferences.workbuddy?.modelId,
@@ -399,6 +411,8 @@ async function runCoreAgent(agent, prompt, workdir, options = {}) {
     : {}
   return runAgent(agent, prompt, workdir, {
     ...runOptions,
+    ...(agent.kind === 'hermes' && !connectorCredentialIsolation
+      ? { nativeCredentialKeys: shellEnvironment.hermesCredentialKeys } : {}),
     ...injected,
     env: {
       ...networkEnvironment(shellEnvironment?.env),
@@ -578,6 +592,7 @@ function createWorkspace() {
         env: nativeConfigEnvironment(kind, workspace?.state.agentPreferences, shellEnvironment.env),
         home: shellEnvironment.home,
         credentialSource: shellEnvironment.source,
+        nativeCredentialKeys: kind === 'hermes' ? shellEnvironment.hermesCredentialKeys : [],
         ...(kind === 'workbuddy' ? { modelId: workspace?.state.agentPreferences.workbuddy?.modelId } : {}),
       })
     },

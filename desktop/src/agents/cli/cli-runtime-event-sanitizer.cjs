@@ -1,4 +1,5 @@
 const { stripAnsi } = require('./cli-output-parsers.cjs')
+const { SECRET_ENV_KEYS } = require('./native-secret-environment.cjs')
 
 const RUNTIME_EVENT_TYPES = new Set([
   'status',
@@ -38,8 +39,9 @@ function childSecrets(env) {
   const secrets = new Set()
   for (const [name, value] of Object.entries(env || {})) {
     if (typeof value !== 'string' || !value) continue
-    if (/(?:API[_-]?KEY|ACCESS[_-]?KEY|TOKEN|SECRET|PASSWORD|AUTHORIZATION)/i.test(name)
-        && utf8ByteLength(value) >= 8) secrets.add(value)
+    if (env?.[SECRET_ENV_KEYS]?.includes(name)
+        || (/(?:API[_-]?KEY|ACCESS[_-]?KEY|TOKEN|SECRET|PASSWORD|AUTHORIZATION)/i.test(name)
+          && utf8ByteLength(value) >= 8)) secrets.add(value)
     if (!/^(?:https?|all)_proxy$/i.test(name)) continue
     if (value.includes('@')) secrets.add(value)
     try {

@@ -2,6 +2,12 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const { nativeCredentialEnvironment } = require('../../../src/agents/local-agent-readiness.cjs')
 const { childEnvironment } = require('../../../src/agents/cli/cli-process-support.cjs')
+const { createRuntimeEventEmitter, redactChildSecrets } = require('../../../src/agents/cli/cli-runtime-event-sanitizer.cjs')
+const fs = require('node:fs')
+const os = require('node:os')
+const path = require('node:path')
+const { executable } = require('../../support/cli-adapters-test-helpers.cjs')
+const { runAgent } = require('../../../src/agents/cli/cli-adapters.cjs')
 
 test('native configuration controls reach only the CLI that owns them', () => {
   const entries = {
@@ -47,4 +53,31 @@ test('Hermes native endpoint variables reach its child without leaking to other 
   for (const [key, value] of Object.entries(selected)) assert.equal(child[key], value)
   assert.equal(child.NODE_OPTIONS, undefined)
   assert.deepEqual(nativeCredentialEnvironment('codex', env), {})
+})
+
+test('declared Hermes credentials reach only Hermes and are redacted even without a conventional name', () => {
+  const options = { env: { CUSTOM_CREDENTIAL: 'abc', NODE_OPTIONS: '--require /untrusted.js' },
+    nativeCredentialKeys: ['CUSTOM_CREDENTIAL', 'NODE_OPTIONS'] }
+  const hermes = childEnvironment({ kind: 'hermes', executable: '/native/hermes' }, '/workspace', options, 'darwin')
+  assert.equal(hermes.CUSTOM_CREDENTIAL, 'abc')
+  assert.equal(hermes.NODE_OPTIONS, undefined)
+  assert.equal(redactChildSecrets('value=abc', hermes), 'value=[redacted]')
+  const events = []
+  const emitter = createRuntimeEventEmitter({ onEvent: event => events.push(event) }, hermes)
+  for (const part of ['a', 'b', 'c']) emitter.emit({ type: 'answer_delta', status: 'running', delta: part })
+  emitter.finalize({ status: 'completed' })
+  assert.doesNotMatch(JSON.stringify(events), /abc/)
+  const codex = childEnvironment({ kind: 'codex', executable: '/native/codex' }, '/workspace', options, 'darwin')
+  assert.equal(codex.CUSTOM_CREDENTIAL, undefined)
+})
+
+test('Hermes invocation receives declared credentials and redacts them from its reply', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-declared-key-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const cli = executable(directory, 'hermes.cjs', "process.stdout.write('reply=' + process.env.CUSTOM_CREDENTIAL)")
+  const result = await runAgent({ kind: 'hermes', name: 'Hermes', executable: cli }, 'hello', directory, {
+    hermesAcpAvailable: false, hermesMessageWatermarkFn: () => null,
+    env: { CUSTOM_CREDENTIAL: 'abc' }, nativeCredentialKeys: ['CUSTOM_CREDENTIAL'],
+  })
+  assert.equal(result.text, 'reply=[redacted]')
 })

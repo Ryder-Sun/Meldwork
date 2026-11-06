@@ -5,6 +5,7 @@ const os = require('node:os')
 const path = require('node:path')
 const { promisify } = require('node:util')
 const { networkEnvironment } = require('./cli-network-environment.cjs')
+const { SECRET_ENV_KEYS, nativeSecretEnvKeys } = require('./native-secret-environment.cjs')
 const { NATIVE_CONFIG_DIRECTORIES } = require('../native-config-directory.cjs')
 const { redactChildSecrets } = require('./cli-runtime-event-sanitizer.cjs')
 const {
@@ -557,7 +558,11 @@ async function detectAgents(options = {}) {
   const detected = await Promise.all(ALLOWED_KINDS.map(kind => {
     const nativeEnv = typeof options.nativeEnvironmentForKind === 'function'
       ? options.nativeEnvironmentForKind(kind) : nativeConfigDirectoryEnvironment(kind, env)
-    return detectAgentKind(kind, detectionOptions, { ...childEnv, ...nativeEnv }).catch(() => null)
+    const kindEnv = { ...childEnv, ...nativeEnv }
+    const secretKeys = typeof options.nativeCredentialKeysForKind === 'function'
+      ? nativeSecretEnvKeys(options.nativeCredentialKeysForKind(kind)) : []
+    Object.defineProperty(kindEnv, SECRET_ENV_KEYS, { value: secretKeys })
+    return detectAgentKind(kind, detectionOptions, kindEnv).catch(() => null)
   }))
   return detected.filter(Boolean)
 }
