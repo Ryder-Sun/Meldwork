@@ -9,6 +9,7 @@ export default {
     'nativeConfig.expected.claude': 'Expected settings.json or .credentials.json.',
     'nativeConfig.expected.pi': 'Expected settings.json, auth.json or models.json.',
     'nativeConfig.expected.kimi': 'Expected config.toml or a credentials directory.',
+    'nativeConfig.expected.mimo': 'Expected mimocode.json or mimocode.jsonc.',
     'nativeConfig.expected.deepseek': 'Expected a profiles directory, cordis.patch.yml or .credentials.yaml.',
     'nativeConfig.expected.workbuddy': 'Expected models.json, settings.json or .credentials.json.',
     'nativeConfig.expected.opencode': 'Expected opencode.json or opencode.jsonc.',

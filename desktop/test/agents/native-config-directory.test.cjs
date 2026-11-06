@@ -34,6 +34,17 @@ test('native identity directories follow shell overrides and known defaults', ()
   assert.equal(nativeIdentityDirectory('unknown', {}, home, 'linux'), '')
 })
 
+test('MiMo validates its selected native configuration directory', t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-mimo-config-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  assert.throws(() => validateNativeConfigDirectory('mimo', directory), { message: 'LOCAL_NATIVE_CONFIG_INVALID' })
+  fs.writeFileSync(path.join(directory, 'mimocode.jsonc'), '{"model":"custom/model"}')
+  const selected = validateNativeConfigDirectory('mimo', directory)
+  const env = nativeConfigEnvironment('mimo', { mimo: { nativeConfigDirectory: selected } }, {})
+  assert.equal(env.MIMOCODE_CONFIG_DIR, selected)
+  assert.equal(nativeIdentityDirectory('mimo', env, directory), selected)
+})
+
 test('OpenCode authentication identity follows its XDG data directory', () => {
   const home = path.resolve('test-home')
   assert.deepEqual(nativeAuthIdentityFiles('opencode', {}, home), [path.join(home, '.local', 'share', 'opencode', 'auth.json')])

@@ -193,6 +193,29 @@ test('MiMo resolves provider references across native configuration overrides', 
   assert.deepEqual(mimoDeclaredCredentialKeys({ env }), [])
 })
 
+test('MiMo selected native directory drives credential capture and child execution', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-mimo-selected-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const selected = path.join(home, 'selected')
+  fs.mkdirSync(selected)
+  fs.writeFileSync(path.join(selected, 'mimocode.json'), JSON.stringify({
+    model: 'custom/model', provider: { custom: { options: { apiKey: '{env:SELECTED_TOKEN}' } } },
+  }))
+  const { nativeConfigEnvironment } = require('../../../src/agents/native-config-directory.cjs')
+  const { mimoDeclaredCredentialKeys, mimoConfiguredProvider } = require('../../../src/agents/cli/mimo-native-config.cjs')
+  const env = nativeConfigEnvironment('mimo', { mimo: { nativeConfigDirectory: selected } }, {
+    SELECTED_TOKEN: 'synthetic-private-token', HOME: home,
+  })
+  const keys = mimoDeclaredCredentialKeys({ home, env })
+  assert.deepEqual(keys, ['SELECTED_TOKEN'])
+  assert.equal(mimoConfiguredProvider({ home, env }), true)
+  const native = nativeCredentialEnvironment('mimo', env, keys)
+  const child = childEnvironment({ kind: 'mimo' }, home, { env: native, nativeCredentialKeys: keys }, 'darwin')
+  assert.equal(child.MIMOCODE_CONFIG_DIR, selected)
+  assert.equal(child.SELECTED_TOKEN, 'synthetic-private-token')
+  assert.equal(nativeCredentialEnvironment('codex', env).SELECTED_TOKEN, undefined)
+})
+
 test('MiMo selects project provider references for the current work directory', t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-mimo-project-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))

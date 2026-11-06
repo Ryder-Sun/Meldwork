@@ -45,6 +45,7 @@ const NATIVE_CONFIG_DIRECTORIES = Object.freeze({
   opencode: { key: 'OPENCODE_CONFIG_DIR', files: ['opencode.json', 'opencode.jsonc'] },
   gemini: { key: 'GEMINI_CLI_HOME', files: ['oauth_creds.json', 'gemini-credentials.json', 'google_accounts.json', 'settings.json', '.env'] },
   kimi: { key: 'KIMI_CODE_HOME', files: ['config.toml'], directories: ['credentials'] },
+  mimo: { key: 'MIMOCODE_CONFIG_DIR', files: ['mimocode.json', 'mimocode.jsonc'] },
   deepseek: { key: 'DSH_HOME', files: ['cordis.patch.yml', '.credentials.yaml'], directories: ['profiles'] },
   workbuddy: { key: 'CODEBUDDY_CONFIG_DIR', files: ['models.json', 'settings.json', '.credentials.json'] },
 })
@@ -65,6 +66,7 @@ function nativeIdentityDirectory(kind, env, home, platform = process.platform) {
       : path.join(home, `.hermes${env?.HERMES_DATA_DIR_SUFFIX || ''}`),
     codex: path.join(home, '.codex'), claude: path.join(home, '.claude'),
     pi: path.join(home, '.pi', 'agent'), kimi: path.join(home, '.kimi-code'),
+    mimo: path.join(env?.XDG_CONFIG_HOME || path.join(home, '.config'), 'mimocode'),
     opencode: path.join(env?.XDG_CONFIG_HOME || path.join(home, '.config'), 'opencode'),
     deepseek: path.join(home, '.dsh'), workbuddy: path.join(home, '.workbuddy'),
   }

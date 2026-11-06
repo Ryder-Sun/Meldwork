@@ -264,7 +264,8 @@ async function nativeShellEnvironment(options = {}) {
   const piCredentialKeys = piDeclaredCredentialKeys({ home, env: piEnv })
   const opencodeEnv = nativeConfigEnvironment('opencode', workspace?.state.agentPreferences, initialEnv)
   const opencodeCredentialKeys = opencodeDeclaredCredentialKeys({ home, env: opencodeEnv, workdir: options.workdir })
-  const mimoCredentialKeys = mimoDeclaredCredentialKeys({ home, env: initialEnv, workdir: options.workdir })
+  const mimoEnv = nativeConfigEnvironment('mimo', workspace?.state.agentPreferences, initialEnv)
+  const mimoCredentialKeys = mimoDeclaredCredentialKeys({ home, env: mimoEnv, workdir: options.workdir })
   const declaredKeys = [...new Set([...codexCredentialKeys, ...hermesCredentialKeys, ...zcodeCredentialKeys, ...piCredentialKeys,
     ...opencodeCredentialKeys, ...mimoCredentialKeys])]
   if (declaredKeys.length) {

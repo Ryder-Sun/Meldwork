@@ -63,7 +63,7 @@ function projectVerificationIdentity(kind, workdir) {
   const files = {
     zcode: ['zcode.json', '.zcode/config.json'],
     opencode: ['opencode.json', 'opencode.jsonc', '.opencode/opencode.json', '.opencode/opencode.jsonc'],
-    mimo: ['.mimocode/mimocode.json', '.mimocode/mimocode.jsonc'],
+    mimo: ['mimocode.json', 'mimocode.jsonc', '.mimocode/mimocode.json', '.mimocode/mimocode.jsonc'],
     gemini: ['.gemini/settings.json'],
   }[kind]
   if (!files) return ''

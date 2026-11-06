@@ -9,6 +9,7 @@ export default {
     'nativeConfig.expected.claude': '需要 settings.json 或 .credentials.json。',
     'nativeConfig.expected.pi': '需要 settings.json、auth.json 或 models.json。',
     'nativeConfig.expected.kimi': '需要 config.toml 或 credentials 目录。',
+    'nativeConfig.expected.mimo': '需要 mimocode.json 或 mimocode.jsonc。',
     'nativeConfig.expected.deepseek': '需要 profiles 目录、cordis.patch.yml 或 .credentials.yaml。',
     'nativeConfig.expected.workbuddy': '需要 models.json、settings.json 或 .credentials.json。',
     'nativeConfig.expected.opencode': '需要 opencode.json 或 opencode.jsonc。',
