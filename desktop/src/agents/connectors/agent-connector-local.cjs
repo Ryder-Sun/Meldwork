@@ -759,6 +759,7 @@ class LocalAgentConnectors {
     if (!packageRecord || packageRecord.provider.id !== SDK_HTTP_JSON_RECIPE_ID) {
       fail('AGENT_CONNECTOR_PACKAGE_NOT_INSTALLED')
     }
+    const packageRevision = this.packageStore.audit(packageRecord.packageId).at(-1)?.eventId
     const endpoint = packageRecord.provider.config.endpoint
     const terminal = {
       eventId: `${input.agentRunId}:terminal`,
@@ -784,6 +785,16 @@ class LocalAgentConnectors {
       await input.onOutboundPayload(createHttpOutboundPayload({
         prompt: input.prompt, destination: endpoint, wireBytes: Buffer.from(body, 'utf8'),
       }))
+      const currentPackage = this.packageStore.packageForManifest(input.connector.manifestId)
+      if (!currentPackage || currentPackage.packageId !== packageRecord.packageId
+          || this.packageStore.audit(packageRecord.packageId).at(-1)?.eventId !== packageRevision) {
+        fail('AGENT_CONNECTOR_PACKAGE_NOT_INSTALLED')
+      }
+      const currentExecution = this.registry.resolveExecution(input.connector.instanceId)
+      if (currentExecution.provenance.manifestId !== input.connector.manifestId
+          || currentExecution.credentialRef !== input.credentialRefId) {
+        fail('AGENT_CONNECTOR_INSTANCE_NOT_FOUND')
+      }
       const headers = { 'content-type': 'application/json' }
       const authSlotId = packageRecord.provider.config.authSlotId
       if (authSlotId) {

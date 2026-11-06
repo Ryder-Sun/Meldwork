@@ -176,6 +176,33 @@ test('HTTP transport does not send when stopped during outbound recording', asyn
   assert.equal(result.outcome, 'cancelled')
 })
 
+for (const action of ['disable', 'revoke', 'disable-and-reinstall', 'delete-instance']) {
+  test(`HTTP transport does not send after ${action} during outbound recording`, async t => {
+    let sent = false
+    const { connectors, directory, packageStore } = fixture(t, async () => { sent = true })
+    const pkg = httpPackage()
+    install(packageStore, pkg)
+    connectors.refresh([])
+    connectors.configure({ manifestId: pkg.manifest.manifestId, label: 'Revoked account',
+      credentials: { 'access-token': 'private-token' } })
+    const [agent] = connectors.detectAgents()
+    const result = await connectors.run(agent, 'request', directory, {
+      runId: `run-${action}`, agentRunId: `agent-${action}`, sandbox: 'read-only',
+      onOutboundPayload: () => {
+        if (action === 'delete-instance') connectors.delete(agent.kind)
+        else if (action === 'revoke') connectors.revokePackage(pkg.packageId)
+        else {
+          connectors.disablePackage(pkg.packageId)
+          if (action === 'disable-and-reinstall') connectors.installPackage(pkg.packageId)
+        }
+      },
+    })
+    assert.equal(sent, false)
+    assert.equal(result.outcome, 'failed')
+    assert.doesNotMatch(JSON.stringify(result), /private-token/)
+  })
+}
+
 test('HTTP transport times out and releases its request', async t => {
   let aborted = false
   const { connectors, directory, packageStore } = fixture(t, (_url, { signal }) => new Promise((_resolve, reject) => {
