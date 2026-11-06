@@ -153,6 +153,50 @@ test('does not send to a removed or changed cloud bridge after outbound review',
   }
 })
 
+for (const transport of ['bridge', 'ssh-tunnel', 'ssh']) {
+  test(`${transport} bridge removal aborts only its active run and rejects a late reply`, async t => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-cloud-remove-active-'))
+    t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+    const pending = new Map()
+    const store = new CloudAgentBridgeStore({
+      storagePath: path.join(directory, 'bridges.json'),
+      fetch: (url, options) => new Promise(resolve => {
+        const key = url.includes('203.0.113.11') || url.includes('45679') ? 'second' : 'first'
+        pending.set(key, { signal: options.signal, resolve: () => resolve(response({ text: 'reply', outcome: 'completed' })) })
+      }),
+      sshExecute: request => new Promise(resolve => {
+        const key = request.address.includes('203.0.113.11') ? 'second' : 'first'
+        pending.set(key, { signal: request.signal, resolve: () => resolve({ stdout: JSON.stringify({
+          type: 'item.completed', item: { type: 'agent_message', text: 'reply' },
+        }) }) })
+      }),
+    })
+    for (const [index, host] of ['203.0.113.10', '203.0.113.11'].entries()) {
+      const record = store.normalizeRecord({
+        bridgeId: `cloud-bridge-${String(index + 1).repeat(24)}`, transport,
+        address: transport === 'bridge' ? `https://${host}` : host,
+        endpoint: `http://127.0.0.1:${45678 + index}`, label: `Server ${index}`,
+        available: true, agents: manifest().agents,
+      })
+      record.available = true
+      store.records.push(record)
+    }
+    const run = record => store.run({ bridgeId: record.bridgeId, agentId: 'codex',
+      prompt: 'hello', permissionMode: 'read-only' })
+    const first = run(store.records[0])
+    const second = run(store.records[1])
+    await new Promise(resolve => setImmediate(resolve))
+    assert.equal(pending.size, 2)
+    store.remove(store.records[0].bridgeId)
+    assert.equal(pending.get('first').signal.aborted, true)
+    assert.equal(pending.get('second').signal.aborted, false)
+    pending.get('first').resolve()
+    pending.get('second').resolve()
+    await assert.rejects(first, { code: 'CLOUD_AGENT_BRIDGE_REMOVED', category: 'unknown' })
+    assert.equal((await second).text, 'reply')
+  })
+}
+
 function manifest() {
   return {
     protocol: 'meldwork-agent-bridge',

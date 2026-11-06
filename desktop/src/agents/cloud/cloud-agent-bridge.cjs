@@ -235,6 +235,7 @@ class CloudAgentBridgeStore {
     this.sshExecute = typeof options.sshExecute === 'function' ? options.sshExecute : null
     this.sshTunnelStart = typeof options.sshTunnelStart === 'function' ? options.sshTunnelStart : null
     this.tunnels = new Map()
+    this.activeRuns = new Set()
     this.timeoutMs = Number.isFinite(options.timeoutMs)
       ? Math.max(1000, Math.min(MAX_REQUEST_TIMEOUT_MS, Math.floor(options.timeoutMs)))
       : DEFAULT_REQUEST_TIMEOUT_MS
@@ -641,6 +642,12 @@ class CloudAgentBridgeStore {
     if (index < 0) fail('CLOUD_AGENT_BRIDGE_NOT_FOUND')
     this.stopTunnel(id)
     this.records.splice(index, 1)
+    for (const active of this.activeRuns) {
+      if (active.bridgeId === id) {
+        active.removed = true
+        active.controller.abort()
+      }
+    }
     this.persist()
     return { deleted: true, bridgeId: id }
   }
@@ -713,15 +720,34 @@ class CloudAgentBridgeStore {
       wireBytes: Buffer.from(serializedBody, 'utf8'),
     }))
     this.assertRunTarget(record, agent.id, target, input.signal)
-    return this.request(`/v1/agents/${encodeURIComponent(agentId)}/runs`, {
+    return this.runTransport(record.bridgeId, input.signal, signal => this.request(`/v1/agents/${encodeURIComponent(agentId)}/runs`, {
       address: target.transport === 'ssh-tunnel' ? target.endpoint : target.address,
       method: 'POST',
-      signal: input.signal,
+      signal,
       timeoutMs: this.runTimeoutMs,
       onActivity: input.onActivity,
       body,
       bodyText: serializedBody,
-    })
+    }))
+  }
+
+  async runTransport(bridgeId, callerSignal, execute) {
+    const active = { bridgeId, controller: new AbortController(), removed: false }
+    const abort = () => active.controller.abort()
+    callerSignal?.addEventListener('abort', abort, { once: true })
+    if (callerSignal?.aborted) abort()
+    this.activeRuns.add(active)
+    try {
+      const result = await execute(active.controller.signal)
+      if (active.removed) throw Object.assign(bridgeError('CLOUD_AGENT_BRIDGE_REMOVED'), { category: 'unknown' })
+      return result
+    } catch (error) {
+      if (active.removed) throw Object.assign(bridgeError('CLOUD_AGENT_BRIDGE_REMOVED'), { category: 'unknown' })
+      throw error
+    } finally {
+      this.activeRuns.delete(active)
+      callerSignal?.removeEventListener('abort', abort)
+    }
   }
 
   assertRunTarget(record, agentId, target, signal) {
@@ -741,7 +767,8 @@ class CloudAgentBridgeStore {
     }
     await input.onOutboundPayload?.(createSshOutboundPayload({ prompt: input.prompt }))
     this.assertRunTarget(record, agent.id, target, input.signal)
-    const result = await this.sshCommand(target.address, SSH_CODEX_COMMAND, input.prompt, input.signal)
+    const result = await this.runTransport(record.bridgeId, input.signal,
+      signal => this.sshCommand(target.address, SSH_CODEX_COMMAND, input.prompt, signal))
     const messages = []
     let sessionRef = ''
     for (const line of String(result.stdout || '').split('\n')) {
