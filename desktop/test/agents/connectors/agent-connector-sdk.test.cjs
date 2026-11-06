@@ -177,6 +177,7 @@ test('SDK packages reject capabilities their providers cannot emit or resume', (
     const { manifestId, schemaVersion, recordType, ...input } = pkg.manifest
     for (const change of [
       { session: { ...input.session, checkpoint: true } },
+      { invocation: { ...input.invocation, idempotencyMode: 'durable' } },
       { eventTypes: [...input.eventTypes, 'Permission'] },
       { eventTypes: [...input.eventTypes, 'Usage'], usage: { ...input.usage, inputTokens: true } },
     ]) {

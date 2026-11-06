@@ -130,6 +130,7 @@ const packageContentSchema = z.strictObject({
 
 function supportsSdkCapabilities(manifest) {
   return !manifest.session.checkpoint
+    && manifest.invocation.idempotencyMode !== 'durable'
     && manifest.eventTypes.every(type => ['Completed', 'Failed', 'Cancelled'].includes(type))
     && Object.values(manifest.usage).every(value => value === false)
 }

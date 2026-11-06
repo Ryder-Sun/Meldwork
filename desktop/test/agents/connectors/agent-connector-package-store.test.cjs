@@ -148,24 +148,32 @@ test('legacy packages with unsupported capabilities are disabled without blockin
   store.install(good.packageId)
   const { manifestId, schemaVersion, recordType, ...input } = good.manifest
   const { createAgentConnectorManifest } = require('../../../src/agents/connectors/agent-connector-manifest.cjs')
-  const manifest = createAgentConnectorManifest({ ...input, connectorId: 'external.legacy-sdk',
-    session: { ...input.session, checkpoint: true } })
-  const body = { schemaVersion: 1, recordType: 'agent-connector-package', publisher: good.publisher,
-    provider: good.provider, manifest }
-  const packageId = `connector-package-${crypto.createHash('sha256').update(canonicalJson(body)).digest('hex')}`
-  const serialized = canonicalJson({ packageId, ...body })
-  fs.writeFileSync(path.join(rootPath, 'packages', `${packageId}.json`), serialized)
-  store.append('imported', packageId, { originFilename: 'legacy.json',
-    originSha256: crypto.createHash('sha256').update(serialized).digest('hex') })
-  store.append('approved', packageId)
-  store.append('installed', packageId)
+  const legacyIds = []
+  for (const [name, change] of [
+    ['checkpoint', { session: { ...input.session, checkpoint: true } }],
+    ['idempotency', { invocation: { ...input.invocation, idempotencyMode: 'durable' } }],
+  ]) {
+    const manifest = createAgentConnectorManifest({ ...input, connectorId: `external.legacy-${name}`, ...change })
+    const body = { schemaVersion: 1, recordType: 'agent-connector-package', publisher: good.publisher,
+      provider: good.provider, manifest }
+    const packageId = `connector-package-${crypto.createHash('sha256').update(canonicalJson(body)).digest('hex')}`
+    const serialized = canonicalJson({ packageId, ...body })
+    fs.writeFileSync(path.join(rootPath, 'packages', `${packageId}.json`), serialized)
+    store.append('imported', packageId, { originFilename: 'legacy.json',
+      originSha256: crypto.createHash('sha256').update(serialized).digest('hex') })
+    store.append('approved', packageId)
+    store.append('installed', packageId)
+    legacyIds.push(packageId)
+  }
   const reopened = create()
   assert.deepEqual(reopened.installedPackages().map(item => item.packageId), [good.packageId])
-  assert.equal(reopened.inspect(packageId).state, 'installed')
-  assert.equal(reopened.list().find(item => item.packageId === packageId).supported, false)
-  assert.equal(reopened.disable(packageId).state, 'disabled')
-  assert.throws(() => reopened.install(packageId), { code: 'AGENT_CONNECTOR_PACKAGE_SCHEMA_INVALID' })
-  assert.equal(reopened.remove(packageId).state, 'removed')
+  for (const packageId of legacyIds) {
+    assert.equal(reopened.inspect(packageId).state, 'installed')
+    assert.equal(reopened.list().find(item => item.packageId === packageId).supported, false)
+    assert.equal(reopened.disable(packageId).state, 'disabled')
+    assert.throws(() => reopened.install(packageId), { code: 'AGENT_CONNECTOR_PACKAGE_SCHEMA_INVALID' })
+    assert.equal(reopened.remove(packageId).state, 'removed')
+  }
   assert.deepEqual(reopened.installedPackages().map(item => item.packageId), [good.packageId])
 })
 
