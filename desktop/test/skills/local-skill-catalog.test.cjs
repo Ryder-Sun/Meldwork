@@ -29,6 +29,7 @@ test('supported Agent scans stay isolated and return targetKind-safe global meta
   const roots = {
     codex: ['.codex', 'skills'],
     hermes: ['.hermes', 'skills'],
+    pi: ['.pi', 'agent', 'skills'],
     openclaw: ['.openclaw', 'workspace', 'skills'],
     workbuddy: ['.workbuddy', 'skills'],
     kimi: ['.kimi-code', 'skills'],
@@ -62,8 +63,8 @@ test('supported Agent scans stay isolated and return targetKind-safe global meta
 test('selected native directories control Skill discovery and Codex plugin lookup', t => {
   const home = fixture(t)
   const selected = {}
-  for (const kind of ['hermes', 'codex', 'claude']) {
-    writeSkill(path.join(home, `.${kind}`, 'skills'), `${kind}-old`)
+  for (const kind of ['hermes', 'codex', 'claude', 'pi']) {
+    writeSkill(kind === 'pi' ? path.join(home, '.pi', 'agent', 'skills') : path.join(home, `.${kind}`, 'skills'), `${kind}-old`)
     selected[kind] = path.join(home, `selected-${kind}`)
     writeSkill(path.join(selected[kind], 'skills'), `${kind}-new`)
   }
@@ -72,6 +73,7 @@ test('selected native directories control Skill discovery and Codex plugin looku
   const catalog = new LocalSkillCatalog({ home, configDirectoryForKind: kind => selected[kind] || '' })
   assert.deepEqual(catalog.list('hermes').skills.map(skill => skill.slug), ['hermes-new'])
   assert.deepEqual(catalog.list('claude').skills.map(skill => skill.slug).sort(), ['claude-new', 'shared'])
+  assert.deepEqual(catalog.list('pi').skills.map(skill => skill.slug), ['pi-new'])
   assert.deepEqual(catalog.list('codex').skills.map(skill => skill.slug).sort(), ['codex-new', 'plugin-skill', 'shared'])
   const skill = catalog.list('hermes').skills[0]
   assert.ok(catalog.resolveSelections('hermes', [skill])[0].sourceDirectory.startsWith(fs.realpathSync(selected.hermes)))

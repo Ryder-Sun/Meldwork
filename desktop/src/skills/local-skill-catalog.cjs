@@ -19,6 +19,7 @@ const AGENT_SKILL_ROOTS = Object.freeze({
     ['.agents', 'skills'],
   ],
   hermes: [['.hermes', 'skills']],
+  pi: [['.pi', 'agent', 'skills']],
   openclaw: [
     ['.openclaw', 'workspace', 'skills'],
     ['.openclaw', 'skills'],
@@ -165,8 +166,11 @@ function directoryEntryKind(entry, filename) {
 
 function globalRoots(kind, home, configDirectory = '') {
   return (AGENT_SKILL_ROOTS[kind] || []).map(parts => {
-    const directory = configDirectory && ['codex', 'hermes', 'claude'].includes(kind) && parts[0] === `.${kind}`
-      ? path.join(configDirectory, ...parts.slice(1)) : path.join(home, ...parts)
+    const nativeParts = kind === 'pi' && parts[0] === '.pi' && parts[1] === 'agent'
+      ? parts.slice(2)
+      : ['codex', 'hermes', 'claude'].includes(kind) && parts[0] === `.${kind}` ? parts.slice(1) : null
+    const directory = configDirectory && nativeParts
+      ? path.join(configDirectory, ...nativeParts) : path.join(home, ...parts)
     return { directory, boundary: directory, namespace: 'global' }
   })
 }
