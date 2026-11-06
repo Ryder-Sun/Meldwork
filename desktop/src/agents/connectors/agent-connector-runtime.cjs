@@ -499,6 +499,9 @@ class AgentConnectorRuntime {
       fail('AGENT_CONNECTOR_RESULT_MISMATCH')
     }
     if (['waiting_input', 'waiting_permission'].includes(state.status)) {
+      if (!connector.capabilities.session.supported || !connector.capabilities.session.resume) {
+        fail('AGENT_CONNECTOR_RESUME_UNSUPPORTED')
+      }
       const waiting = state.events.at(-1)
       const validWaiting = state.status === 'waiting_input'
         ? waiting?.type === 'WaitingInput'

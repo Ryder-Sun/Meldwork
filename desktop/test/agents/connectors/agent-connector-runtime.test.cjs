@@ -557,6 +557,26 @@ test('returns durable waiting input and passes an exactly validated resume respo
   }), { message: 'AGENT_CONNECTOR_RESUME_INVALID' })
 })
 
+test('a Connector cannot enter an unrecoverable input or permission wait', async () => {
+  for (const event of [
+    { type: 'WaitingInput', requestId: 'request-input', prompt: 'Choose a channel' },
+    { type: 'Permission', requestId: 'request-permission', permission: 'network', decision: 'requested' },
+  ]) {
+    for (const session of [
+      { supported: false, resume: false, cancel: true, checkpoint: false },
+      { supported: true, resume: false, cancel: true, checkpoint: false },
+    ]) {
+      const { runtime } = runtimeFixture(async input => {
+        input.emit({ eventId: 'wait', cursor: 'wait', sequence: 1, ...event })
+        return {}
+      }, { session })
+      await assert.rejects(runtime.run(runtime.detectAgents()[0], 'Review', '/tmp/workspace', {
+        runId: 'run-wait', agentRunId: 'agent-run-wait', sandbox: 'read-only',
+      }), { message: 'AGENT_CONNECTOR_RESUME_UNSUPPORTED' })
+    }
+  }
+})
+
 test('returns durable waiting permission and validates the bound decision', async () => {
   const { runtime } = runtimeFixture(async (input) => {
     if (!input.resume) {
