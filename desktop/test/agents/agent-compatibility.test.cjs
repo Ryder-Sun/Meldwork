@@ -53,6 +53,18 @@ test('identifies product versions without selecting unrelated warnings', () => {
   }), null)
 })
 
+test('identifies Zcode CLI version without confusing its app and runtime versions', () => {
+  assert.deepEqual(identifyAgentVersion('zcode', 'zcode-app-cli 3.7.5-11\nzcode-runtime 0.16.1', {
+    executable: '/tmp/zcode',
+  }), { line: 'zcode-runtime 0.16.1', resolvedVersion: '0.16.1' })
+  assert.deepEqual(identifyAgentVersion('zcode', 'zcode-app-cli 3.7.5-11\nzcode-runtime 0.16.1\nzcode 0.16.1', {
+    executable: '/tmp/zcode',
+  }), { line: 'zcode-runtime 0.16.1', resolvedVersion: '0.16.1' })
+  assert.equal(identifyAgentVersion('zcode', 'zcode 0.16.1\nzcode 0.17.0', {
+    executable: '/tmp/zcode',
+  }), null)
+})
+
 test('keeps unidentified versions distinct from verified incompatibility', () => {
   assert.deepEqual(assessAgentVersion('kimi', ''), {
     resolvedVersion: '',

@@ -408,6 +408,24 @@ test('catalog does not route an ambiguous product version even when capability a
   assert.equal(agents()[0].available, false)
 })
 
+test('Zcode native multi-component version output remains invocable after detection', async () => {
+  const { detectAgents } = require('../../src/agents/cli/cli-discovery.cjs')
+  const { agents, catalog } = fixture({
+    detectAgents: () => detectAgents({
+      platform: 'darwin', env: {},
+      resolveExecutableFn: async kind => kind === 'zcode' ? '/tmp/zcode' : null,
+      execFileFn: async () => ({ stdout: 'zcode-app-cli 3.7.5-11\nzcode-runtime 0.16.1\n', stderr: '' }),
+      probeAgentCapabilitiesFn: async () => ({ compatibilityState: 'compatible' }),
+    }),
+    credentialState: async () => ({ state: 'ready', source: 'native-auth-status' }),
+  })
+  await catalog.refresh()
+  assert.equal(agents()[0].resolvedVersion, '0.16.1')
+  assert.equal(agents()[0].versionIdentified, true)
+  assert.equal(agents()[0].invocable, true)
+  assert.equal(agents()[0].available, true)
+})
+
 test('authoritative native validation persists recovery from a runtime auth failure', async () => {
   const { agents, catalog, events, state } = fixture({
     detectAgents: async () => [{

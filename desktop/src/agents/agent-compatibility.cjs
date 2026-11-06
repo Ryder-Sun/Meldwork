@@ -5,7 +5,7 @@ const AGENT_VERSION_IDENTITIES = Object.freeze({
   hermes: [/\bhermes(?:\s+agent)?\b/i],
   openclaw: [/\bopenclaw\b/i],
   workbuddy: [/\b(?:workbuddy|codebuddy)\b/i],
-  zcode: [/\bzcode\b/i],
+  zcode: [/\bzcode\b(?![-_])/i, /\bzcode-runtime\b/i],
   pi: [/\bpi(?:\s+agent)?\b/i],
   kimi: [/\bkimi(?:\s+code)?\b/i],
   mimo: [/\bmimo(?:\s+code)?\b/i, /\bmimocode\b/i],
