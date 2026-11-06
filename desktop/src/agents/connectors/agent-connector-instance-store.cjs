@@ -168,14 +168,20 @@ class AgentConnectorInstanceStore {
     const directory = path.join(path.dirname(this.credentialStoragePath), 'agent-connector-executions')
     const id = crypto.createHash('sha256').update(canonicalJson([input.runId, input.agentRunId])).digest('hex')
     const filename = path.join(directory, `${id}.json`)
+    const temporary = path.join(directory, `.${id}.${crypto.randomBytes(8).toString('hex')}.tmp`)
     const content = canonicalJson({ version: 1, ...input })
     let descriptor
     try {
       ensurePrivateDirectory(path.dirname(this.credentialStoragePath))
       ensurePrivateDirectory(directory)
+      descriptor = fs.openSync(temporary, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL
+        | (fs.constants.O_NOFOLLOW || 0), 0o600)
+      fs.writeFileSync(descriptor, content, 'utf8')
+      fs.fsyncSync(descriptor)
+      fs.closeSync(descriptor)
+      descriptor = undefined
       try {
-        descriptor = fs.openSync(filename, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL
-          | (fs.constants.O_NOFOLLOW || 0), 0o600)
+        fs.linkSync(temporary, filename)
       } catch (error) {
         if (error.code !== 'EEXIST') throw error
         descriptor = fs.openSync(filename, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0))
@@ -185,8 +191,6 @@ class AgentConnectorInstanceStore {
         }
         return
       }
-      fs.writeFileSync(descriptor, content, 'utf8')
-      fs.fsyncSync(descriptor)
       let directoryDescriptor
       try {
         directoryDescriptor = fs.openSync(directory, 'r')
@@ -203,6 +207,9 @@ class AgentConnectorInstanceStore {
       fail('AGENT_CONNECTOR_EXECUTION_RECORD_UNAVAILABLE')
     } finally {
       if (descriptor !== undefined) fs.closeSync(descriptor)
+      try { fs.unlinkSync(temporary) } catch (error) {
+        if (error.code !== 'ENOENT') throw error
+      }
     }
   }
 

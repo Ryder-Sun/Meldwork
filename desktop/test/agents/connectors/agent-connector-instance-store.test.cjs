@@ -60,6 +60,15 @@ test('execution provenance is private, durable, idempotent and bound to its cred
   assert.throws(() => store.recordExecution({ ...record, credentialRefId: null }), {
     message: 'AGENT_CONNECTOR_EXECUTION_RECORD_CONFLICT',
   })
+  const next = { ...record, runId: 'run-after-write-error', agentRunId: 'agent-run-after-write-error' }
+  const originalWrite = fs.writeFileSync
+  try {
+    fs.writeFileSync = () => { throw Object.assign(new Error('simulated write failure'), { code: 'EIO' }) }
+    assert.throws(() => store.recordExecution(next), { message: 'AGENT_CONNECTOR_EXECUTION_RECORD_UNAVAILABLE' })
+  } finally { fs.writeFileSync = originalWrite }
+  assert.deepEqual(fs.readdirSync(directory), [name])
+  createStore().recordExecution(next)
+  assert.equal(fs.readdirSync(directory).length, 2)
   if (process.platform !== 'win32') {
     assert.equal(fs.statSync(path.join(directory, name)).mode & 0o777, 0o600)
     fs.unlinkSync(path.join(directory, name))
