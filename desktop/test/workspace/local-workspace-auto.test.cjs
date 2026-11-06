@@ -7,6 +7,8 @@ const { agentRuntimeError } = require('../../src/agents/agent-runtime-contract.c
 const { MAX_RUN_AGENT_ATTEMPTS } = require('../../src/runs/failure-policy.cjs')
 const { LocalWorkspace } = require('../../src/workspace/local-workspace.cjs')
 const { taskGraphMethods } = require('../../src/workspace/local-workspace-auto-runner-task-graph.cjs')
+const { createTaskGraph, createTaskGraphCursor, updateTaskGraphCursor } = require('../../src/collaboration/task-graph-records.cjs')
+const { emptyCollaborationState } = require('../../src/collaboration/collaboration-records.cjs')
 const {
   createCollaborationReceipt,
   createOrchestrationV4,
@@ -73,6 +75,39 @@ test('task graph rejects explicit failure even when no conclusion is required', 
   const node = graphNode({ acceptance: { requireConclusion: false, minArtifactRefs: 0, minEvidenceRefs: 0 } })
   const result = { message: { content: '权限不足，无法读取所需文件。', trace: { status: 'completed' } } }
   assert.equal(taskGraphMethods.taskGraphResultAccepted(node, result), false)
+})
+
+test('task graph resumes a human decision after its blackboard checkpoint without duplication', () => {
+  const node = graphNode({ nodeId: 'human', role: 'human', agentKind: null, terminal: true, parallel: false,
+    acceptance: { requireConclusion: false, minArtifactRefs: 0, minEvidenceRefs: 0 },
+    decisionOptions: [{ optionId: 'approve', name: 'Approve', kind: 'allow_once' },
+      { optionId: 'reject', name: 'Reject', kind: 'reject_once' }] })
+  const graph = createTaskGraph({ template: 'task-graph', nodes: [node] })
+  const cursor = updateTaskGraphCursor(createTaskGraphCursor(graph), 'human', { status: 'waiting', attempts: 1 })
+  const controller = { runId: 'run', taskId: 'task', currentRound: 1,
+    orchestration: { taskGraph: cursor, collaboration: emptyCollaborationState() } }
+  let failCheckpoint = true
+  const runner = { ...taskGraphMethods,
+    checkpointOrchestration: (_group, target, updates) => { Object.assign(target.orchestration, updates) },
+    checkpointTaskGraph: (_group, target, next) => {
+      if (failCheckpoint) throw new Error('LOCAL_RUN_PERSIST_FAILED')
+      target.orchestration.taskGraph = next
+      return next
+    },
+  }
+  const decision = { status: 'approved', optionId: 'approve' }
+  assert.throws(() => runner.applyTaskGraphHumanDecision({}, controller, node, decision), { message: 'LOCAL_RUN_PERSIST_FAILED' })
+  const recorded = JSON.parse(JSON.stringify(controller.orchestration))
+  assert.equal(recorded.collaboration.entries.length, 1)
+  const resumed = { ...controller, orchestration: recorded }
+  failCheckpoint = false
+  assert.equal(runner.applyTaskGraphHumanDecision({}, resumed, node, decision), true)
+  assert.equal(resumed.orchestration.collaboration.entries.length, 1)
+  assert.equal(resumed.orchestration.taskGraph.nodeStates[0].status, 'accepted')
+  assert.throws(() => runner.applyTaskGraphHumanDecision({}, controller, node,
+    { status: 'approved', optionId: 'reject' }), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
+  assert.throws(() => runner.applyTaskGraphHumanDecision({}, controller, node,
+    { status: 'rejected', optionId: 'reject' }), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
 })
 
 test('task graph counts only evidence recorded by the current run or trusted main process', () => {

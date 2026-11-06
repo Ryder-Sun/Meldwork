@@ -207,13 +207,27 @@ const taskGraphMethods = {
     const option = node.decisionOptions.find(candidate => candidate.optionId === decision.optionId)
     if (!option) throw new Error('LOCAL_WORKFLOW_DECISION_INVALID')
     const accepted = decision.status === 'approved'
+    if (decision.status !== (option.kind === 'allow_once' ? 'approved' : 'rejected')) {
+      throw new Error('LOCAL_RUN_CONTINUATION_INVALID')
+    }
     const conflicts = this.unresolvedTaskGraphConflicts(controller.orchestration.collaboration)
     let collaboration = controller.orchestration.collaboration
-    collaboration = appendBlackboardEntry(collaboration, {
+    const agentRunId = this.taskGraphDecisionAgentRunId(controller.orchestration.taskGraph.graph.graphId, node.nodeId)
+    const subject = `task:${controller.taskId}:node:${node.nodeId}`
+    const existing = collaboration.entries.filter(entry => entry.entryType === 'decision'
+      && entry.provenance.agentRunId === agentRunId)
+    const prior = existing[0]
+    if (existing.length > 1 || (prior && (prior.provenance.runId !== controller.runId
+        || prior.provenance.taskId !== controller.taskId || prior.subject !== subject || prior.owner.type !== 'harness'
+        || prior.lifecycle.state !== 'active' || prior.statement !== `Human selected: ${option.name}`
+        || (prior.value !== option.optionId && !(prior.value === ''
+          && node.decisionOptions.filter(candidate => candidate.name === option.name).length === 1))
+        || (!accepted && prior.refs.length)))) throw new Error('LOCAL_RUN_CONTINUATION_INVALID')
+    if (!prior) collaboration = appendBlackboardEntry(collaboration, {
       entryType: 'decision',
-      subject: `task:${controller.taskId}:node:${node.nodeId}`,
+      subject,
       statement: `Human selected: ${option.name}`,
-      value: '',
+      value: option.optionId,
       owner: { type: 'harness' },
       audience: { roles: ['primary', 'reviewer', 'arbiter'], agentKinds: [] },
       lifecycle: {
@@ -226,17 +240,14 @@ const taskGraphMethods = {
         runId: controller.runId,
         taskId: controller.taskId,
         round: controller.currentRound,
-        agentRunId: this.taskGraphDecisionAgentRunId(
-          controller.orchestration.taskGraph.graph.graphId,
-          node.nodeId,
-        ),
+        agentRunId,
         artifactIds: [],
         evidenceIds: [],
       },
       refs: accepted ? conflicts.map(entry => entry.entryId) : [],
     })
-    const decisionEntryId = collaboration.entries.at(-1).entryId
-    this.checkpointOrchestration(group, controller, { collaboration })
+    const decisionEntryId = prior?.entryId || collaboration.entries.at(-1).entryId
+    if (!prior) this.checkpointOrchestration(group, controller, { collaboration })
     let cursor = updateTaskGraphCursor(
       controller.orchestration.taskGraph,
       node.nodeId,
