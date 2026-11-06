@@ -11,6 +11,7 @@ const { redactChildSecrets } = require('./cli-runtime-event-sanitizer.cjs')
 const {
   assessAgentVersion,
   capabilityProbes,
+  extractAgentVersion,
   identifyAgentVersion,
 } = require('../agent-compatibility.cjs')
 
@@ -471,9 +472,11 @@ async function inspectAgentCandidate(kind, executable, options, childEnv) {
         env: childEnv,
       })
       const identified = identifyAgentVersion(kind, [result.stdout, result.stderr], { executable })
+      const version = identified && extractAgentVersion(identified.line) !== identified.resolvedVersion
+        ? identified.resolvedVersion : identified?.line || ''
       return {
         succeeded: true,
-        version: redactChildSecrets(identified?.line || '', childEnv),
+        version: redactChildSecrets(version, childEnv),
         versionIdentified: Boolean(identified),
       }
     } catch { /* capability probes can still establish whether this installation works */ }

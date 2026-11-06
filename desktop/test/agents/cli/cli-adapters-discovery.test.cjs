@@ -845,6 +845,21 @@ test('Agent detection does not identify a runtime version mentioned after its pr
   assert.equal(found[0].compatibilityState, 'compatible')
 })
 
+test('Agent detection forwards the identified product version when another version precedes it on the same line', async () => {
+  const found = await detectAgents({
+    platform: 'darwin', env: {},
+    resolveExecutableFn: async kind => kind === 'kimi' ? '/tmp/kimi' : null,
+    probeAgentCapabilitiesFn: async () => ({ compatibilityState: 'compatible' }),
+    execFileFn: async () => ({
+      stdout: 'Warning: Node.js 22.5.1 could not initialize Kimi Code 0.19.2', stderr: '',
+    }),
+  })
+  assert.equal(found[0].version, '0.19.2')
+  assert.equal(found[0].resolvedVersion, '0.19.2')
+  assert.equal(require('../../../src/agents/connectors/agent-connector-local.cjs').semanticVersionFrom(found[0].version), '0.19.2')
+  assert.equal(found[0].compatibilityState, 'compatible')
+})
+
 test('Agent detection accepts newer versions when required capabilities are available', async () => {
   let calls = 0
   const found = await detectAgents({
