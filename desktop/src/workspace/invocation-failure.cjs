@@ -47,7 +47,10 @@ function resolveInvocationStop({
   const agentCancelled = agentController.signal.aborted && !parentStopped && !watchdog.timedOut
   let error = caughtError
   let status = 'failed'
-  if (parentTimedOut) {
+  if (caughtError?.code === 'LOCAL_AGENT_TERMINATION_FAILED'
+      || caughtError?.message === 'LOCAL_AGENT_TERMINATION_FAILED') {
+    // A cancellation request is not proof that the process exited.
+  } else if (parentTimedOut) {
     error = new Error('LOCAL_AGENT_TIMEOUT')
     status = 'timeout'
   } else if (parentStopped) {

@@ -1318,16 +1318,33 @@ class LocalWorkspaceAgentInvocation {
         } : {}),
       }
     } catch (caughtError) {
-      const stop = resolveInvocationStop({
+      let stop = resolveInvocationStop({
         caughtError, signal, parentAbortObserved, activeRun, agentController, watchdog,
       })
       if (stop.settleOutstanding) {
-        const cleanupPromises = [runPromise, ...outputs.pending()].filter(Boolean)
+        let runSettled = !runPromise
+        let terminationFailure = null
+        const observedRun = runPromise?.then(() => { runSettled = true }, error => {
+          runSettled = true
+          if (error?.code === 'LOCAL_AGENT_TERMINATION_FAILED'
+              || error?.message === 'LOCAL_AGENT_TERMINATION_FAILED') terminationFailure = error
+        })
+        const cleanupPromises = [observedRun, ...outputs.pending()].filter(Boolean)
         if (cleanupPromises.length) {
-          await settleWithin(Promise.allSettled(cleanupPromises), this.runAbortGraceMs)
+          const graceMs = process.platform === 'win32' ? Math.max(this.runAbortGraceMs, 2500) : this.runAbortGraceMs
+          await settleWithin(Promise.allSettled(cleanupPromises), graceMs)
+        }
+        if (terminationFailure || (process.platform === 'win32' && !runSettled)) {
+          stop = resolveInvocationStop({
+            caughtError: terminationFailure || new Error('LOCAL_AGENT_TERMINATION_FAILED'),
+            signal, parentAbortObserved, activeRun, agentController, watchdog,
+          })
         }
       }
       const { error } = stop
+      if (activeRun && error?.message === 'LOCAL_AGENT_TERMINATION_FAILED') {
+        activeRun.stopReason = 'termination_failed'
+      }
       // Only an explicit sign-in failure changes readiness. Network, quota and
       // provider refusals stay run-scoped so a healthy Agent remains usable.
       if (error?.code === 'LOCAL_AGENT_AUTH_REQUIRED'

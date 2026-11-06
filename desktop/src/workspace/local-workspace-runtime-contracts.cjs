@@ -79,6 +79,7 @@ function budgetTerminalPrefix(label) {
 }
 
 function terminalRunStatusForReason(reason, fallback = 'stopped') {
+  if (reason === 'termination_failed') return 'failed'
   if (reason === 'shutdown') return 'interrupted'
   if (reason === 'hard_budget') return 'budget-exhausted'
   if (reason === 'circuit_breaker') return 'circuit-breaker'

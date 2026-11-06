@@ -36,6 +36,16 @@ test('an ordinary failure keeps its own error and status', () => {
   assert.equal(stop.settleOutstanding, false)
 })
 
+test('termination failure is not rewritten as successful cancellation', () => {
+  const input = stopInputs({ parentAborted: true })
+  input.caughtError = Object.assign(new Error('LOCAL_AGENT_TERMINATION_FAILED'), {
+    code: 'LOCAL_AGENT_TERMINATION_FAILED',
+  })
+  const result = resolveInvocationStop(input)
+  assert.equal(result.error, input.caughtError)
+  assert.equal(result.status, 'failed')
+})
+
 test('a stopped run, a timed-out run and a shutdown are told apart', () => {
   const stopped = resolveInvocationStop(stopInputs({ parentAborted: true }))
   assert.equal(stopped.status, 'stopped')

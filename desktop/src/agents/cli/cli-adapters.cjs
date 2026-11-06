@@ -46,6 +46,7 @@ const {
   agentExecutionError,
   childEnvironment,
   failedAgentProcessError,
+  terminateWindowsProcessTree,
 } = require('./cli-process-support.cjs')
 const { createLegacyOutboundPayload } = require('../../collaboration/outbound-payload.cjs')
 const { authFailureCertainty } = require('../../runs/failure-signals.cjs')
@@ -268,6 +269,7 @@ async function runAgent(agent, prompt, workdir, options = {}) {
     let forceSettleTimeout
     let terminalKillTimer
     let terminalForceKillTimer
+    let windowsTermination = null
     const progress = []
     const progressIndexes = new Map()
     let anonymousProgressId = 0
@@ -362,21 +364,17 @@ async function runAgent(agent, prompt, workdir, options = {}) {
       if (settled || stopRequested) return
       stopRequested = true
       const terminalError = inputError || new Error('LOCAL_AGENT_EXECUTION_STOPPED')
-      if (platform === 'win32' && child.pid) {
-        const killer = spawnFn('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], {
-          stdio: 'ignore', windowsHide: true,
-        })
-        killer.on('error', () => {})
-        killer.unref()
-        forceSettleTimeout = setTimeout(() => finish(() => {
+      if (platform === 'win32') {
+        windowsTermination = terminateWindowsProcessTree(child, spawnFn)
+        windowsTermination.then(() => finish(() => rejectTerminal(
+          terminalError,
+          inputError ? 'failed' : (timeoutRequested ? 'timeout' : 'stopped'),
+        )), error => finish(() => {
           child.stdin.destroy()
           child.stdout.destroy()
           child.stderr.destroy()
-          rejectTerminal(
-            terminalError,
-            inputError ? 'failed' : (timeoutRequested ? 'timeout' : 'stopped'),
-          )
-        }), KILL_SETTLE_MS)
+          rejectTerminal(error, 'failed')
+        }))
         return
       }
       signalProcessTree('SIGTERM')
@@ -432,16 +430,21 @@ async function runAgent(agent, prompt, workdir, options = {}) {
       inputError = sendFailure()
       abort()
     })
-    child.on('error', error => finish(() => rejectTerminal(
-      inputError || (stopRequested
-        ? agentExecutionError('LOCAL_AGENT_EXECUTION_STOPPED')
-        : agentExecutionError(
-            'LOCAL_AGENT_SPAWN_FAILED',
-            redactChildSecrets(error?.message || error, childEnv),
-          )),
-      stopRequested ? (inputError ? 'failed' : (timeoutRequested ? 'timeout' : 'stopped')) : 'failed',
-    )))
-    child.on('close', (code, signal) => finish(() => {
+    child.on('error', error => {
+      if (stopRequested && windowsTermination) return
+      finish(() => rejectTerminal(
+        inputError || (stopRequested
+          ? agentExecutionError('LOCAL_AGENT_EXECUTION_STOPPED')
+          : agentExecutionError(
+              'LOCAL_AGENT_SPAWN_FAILED',
+              redactChildSecrets(error?.message || error, childEnv),
+            )),
+        stopRequested ? (inputError ? 'failed' : (timeoutRequested ? 'timeout' : 'stopped')) : 'failed',
+      ))
+    })
+    child.on('close', (code, signal) => {
+      if (stopRequested && windowsTermination) return
+      finish(() => {
       void (async () => {
         runtimeStreamParser?.end()
         if (stopRequested || options.signal?.aborted) {
@@ -534,7 +537,8 @@ async function runAgent(agent, prompt, workdir, options = {}) {
         runtimeEvents.finalize({ text: redactedText, status: output.outcome })
         resolve(output)
       })().catch(error => rejectTerminal(error))
-    }))
+      })
+    })
     if (spec.stdin) child.stdin.end(stdin)
     else child.stdin.end()
   })

@@ -20,6 +20,7 @@ const {
   agentExecutionError,
   childEnvironment,
   failedAgentProcessError,
+  terminateWindowsProcessTree,
 } = require('./cli-process-support.cjs')
 const { createAcpOutboundPayload } = require('../../collaboration/outbound-payload.cjs')
 const { redactSecrets } = require('../../security/secret-redaction.cjs')
@@ -474,6 +475,7 @@ function destroyChildPipes(child) {
 
 async function terminateChild(child, platform, spawnFn) {
   if (child.exitCode != null || child.signalCode != null) return
+  if (platform === 'win32') return terminateWindowsProcessTree(child, spawnFn)
   await new Promise((resolve) => {
     let settled = false
     let forceKillTimeout
@@ -489,15 +491,6 @@ async function terminateChild(child, platform, spawnFn) {
     }
     child.once('close', finish)
     child.once('error', finish)
-    if (platform === 'win32' && child.pid) {
-      const killer = spawnFn('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], {
-        stdio: 'ignore', windowsHide: true,
-      })
-      killer.on('error', () => {})
-      killer.unref()
-      forceSettleTimeout = setTimeout(finish, TERMINATE_GRACE_MS + KILL_SETTLE_MS)
-      return
-    }
     const signalTree = (signal) => {
       if (child.pid) {
         try {
@@ -533,13 +526,14 @@ async function waitForChildExit(child, timeoutMs) {
     let timeout
     const finish = (exited) => {
       clearTimeout(timeout)
-      child.removeListener('close', onExit)
-      child.removeListener('error', onExit)
+      child.removeListener('close', onClose)
+      child.removeListener('error', onError)
       resolve(exited)
     }
-    const onExit = () => finish(true)
-    child.once('close', onExit)
-    child.once('error', onExit)
+    const onClose = () => finish(true)
+    const onError = () => finish(false)
+    child.once('close', onClose)
+    child.once('error', onError)
     timeout = setTimeout(() => finish(false), timeoutMs)
     timeout.unref?.()
   })
@@ -551,8 +545,7 @@ async function closeAcpChild(child, platform, spawnFn) {
     try { child.stdin.end() } catch { /* the process has already closed its input */ }
   }
   if (await waitForChildExit(child, TERMINATE_GRACE_MS)) return
-  await terminateChild(child, platform, spawnFn)
-  destroyChildPipes(child)
+  try { await terminateChild(child, platform, spawnFn) } finally { destroyChildPipes(child) }
 }
 
 function acpProtocolError(error, childEnv, sessionRef = '', kind = '') {

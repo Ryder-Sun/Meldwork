@@ -915,6 +915,7 @@ export default {
     'error.runCircuitBreaker': '失败次数过多，本次运行已停止。',
     'error.agentAuthRequired': '请先登录该 Agent 或完成凭据配置后再试。',
     'error.agentProcessFailed': 'Agent 进程在任务完成前执行失败。',
+    'error.agentTerminationFailed': '无法确认 Agent 进程已停止，它可能仍在运行。',
     'error.agentRepeatedOutput': '该 Agent 持续重复相同回复，本次调用已停止，已收到的内容已保留。请检查 CLI 的模型或服务商配置后再试。',
     'error.customAgentLimit': '最多可接入 32 个自定义 Agent。',
     'error.customAgentLabel': '请输入有效的 Agent 名称。',

@@ -1038,6 +1038,7 @@ input.on('line', (line) => {
     fs.writeFileSync(process.env.MELDWORK_TEST_CANCEL_FILE, JSON.stringify(message.params))
   }
 })
+
 setInterval(() => {}, 1000)
 `)
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
@@ -1068,6 +1069,50 @@ setInterval(() => {}, 1000)
     fs.readFileSync(lifecycleFile, 'utf8').trim().split('\n'),
     ['cancel', 'stdin-close', 'sigterm'],
   )
+})
+
+test('Windows ACP cancellation surfaces taskkill failure when the child remains alive', {
+  skip: process.platform === 'win32',
+}, async (t) => {
+  const { spawn } = require('node:child_process')
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-acp-win-stop-'))
+  const readyFile = path.join(directory, 'ready')
+  const cli = executable(directory, 'acp-child.cjs', `
+const fs = require('node:fs')
+const readline = require('node:readline')
+const input = readline.createInterface({ input: process.stdin })
+input.on('line', line => {
+  const message = JSON.parse(line)
+  if (message.method === 'initialize') process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:message.id,result:{protocolVersion:1}})+'\\n')
+  else if (message.method === 'session/new') process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:message.id,result:{sessionId:'session'}})+'\\n')
+  else if (message.method === 'session/set_mode') process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:message.id,result:{}})+'\\n')
+  else if (message.method === 'session/prompt') fs.writeFileSync(${JSON.stringify(readyFile)}, 'ready')
+})
+setInterval(() => {}, 1000)
+`)
+  let child
+  t.after(() => {
+    try { child?.kill('SIGKILL') } catch { /* already exited */ }
+    fs.rmSync(directory, { recursive: true, force: true })
+  })
+  const controller = new AbortController()
+  const outcome = runAgent({ kind: 'kimi', executable: cli, name: 'Kimi' }, 'Wait', directory, {
+    platform: 'win32', signal: controller.signal,
+    spawnFn: (command, _args, options) => {
+      if (command === 'taskkill.exe') {
+        const killer = new EventEmitter()
+        killer.unref = () => {}
+        setImmediate(() => killer.emit('close', 1))
+        return killer
+      }
+      child = spawn(process.execPath, [cli], options)
+      return child
+    },
+  })
+  await readWhenReady(readyFile)
+  controller.abort()
+  await assert.rejects(outcome, { message: 'LOCAL_AGENT_TERMINATION_FAILED' })
+  assert.equal(child.exitCode, null)
 })
 
 test('Claude uses partial stream JSON and resumes its native session', () => {

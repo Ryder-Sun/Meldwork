@@ -3,10 +3,47 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
+const { EventEmitter } = require('node:events')
 
-const { childEnvironment, failedAgentProcessError } = require('../../../src/agents/cli/cli-process-support.cjs')
+const { childEnvironment, failedAgentProcessError, terminateWindowsProcessTree } = require('../../../src/agents/cli/cli-process-support.cjs')
 const { nativeOpenClawOptions } = require('../../../src/agents/cli/openclaw-runtime.cjs')
 const { workBuddyInstall } = require('../../support/cli-adapters-test-helpers.cjs')
+
+test('Windows termination requires successful taskkill and observed child exit', async () => {
+  const child = new EventEmitter()
+  child.pid = 4321
+  const killer = new EventEmitter()
+  killer.unref = () => {}
+  let settled = false
+  const promise = terminateWindowsProcessTree(child, (command, args) => {
+    assert.equal(command, 'taskkill.exe')
+    assert.deepEqual(args, ['/PID', '4321', '/T', '/F'])
+    return killer
+  }, 1000).then(() => { settled = true })
+  killer.emit('close', 0)
+  await Promise.resolve()
+  assert.equal(settled, false)
+  child.emit('close', 1, 'SIGTERM')
+  await promise
+  assert.equal(settled, true)
+})
+
+test('Windows termination reports spawn errors, nonzero exits and timeouts', async () => {
+  for (const mode of ['throw', 'error', 'nonzero', 'alive', 'timeout']) {
+    const child = new EventEmitter()
+    child.pid = 4321
+    const killer = new EventEmitter()
+    killer.unref = () => {}
+    const promise = terminateWindowsProcessTree(child, () => {
+      if (mode === 'throw') throw new Error('spawn failed')
+      return killer
+    }, 20)
+    if (mode === 'error') killer.emit('error', new Error('spawn failed'))
+    if (mode === 'nonzero') killer.emit('close', 1)
+    if (mode === 'alive') killer.emit('close', 0)
+    await assert.rejects(promise, { message: 'LOCAL_AGENT_TERMINATION_FAILED' }, mode)
+  }
+})
 
 test('a refused Hermes resume policy rebuilds the session before executing work', () => {
   const detail = "Resume retains gateway session policy; creation overrides are unsupported on resume. --yolo differs from this session's launch: resume without it and use /yolo after resuming to switch."

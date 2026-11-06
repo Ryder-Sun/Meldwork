@@ -95,6 +95,9 @@ class LocalWorkspaceRunMessages {
   recordInterruption(
     groupId, kind, error, threadRootId, status = 'stopped', reportedFailures = null,
   ) {
+    if (error?.message === 'LOCAL_AGENT_TERMINATION_FAILED') {
+      return this.recordFailure(groupId, kind, error, threadRootId, reportedFailures)
+    }
     const trace = normalizeTraceCapsule(error?.runTrace
       ? { ...error.runTrace, status }
       : null)

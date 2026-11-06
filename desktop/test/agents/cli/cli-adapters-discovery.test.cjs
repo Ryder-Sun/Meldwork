@@ -1275,8 +1275,38 @@ test('Windows Agent cancellation terminates the full process tree with taskkill'
 
   controller.abort()
   child.emit('close', 1, 'SIGTERM')
+  killer.emit('close', 0)
 
   await assert.rejects(outcome, { message: 'LOCAL_AGENT_EXECUTION_STOPPED' })
   assert.equal(calls[1].command, 'taskkill.exe')
   assert.deepEqual(calls[1].args, ['/PID', '4321', '/T', '/F'])
+})
+
+test('Windows Agent cancellation reports taskkill failures instead of claiming a stop', async () => {
+  for (const mode of ['spawn-error', 'process-error', 'nonzero', 'still-alive', 'timeout']) {
+    const controller = new AbortController()
+    const child = new EventEmitter()
+    child.pid = 4321
+    child.stdin = new PassThrough()
+    child.stdout = new PassThrough()
+    child.stderr = new PassThrough()
+    child.kill = () => true
+    const killer = new EventEmitter()
+    killer.unref = () => {}
+    let calls = 0
+    const outcome = runAgent({ kind: 'codex', executable: 'C:\\Tools\\codex.exe' }, 'hello', 'C:\\work', {
+      platform: 'win32', signal: controller.signal,
+      spawnFn: () => {
+        calls += 1
+        if (calls === 1) return child
+        if (mode === 'spawn-error') throw new Error('taskkill unavailable')
+        return killer
+      },
+    })
+    controller.abort()
+    if (mode === 'process-error') killer.emit('error', new Error('taskkill failed'))
+    if (mode === 'nonzero') killer.emit('close', 1)
+    if (mode === 'still-alive') killer.emit('close', 0)
+    await assert.rejects(outcome, { message: 'LOCAL_AGENT_TERMINATION_FAILED' }, mode)
+  }
 })

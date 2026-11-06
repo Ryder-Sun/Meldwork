@@ -33,6 +33,45 @@ function agentExecutionError(code, diagnostic = '') {
   return agentRuntimeError(code, diagnostic)
 }
 
+function terminateWindowsProcessTree(child, spawnFn, timeoutMs = TERMINATE_GRACE_MS + KILL_SETTLE_MS) {
+  if (child.exitCode != null || child.signalCode != null) return Promise.resolve()
+  return new Promise((resolve, reject) => {
+    let killer
+    let childClosed = false
+    let killerSucceeded = false
+    let settled = false
+    let timer
+    const finish = (error) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      child.removeListener('close', onChildClose)
+      killer?.removeListener('close', onKillerClose)
+      if (error) reject(agentExecutionError('LOCAL_AGENT_TERMINATION_FAILED'))
+      else resolve()
+    }
+    const onFailure = () => finish(true)
+    const onChildClose = () => { childClosed = true; if (killerSucceeded) finish(false) }
+    const onKillerClose = code => {
+      if (code !== 0) return finish(true)
+      killerSucceeded = true
+      if (childClosed || child.exitCode != null || child.signalCode != null) finish(false)
+    }
+    child.once('close', onChildClose)
+    child.once('error', onFailure)
+    timer = setTimeout(onFailure, timeoutMs)
+    try {
+      if (!child.pid) return onFailure()
+      killer = spawnFn('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], {
+        stdio: 'ignore', windowsHide: true,
+      })
+      killer.once('close', onKillerClose)
+      killer.once('error', onFailure)
+      killer.unref?.()
+    } catch { onFailure() }
+  })
+}
+
 function invalidSessionFailure(detail) {
   const text = String(detail || '').trim()
   if (!text || authFailureCertainty(text)
@@ -159,4 +198,5 @@ module.exports = {
   childEnvironment,
   failedAgentProcessError,
   invalidSessionFailure,
+  terminateWindowsProcessTree,
 }

@@ -4,6 +4,7 @@ const path = require('node:path')
 
 const {
   KILL_SETTLE_MS,
+  terminateWindowsProcessTree,
   TERMINATE_GRACE_MS,
   childEnvironment,
 } = require('./cli-process-support.cjs')
@@ -63,6 +64,14 @@ async function availableLoopbackPort() {
 
 async function terminateGateway(child, platform = process.platform) {
   if (!child || child.exitCode != null || child.signalCode != null) return
+  if (platform === 'win32') {
+    try { await terminateWindowsProcessTree(child, spawn) } finally {
+      for (const stream of [child.stdin, child.stdout, child.stderr]) {
+        if (stream && !stream.destroyed) stream.destroy()
+      }
+    }
+    return
+  }
   await new Promise((resolve) => {
     let settled = false
     let forceKillTimeout
@@ -78,15 +87,6 @@ async function terminateGateway(child, platform = process.platform) {
     }
     child.once('close', finish)
     child.once('error', finish)
-    if (platform === 'win32' && child.pid) {
-      const killer = spawn('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], {
-        stdio: 'ignore', windowsHide: true,
-      })
-      killer.on('error', () => {})
-      killer.unref()
-      forceSettleTimeout = setTimeout(finish, TERMINATE_GRACE_MS + KILL_SETTLE_MS)
-      return
-    }
     const signalTree = (signal) => {
       if (child.pid) {
         try {

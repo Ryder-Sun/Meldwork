@@ -1144,7 +1144,7 @@ class LocalWorkspaceMessageSubmission {
       if (!controller.signal.aborted && slot.status === 'completed') continue
       const error = item.error || item.invocation?.error || new Error('LOCAL_AGENT_UNKNOWN_FAILURE')
       failures.push({ ...item, error })
-      if (!controller.signal.aborted) {
+      if (!controller.signal.aborted || error?.message === 'LOCAL_AGENT_TERMINATION_FAILED') {
         this.recordAgentFailure(group.id, item.kind, error, threadRootId)
       } else if (controller.stopReason === 'user'
           && slot.agentRunId

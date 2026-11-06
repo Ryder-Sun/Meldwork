@@ -1309,6 +1309,35 @@ test('stopAll records an in-flight Agent and its ledger checkpoint as interrupte
   assert.equal(terminalCheckpoint.agentRuns[0].status, 'interrupted')
 })
 
+test('a failed process termination is recorded as failure instead of a successful stop', async (t) => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const started = deferred()
+  options.runAbortGraceMs = 200
+  options.runAgent = async (_agent, _prompt, _workdir, input) => new Promise((_resolve, reject) => {
+    started.resolve()
+    input.signal.addEventListener('abort', () => setTimeout(() => {
+      reject(Object.assign(new Error('LOCAL_AGENT_TERMINATION_FAILED'), { code: 'LOCAL_AGENT_TERMINATION_FAILED' }))
+    }, 10), { once: true })
+  })
+  const workspace = new LocalWorkspace(options)
+  const finished = []
+  workspace.on('run-finished', result => finished.push(result))
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Termination failure', agentKinds: ['codex'], workdir: directory })
+  const pending = workspace.sendMessage({ groupId: group.id, text: 'Run a task', targetKinds: ['codex'] })
+  await started.promise
+  const controller = workspace.activeRuns.get(group.id)
+  assert.equal(workspace.stop(group.id, controller.runId), true)
+  await pending
+  await controller.done
+  assert.equal(finished[0].status, 'failed')
+  assert.ok(workspace.snapshot().messages.some(message => (
+    message.system?.key === 'system.agentCallFailed'
+      && message.system?.params?.reason === 'LOCAL_AGENT_TERMINATION_FAILED'
+  )))
+})
+
 test('a stale controller cannot clear a newer active run for the same group', async (t) => {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

@@ -108,6 +108,7 @@ export const DESKTOP_ERROR_MESSAGE_KEYS = Object.freeze({
   LOCAL_AGENT_OUTPUT_LIMIT: 'error.agentOutputLimit',
   LOCAL_AGENT_REPEATED_OUTPUT: 'error.agentRepeatedOutput',
   LOCAL_AGENT_SEND_FAILED: 'error.agentSendFailed',
+  LOCAL_AGENT_TERMINATION_FAILED: 'error.agentTerminationFailed',
   LOCAL_AGENT_REFUSED: 'error.agentRefused',
   LOCAL_AGENT_PERMISSION_TERMINAL_RACE: 'error.agentPermissionRace',
   LOCAL_AGENT_VERSION_UNSUPPORTED: 'agent.incompatibleVersion',
