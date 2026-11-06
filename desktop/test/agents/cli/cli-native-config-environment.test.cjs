@@ -11,7 +11,7 @@ test('native configuration controls reach only the CLI that owns them', () => {
     mimo: { MIMOCODE_CONFIG_DIR: '/native/mimo', MIMOCODE_CONFIG_CONTENT: '{"model":"local/model"}' },
     opencode: { OPENCODE_CONFIG: '/native/opencode.json', OPENCODE_CONFIG_DIR: '/native/opencode', OPENCODE_CONFIG_CONTENT: '{"model":"local/model"}' },
     qwen: { QWEN_HOME: '/native/qwen' },
-    gemini: { GOOGLE_GEMINI_BASE_URL: 'http://127.0.0.1:3425' },
+    gemini: { GOOGLE_GEMINI_BASE_URL: 'http://127.0.0.1:3425', GCLOUD_PROJECT: 'native-project' },
   }
   const shell = { ...Object.assign({}, ...Object.values(entries)), UNRELATED_SECRET: 'must-not-leak', NODE_OPTIONS: '--require /untrusted.js' }
   for (const [kind, expected] of Object.entries(entries)) {
