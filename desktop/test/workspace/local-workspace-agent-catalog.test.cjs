@@ -112,6 +112,22 @@ test('probe failure cannot retain availability after an in-place executable repl
   assert.equal(agents()[0].available, false)
 })
 
+test('a native configuration switch invalidates previous and late verification', async () => {
+  const agent = { kind: 'hermes', executable: '/tmp/hermes', version: '1',
+    compatibilityState: 'compatible', available: true, credentialState: 'ready' }
+  const { catalog, agents, state } = fixture({ initialAgents: [agent], detectAgents: async () => [{ ...agent }],
+    credentialState: async () => ({ state: 'unknown', source: 'native-probe-failed' }) })
+  state.agentPreferences.hermes = { nativeConfigDirectory: '/tmp/profile-a' }
+  const oldIdentity = agentVerificationIdentity(agent, state.agentPreferences)
+  catalog.markRuntimeCredential('hermes', 'ready', { verificationIdentity: oldIdentity })
+  state.agentPreferences.hermes.nativeConfigDirectory = '/tmp/profile-b'
+  await catalog.refresh()
+  assert.equal(agents()[0].available, false)
+  assert.equal(agents()[0].recentlyVerified, false)
+  catalog.markRuntimeCredential('hermes', 'ready', { verificationIdentity: oldIdentity })
+  assert.equal(agents()[0].available, false)
+})
+
 test('Agent catalog module exposes only its coordinator', () => {
   assert.deepEqual(Object.keys(catalogApi), ['LocalWorkspaceAgentCatalog'])
 })

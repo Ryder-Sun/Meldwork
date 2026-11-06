@@ -53,9 +53,9 @@ function recentlyVerified(runtime, now) {
     && current >= checkedAt && current - checkedAt <= RECENT_VERIFICATION_MS
 }
 
-function matchesRecentVerification(runtime, agent, now) {
+function matchesRecentVerification(runtime, agent, now, preferences) {
   return runtime?.verificationSource === 'successful-run' && recentlyVerified(runtime, now)
-    && Boolean(runtime.verificationIdentity) && runtime.verificationIdentity === agentVerificationIdentity(agent)
+    && Boolean(runtime.verificationIdentity) && runtime.verificationIdentity === agentVerificationIdentity(agent, preferences)
 }
 
 class LocalWorkspaceAgentCatalog {
@@ -74,13 +74,13 @@ class LocalWorkspaceAgentCatalog {
     this.refreshTask = null
     this.refreshAgain = false
     this.indeterminateSince = new Map()
-    this.detectedIdentities = new Map(this.detectedAgents().map(agent => [agent.kind, agentVerificationIdentity(agent)]))
+    this.detectedIdentities = new Map(this.detectedAgents().map(agent => [agent.kind, agentVerificationIdentity(agent, this.state().agentPreferences)]))
   }
 
   isRecentlyVerified(kind) {
     const runtime = this.state().agentRuntime[kind]
     const agent = this.detectedAgents().find(item => item.kind === kind)
-    return matchesRecentVerification(runtime, agent, this.now())
+    return matchesRecentVerification(runtime, agent, this.now(), this.state().agentPreferences)
   }
 
   async refresh() {
@@ -142,7 +142,7 @@ class LocalWorkspaceAgentCatalog {
         recoveredRuntimeCredential = true
       }
       const runtimeMissing = runtime?.credentialState === 'missing'
-      const verifiedReady = matchesRecentVerification(runtime, agent, this.now())
+      const verifiedReady = matchesRecentVerification(runtime, agent, this.now(), state.agentPreferences)
       const nativeReadySource = nativeState === 'ready'
         ? (native.source || 'native-credential')
         : ''
@@ -179,7 +179,7 @@ class LocalWorkspaceAgentCatalog {
           && (native?.source !== 'native-probe-failed' || verifiedReady))
       const invocable = agentInvocable({ installed, versionIdentified, compatible, configured,
         authenticated, runtimePrerequisitesReady, unavailable: workBuddyUnavailable })
-      const verifiedRecently = matchesRecentVerification(runtime, agent, this.now())
+      const verifiedRecently = matchesRecentVerification(runtime, agent, this.now(), state.agentPreferences)
       const available = invocable
       const preferred = state.agentPreferences[agent.kind]?.showInSidebar
       const capabilities = agentRuntimeCapabilities(agent.kind, {
@@ -219,7 +219,7 @@ class LocalWorkspaceAgentCatalog {
       }
     })
     this.setDetectedAgents(agents)
-    this.detectedIdentities = new Map(agents.map(agent => [agent.kind, agentVerificationIdentity(agent)]))
+    this.detectedIdentities = new Map(agents.map(agent => [agent.kind, agentVerificationIdentity(agent, state.agentPreferences)]))
     if (recoveredRuntimeCredential) this.save()
     this.emitChanged()
     return this.snapshot()
@@ -239,7 +239,7 @@ class LocalWorkspaceAgentCatalog {
     const since = this.indeterminateSince.get(agent.kind)
     if (previous?.available !== true || runtimeMissing || !Number.isFinite(nowMs)
         || !Number.isFinite(since) || nowMs - since >= INDETERMINATE_PROBE_GRACE_MS
-        || this.detectedIdentities.get(agent.kind) !== agentVerificationIdentity(agent)
+        || this.detectedIdentities.get(agent.kind) !== agentVerificationIdentity(agent, this.state().agentPreferences)
         || !agentVersionIdentified(agent) || !agentCompatible(agent)) return null
     return {
       credentialState: previous.credentialState,
@@ -261,8 +261,8 @@ class LocalWorkspaceAgentCatalog {
   markRuntimeCredential(kind, credentialState, { verifiedRun = true, verificationIdentity = '' } = {}) {
     const state = this.state()
     const agent = this.detectedAgents().find(item => item.kind === kind)
-    if (agent && verificationIdentity && verificationIdentity !== agentVerificationIdentity(agent)) return
-    const identity = verificationIdentity || agentVerificationIdentity(agent)
+    if (agent && verificationIdentity && verificationIdentity !== agentVerificationIdentity(agent, state.agentPreferences)) return
+    const identity = verificationIdentity || agentVerificationIdentity(agent, state.agentPreferences)
     state.agentRuntime[kind] = {
       credentialState,
       checkedAt: this.now(),

@@ -1,7 +1,7 @@
 const { createHash } = require('node:crypto')
 const fs = require('node:fs')
 
-function agentVerificationIdentity(agent) {
+function agentVerificationIdentity(agent, preferences = {}) {
   if (!agent?.kind) return ''
   let executableStat = null
   if (agent.executable) {
@@ -13,6 +13,7 @@ function agentVerificationIdentity(agent) {
   return createHash('sha256').update(JSON.stringify([
     agent.kind, agent.executable || '', agent.version || '', executableStat,
     agent.connectorId || '', agent.connectorVersion || '', agent.upstreamVersion || '',
+    preferences?.[agent.kind]?.nativeConfigDirectory || '',
   ])).digest('hex')
 }
 

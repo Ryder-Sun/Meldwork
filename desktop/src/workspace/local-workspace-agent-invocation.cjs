@@ -326,7 +326,7 @@ class LocalWorkspaceAgentInvocation {
           ? snapshot
           : null))
     if (!agent) throw new Error('LOCAL_AGENT_UNAVAILABLE')
-    const verificationIdentity = agentVerificationIdentity(agent)
+    const verificationIdentity = agentVerificationIdentity(agent, this.state()?.agentPreferences)
     const revalidateApprovedSkills = async () => {
       if (!context.skillHints?.some(skill => skill?.approvedSkillManifest)) return
       const previous = context.skillHints
