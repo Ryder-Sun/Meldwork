@@ -203,6 +203,94 @@ for (const action of ['disable', 'revoke', 'disable-and-reinstall', 'delete-inst
   })
 }
 
+for (const action of ['disable', 'revoke', 'delete-instance']) {
+  test(`HTTP transport aborts an active request after ${action} and reports an unknown outcome`, async t => {
+    let started
+    const entered = new Promise(resolve => { started = resolve })
+    let observedAbort = false
+    const { connectors, directory, packageStore } = fixture(t, (_url, { signal }) => new Promise((_resolve, reject) => {
+      signal.addEventListener('abort', () => {
+        observedAbort = true
+        reject(Object.assign(new Error('aborted'), { name: 'AbortError' }))
+      }, { once: true })
+      started()
+    }))
+    const pkg = httpPackage()
+    install(packageStore, pkg)
+    connectors.refresh([])
+    connectors.configure({ manifestId: pkg.manifest.manifestId, label: 'Active account',
+      credentials: { 'access-token': 'private-token' } })
+    const [agent] = connectors.detectAgents()
+    const pending = connectors.run(agent, 'request', directory, {
+      runId: `run-active-${action}`, agentRunId: `agent-active-${action}`, sandbox: 'read-only',
+    })
+    await entered
+    if (action === 'delete-instance') connectors.delete(agent.kind)
+    else if (action === 'revoke') connectors.revokePackage(pkg.packageId)
+    else connectors.disablePackage(pkg.packageId)
+    const result = await pending
+    assert.equal(observedAbort, true)
+    assert.equal(result.outcome, 'failed')
+    assert.deepEqual(result.failure, { code: 'AGENT_CONNECTOR_HTTP_TRUST_CHANGED', category: 'unknown', retryable: false })
+    assert.equal(connectors.httpRequests.size, 0)
+    assert.doesNotMatch(JSON.stringify(result), /private-token/)
+  })
+}
+
+test('an active Connector result cannot succeed after trust is revoked even if fetch ignores abort', async t => {
+  let started
+  let finish
+  const entered = new Promise(resolve => { started = resolve })
+  const { connectors, directory, packageStore } = fixture(t, () => new Promise(resolve => { finish = resolve; started() }))
+  const pkg = httpPackage()
+  install(packageStore, pkg)
+  connectors.refresh([])
+  connectors.configure({ manifestId: pkg.manifest.manifestId, label: 'Active account',
+    credentials: { 'access-token': 'private-token' } })
+  const [agent] = connectors.detectAgents()
+  const pending = connectors.run(agent, 'request', directory, {
+    runId: 'run-ignore-abort', agentRunId: 'agent-ignore-abort', sandbox: 'read-only',
+  })
+  await entered
+  connectors.revokePackage(pkg.packageId)
+  finish({ ok: true, text: async () => JSON.stringify({ text: 'late response' }) })
+  const result = await pending
+  assert.equal(result.outcome, 'failed')
+  assert.equal(result.failure.category, 'unknown')
+  assert.equal(result.failure.retryable, false)
+})
+
+test('deleting one Connector instance does not abort another account request', async t => {
+  let started
+  const bothStarted = new Promise(resolve => { started = resolve })
+  const pendingFetches = []
+  const { connectors, directory, packageStore } = fixture(t, (_url, { signal }) => new Promise((resolve, reject) => {
+    pendingFetches.push({ resolve, signal })
+    signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })), { once: true })
+    if (pendingFetches.length === 2) started()
+  }))
+  const pkg = httpPackage()
+  install(packageStore, pkg)
+  connectors.refresh([])
+  const first = connectors.configure({ manifestId: pkg.manifest.manifestId, label: 'Account A',
+    credentials: { 'access-token': 'private-a' } })
+  const second = connectors.configure({ manifestId: pkg.manifest.manifestId, label: 'Account B',
+    credentials: { 'access-token': 'private-b' } })
+  const agents = connectors.detectAgents()
+  const run = (instance, suffix) => connectors.run(agents.find(agent => agent.kind === instance.instanceId), 'request', directory, {
+    runId: `run-isolation-${suffix}`, agentRunId: `agent-isolation-${suffix}`, sandbox: 'read-only',
+  })
+  const a = run(first, 'a')
+  const b = run(second, 'b')
+  await bothStarted
+  connectors.delete(first.instanceId)
+  assert.equal(pendingFetches[0].signal.aborted, true)
+  assert.equal(pendingFetches[1].signal.aborted, false)
+  pendingFetches[1].resolve({ ok: true, text: async () => JSON.stringify({ text: 'second account completed' }) })
+  assert.equal((await a).failure.category, 'unknown')
+  assert.equal((await b).outcome, 'completed')
+})
+
 test('HTTP transport times out and releases its request', async t => {
   let aborted = false
   const { connectors, directory, packageStore } = fixture(t, (_url, { signal }) => new Promise((_resolve, reject) => {

@@ -244,6 +244,7 @@ class LocalAgentConnectors {
     this.runAgent = options.runAgent
     this.fetch = options.fetch || globalThis.fetch
     this.httpTimeoutMs = options.httpTimeoutMs ?? DEFAULT_HTTP_TIMEOUT_MS
+    this.httpRequests = new Set()
     this.seedSample = options.seedSample === true
     this.registry = this.createRegistry()
     this.runtime = this.createRuntime(this.registry)
@@ -498,7 +499,14 @@ class LocalAgentConnectors {
   }
 
   delete(instanceId) {
-    const result = this.instanceStore.delete(String(instanceId || ''))
+    const normalizedId = String(instanceId || '')
+    const result = this.instanceStore.delete(normalizedId)
+    for (const request of this.httpRequests) {
+      if (request.instanceId === normalizedId) {
+        request.trustChanged = true
+        request.controller.abort()
+      }
+    }
     this.refresh(this.detectedUpstreams)
     return result
   }
@@ -566,6 +574,14 @@ class LocalAgentConnectors {
       }
     }
     const result = store[action](normalizedId)
+    if (action === 'disable' || action === 'revoke') {
+      for (const request of this.httpRequests) {
+        if (request.packageId === normalizedId) {
+          request.trustChanged = true
+          request.controller.abort()
+        }
+      }
+    }
     this.refresh(this.detectedUpstreams)
     return result
   }
@@ -770,6 +786,8 @@ class LocalAgentConnectors {
     let timedOut = false
     let requestSent = false
     const controller = new AbortController()
+    const activeRequest = { packageId: packageRecord.packageId, instanceId: input.connector.instanceId,
+      controller, trustChanged: false }
     const abortTransport = () => controller.abort()
     input.transportSignal?.addEventListener('abort', abortTransport, { once: true })
     if (input.transportSignal?.aborted) abortTransport()
@@ -805,6 +823,7 @@ class LocalAgentConnectors {
       controller.signal.throwIfAborted()
       timer = setTimeout(() => { timedOut = true; controller.abort() }, this.httpTimeoutMs)
       requestSent = true
+      this.httpRequests.add(activeRequest)
       const response = await this.fetch(endpoint, {
         method: 'POST',
         redirect: 'error',
@@ -812,10 +831,12 @@ class LocalAgentConnectors {
         signal: controller.signal,
         body,
       })
+      controller.signal.throwIfAborted()
       if (!response?.ok) throw Object.assign(new Error('AGENT_CONNECTOR_HTTP_FAILED'), {
         code: 'AGENT_CONNECTOR_HTTP_FAILED', retryable: response?.status >= 500,
       })
       const text = await boundedHttpResponseText(response, MAX_HTTP_RESPONSE_BYTES, 'AGENT_CONNECTOR_HTTP_RESPONSE_INVALID')
+      controller.signal.throwIfAborted()
       let parsed
       try { parsed = JSON.parse(text) } catch { fail('AGENT_CONNECTOR_HTTP_RESPONSE_INVALID') }
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)
@@ -841,6 +862,11 @@ class LocalAgentConnectors {
       input.emit({ ...terminal, type: 'Completed', outcome })
       return { text: parsed.text, sessionRef: parsed.sessionRef || '', outcome }
     } catch (error) {
+      if (activeRequest.trustChanged) {
+        const failure = { code: 'AGENT_CONNECTOR_HTTP_TRUST_CHANGED', category: 'unknown', retryable: false }
+        input.emit({ ...terminal, type: 'Failed', ...failure })
+        return { outcome: 'failed', failure }
+      }
       if (timedOut && !input.transportSignal?.aborted) {
         const failure = { code: 'AGENT_CONNECTOR_HTTP_TIMEOUT', category: 'timeout', retryable: false }
         input.emit({ ...terminal, type: 'Failed', ...failure })
@@ -860,6 +886,7 @@ class LocalAgentConnectors {
       input.emit({ ...terminal, type: 'Failed', ...failure })
       return { outcome: 'failed', failure }
     } finally {
+      this.httpRequests.delete(activeRequest)
       clearTimeout(timer)
       input.transportSignal?.removeEventListener('abort', abortTransport)
     }
