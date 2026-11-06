@@ -491,6 +491,28 @@ class LocalWorkspace extends EventEmitter {
     if (messagesChanged) this.save()
   }
 
+  completedTaskGraphResults(record) {
+    const graph = record?.orchestration?.taskGraph
+    const results = []
+    for (const nodeId of graph?.currentNodeIds || []) {
+      const node = graph.graph?.nodes?.find(candidate => candidate.nodeId === nodeId)
+      const state = graph.nodeStates?.find(candidate => candidate.nodeId === nodeId)
+      if (!node?.agentKind || node.role === 'human' || state?.status !== 'running') return null
+      const runs = (record.agentRuns || []).filter(run => run.kind === node.agentKind
+        && run.round === record.currentRound && run.status === 'completed')
+      if (runs.length !== 1) return null
+      const run = runs[0]
+      const messages = this.state.messages.filter(message => message.groupId === record.groupId
+        && message.threadRootId === record.threadRootId && message.role === 'agent'
+        && message.agentKind === node.agentKind && message.trace?.runId === record.runId
+        && message.trace?.agentRunId === run.agentRunId && message.trace?.status === 'completed'
+        && message.content === run.output)
+      if (messages.length !== 1) return null
+      results.push({ node, result: { message: messages[0], outcomeRefs: run.context?.outcomeRefs } })
+    }
+    return results
+  }
+
   recoverableTaskGraphRecords() {
     let records = []
     try { records = this.runLedger?.list?.() || [] } catch { return [] }
@@ -502,10 +524,11 @@ class LocalWorkspace extends EventEmitter {
       if (record?.mode !== 'auto' || TERMINAL_RUN_STATUSES.has(record.status)
           || record.continuation || !groups.has(record.groupId) || retained.has(record.groupId)
           || cursor?.version !== 3 || cursor.workflow !== 'auto' || cursor.template !== 'task-graph'
-          || !Array.isArray(graph?.currentNodeIds) || graph.currentNodeIds.length !== 0
-          || !Array.isArray(graph.nodeStates) || graph.nodeStates.some(state => ['running', 'waiting'].includes(state.status))
+          || !Array.isArray(graph?.currentNodeIds) || !Array.isArray(graph.nodeStates)
+          || graph.nodeStates.some(state => state.status === 'waiting')
           || (record.agentRuns || []).some(run => !['completed', 'partial', 'failed'].includes(run.status))
-          || (record.attemptHistory || []).some(attempt => attempt.finalOutcome === 'unknown')) return false
+          || (record.attemptHistory || []).some(attempt => attempt.finalOutcome === 'unknown')
+          || this.completedTaskGraphResults(record) === null) return false
       retained.add(record.groupId)
       return true
     })
@@ -526,6 +549,9 @@ class LocalWorkspace extends EventEmitter {
     controller.harness = new RunHarness({ runId: durable.runId, groupId: group.id,
       threadRootId: durable.threadRootId, targetKinds: durable.targetKinds, agentRuns: durable.agentRuns })
     if (durable.budget) controller.budget = new RunBudget({ ...durable.budget, now: Date.now })
+    const completed = this.completedTaskGraphResults(durable)
+    if (!completed) return false
+    for (const { node, result } of completed) this.autoRunner.applyTaskGraphAgentResult(group, controller, node, result)
     this.activeRuns.set(group.id, controller)
     this.pendingV4AutoRecoveries.set(durable.runId, { group, durable, controller })
     return true
