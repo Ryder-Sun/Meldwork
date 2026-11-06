@@ -2,6 +2,7 @@ const crypto = require('node:crypto')
 const { spawn } = require('node:child_process')
 const fs = require('node:fs')
 const net = require('node:net')
+const { boundedHttpResponseText } = require('../bounded-http-response.cjs')
 
 const { canonicalJson } = require('../../collaboration/outcome-records.cjs')
 const { createHttpOutboundPayload, createSshOutboundPayload } = require('../../collaboration/outbound-payload.cjs')
@@ -294,6 +295,7 @@ class CloudAgentBridgeStore {
       : null
     const abortFromCaller = () => controller.abort()
     options.signal?.addEventListener?.('abort', abortFromCaller, { once: true })
+    if (options.signal?.aborted) controller.abort()
     try {
       const response = await this.fetch(`${options.address}${pathname}`, {
         method: options.method || 'GET',
@@ -303,8 +305,7 @@ class CloudAgentBridgeStore {
         ...(options.body ? { body: options.bodyText ?? JSON.stringify(options.body) } : {}),
       })
       if (!response?.ok) throw bridgeError(`CLOUD_AGENT_BRIDGE_HTTP_${response?.status || 'FAILED'}`)
-      const text = await response.text()
-      if (Buffer.byteLength(text, 'utf8') > MAX_RESPONSE_BYTES) fail('CLOUD_AGENT_BRIDGE_RESPONSE_TOO_LARGE')
+      const text = await boundedHttpResponseText(response, MAX_RESPONSE_BYTES, 'CLOUD_AGENT_BRIDGE_RESPONSE_TOO_LARGE')
       try { return JSON.parse(text) } catch { fail('CLOUD_AGENT_BRIDGE_RESPONSE_INVALID') }
     } catch (error) {
       if (error?.name === 'AbortError') fail('CLOUD_AGENT_BRIDGE_TIMEOUT')

@@ -34,6 +34,32 @@ test('keeps a cloud CLI request alive for the local Agent runtime timeout', () =
   }
 })
 
+test('Bridge requests cancel oversized streams and respect a pre-aborted caller', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-cloud-response-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  let cancelled = false
+  const store = new CloudAgentBridgeStore({
+    storagePath: path.join(directory, 'bridges.json'),
+    fetch: async () => ({ ok: true, body: new ReadableStream({
+      pull(controller) { controller.enqueue(new Uint8Array(128 * 1024)) },
+      cancel() { cancelled = true },
+    }) }),
+  })
+  await assert.rejects(store.request('/test', { address: 'https://203.0.113.10' }), {
+    code: 'CLOUD_AGENT_BRIDGE_RESPONSE_TOO_LARGE',
+  })
+  assert.equal(cancelled, true)
+  const controller = new AbortController()
+  controller.abort()
+  store.fetch = async (_url, options) => {
+    assert.equal(options.signal.aborted, true)
+    throw Object.assign(new Error('aborted'), { name: 'AbortError' })
+  }
+  await assert.rejects(store.request('/test', { address: 'https://203.0.113.10', signal: controller.signal }), {
+    code: 'CLOUD_AGENT_BRIDGE_TIMEOUT',
+  })
+})
+
 test('reports activity while a cloud Agent request is waiting for its final response', async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-cloud-activity-'))
   const activity = []
