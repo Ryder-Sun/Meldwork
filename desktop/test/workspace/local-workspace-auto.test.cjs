@@ -339,6 +339,10 @@ test('task graph does not count fabricated outcome references as evidence', asyn
   const run = ledger.list(group.id)[0]
   assert.notEqual(run.status, 'completed')
   assert.equal(run.orchestration.taskGraph.nodeStates[0].status, 'failed')
+  assert.equal(run.orchestration.taskGraph.nodeStates[0].artifactIds.includes(`artifact-${'a'.repeat(64)}`), false)
+  assert.equal(run.orchestration.taskGraph.nodeStates[0].evidenceIds.includes(`evidence-${'b'.repeat(64)}`), false)
+  assert.equal(JSON.stringify(run.orchestration.collaboration).includes(`artifact-${'a'.repeat(64)}`), false)
+  assert.equal(JSON.stringify(run.orchestration.collaboration).includes(`evidence-${'b'.repeat(64)}`), false)
   assert.deepEqual(calls, ['codex'])
 })
 

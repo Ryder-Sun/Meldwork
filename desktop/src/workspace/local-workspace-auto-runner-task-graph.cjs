@@ -96,8 +96,7 @@ const taskGraphMethods = {
     return taskGraph
   },
 
-  taskGraphResultAccepted(node, result, controller) {
-    const conclusion = publicCollaborationText(result?.message?.content || '')
+  taskGraphVerifiedOutcomeRefs(node, result, controller) {
     const artifacts = new Map()
     const evidence = new Set()
     for (const id of new Set(result?.outcomeRefs?.artifactIds || [])) {
@@ -115,21 +114,29 @@ const taskGraphMethods = {
         }
       } catch { /* Missing or invalid evidence cannot satisfy acceptance. */ }
     }
+    return { artifactIds: [...artifacts.keys()], evidenceIds: [...evidence] }
+  },
+
+  taskGraphResultAccepted(node, result, controller, verifiedRefs = null) {
+    const conclusion = publicCollaborationText(result?.message?.content || '')
+    const refs = verifiedRefs || this.taskGraphVerifiedOutcomeRefs(node, result, controller)
     return result?.message?.trace?.status === 'completed'
       && (!node.acceptance.requireConclusion
         || (Boolean(conclusion) && result.message.trace.truncated !== true))
-      && artifacts.size >= node.acceptance.minArtifactRefs
-      && evidence.size >= node.acceptance.minEvidenceRefs
+      && refs.artifactIds.length >= node.acceptance.minArtifactRefs
+      && refs.evidenceIds.length >= node.acceptance.minEvidenceRefs
   },
 
   applyTaskGraphAgentResult(group, controller, node, result) {
     const conflicts = this.unresolvedTaskGraphConflicts(controller.orchestration.collaboration)
+    const verifiedRefs = this.taskGraphVerifiedOutcomeRefs(node, result, controller)
+    const verifiedResult = { ...result, outcomeRefs: verifiedRefs }
     const entryIds = this.recordCollaborationResult(
       group,
       controller,
       controller.orchestration.activeKinds,
       node.agentKind,
-      result,
+      verifiedResult,
       {
         role: node.role,
         entryType: node.role === 'arbiter' ? 'decision' : 'claim',
@@ -139,10 +146,9 @@ const taskGraphMethods = {
         refs: node.role === 'arbiter' ? conflicts.map(entry => entry.entryId) : [],
       },
     )
-    const accepted = this.taskGraphResultAccepted(node, result, controller)
+    const accepted = this.taskGraphResultAccepted(node, result, controller, verifiedRefs)
     const conclusion = publicCollaborationText(result?.message?.content || '')
-    const artifactIds = result?.outcomeRefs?.artifactIds || []
-    const evidenceIds = result?.outcomeRefs?.evidenceIds || []
+    const { artifactIds, evidenceIds } = verifiedRefs
     let cursor = updateTaskGraphCursor(
       controller.orchestration.taskGraph,
       node.nodeId,
