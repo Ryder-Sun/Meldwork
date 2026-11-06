@@ -59,11 +59,11 @@ function acceptedReply(prompt, text, extra = {}) {
 }
 
 test('explicit first-person task failures are distinguished from discussion and quotations', () => {
-  for (const text of ['I cannot access the requested files.', "I can't complete the task.", 'Permission denied.', 'Access denied!', '权限不足。', '访问被拒绝。', 'Permission denied; I cannot access the file.', 'Access denied: we cannot complete the task.', '我无法访问所需文件。', '我们不能完成任务。', '权限不足，无法访问所需文件。', '访问被拒绝：我们无法完成任务。']) {
+  for (const text of ['I cannot access the requested files.', "I can't complete the task.", 'Permission denied.', 'Access denied!', '权限不足。', '访问被拒绝。', 'Permission denied; I cannot access the file.', 'Access denied: we cannot complete the task.', '我无法访问所需文件。', '我们不能完成任务。', '权限不足，无法访问所需文件。', '访问被拒绝：我们无法完成任务。', 'I checked the workspace.\nI cannot complete the task.', '检查结果：\n- 我无法读取所需文件。']) {
     assert.equal(explicitTaskFailure(text), true, text)
   }
   for (const text of ['I cannot reproduce the reported issue; all tests pass.',
-    'The user said: "I cannot access the file."', 'Permission denied was the original error; I can access the file now.', 'I can access the file.', '权限不足的问题已修复，现在可以访问文件。', '问题是用户无法访问文件。']) {
+    'The user said: "I cannot access the file."', 'Permission denied was the original error; I can access the file now.', 'I can access the file.', '权限不足的问题已修复，现在可以访问文件。', '问题是用户无法访问文件。', 'An example:\n> I cannot complete the task.', 'Example output:\n```\n权限不足。\n```\nThe issue is resolved.']) {
     assert.equal(explicitTaskFailure(text), false, text)
   }
 })
@@ -402,6 +402,22 @@ for (const discussionStyle of ['agent-led', 'sequential']) {
     const controller = await runDiscussion(workspace, group, { discussionStyle, maxRounds: 4 })
     assert.notEqual(ledger.get(controller.runId).status, 'completed')
     assert.equal(ledger.get(controller.runId).status, 'partial')
+  })
+
+  test(`Natural ${discussionStyle} rejects a completion receipt after a multiline failure`, async t => {
+    const { directory, options } = fixture()
+    t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+    const ledger = new RunLedger({ storagePath: path.join(directory, 'run-ledger.json') })
+    const workspace = new LocalWorkspace({
+      ...options, runLedger: ledger, naturalAgentResponses: true,
+      runAgent: async (_agent, prompt) => ({ outcome: 'completed', text: naturalPhase(prompt) === 'proposal'
+        ? 'I checked the workspace.'
+        : decisionReply('I checked the workspace.\nI cannot complete the task because the required file is inaccessible.') }),
+    })
+    await workspace.refreshAgents()
+    const group = workspace.createGroup({ name: 'Multiline failure', agentKinds: ['codex'], workdir: directory, allowWrite: false })
+    const controller = await runDiscussion(workspace, group, { discussionStyle, maxRounds: 4 })
+    assert.notEqual(ledger.get(controller.runId).status, 'completed')
   })
 }
 
