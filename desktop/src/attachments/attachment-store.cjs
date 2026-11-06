@@ -77,12 +77,17 @@ class AttachmentStore {
   }
 
   importBuffer(input) {
+    return this.importBufferWithBytes(input).metadata
+  }
+
+  importBufferWithBytes(input) {
     if (sortedKeys(input) !== 'bytes,mimeType,name'
         || typeof input.name !== 'string' || input.name.length > 4096
         || typeof input.mimeType !== 'string') {
       fail('LOCAL_ATTACHMENT_INPUT_INVALID')
     }
-    return this.importBytes(toBuffer(input.bytes), input.name, input.mimeType, true)
+    const bytes = toBuffer(input.bytes)
+    return { metadata: this.importBytes(bytes, input.name, input.mimeType, true), bytes }
   }
 
   importFile(filename) {

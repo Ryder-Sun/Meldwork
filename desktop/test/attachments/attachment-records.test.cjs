@@ -15,6 +15,21 @@ const PNG = Buffer.from([
   0x00, 0x00, 0x00, 0x0d,
 ])
 
+test('MP3 detection rejects AAC and reserved MPEG frame headers', () => {
+  for (const bytes of [
+    Buffer.from([0xff, 0xf1, 0x50, 0x80]), // AAC ADTS has reserved MPEG layer bits.
+    Buffer.from([0xff, 0xeb, 0x90, 0x00]), // Reserved MPEG version.
+    Buffer.from([0xff, 0xfb, 0xf0, 0x00]), // Reserved bitrate.
+    Buffer.from([0xff, 0xfb, 0x9c, 0x00]), // Reserved sample rate.
+    Buffer.from('ID3'),
+  ]) {
+    assert.throws(() => validateAttachment(bytes, 'audio.mp3', 'audio/mpeg', true),
+      { message: 'LOCAL_ATTACHMENT_TYPE_UNSUPPORTED' })
+  }
+  assert.equal(validateAttachment(Buffer.from([0xff, 0xfb, 0x90, 0x00]), 'audio.mp3', 'audio/mpeg', true).mimeType, 'audio/mpeg')
+  assert.equal(validateAttachment(Buffer.from('49443304000000000000', 'hex'), 'audio.mp3', 'audio/mpeg', true).mimeType, 'audio/mpeg')
+})
+
 test('roundtrips a sanitized attachment record without filesystem state', () => {
   const bytes = toBuffer([...PNG])
   const type = validateAttachment(bytes, '../../private\\portrait?.PNG', 'image/png', true)

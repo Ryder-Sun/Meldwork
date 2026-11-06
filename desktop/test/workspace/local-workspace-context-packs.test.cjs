@@ -88,6 +88,36 @@ test('persistent group context watermark excludes already delivered peer turns',
   assert.equal(packed.recentText.includes('Latest answer'), true)
 })
 
+test('required task overflow is measured before the task text is truncated', () => {
+  const text = 'x'.repeat(23000)
+  const packed = packedPromptContext({
+    state: { groups: [], messages: [{ id: 'user-overflow', groupId: 'group-overflow', role: 'user', content: text }] },
+    groupId: 'group-overflow', afterAgentKind: '', afterMessageId: '',
+  })
+  assert.deepEqual(packed.requiredContextOverflow, {
+    sourceMessageId: 'user-overflow', actualChars: 23000, maxChars: 22000,
+  })
+})
+
+test('required task overflow stops direct Agent execution before dispatch', async (t) => {
+  const { directory, calls, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({
+    name: 'Overflow', agentKinds: ['codex'], workdir: directory,
+    conversationType: 'direct', directAgentKind: 'codex',
+  })
+  workspace.agentInvocation.packedPromptContext = () => ({
+    requiredContextOverflow: { sourceMessageId: 'message-1', actualChars: 23000, maxChars: 22000 },
+  })
+  await workspace.sendMessage({ groupId: group.id, text: 'Test overflow' })
+  assert.equal(calls.length, 0)
+  assert.equal(workspace.snapshot().messages.some(message => (
+    message.system?.params?.reason === 'LOCAL_RUN_REQUIRED_CONTEXT_OVERFLOW'
+  )), true)
+})
+
 test('explicit Connector selections persist immutable knowledge and citation sources without Vault paths', async (t) => {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

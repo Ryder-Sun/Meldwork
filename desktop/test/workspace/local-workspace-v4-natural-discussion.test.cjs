@@ -210,7 +210,7 @@ test('Natural discussion accepts a fenced, loosely written owner receipt instead
     ...options, runLedger: ledger, naturalAgentResponses: true,
     runAgent: async (_agent, prompt) => ({ outcome: 'completed', text: naturalPhase(prompt) === 'proposal'
       ? 'Initial answer.'
-      : 'The final answer is 42.\n\n```\n[[MELDWORK_COLLABORATION:{"summary":"Answered","taskDecision":{"status":"Done","reason":"Answered the question.","extra":true},}]]\n```' }),
+      : 'The final answer is 42.\n\n```\n[[MELDWORK_COLLABORATION:{"summary":"Answered","taskDecision":{"status":"Done","reason":"Answered the question.","deliverables":"The answer in this message","extra":true},}]]\n```' }),
   })
   await workspace.refreshAgents()
   const group = workspace.createGroup({ name: 'Loose receipt', agentKinds: ['codex'], workdir: directory, allowWrite: false })
@@ -220,6 +220,23 @@ test('Natural discussion accepts a fenced, loosely written owner receipt instead
   assert.match(reply.content, /The final answer is 42\./)
   assert.doesNotMatch(reply.content, /MELDWORK_COLLABORATION/)
   assert.equal(ledger.get(controller.runId).agentRuns.at(-1).context.taskDecision.status, 'completed')
+})
+
+test('Natural discussion never completes a failure that claims completion without deliverables', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const ledger = new RunLedger({ storagePath: path.join(directory, 'run-ledger.json') })
+  const workspace = new LocalWorkspace({
+    ...options, runLedger: ledger, naturalAgentResponses: true,
+    runAgent: async (_agent, prompt) => ({ outcome: 'completed', text: naturalPhase(prompt) === 'proposal'
+      ? 'I cannot access the required files.'
+      : 'I cannot access the required files.\n[[MELDWORK_COLLABORATION:{"summary":"No access","taskDecision":{"status":"completed","reason":"No access"}}]]' }),
+  })
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Missing deliverable', agentKinds: ['codex'], workdir: directory, allowWrite: false })
+  const controller = await runDiscussion(workspace, group, { discussionStyle: 'agent-led', maxRounds: 4 })
+  assert.notEqual(ledger.get(controller.runId).status, 'completed')
+  assert.equal(ledger.get(controller.runId).status, 'round-limit')
 })
 
 test('Natural discussion shows peers workspace files as relative paths', async t => {

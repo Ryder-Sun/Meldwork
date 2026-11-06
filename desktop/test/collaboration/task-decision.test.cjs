@@ -59,9 +59,10 @@ test('task decisions reject malformed and oversized payloads', () => {
 
 test('lenient task decisions accept common hand-written slips', () => {
   const { normalizeTaskDecision, parseLenientTaskDecision } = require('../../src/collaboration/task-decision.cjs')
-  assert.deepEqual(parseLenientTaskDecision({ status: 'Done', reason: 'Answered.' }), {
+  assert.deepEqual(parseLenientTaskDecision({ status: 'Done', reason: 'Answered.', deliverables: 'The answer in this message' }), {
     status: 'completed', reason: 'Answered.', deliverables: ['The answer in this message'],
   })
+  assert.throws(() => parseLenientTaskDecision({ status: 'Done', reason: 'Answered.' }), /LOCAL_RUN_TASK_DECISION_INVALID/)
   assert.deepEqual(parseLenientTaskDecision({
     status: 'in_progress', reason: 'Need review', deliverables: 'draft.md',
     nextKinds: ['@Hermes', 'hermes', 'Codex'], handoffTo: '@OpenClaw', note: 'extra key',

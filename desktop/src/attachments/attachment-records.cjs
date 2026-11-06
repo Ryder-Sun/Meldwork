@@ -213,8 +213,13 @@ function detectAttachmentType(bytes, nameType = null, declaredMime = '') {
       && bytes.subarray(8, 12).toString('ascii') === 'WEBP') {
     return TYPE_BY_MIME.get('image/webp')
   }
-  if (bytes.length >= 3 && (bytes.subarray(0, 3).toString('ascii') === 'ID3'
-      || (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0))) {
+  const id3Header = bytes.length >= 10 && bytes.subarray(0, 3).toString('ascii') === 'ID3'
+    && bytes[3] >= 2 && bytes[3] <= 4 && bytes[4] !== 0xff
+    && [...bytes.subarray(6, 10)].every(byte => byte < 0x80)
+  const mpegFrame = bytes.length >= 4 && bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0
+    && ((bytes[1] >> 3) & 0x03) !== 1 && ((bytes[1] >> 1) & 0x03) !== 0
+    && ((bytes[2] >> 4) & 0x0f) !== 15 && ((bytes[2] >> 2) & 0x03) !== 3
+  if (id3Header || mpegFrame) {
     return TYPE_BY_MIME.get('audio/mpeg')
   }
   if (bytes.length >= 12 && bytes.subarray(0, 4).toString('ascii') === 'RIFF'

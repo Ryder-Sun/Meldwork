@@ -118,6 +118,10 @@ function createAttachmentService({ getStore, getSnapshot, nativeImage, openPath 
 
   function preview(id) {
     const { metadata, bytes } = availableStore().readWithMetadata(id)
+    return renderPreview(metadata, bytes)
+  }
+
+  function renderPreview(metadata, bytes) {
     const attachment = {
       id: metadata.id,
       name: metadata.name,
@@ -177,9 +181,12 @@ function createAttachmentService({ getStore, getSnapshot, nativeImage, openPath 
 
   function importBuffer(input) {
     const store = availableStore()
-    const metadata = store.importBuffer(input)
+    const imported = typeof store.importBufferWithBytes === 'function'
+      ? store.importBufferWithBytes(input)
+      : { metadata: store.importBuffer(input), bytes: null }
+    const { metadata, bytes } = imported
     try {
-      return preview(metadata.id)
+      return bytes ? renderPreview(metadata, bytes) : preview(metadata.id)
     } catch (error) {
       try { store.discard([metadata]) } catch { /* best effort */ }
       throw error

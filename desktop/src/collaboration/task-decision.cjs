@@ -52,7 +52,7 @@ function agentKindToken(value) {
 
 // Agents write task decisions by hand at the end of free text. Small slips
 // (capitalised status, "done", an @handle, a single string instead of a list,
-// a completed answer without a separate file) used to fail the whole turn
+// a completed answer with a named deliverable) used to fail the whole turn
 // and silently end the discussion. Normalise them first; the strict parser
 // still validates the result.
 function normalizeTaskDecision(input, options = {}) {
@@ -66,9 +66,7 @@ function normalizeTaskDecision(input, options = {}) {
   const reason = typeof input.reason === 'string' && input.reason.trim()
     ? input.reason.trim().slice(0, 1600)
     : String(options.fallbackReason || '').trim().slice(0, 1600) || 'No reason given.'
-  let deliverables = textList(input.deliverables)
-  // A completed answer is itself the deliverable when nothing else was named.
-  if (status === 'completed' && !deliverables.length) deliverables = ['The answer in this message']
+  const deliverables = textList(input.deliverables)
   const nextKinds = [...new Set(textList(input.nextKinds).map(agentKindToken).filter(Boolean))]
   const handoffTo = agentKindToken(input.handoffTo)
   return {

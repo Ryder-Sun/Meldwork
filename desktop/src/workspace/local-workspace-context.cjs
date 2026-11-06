@@ -737,7 +737,7 @@ function packedPromptContext({
     'Recent shared conclusions:',
     continuationRecent.text || '(none)',
   ].join('\n')
-  const fullCurrentTaskText = latestUserMessage ? promptMessageText(latestUserMessage) : ''
+  const fullCurrentTaskText = latestUserMessage ? promptMessageText(latestUserMessage, Number.MAX_SAFE_INTEGER) : ''
   const currentTaskText = latestUserMessage
     ? promptMessageText(latestUserMessage, CURRENT_TASK_TEXT_LIMIT)
     : '(none)'

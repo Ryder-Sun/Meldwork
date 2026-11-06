@@ -1,6 +1,10 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const os = require('node:os')
+const path = require('node:path')
 const { createAttachmentService } = require('../../src/attachments/attachment-service.cjs')
+const { AttachmentStore } = require('../../src/attachments/attachment-store.cjs')
 
 test('importFiles rejects non-array inputs before accessing the store', () => {
   let accesses = 0
@@ -30,4 +34,20 @@ test('valid filename arrays continue through import and preview', () => {
     id: 'attachment-1', name: 'doc.pdf', mimeType: 'application/pdf', size: 3,
   }])
   assert.deepEqual(imported, ['/tmp/doc.pdf'])
+})
+
+test('buffer import previews validated bytes without rereading the stored file', (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-attachment-preview-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const store = new AttachmentStore({ rootPath: directory })
+  const originalRead = store.readWithMetadata.bind(store)
+  let reads = 0
+  store.readWithMetadata = id => { reads++; return originalRead(id) }
+  const service = createAttachmentService({ getStore: () => store })
+  const bytes = Buffer.from('%PDF-1.7\n')
+  const result = service.importBuffer({ bytes, name: 'doc.pdf', mimeType: 'application/pdf' })
+  assert.equal(result.name, 'doc.pdf')
+  assert.equal(reads, 0)
+  assert.deepEqual(service.preview(result.id), result)
+  assert.equal(reads, 1)
 })
