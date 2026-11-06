@@ -590,6 +590,31 @@ test('a partial Agent result cannot verify it for automatic routing', async t =>
     targetKinds: [], routingMode: 'automatic' }), { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
 })
 
+for (const failure of ['empty reply', 'message persistence']) {
+  test(`a completed CLI result with ${failure} does not verify automatic routing`, async t => {
+    const { directory, options } = fixture()
+    t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+    options.runAgent = async () => ({ text: failure === 'empty reply' ? '' : 'Valid reply', outcome: 'completed' })
+    const workspace = new LocalWorkspace(options)
+    await workspace.refreshAgents()
+    const group = workspace.createGroup({ name: 'Failed verification', agentKinds: ['codex'], workdir: directory })
+    if (failure === 'message persistence') {
+      const addMessage = workspace.addMessage.bind(workspace)
+      workspace.addMessage = (...args) => {
+        if (args[1] === 'agent') throw new Error('LOCAL_RUN_PERSIST_FAILED')
+        return addMessage(...args)
+      }
+    }
+    const task = workspace.addMessage(group.id, 'user', 'Run explicitly')
+    await assert.rejects(workspace.invokeAgent(group, 'codex', 'manual', undefined, task.id), {
+      message: failure === 'empty reply' ? 'LOCAL_AGENT_EMPTY_RESPONSE' : 'LOCAL_RUN_PERSIST_FAILED',
+    })
+    assert.notEqual(workspace.state.agentRuntime.codex?.verificationSource, 'successful-run')
+    await assert.rejects(workspace.sendMessage({ groupId: group.id, text: 'Choose an Agent',
+      targetKinds: [], routingMode: 'automatic' }), { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
+  })
+}
+
 test('all supported workspace versions preserve stored or omitted read-only permission', (t) => {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
