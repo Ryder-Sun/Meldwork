@@ -240,6 +240,20 @@ test('Natural discussion never completes a failure that claims completion withou
 })
 
 for (const discussionStyle of ['agent-led', 'sequential']) {
+  test(`Natural ${discussionStyle} does not complete an unaddressed permission failure without a receipt`, async t => {
+    const { directory, options } = fixture()
+    t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+    const ledger = new RunLedger({ storagePath: path.join(directory, 'run-ledger.json') })
+    const workspace = new LocalWorkspace({
+      ...options, runLedger: ledger, naturalAgentResponses: true,
+      runAgent: async () => ({ outcome: 'completed', text: 'I cannot access the required files because permission was denied.' }),
+    })
+    await workspace.refreshAgents()
+    const group = workspace.createGroup({ name: 'Permission failure', agentKinds: ['codex'], workdir: directory, allowWrite: false })
+    const controller = await runDiscussion(workspace, group, { discussionStyle, maxRounds: 4 })
+    assert.notEqual(ledger.get(controller.runId).status, 'completed')
+  })
+
   test(`Natural ${discussionStyle} does not complete a receipt with explicit blockers`, async t => {
     const { directory, options } = fixture()
     t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
