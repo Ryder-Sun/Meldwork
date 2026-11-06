@@ -7,7 +7,7 @@ const { RunLedger } = require('../../src/runs/run-ledger.cjs')
 const { RunScheduler } = require('../../src/runs/run-scheduler.cjs')
 const { LocalWorkspace } = require('../../src/workspace/local-workspace.cjs')
 const { naturalConsensusMethods } = require('../../src/workspace/local-workspace-auto-runner-natural-consensus.cjs')
-const { v4NaturalDecisionMethods } = require('../../src/workspace/local-workspace-auto-runner-natural-decisions.cjs')
+const { v4NaturalDecisionMethods, explicitTaskFailure } = require('../../src/workspace/local-workspace-auto-runner-natural-decisions.cjs')
 const { naturalDiscussionMethods } = require('../../src/workspace/local-workspace-auto-runner-natural-discussion.cjs')
 const { deferred, fixture } = require('../support/local-workspace-test-helpers.cjs')
 
@@ -57,6 +57,16 @@ function acceptedReply(prompt, text, extra = {}) {
   const reviewedVersion = prompt.match(/Candidate version: ([a-f0-9]{64})/)?.[1]
   return decisionReply(text, 'completed', { ...extra, ...(reviewedVersion ? { reviewedVersion } : {}) })
 }
+
+test('explicit first-person task failures are distinguished from discussion and quotations', () => {
+  for (const text of ['I cannot access the requested files.', "I can't complete the task.", '我无法访问所需文件。', '我们不能完成任务。']) {
+    assert.equal(explicitTaskFailure(text), true, text)
+  }
+  for (const text of ['I cannot reproduce the reported issue; all tests pass.',
+    'The user said: "I cannot access the file."', 'I can access the file.', '问题是用户无法访问文件。']) {
+    assert.equal(explicitTaskFailure(text), false, text)
+  }
+})
 
 test('a truncated peer review cannot approve or retain a discussion candidate', () => {
   const messages = []
@@ -300,6 +310,21 @@ test('Natural discussion never completes a failure that claims completion withou
 })
 
 for (const discussionStyle of ['agent-led', 'sequential']) {
+  test(`Natural ${discussionStyle} does not complete an explicit failure with a contradictory receipt`, async t => {
+    const { directory, options } = fixture()
+    t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+    const ledger = new RunLedger({ storagePath: path.join(directory, 'run-ledger.json') })
+    const workspace = new LocalWorkspace({
+      ...options, runLedger: ledger, naturalAgentResponses: true,
+      runAgent: async (_agent, prompt) => ({ outcome: 'completed', text: naturalPhase(prompt) === 'proposal'
+        ? 'Initial attempt.' : decisionReply('I cannot access the required files.') }),
+    })
+    await workspace.refreshAgents()
+    const group = workspace.createGroup({ name: 'Contradictory failure', agentKinds: ['codex'], workdir: directory, allowWrite: false })
+    const controller = await runDiscussion(workspace, group, { discussionStyle, maxRounds: 4 })
+    assert.notEqual(new RunLedger({ storagePath: ledger.storagePath }).get(controller.runId).status, 'completed')
+  })
+
   test(`Natural ${discussionStyle} persists a multi-Agent permission failure without completing it`, async t => {
     const { directory, options } = fixture()
     t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

@@ -1,5 +1,11 @@
 const { parseLenientTaskDecision } = require('../collaboration/task-decision.cjs')
 
+function explicitTaskFailure(text) {
+  const firstLine = String(text || '').trim().split(/\r?\n/, 1)[0]
+  return /^(?:i|we)\s+(?:cannot|can't|am unable to|are unable to)\s+(?:access|open|read|execute|perform|complete|finish)\b/i.test(firstLine)
+    || /^(?:我|我们)(?:无法|不能|没法)(?:访问|打开|读取|执行|完成)/u.test(firstLine)
+}
+
 const v4NaturalDecisionMethods = {
   v4NaturalRouteDecision(decision, activeKinds) {
     const participants = Array.isArray(activeKinds) ? activeKinds : []
@@ -93,7 +99,7 @@ const v4NaturalDecisionMethods = {
     }
     if (decision.status === 'completed') {
       const contribution = this.v4NaturalMessageContent(ownerMessage)
-      if (contribution.partial || !contribution.text.trim()) {
+      if (contribution.partial || !contribution.text.trim() || explicitTaskFailure(contribution.text)) {
         return { nextKinds: [owner], ownerReview: true }
       }
       const unresolved = this.v4NaturalUnresolvedBlockers(group, controller, threadRootId, round)
@@ -154,7 +160,9 @@ const v4NaturalDecisionMethods = {
       if (status === 'blocked' || status === 'needs-human') unresolved.add(message.agentKind)
       else if (status === 'completed') {
         const contribution = this.v4NaturalMessageContent(message)
-        if (!contribution.partial && contribution.text.trim()) unresolved.delete(message.agentKind)
+        if (!contribution.partial && contribution.text.trim() && !explicitTaskFailure(contribution.text)) {
+          unresolved.delete(message.agentKind)
+        }
       }
     }
     return [...unresolved]
@@ -269,4 +277,4 @@ const v4NaturalDecisionMethods = {
   },
 }
 
-module.exports = { v4NaturalDecisionMethods }
+module.exports = { v4NaturalDecisionMethods, explicitTaskFailure }

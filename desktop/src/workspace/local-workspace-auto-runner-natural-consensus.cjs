@@ -2,6 +2,7 @@ const { hashValue } = require('../collaboration/orchestration-v4-records.cjs')
 const { createHash } = require('node:crypto')
 const fs = require('node:fs')
 const path = require('node:path')
+const { explicitTaskFailure } = require('./local-workspace-auto-runner-natural-decisions.cjs')
 
 // Rebuild consensus from committed, operation-bound messages. No in-memory vote
 // can survive a crash without its corresponding durable Agent response.
@@ -29,7 +30,7 @@ const naturalConsensusMethods = {
       const decision = message.trace?.context?.taskDecision
       if (!decision) continue
       const contribution = this.v4NaturalMessageContent(message)
-      if (contribution.partial || !contribution.text.trim()) {
+      if (contribution.partial || !contribution.text.trim() || explicitTaskFailure(contribution.text)) {
         candidate = null
         continue
       }
