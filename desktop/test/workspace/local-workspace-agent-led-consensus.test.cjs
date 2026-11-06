@@ -267,10 +267,11 @@ test('consensus is reconstructed from durable messages and ignores stale binding
     v4NaturalMessageMatchesBinding: message => message.id !== 'stale', v4NaturalMessageContent: message => ({ text: message.content, partial: false }) }
   const candidate = runner.v4NaturalConsensus({ id: 'g' }, {}, 't')
   for (const [index, kind] of ['hermes', 'workbuddy'].entries()) messages.push({ ...base, id: kind, turnSeq: index + 2, agentKind: kind,
+    content: 'Reviewed the complete result.',
     trace: { phase: 'discussion', context: { taskDecision: { status: 'completed', reviewedVersion: candidate.version } } } })
   messages.push({ ...base, id: 'stale', turnSeq: 4, agentKind: 'codex', trace: { phase: 'discussion', context: { taskDecision: { status: 'continue' } } } })
   assert.deepEqual([...runner.v4NaturalConsensus({ id: 'g' }, {}, 't').approvedKinds], ['codex', 'hermes', 'workbuddy'])
-  messages.push({ ...base, id: 'objection', turnSeq: 5, agentKind: 'hermes', trace: { phase: 'discussion', context: { taskDecision: { status: 'continue' } } } })
+  messages.push({ ...base, id: 'objection', turnSeq: 5, agentKind: 'hermes', content: 'Further review is needed.', trace: { phase: 'discussion', context: { taskDecision: { status: 'continue' } } } })
   assert.equal(runner.v4NaturalConsensus({ id: 'g' }, {}, 't'), null)
 })
 
