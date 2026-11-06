@@ -14,6 +14,7 @@ const { NETWORK_ENV_KEYS, networkEnvironment } = require('./cli/cli-network-envi
 const { CONFIG_DIRECTORY_ENV_KEYS } = require('./cli/cli-config-directories.cjs')
 const { workBuddyCredentialState } = require('./cli/workbuddy-runtime.cjs')
 const { mimoConfiguredProvider } = require('./cli/mimo-native-config.cjs')
+const { PI_PROVIDER_CREDENTIAL_KEYS, PI_BUILTIN_CREDENTIAL_KEYS } = require('./cli/pi-provider-environment.cjs')
 
 const execFileAsync = promisify(execFile)
 
@@ -50,7 +51,7 @@ const CREDENTIAL_ENV_KEYS = Object.freeze({
   openclaw: ['OPENAI_API_KEY', 'OPENROUTER_API_KEY'],
   workbuddy: ['CODEBUDDY_API_KEY', 'CODEBUDDY_AUTH_TOKEN'],
   zcode: ['ANTHROPIC_API_KEY', 'ZCODE_API_KEY'],
-  pi: ['PI_API_KEY', 'OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'OPENROUTER_API_KEY', 'GEMINI_API_KEY'],
+  pi: ['PI_API_KEY', ...PI_BUILTIN_CREDENTIAL_KEYS],
   kimi: ['MOONSHOT_API_KEY', 'KIMI_API_KEY', 'KIMI_MODEL_API_KEY', 'OPENAI_API_KEY'],
   mimo: ['MIMO_API_KEY'],
   deepseek: ['ZGCI_API_KEY'],
@@ -59,10 +60,6 @@ const CREDENTIAL_ENV_KEYS = Object.freeze({
   gemini: ['GEMINI_API_KEY', 'GOOGLE_API_KEY'],
   opencode: ['OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'OPENROUTER_API_KEY'],
   opencodereview: ['OCR_LLM_TOKEN', 'OPENAI_API_KEY'],
-})
-const PI_PROVIDER_CREDENTIAL_KEYS = Object.freeze({
-  openai: 'OPENAI_API_KEY', anthropic: 'ANTHROPIC_API_KEY',
-  openrouter: 'OPENROUTER_API_KEY', google: 'GEMINI_API_KEY',
 })
 const GOOGLE_CLOUD_ENV_KEYS = [
   'GOOGLE_APPLICATION_CREDENTIALS', 'GOOGLE_CLOUD_PROJECT', 'GCLOUD_PROJECT',
@@ -88,7 +85,7 @@ const RUNTIME_ENV_KEYS = Object.freeze({
   zcode: ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL', 'ZCODE_API_KEY', 'ZCODE_BASE_URL',
     'ZCODE_MODEL', 'ZCODE_HTTP_PROXY', 'ZCODE_NO_PROXY', 'ZCODE_AGENT_CA_CERT'],
   pi: [
-    'PI_API_KEY', 'PI_BASE_URL', 'PI_MODEL',
+    'PI_API_KEY', 'PI_BASE_URL', 'PI_MODEL', ...PI_BUILTIN_CREDENTIAL_KEYS,
     'OPENAI_API_KEY', 'OPENAI_BASE_URL', 'OPENAI_MODEL', 'ANTHROPIC_API_KEY',
     'OPENROUTER_API_KEY', 'GEMINI_API_KEY', 'PI_CODING_AGENT_DIR',
     'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_SESSION_TOKEN',
@@ -759,7 +756,8 @@ function nativeCredentialState(kind, options = {}) {
   const selectedPiKey = Object.hasOwn(PI_PROVIDER_CREDENTIAL_KEYS, piProvider) ? PI_PROVIDER_CREDENTIAL_KEYS[piProvider] : ''
   const hasCredentialEnv = kind !== 'pi' || piProvider === ''
     ? Object.keys(credentialEnv).length > 0
-    : Boolean(selectedPiKey && credentialEnv[selectedPiKey])
+    : Boolean(selectedPiKey && credentialEnv[selectedPiKey]
+      || piProvider === 'anthropic' && (credentialEnv.ANTHROPIC_AUTH_TOKEN || credentialEnv.ANTHROPIC_OAUTH_TOKEN))
   if (hasCredentialEnv) {
     return {
       state: 'ready',

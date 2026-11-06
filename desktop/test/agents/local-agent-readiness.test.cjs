@@ -77,6 +77,28 @@ test('Pi captures only environment references declared by its selected native mo
   assert.deepEqual(piDeclaredCredentialKeys({ home, env: {} }), [])
 })
 
+test('Pi built-in provider credentials survive shell discovery and reach only Pi', async t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-pi-builtin-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const root = path.join(home, '.pi', 'agent')
+  fs.mkdirSync(root, { recursive: true })
+  fs.writeFileSync(path.join(root, 'settings.json'), JSON.stringify({ defaultProvider: 'deepseek' }))
+  const captured = await resolveNativeShellEnvironment({ cache: false, platform: 'win32', env: {
+    DEEPSEEK_API_KEY: 'synthetic-deepseek-secret', NVIDIA_API_KEY: 'synthetic-nvidia-secret',
+    HF_TOKEN: 'synthetic-hf-token', UNRELATED_KEY: 'synthetic-unrelated',
+  } })
+  const native = nativeCredentialEnvironment('pi', captured.env)
+  assert.equal(nativeCredentialState('pi', { home, env: native }).state, 'ready')
+  assert.equal(nativeCredentialState('pi', { home, env: { NVIDIA_API_KEY: 'synthetic-nvidia-secret' } }).state, 'unknown')
+  const child = childEnvironment({ kind: 'pi' }, home, { env: native }, 'win32')
+  assert.equal(child.DEEPSEEK_API_KEY, 'synthetic-deepseek-secret')
+  assert.equal(child.NVIDIA_API_KEY, 'synthetic-nvidia-secret')
+  assert.equal(child.HF_TOKEN, 'synthetic-hf-token')
+  assert.equal(child.UNRELATED_KEY, undefined)
+  assert.deepEqual(nativeCredentialEnvironment('codex', captured.env), {})
+  assert.equal(childEnvironment({ kind: 'codex' }, home, { env: native }, 'win32').DEEPSEEK_API_KEY, undefined)
+})
+
 test('Pi retains more than 32 environment references from its native models configuration', t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-pi-many-keys-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))
