@@ -1,18 +1,41 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const os = require('node:os')
+const JSON5 = require('json5')
 const { nativeSecretEnvKeys } = require('./native-secret-environment.cjs')
 
 function mimoProviderKey(options = {}) {
   const env = options.env || process.env
   const root = env.XDG_CONFIG_HOME || path.join(options.home || os.homedir(), '.config')
   try {
-    const file = path.join(root, 'mimocode', 'mimocode.json')
-    if (fs.statSync(file).size > 2 * 1024 * 1024) return ''
-    const config = JSON.parse(fs.readFileSync(file, 'utf8'))
-    if (typeof config.model !== 'string' || !config.model.includes('/')) return ''
-    const provider = config.provider?.[config.model.split('/')[0]]
-    const key = provider?.options?.apiKey
+    const files = [path.join(root, 'mimocode', 'mimocode.json'), path.join(root, 'mimocode', 'mimocode.jsonc'),
+      env.MIMOCODE_CONFIG, env.MIMOCODE_CONFIG_DIR && path.join(env.MIMOCODE_CONFIG_DIR, 'mimocode.json'),
+      env.MIMOCODE_CONFIG_DIR && path.join(env.MIMOCODE_CONFIG_DIR, 'mimocode.jsonc')].filter(Boolean)
+    const configs = []
+    for (const file of files) {
+      let stat
+      try { stat = fs.statSync(file) } catch (error) {
+        if (error.code === 'ENOENT') continue
+        throw error
+      }
+      if (!stat.isFile() || stat.size > 2 * 1024 * 1024) return ''
+      configs.push(JSON5.parse(fs.readFileSync(file, 'utf8')))
+    }
+    if (env.MIMOCODE_CONFIG_CONTENT) {
+      if (Buffer.byteLength(env.MIMOCODE_CONFIG_CONTENT) > 2 * 1024 * 1024) return ''
+      configs.push(JSON5.parse(env.MIMOCODE_CONFIG_CONTENT))
+    }
+    let model = ''
+    for (const config of configs) {
+      if (typeof config?.model === 'string') model = config.model
+    }
+    if (!model.includes('/')) return ''
+    const providerId = model.split('/')[0]
+    let key
+    for (const config of configs) {
+      const options = config?.provider?.[providerId]?.options
+      if (options && Object.hasOwn(options, 'apiKey')) key = options.apiKey
+    }
     if (typeof key !== 'string' || !key.trim()) return ''
     return key
   } catch { return '' }

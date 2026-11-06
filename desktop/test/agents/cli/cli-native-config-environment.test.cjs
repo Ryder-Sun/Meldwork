@@ -123,3 +123,34 @@ test('MiMo captures only the selected provider environment reference and redacts
   assert.deepEqual(mimoDeclaredCredentialKeys({ env }), [])
   assert.equal(mimoConfiguredProvider({ env: { ...env, NODE_OPTIONS: 'unsafe' } }), false)
 })
+
+test('MiMo resolves provider references across native configuration overrides', t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-mimo-overrides-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const root = path.join(directory, 'xdg')
+  const selected = path.join(directory, 'selected')
+  fs.mkdirSync(path.join(root, 'mimocode'), { recursive: true })
+  fs.mkdirSync(selected)
+  const provider = apiKey => ({ custom: { options: { apiKey } } })
+  fs.writeFileSync(path.join(root, 'mimocode', 'mimocode.json'), JSON.stringify({
+    model: 'custom/model', provider: provider('{env:GLOBAL_SECRET}'),
+  }))
+  const file = path.join(directory, 'override.json')
+  fs.writeFileSync(file, JSON.stringify({ provider: provider('{env:FILE_SECRET}') }))
+  fs.writeFileSync(path.join(selected, 'mimocode.json'), JSON.stringify({ provider: provider('{env:DIR_SECRET}') }))
+  const { mimoDeclaredCredentialKeys, mimoConfiguredProvider } = require('../../../src/agents/cli/mimo-native-config.cjs')
+  const env = { XDG_CONFIG_HOME: root, MIMOCODE_CONFIG: file, MIMOCODE_CONFIG_DIR: selected,
+    GLOBAL_SECRET: 'a', FILE_SECRET: 'b', DIR_SECRET: 'c', INLINE_SECRET: 'd' }
+  assert.deepEqual(mimoDeclaredCredentialKeys({ env }), ['DIR_SECRET'])
+  const inline = { ...env, MIMOCODE_CONFIG_CONTENT: JSON.stringify({ provider: provider('{env:INLINE_SECRET}') }) }
+  assert.deepEqual(mimoDeclaredCredentialKeys({ env: inline }), ['INLINE_SECRET'])
+  assert.equal(mimoConfiguredProvider({ env: inline }), true)
+  const selectedEnv = nativeCredentialEnvironment('mimo', inline, ['INLINE_SECRET'])
+  assert.equal(selectedEnv.MIMOCODE_CONFIG, file)
+  assert.equal(selectedEnv.INLINE_SECRET, 'd')
+  assert.equal(selectedEnv.DIR_SECRET, undefined)
+  fs.writeFileSync(path.join(selected, 'mimocode.jsonc'), '{ // native override\n provider: { custom: { options: { apiKey: "{env:JSONC_SECRET}", }, }, }, }')
+  assert.deepEqual(mimoDeclaredCredentialKeys({ env }), ['JSONC_SECRET'])
+  fs.writeFileSync(path.join(selected, 'mimocode.json'), '{bad json')
+  assert.deepEqual(mimoDeclaredCredentialKeys({ env }), [])
+})

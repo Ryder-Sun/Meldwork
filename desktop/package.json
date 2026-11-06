@@ -28,6 +28,7 @@
     "@agentclientprotocol/sdk": "0.23.0",
     "@streamparser/json": "0.0.22",
     "js-yaml": "^4.3.2",
+    "json5": "^2.2.3",
     "zod": "4.4.3"
   },
   "devDependencies": {
