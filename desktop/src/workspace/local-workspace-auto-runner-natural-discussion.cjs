@@ -27,6 +27,9 @@ const naturalDiscussionMethods = {
 
   v4NaturalMessageContent(message) {
     const text = String(message.content || '')
+    if (message.trace?.status && message.trace.status !== 'completed') {
+      return { text, partial: true }
+    }
     if (text.length < MAX_MESSAGE_TEXT_CHARS && message.trace?.truncated !== true) {
       return { text, partial: false }
     }

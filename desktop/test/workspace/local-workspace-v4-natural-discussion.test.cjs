@@ -8,6 +8,7 @@ const { RunScheduler } = require('../../src/runs/run-scheduler.cjs')
 const { LocalWorkspace } = require('../../src/workspace/local-workspace.cjs')
 const { naturalConsensusMethods } = require('../../src/workspace/local-workspace-auto-runner-natural-consensus.cjs')
 const { v4NaturalDecisionMethods } = require('../../src/workspace/local-workspace-auto-runner-natural-decisions.cjs')
+const { naturalDiscussionMethods } = require('../../src/workspace/local-workspace-auto-runner-natural-discussion.cjs')
 const { deferred, fixture } = require('../support/local-workspace-test-helpers.cjs')
 
 function delay(ms) {
@@ -63,7 +64,7 @@ test('a truncated peer review cannot approve or retain a discussion candidate', 
     ...naturalConsensusMethods,
     state: () => ({ messages }),
     v4NaturalMessageMatchesBinding: () => true,
-    v4NaturalMessageContent: message => ({ text: message.content, partial: message.trace.truncated === true }),
+    v4NaturalMessageContent: naturalDiscussionMethods.v4NaturalMessageContent,
   }
   const group = { id: 'group' }
   const controller = { runId: 'run' }
@@ -80,8 +81,22 @@ test('a truncated peer review cannot approve or retain a discussion candidate', 
   assert.equal(runner.v4NaturalConsensus(group, controller, 'task'), null)
   messages[1].trace.truncated = false
   assert.deepEqual([...runner.v4NaturalConsensus(group, controller, 'task').approvedKinds], ['codex', 'hermes'])
+  messages[1].trace.status = 'failed'
+  assert.equal(runner.v4NaturalConsensus(group, controller, 'task'), null)
+  messages[1].trace.status = 'completed'
   messages[0].trace.truncated = true
   assert.equal(runner.v4NaturalConsensus(group, controller, 'task'), null)
+})
+
+test('failed and partial Agent runs cannot provide complete discussion contributions', () => {
+  for (const status of ['failed', 'partial', 'cancelled', 'interrupted']) {
+    assert.equal(naturalDiscussionMethods.v4NaturalMessageContent({
+      content: 'The answer is complete.', trace: { status },
+    }).partial, true, status)
+  }
+  assert.equal(naturalDiscussionMethods.v4NaturalMessageContent({
+    content: 'The answer is complete.', trace: { status: 'completed' },
+  }).partial, false)
 })
 
 test('sequential discussion asks the owner to replace a truncated completion', async () => {
