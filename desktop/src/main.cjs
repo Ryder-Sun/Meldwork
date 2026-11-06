@@ -281,7 +281,7 @@ async function detectLocalAgents() {
   return detectAgents({
     env: shellEnvironment.env,
     home: shellEnvironment.home,
-    nativeCredentialKeysForKind: kind => kind === 'hermes' ? shellEnvironment.hermesCredentialKeys
+    nativeCredentialKeysForKind: kind => kind === 'codex' ? ['CODEX_API_KEY'] : kind === 'hermes' ? shellEnvironment.hermesCredentialKeys
       : kind === 'zcode' ? shellEnvironment.zcodeCredentialKeys : [],
     nativeEnvironmentForKind: kind => kind === 'openclaw'
       ? {} : nativeCredentialEnvironment(kind, nativeConfigEnvironment(kind, workspace?.state.agentPreferences, shellEnvironment.env),
@@ -437,8 +437,10 @@ async function runCoreAgent(agent, prompt, workdir, options = {}) {
     : {}
   return runAgent(agent, prompt, workdir, {
     ...runOptions,
-    ...(!connectorCredentialIsolation && ['hermes', 'zcode'].includes(agent.kind)
-      ? { nativeCredentialKeys: agent.kind === 'hermes' ? shellEnvironment.hermesCredentialKeys : shellEnvironment.zcodeCredentialKeys } : {}),
+    ...(connectorCredentialIsolation ? { nativeCredentialKeys: ['CODEX_API_KEY'] }
+      : ['codex', 'hermes', 'zcode'].includes(agent.kind)
+        ? { nativeCredentialKeys: agent.kind === 'codex' ? ['CODEX_API_KEY']
+          : agent.kind === 'hermes' ? shellEnvironment.hermesCredentialKeys : shellEnvironment.zcodeCredentialKeys } : {}),
     ...injected,
     env: {
       ...networkEnvironment(shellEnvironment?.env),

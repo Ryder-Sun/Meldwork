@@ -477,14 +477,14 @@ test('restores multiple credential-bearing accounts and drops invalid references
   await restarted.run(agents[0], 'Review this', '/tmp/workspace', {
     runId: 'run-3', agentRunId: 'agent-run-3', sandbox: 'read-only',
   })
-  assert.equal(calls.at(-1)[3].env.OPENAI_API_KEY, 'connector-secret-a')
+  assert.equal(calls.at(-1)[3].env.CODEX_API_KEY, 'connector-secret-a')
   assert.equal(calls.at(-1)[3].connectorCredentialIsolation, true)
   assert.equal(calls.at(-1)[3].connectorInstanceId, first.instanceId)
   assert.equal(Object.hasOwn(calls.at(-1)[3], 'credentialRefId'), false)
   await restarted.run(agents[1], 'Review this', '/tmp/workspace', {
     runId: 'run-4', agentRunId: 'agent-run-4', sandbox: 'read-only',
   })
-  assert.equal(calls.at(-1)[3].env.OPENAI_API_KEY, 'connector-secret-b')
+  assert.equal(calls.at(-1)[3].env.CODEX_API_KEY, 'connector-secret-b')
   assert.equal(calls.at(-1)[3].connectorCredentialIsolation, true)
   assert.equal(calls.at(-1)[3].connectorInstanceId, second.instanceId)
 

@@ -189,7 +189,7 @@ function delegatedCredentialEnvironment(manifest, values) {
     fail('AGENT_CONNECTOR_CREDENTIAL_SCHEMA_UNSUPPORTED')
   }
   return values['openai-api-key']
-    ? { OPENAI_API_KEY: values['openai-api-key'] }
+    ? { CODEX_API_KEY: values['openai-api-key'] }
     : {}
 }
 

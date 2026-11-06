@@ -51,6 +51,13 @@ test('Zcode declared provider credentials are isolated and redacted', () => {
   assert.equal(childEnvironment({ kind: 'codex', executable: '/native/codex' }, '/workspace', options, 'darwin').ACME_API_KEY, undefined)
 })
 
+test('Codex Connector credentials are redacted even when short', () => {
+  const options = { env: { CODEX_API_KEY: 'abc' }, nativeCredentialKeys: ['CODEX_API_KEY'] }
+  const child = childEnvironment({ kind: 'codex', executable: '/native/codex' }, '/workspace', options, 'darwin')
+  assert.equal(child.CODEX_API_KEY, 'abc')
+  assert.equal(redactChildSecrets('key=abc', child), 'key=[redacted]')
+})
+
 test('Hermes native endpoint variables reach its child without leaking to other Agents', () => {
   const env = { CUSTOM_BASE_URL: 'https://custom.example', OPENROUTER_BASE_URL: 'https://router.example',
     OLLAMA_HOST: 'http://localhost:11434', OLLAMA_API_KEY: 'test-secret', NODE_OPTIONS: '--require /untrusted.js' }

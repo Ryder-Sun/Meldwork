@@ -170,6 +170,18 @@ test('native environment cache observes credential and proxy changes without a P
   assert.equal(removed.env.HTTPS_PROXY, undefined)
 })
 
+test('Codex native API key is captured and scoped to Codex', async () => {
+  const result = await resolveNativeShellEnvironment({ cache: false, platform: 'win32',
+    env: { Codex_Api_Key: 'native-key', UNRELATED_SECRET: 'private' } })
+  assert.equal(result.env.CODEX_API_KEY, 'native-key')
+  assert.deepEqual(nativeCredentialEnvironment('codex', result.env), { CODEX_API_KEY: 'native-key' })
+  assert.deepEqual(nativeCredentialEnvironment('hermes', result.env), {})
+  assert.deepEqual(nativeCredentialState('codex', { home: '/nonexistent', env: result.env }), {
+    state: 'ready', source: 'native-credential',
+  })
+  assert.equal(result.env.UNRELATED_SECRET, undefined)
+})
+
 test('Windows native environment canonicalizes allowed keys without leaking unrelated values', async () => {
   const result = await resolveNativeShellEnvironment({ cache: false, platform: 'win32', env: {
     Path: 'C:\\tools', Anthropic_Api_Key: 'native-secret', Claude_Config_Dir: 'C:\\claude',

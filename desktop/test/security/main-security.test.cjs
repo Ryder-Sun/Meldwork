@@ -678,7 +678,8 @@ test('Agent Connector IPC persists isolated accounts without returning Credentia
     { runId: 'run-account-a', agentRunId: 'agent-run-account-a', sandbox: 'read-only' },
   )
   assert.doesNotMatch(JSON.stringify(result), /credential-ref|connector-main-secret/i)
-  assert.equal(harness.runAgentCalls.at(-1)[3].env.OPENAI_API_KEY, 'connector-main-secret-a')
+  assert.equal(harness.runAgentCalls.at(-1)[3].env.CODEX_API_KEY, 'connector-main-secret-a')
+  assert.equal(harness.runAgentCalls.at(-1)[3].env.OPENAI_API_KEY, undefined)
   assert.equal(Object.hasOwn(harness.runAgentCalls.at(-1)[3].env, 'OPENAI_BASE_URL'), false)
   assert.equal(Object.hasOwn(harness.runAgentCalls.at(-1)[3].env, 'OPENAI_MODEL'), false)
   const firstEnv = harness.runAgentCalls.at(-1)[3].env
@@ -701,7 +702,7 @@ test('Agent Connector IPC persists isolated accounts without returning Credentia
   }
   assert.equal(child.CODEX_HOME, firstEnv.CODEX_HOME)
   assert.equal(child.XDG_CONFIG_HOME, firstEnv.XDG_CONFIG_HOME)
-  assert.equal(child.OPENAI_API_KEY, 'connector-main-secret-a')
+  assert.equal(child.CODEX_API_KEY, 'connector-main-secret-a')
 
   await workspace.input.connectorRuntime.run(
     agents.find(agent => agent.kind === second.instanceId),
@@ -709,7 +710,7 @@ test('Agent Connector IPC persists isolated accounts without returning Credentia
     directory,
     { runId: 'run-account-b', agentRunId: 'agent-run-account-b', sandbox: 'read-only' },
   )
-  assert.equal(harness.runAgentCalls.at(-1)[3].env.OPENAI_API_KEY, 'connector-main-secret-b')
+  assert.equal(harness.runAgentCalls.at(-1)[3].env.CODEX_API_KEY, 'connector-main-secret-b')
   const secondOptions = harness.runAgentCalls.at(-1)[3]
   assert.notEqual(secondOptions.env.CODEX_HOME, firstEnv.CODEX_HOME)
   const { executable } = require('../support/cli-adapters-test-helpers.cjs')
@@ -718,7 +719,7 @@ test('Agent Connector IPC persists isolated accounts without returning Credentia
     'const path = require("node:path")',
     'const home = process.env.CODEX_HOME',
     'const scoped = process.env.XDG_CONFIG_HOME === path.join(home, "config")',
-    'const account = process.env.OPENAI_API_KEY === "connector-main-secret-a" ? "a" : process.env.OPENAI_API_KEY === "connector-main-secret-b" ? "b" : "other"',
+    'const account = process.env.CODEX_API_KEY === "connector-main-secret-a" ? "a" : process.env.CODEX_API_KEY === "connector-main-secret-b" ? "b" : "other"',
     'process.stdout.write(JSON.stringify({type:"item.completed",item:{type:"agent_message",text:`${account}:${scoped}`}}) + "\\n")',
   ].join('\n'))
   for (const [options, expected] of [[firstOptions, 'a:true'], [secondOptions, 'b:true']]) {
