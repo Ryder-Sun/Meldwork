@@ -4,6 +4,7 @@ const test = require('node:test')
 const { createAgentConnectorManifest } = require('../../../src/agents/connectors/agent-connector-manifest.cjs')
 const { AgentConnectorRegistry } = require('../../../src/agents/connectors/agent-connector-registry.cjs')
 const { AgentConnectorRuntime } = require('../../../src/agents/connectors/agent-connector-runtime.cjs')
+const { recordReplyUsage } = require('../../../src/workspace/invocation-budget.cjs')
 
 function manifestInput(overrides = {}) {
   return {
@@ -134,6 +135,7 @@ test('discovers and runs an approved external Connector with trusted durable pro
     'SourceUsed', 'Usage', 'Completed',
   ])
   assert.equal(result.connectorEventState.usage.inputTokens, 12)
+  assert.deepEqual(result.usage, { inputTokens: 12 })
   assert.equal(states.length, 4)
   assert.deepEqual(states.at(-1).connectorEventState, result.connectorEventState)
   assert.equal(uiEvents.length, 3)
@@ -142,6 +144,53 @@ test('discovers and runs an approved external Connector with trusted durable pro
     destination: 'https://review.example.com/v1',
     transport: 'http',
   }])
+})
+
+test('unreported Connector usage is estimated instead of counted as zero', async () => {
+  const { runtime } = runtimeFixture(async input => {
+    input.emit({ eventId: 'completed', cursor: 'completed', sequence: 1,
+      type: 'Completed', outcome: 'completed' })
+    return { text: 'abcdefgh', outcome: 'completed' }
+  })
+  const result = await runtime.run(runtime.detectAgents()[0], 'Review', '/tmp/workspace', {
+    runId: 'run-no-usage', agentRunId: 'agent-no-usage', sandbox: 'read-only',
+  })
+  assert.deepEqual(result.usage, {})
+  const batches = []
+  recordReplyUsage({ addUsageBatch: batch => batches.push(batch), elapsedValue: () => 1 }, {
+    usage: result.usage, replyText: result.text, toolCallCount: 0,
+  })
+  assert.deepEqual(batches[0][0], { dimension: 'outputTokens', amount: 2, source: 'estimated' })
+})
+
+test('Connector result usage must be declared and supported by usage events', async () => {
+  for (const [usage, expected] of [
+    [{ unknown: 1 }, 'AGENT_CONNECTOR_USAGE_UNDECLARED'],
+    [{ outputTokens: 4 }, 'AGENT_CONNECTOR_USAGE_UNREPORTED'],
+  ]) {
+    const { runtime } = runtimeFixture(async input => {
+      input.emit({ eventId: 'completed', cursor: 'completed', sequence: 1,
+        type: 'Completed', outcome: 'completed' })
+      return { text: 'done', outcome: 'completed', usage }
+    })
+    await assert.rejects(runtime.run(runtime.detectAgents()[0], 'Review', '/tmp/workspace', {
+      runId: 'run-result-usage', agentRunId: 'agent-result-usage', sandbox: 'read-only',
+    }), { message: expected })
+  }
+  for (const [returned, accepted] of [[3, true], [4, false]]) {
+    const { runtime } = runtimeFixture(async input => {
+      input.emit({ eventId: 'usage', cursor: 'usage', sequence: 1,
+        type: 'Usage', mode: 'delta', usage: { outputTokens: 3 } })
+      input.emit({ eventId: 'completed', cursor: 'completed', sequence: 2,
+        type: 'Completed', outcome: 'completed' })
+      return { text: 'done', outcome: 'completed', usage: { outputTokens: returned } }
+    })
+    const run = runtime.run(runtime.detectAgents()[0], 'Review', '/tmp/workspace', {
+      runId: 'run-usage-match', agentRunId: 'agent-usage-match', sandbox: 'read-only',
+    })
+    if (accepted) assert.deepEqual((await run).usage, { outputTokens: 3 })
+    else await assert.rejects(run, { message: 'AGENT_CONNECTOR_USAGE_UNREPORTED' })
+  }
 })
 
 test('rejects every undeclared Connector capability before it crosses the recipe boundary', async () => {

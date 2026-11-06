@@ -104,13 +104,27 @@ function assertEventCapabilities(connector, input) {
   }
 }
 
-function assertResultCapabilities(connector, result) {
+function assertResultCapabilities(connector, result, state) {
   if (String(result?.sessionRef || '') && !connector.capabilities.session.supported) {
     fail('AGENT_CONNECTOR_SESSION_UNSUPPORTED')
   }
   if (result?.outcome === 'cancelled' && !connector.capabilities.session.cancel) {
     fail('AGENT_CONNECTOR_CANCEL_UNSUPPORTED')
   }
+  if (result.usage != null) {
+    if (typeof result.usage !== 'object' || Array.isArray(result.usage)) fail('AGENT_CONNECTOR_USAGE_UNDECLARED')
+    for (const [field, value] of Object.entries(result.usage)) {
+      if (connector.capabilities.usage[field] !== true) fail('AGENT_CONNECTOR_USAGE_UNDECLARED')
+      if (!state.events.some(event => event.type === 'Usage' && Object.hasOwn(event.usage, field))
+          || value !== state.usage[field]) fail('AGENT_CONNECTOR_USAGE_UNREPORTED')
+    }
+  }
+}
+
+function observedUsage(state) {
+  const fields = new Set(state.events.filter(event => event.type === 'Usage')
+    .flatMap(event => Object.keys(event.usage)))
+  return Object.fromEntries([...fields].map(field => [field, state.usage[field]]))
 }
 
 function validatedOutcomeRefs(result, state) {
@@ -450,7 +464,8 @@ class AgentConnectorRuntime {
     if (!result || typeof result !== 'object' || Array.isArray(result)) {
       fail('AGENT_CONNECTOR_RESULT_INVALID')
     }
-    assertResultCapabilities(connector, result)
+    assertResultCapabilities(connector, result, state)
+    const usage = observedUsage(state)
     const outcomeRefs = validatedOutcomeRefs(result, state)
     if (result.outcome != null && result.outcome !== state.status) {
       fail('AGENT_CONNECTOR_RESULT_MISMATCH')
@@ -465,7 +480,7 @@ class AgentConnectorRuntime {
         ...result,
         ...(outcomeRefs ? { outcomeRefs } : {}),
         outcome: state.status,
-        usage: state.usage,
+        usage,
         waitingRequest: clone(waiting),
         connector,
         connectorEventState: clone(state),
@@ -485,7 +500,7 @@ class AgentConnectorRuntime {
           category: terminal?.category || 'protocol',
           retryable: terminal?.retryable === true,
         },
-        usage: state.usage,
+        usage,
         connector,
         connectorEventState: clone(state),
       }
@@ -495,7 +510,7 @@ class AgentConnectorRuntime {
         text: terminal?.summary || '',
         sessionRef: '',
         outcome: 'cancelled',
-        usage: state.usage,
+        usage,
         connector,
         connectorEventState: clone(state),
       }
@@ -504,7 +519,7 @@ class AgentConnectorRuntime {
       ...result,
       ...(outcomeRefs ? { outcomeRefs } : {}),
       outcome: state.status,
-      usage: state.usage,
+      usage,
       connector,
       connectorEventState: clone(state),
     }
