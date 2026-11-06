@@ -1,4 +1,13 @@
 export default {
+    'nativeConfig.title': 'Native configuration directory',
+    'nativeConfig.automatic': 'No directory selected; the CLI native configuration will be discovered automatically.',
+    'nativeConfig.choose': 'Choose directory',
+    'nativeConfig.clear': 'Restore automatic discovery',
+    'nativeConfig.invalid': 'The selected directory does not contain this Agent’s native configuration.',
+    'nativeConfig.expected.hermes': 'Expected config.yaml or auth.json.',
+    'nativeConfig.expected.codex': 'Expected config.toml or auth.json.',
+    'nativeConfig.expected.claude': 'Expected settings.json or .credentials.json.',
+    'nativeConfig.expected.pi': 'Expected settings.json, auth.json or models.json.',
     'skillTrust.title': 'Skill trust',
     'skillTrust.hint': 'Review trust granted to an Agent and exact Skill content. Changed content requires approval again.',
     'skillTrust.refresh': 'Refresh',

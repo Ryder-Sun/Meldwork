@@ -49,6 +49,7 @@ export function messageKeys(language) {
 }
 
 export const DESKTOP_ERROR_MESSAGE_KEYS = Object.freeze({
+  LOCAL_NATIVE_CONFIG_INVALID: 'nativeConfig.invalid',
   LOCAL_WORKFLOW_PROTOCOL_UNSUPPORTED: 'error.workflowProtocolUnsupported',
   AGENT_CONNECTOR_INSTANCE_IN_USE: 'connectorPackages.instanceInUse',
   LOCAL_DELIVERY_INVALID: 'delivery.error.invalid',

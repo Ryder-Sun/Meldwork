@@ -4,6 +4,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const { redactSecrets } = require('./security/secret-redaction.cjs')
 const { ensurePrivateDirectory } = require('./security/private-file.cjs')
+const { nativeConfigEnvironment } = require('./agents/native-config-directory.cjs')
 const { AttachmentStore } = require('./attachments/attachment-store.cjs')
 const { ContentBlobStore } = require('./attachments/content-blob-store.cjs')
 const { ContextPackStore } = require('./collaboration/context-pack-store.cjs')
@@ -257,7 +258,7 @@ async function detectLocalAgents() {
     env: shellEnvironment.env,
     home: shellEnvironment.home,
     nativeEnvironmentForKind: kind => kind === 'openclaw'
-      ? {} : nativeCredentialEnvironment(kind, shellEnvironment.env),
+      ? {} : nativeCredentialEnvironment(kind, nativeConfigEnvironment(kind, workspace?.state.agentPreferences, shellEnvironment.env)),
   })
 }
 
@@ -351,6 +352,8 @@ async function runCoreAgent(agent, prompt, workdir, options = {}) {
   const runOptions = { ...options }
   delete runOptions.connectorCredentialIsolation
   const shellEnvironment = connectorCredentialIsolation ? null : await nativeShellEnvironment()
+  const selectedNativeEnv = shellEnvironment
+    ? nativeConfigEnvironment(agent.kind, workspace?.state.agentPreferences, shellEnvironment.env) : null
   // OpenClaw runs through its isolated native runtime scope; every other Agent
   // CLI uses its own native credentials.
   const nativeRuntime = !connectorCredentialIsolation && agent.kind === 'openclaw'
@@ -373,8 +376,8 @@ async function runCoreAgent(agent, prompt, workdir, options = {}) {
   const nativeEnv = connectorCredentialIsolation || agent.kind === 'openclaw'
     ? {}
     : {
-        ...configDirectoryEnvironment(shellEnvironment.env),
-        ...nativeCredentialEnvironment(agent.kind, shellEnvironment.env),
+        ...configDirectoryEnvironment(selectedNativeEnv),
+        ...nativeCredentialEnvironment(agent.kind, selectedNativeEnv),
         ...(agent.kind === 'workbuddy' ? workBuddyEnvironment({
           env: shellEnvironment.env, home: shellEnvironment.home,
           modelId: workspace?.state.agentPreferences.workbuddy?.modelId,
@@ -389,7 +392,9 @@ async function runCoreAgent(agent, prompt, workdir, options = {}) {
     ...injected,
     env: {
       ...networkEnvironment(shellEnvironment?.env),
-      ...nativeEnv, ...callerEnv, ...injected.env,
+      ...nativeEnv, ...callerEnv,
+      ...(connectorCredentialIsolation ? {} : nativeConfigEnvironment(agent.kind, workspace?.state.agentPreferences)),
+      ...injected.env,
     },
   })
 }
@@ -557,7 +562,7 @@ function createWorkspace() {
       const shellEnvironment = await nativeShellEnvironment()
       return resolveNativeCredentialState(kind, {
         executable: agent?.executable,
-        env: shellEnvironment.env,
+        env: nativeConfigEnvironment(kind, workspace?.state.agentPreferences, shellEnvironment.env),
         home: shellEnvironment.home,
         credentialSource: shellEnvironment.source,
         ...(kind === 'workbuddy' ? { modelId: workspace?.state.agentPreferences.workbuddy?.modelId } : {}),

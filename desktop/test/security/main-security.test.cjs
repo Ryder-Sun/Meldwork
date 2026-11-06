@@ -158,6 +158,70 @@ test('every local IPC handler rejects an untrusted renderer before dispatch', as
   }
 })
 
+test('native Agent configuration selection is validated and used for execution', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-config-ipc-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const native = path.join(directory, 'hermes-native')
+  fs.mkdirSync(native)
+  fs.writeFileSync(path.join(native, 'config.yaml'), 'model: native\n')
+  const selection = { canceled: false, filePaths: [native] }
+  let detectedEnvironment
+  let credentialEnvironment
+  const { harness } = loadMain(directory, { dialogResult: selection,
+    nativeShellEnvironment: () => ({ env: {}, source: 'native-shell' }),
+    nativeEnvironment: (_kind, env) => ({ HERMES_HOME: env.HERMES_HOME }),
+    detectAgents: input => { detectedEnvironment = input.nativeEnvironmentForKind('hermes'); return [] },
+    nativeCredentialState: (_kind, input) => { credentialEnvironment = input.env; return { state: 'ready', source: 'native-credential' } },
+  })
+  await harness.ready()
+  const workspace = harness.workspaceInstances[0]
+  workspace.state.agentPreferences = {}
+  workspace.state.agentRuntime = {}
+  workspace.activeRuns = new Map()
+  workspace.save = () => {}
+  const choose = harness.ipcHandlers.get('local-agent-native-config:choose')
+  const get = harness.ipcHandlers.get('local-agent-native-config:get')
+  const clear = harness.ipcHandlers.get('local-agent-native-config:clear')
+  await assert.rejects(() => choose(harness.event(), 'unsupported'), { message: 'LOCAL_NATIVE_CONFIG_INVALID' })
+  const chosen = await choose(harness.event(), 'hermes')
+  assert.equal(chosen.directory, fs.realpathSync(native))
+  assert.equal((await get(harness.event(), 'hermes')).directory, chosen.directory)
+  await harness.installerInstances[0].input.detectAgents()
+  assert.equal(detectedEnvironment.HERMES_HOME, chosen.directory)
+  await workspace.input.credentialState('hermes', { executable: '/tmp/hermes' })
+  assert.equal(credentialEnvironment.HERMES_HOME, chosen.directory)
+  await workspace.input.runAgent({ kind: 'hermes', executable: '/tmp/hermes' }, 'hello', directory, { env: { HERMES_HOME: '/other' } })
+  assert.equal(harness.runAgentCalls.at(-1)[3].env.HERMES_HOME, chosen.directory)
+  selection.filePaths = [directory]
+  await assert.rejects(() => choose(harness.event(), 'hermes'), { message: 'LOCAL_NATIVE_CONFIG_INVALID' })
+  assert.equal((await get(harness.event(), 'hermes')).directory, chosen.directory)
+  workspace.activeRuns.set('busy', {})
+  await assert.rejects(() => clear(harness.event(), 'hermes'), { message: 'LOCAL_WORK_PREFERENCES_BUSY' })
+  workspace.activeRuns.clear()
+  assert.equal((await clear(harness.event(), 'hermes')).directory, '')
+  assert.equal((await get(harness.event(), 'hermes')).directory, '')
+})
+
+test('native configuration cannot change if a run starts while the picker is open', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-config-race-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  fs.writeFileSync(path.join(directory, 'config.yaml'), 'model: native\n')
+  let resolvePicker
+  const picker = new Promise(resolve => { resolvePicker = resolve })
+  const { harness } = loadMain(directory, { onOpenDialog: () => picker })
+  await harness.ready()
+  const workspace = harness.workspaceInstances[0]
+  workspace.state.agentPreferences = {}
+  workspace.state.agentRuntime = {}
+  workspace.activeRuns = new Map()
+  workspace.save = () => assert.fail('must not save while a run is active')
+  const choosing = harness.ipcHandlers.get('local-agent-native-config:choose')(harness.event(), 'hermes')
+  workspace.activeRuns.set('busy', {})
+  resolvePicker({ canceled: false, filePaths: [directory] })
+  await assert.rejects(() => choosing, { message: 'LOCAL_WORK_PREFERENCES_BUSY' })
+  assert.equal(workspace.state.agentPreferences.hermes, undefined)
+})
+
 test('ready activates one fixed local workspace and loads the bundled frontend', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-ready-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

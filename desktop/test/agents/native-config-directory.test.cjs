@@ -1,0 +1,49 @@
+const test = require('node:test')
+const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const os = require('node:os')
+const path = require('node:path')
+const { nativeConfigEnvironment, validateNativeConfigDirectory } = require('../../src/agents/native-config-directory.cjs')
+const { loadWorkspaceState, saveWorkspaceState } = require('../../src/workspace/local-workspace-state.cjs')
+
+test('validates a selected native directory and scopes it to the owning Agent', t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-config-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  assert.throws(() => validateNativeConfigDirectory('hermes', directory), { message: 'LOCAL_NATIVE_CONFIG_INVALID' })
+  fs.writeFileSync(path.join(directory, 'config.yaml'), 'model: native\n')
+  const selected = validateNativeConfigDirectory('hermes', directory)
+  const preferences = { hermes: { nativeConfigDirectory: selected } }
+  assert.equal(nativeConfigEnvironment('hermes', preferences, { PATH: '/bin' }).HERMES_HOME, selected)
+  assert.deepEqual(nativeConfigEnvironment('codex', preferences, { PATH: '/bin' }), { PATH: '/bin' })
+  assert.throws(() => validateNativeConfigDirectory('unknown', directory), { message: 'LOCAL_NATIVE_CONFIG_INVALID' })
+  assert.throws(() => validateNativeConfigDirectory('hermes', 'relative'), { message: 'LOCAL_NATIVE_CONFIG_INVALID' })
+  assert.throws(() => nativeConfigEnvironment('hermes', { hermes: { nativeConfigDirectory: 'relative' } }), { message: 'LOCAL_NATIVE_CONFIG_INVALID' })
+})
+
+test('a selected native directory survives workspace restart', t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-config-restart-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  fs.writeFileSync(path.join(directory, 'config.yaml'), 'model: native\n')
+  const selected = validateNativeConfigDirectory('hermes', directory)
+  const storagePath = path.join(directory, 'workspace.json')
+  saveWorkspaceState(storagePath, { version: 3, groups: [], messages: [], sessions: {},
+    agentPreferences: { hermes: { nativeConfigDirectory: selected } }, agentRuntime: {} })
+  const restored = loadWorkspaceState(storagePath)
+  assert.equal(restored.status, 'ready')
+  assert.equal(nativeConfigEnvironment('hermes', restored.state.agentPreferences).HERMES_HOME, selected)
+})
+
+for (const [kind, key, file] of [
+  ['codex', 'CODEX_HOME', 'config.toml'],
+  ['claude', 'CLAUDE_CONFIG_DIR', 'settings.json'],
+  ['pi', 'PI_CODING_AGENT_DIR', 'models.json'],
+]) {
+  test(`${kind} uses its selected native configuration directory`, t => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), `meldwork-${kind}-config-`))
+    t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+    fs.writeFileSync(path.join(directory, file), '')
+    const selected = validateNativeConfigDirectory(kind, directory)
+    assert.equal(nativeConfigEnvironment(kind, { [kind]: { nativeConfigDirectory: selected } })[key], selected)
+    assert.deepEqual(nativeConfigEnvironment('hermes', { [kind]: { nativeConfigDirectory: selected } }), {})
+  })
+}

@@ -6,6 +6,7 @@ const { statusForHumanGateOption } = require('../gates/human-gate-coordinator.cj
 const { ATTACHMENT_FILE_EXTENSIONS } = require('../attachments/attachment-records.cjs')
 const { registerDeliveryIpc } = require('./delivery-ipc.cjs')
 const { loadedWorkPreferences, parseWorkPreferences } = require('../workspace/work-preferences.cjs')
+const { NATIVE_CONFIG_DIRECTORIES, validateNativeConfigDirectory } = require('../agents/native-config-directory.cjs')
 
 const LOCAL_GROUP_IDENTIFIER = /^[^\u0000-\u001f\u007f]{1,100}$/u
 const LOCAL_RUN_IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/
@@ -424,6 +425,41 @@ function registerDesktopIpc(options) {
   })
   registerTrustedHandle('local-workspace:default-directory', () => app.getPath('documents'))
   registerTrustedHandle('local-agent-installer:catalog', async () => localAgentCatalog())
+  registerTrustedHandle('local-agent-native-config:get', (...args) => {
+    if (args.length !== 1 || typeof args[0] !== 'string' || !Object.hasOwn(NATIVE_CONFIG_DIRECTORIES, args[0])) throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
+    const workspace = getWorkspace()
+    if (!workspace) throw new Error('LOCAL_WORKSPACE_UNAVAILABLE')
+    return { directory: workspace.state.agentPreferences[args[0]]?.nativeConfigDirectory || '' }
+  })
+  for (const action of ['choose', 'clear']) {
+    registerTrustedHandle(`local-agent-native-config:${action}`, async (...args) => {
+      if (args.length !== 1 || typeof args[0] !== 'string' || !Object.hasOwn(NATIVE_CONFIG_DIRECTORIES, args[0])) throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
+      const kind = args[0]
+      const workspace = getWorkspace()
+      if (!workspace) throw new Error('LOCAL_WORKSPACE_UNAVAILABLE')
+      if (workspace.activeRuns.size || workspace.preparingRuns?.size) throw new Error('LOCAL_WORK_PREFERENCES_BUSY')
+      let directory = ''
+      if (action === 'choose') {
+        const selected = await dialog.showOpenDialog(getMainWindow(), { properties: ['openDirectory'] })
+        if (selected.canceled) return { canceled: true }
+        directory = validateNativeConfigDirectory(kind, selected.filePaths[0])
+      }
+      if (getWorkspace() !== workspace || workspace.activeRuns.size || workspace.preparingRuns?.size) throw new Error('LOCAL_WORK_PREFERENCES_BUSY')
+      const previous = workspace.state.agentPreferences[kind]
+      const previousRuntime = workspace.state.agentRuntime[kind]
+      workspace.state.agentPreferences[kind] = { ...previous, nativeConfigDirectory: directory }
+      delete workspace.state.agentRuntime[kind]
+      try { workspace.save() } catch (error) {
+        if (previous) workspace.state.agentPreferences[kind] = previous
+        else delete workspace.state.agentPreferences[kind]
+        if (previousRuntime) workspace.state.agentRuntime[kind] = previousRuntime
+        throw error
+      }
+      installer.invalidateDetectionCache()
+      await refreshLocalAgentState()
+      return { canceled: false, directory }
+    })
+  }
   registerTrustedHandle('local-workbuddy:settings', () => getWorkBuddySettings())
   registerTrustedHandle('local-work-preferences:get', () => loadedWorkPreferences(getWorkspace()?.state.workPreferences))
   registerTrustedHandle('local-work-preferences:save', (...args) => {

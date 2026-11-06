@@ -514,8 +514,23 @@ test('remote preload does not expose local credentials, workspace, or installer 
   assert.equal('localOutcome' in api, false)
   assert.equal('agentInstaller' in api, false)
   assert.equal('localSkillTrust' in api, false)
+  assert.equal('localAgentNativeConfig' in api, false)
   assert.equal('customAgent' in api, false)
   assert.equal('localAttachments' in api, false)
   assert.equal('localAgentProvider' in api, false)
   assert.equal('localKnowledgeBase' in api, false)
+})
+
+test('native Agent configuration preload exposes only scoped directory operations', async () => {
+  const { api, invocations } = loadPreload('file:')
+  assert.equal(Object.isFrozen(api.localAgentNativeConfig), true)
+  assert.deepEqual(Object.keys(api.localAgentNativeConfig).sort(), ['choose', 'clear', 'get'])
+  await api.localAgentNativeConfig.get('hermes')
+  await api.localAgentNativeConfig.choose('hermes')
+  await api.localAgentNativeConfig.clear('hermes')
+  assert.deepEqual(invocations.slice(-3), [
+    { channel: 'local-agent-native-config:get', args: ['hermes'] },
+    { channel: 'local-agent-native-config:choose', args: ['hermes'] },
+    { channel: 'local-agent-native-config:clear', args: ['hermes'] },
+  ])
 })

@@ -286,6 +286,8 @@
       </span>
     </label>
 
+    <AgentNativeConfig v-if="nativeConfigAvailable && !selectedAgentDetail.cloud && !selectedAgentDetail.custom && nativeConfigKinds.includes(selectedAgentDetail.kind)" :key="selectedAgentDetail.kind" :kind="selectedAgentDetail.kind" />
+
     <section class="agent-detail-section">
       <h3>{{ t(selectedAgentDetail.cloud ? 'agentDetail.remoteSkills' : 'agentDetail.localSkills') }}</h3>
       <p v-if="agentDetailSkillsLoading" class="agent-detail-muted">{{ t('agent.skillsLoading') }}</p>
@@ -347,6 +349,11 @@ import {
   WarningOutline,
 } from '@vicons/ionicons5'
 import { skillKey } from '../composables/useComposerContext.js'
+import AgentNativeConfig from './AgentNativeConfig.vue'
+import { desktopApi } from '../desktop.js'
+
+const nativeConfigAvailable = Boolean(desktopApi()?.localAgentNativeConfig)
+const nativeConfigKinds = ['hermes', 'codex', 'claude', 'pi']
 
 
 const props = defineProps({

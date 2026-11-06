@@ -41,6 +41,9 @@ const LOCAL_IPC_CHANNELS = Object.freeze([
   'local-workspace:pick-directory',
   'local-workspace:default-directory',
   'local-agent-installer:catalog',
+  'local-agent-native-config:get',
+  'local-agent-native-config:choose',
+  'local-agent-native-config:clear',
   'local-workbuddy:settings',
   'local-work-preferences:get',
   'local-work-preferences:save',
@@ -671,6 +674,7 @@ function loadMain(userData, options = {}) {
     dialog: {
       showOpenDialog: async (...args) => {
         dialogCalls.push(args)
+        if (options.onOpenDialog) return options.onOpenDialog(...args)
         return options.dialogResult || { canceled: true, filePaths: [] }
       },
       showMessageBox: async (...args) => {
@@ -736,7 +740,7 @@ function loadMain(userData, options = {}) {
   const moduleMocks = {
     electron,
     './agents/cli/cli-adapters.cjs': {
-      detectAgents: async () => [],
+      detectAgents: async input => options.detectAgents?.(input) || [],
       imageAttachmentLimit: kind => ({ codex: 4, hermes: 1, opencode: 4 })[kind] || 0,
       runAgent: async (...args) => {
         runAgentCalls.push(args)
@@ -766,7 +770,7 @@ function loadMain(userData, options = {}) {
           model: { id: 'model', name: 'Native Model', input: ['text'] },
         },
       }),
-      resolveNativeCredentialState: async () => ({ state: 'ready', source: 'native-credential' }),
+      resolveNativeCredentialState: async (...args) => options.nativeCredentialState?.(...args) || ({ state: 'ready', source: 'native-credential' }),
     },
     './workspace/local-workspace.cjs': { LocalWorkspace: TestWorkspace },
     './skills/local-skill-catalog.cjs': { LocalSkillCatalog: TestLocalSkillCatalog },
