@@ -49,6 +49,7 @@ export function messageKeys(language) {
 }
 
 export const DESKTOP_ERROR_MESSAGE_KEYS = Object.freeze({
+  AGENT_CONNECTOR_INSTANCE_IN_USE: 'connectorPackages.instanceInUse',
   LOCAL_DELIVERY_INVALID: 'delivery.error.invalid',
   LOCAL_DELIVERY_NOT_FOUND: 'delivery.error.notFound',
   LOCAL_DELIVERY_LOCKED: 'delivery.error.locked',

@@ -19,6 +19,19 @@
         <button v-if="['imported', 'approved', 'disabled', 'revoked'].includes(item.state)" type="button" :disabled="busy" @click="perform('remove', item)">{{ t('connectorPackages.remove') }}</button>
       </div>
     </article>
+    <h3 v-if="instances.length">{{ t('connectorPackages.instances') }}</h3>
+    <article v-for="instance in instances" :key="instance.instanceId" class="connector-row">
+      <div><strong>{{ instance.label }}</strong><p>{{ t(instance.available ? 'connectorPackages.available' : 'connectorPackages.unavailable') }}</p></div>
+      <div class="connector-actions">
+        <button type="button" :disabled="busy || !instance.available" @click="testInstance(instance)">{{ t('connectorPackages.test') }}</button>
+        <template v-if="confirmingInstance === instance.instanceId">
+          <span>{{ t('connectorPackages.deletePrompt') }}</span>
+          <button type="button" :disabled="busy" @click="confirmingInstance = ''">{{ t('common.cancel') }}</button>
+          <button type="button" :disabled="busy" @click="deleteInstance(instance)">{{ t('connectorPackages.delete') }}</button>
+        </template>
+        <button v-else type="button" :disabled="busy" @click="confirmingInstance = instance.instanceId">{{ t('connectorPackages.delete') }}</button>
+      </div>
+    </article>
     <p v-if="notice" role="status">{{ notice }}</p>
   </section>
 </template>
@@ -31,19 +44,31 @@ import { t, translateError } from '../i18n.js'
 defineEmits(['close'])
 const api = desktopApi().localAgentConnector
 const packages = ref([])
+const instances = ref([])
 const busy = ref(false)
 const error = ref('')
 const notice = ref('')
+const confirmingInstance = ref('')
 async function run(action) {
   busy.value = true
   error.value = ''
   notice.value = ''
-  try { await action(); packages.value = await api.packages() }
+  try { await action(); [packages.value, instances.value] = await Promise.all([api.packages(), api.list()]) }
   catch (caught) { error.value = translateError(caught) }
   finally { busy.value = false }
 }
 function importPackage() { return run(() => api.import()) }
 function perform(action, item) { return run(() => api[action](item.packageId)) }
+function testInstance(instance) {
+  return run(async () => {
+    const result = await api.test(instance.instanceId)
+    notice.value = t(result.passed ? 'connectorPackages.testPassed' : 'connectorPackages.testFailed')
+  })
+}
+function deleteInstance(instance) {
+  confirmingInstance.value = ''
+  return run(() => api.delete(instance.instanceId))
+}
 function configure(item) {
   return run(async () => {
     const detail = await api.inspect(item.packageId)
