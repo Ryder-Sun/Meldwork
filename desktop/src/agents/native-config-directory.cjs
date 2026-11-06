@@ -13,6 +13,13 @@ function nativeEnvironmentIdentity(env) {
 }
 
 function nativeAuthIdentityFiles(kind, env, home) {
+  if (kind === 'gemini') {
+    const settings = env?.GEMINI_CLI_SYSTEM_SETTINGS_PATH
+    const defaults = env?.GEMINI_CLI_SYSTEM_DEFAULTS_PATH
+      || (typeof settings === 'string' && path.isAbsolute(settings) ? path.join(path.dirname(settings), 'system-defaults.json') : '')
+    return [settings, defaults, env?.GOOGLE_APPLICATION_CREDENTIALS]
+      .filter(filename => typeof filename === 'string' && path.isAbsolute(filename))
+  }
   if (kind === 'zcode') {
     const configured = process.platform === 'win32' ? env?.USERPROFILE : env?.HOME
     const root = typeof configured === 'string' && configured.trim() ? configured.trim() : home

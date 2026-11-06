@@ -43,6 +43,18 @@ test('OpenCode authentication identity follows its XDG data directory', () => {
   assert.deepEqual(nativeAuthIdentityFiles('codex', {}, home), [])
 })
 
+test('Gemini authentication identity includes explicitly selected system and cloud files', () => {
+  const home = path.resolve('test-home')
+  const settings = path.join(home, 'system', 'settings.json')
+  const credentials = path.join(home, 'cloud', 'credentials.json')
+  assert.deepEqual(nativeAuthIdentityFiles('gemini', {
+    GEMINI_CLI_SYSTEM_SETTINGS_PATH: settings, GOOGLE_APPLICATION_CREDENTIALS: credentials,
+  }, home), [settings, path.join(home, 'system', 'system-defaults.json'), credentials])
+  assert.deepEqual(nativeAuthIdentityFiles('gemini', {
+    GEMINI_CLI_SYSTEM_SETTINGS_PATH: 'relative', GOOGLE_APPLICATION_CREDENTIALS: 'relative',
+  }, home), [])
+})
+
 test('a selected native directory survives workspace restart', t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-config-restart-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

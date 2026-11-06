@@ -276,6 +276,33 @@ test('OpenCode authentication file changes invalidate successful and late verifi
   assert.equal(agents()[0].recentlyVerified, false)
 })
 
+test('Gemini selected cloud credential changes invalidate prior and late verification', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-gemini-cloud-identity-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const filename = path.join(directory, 'credentials.json')
+  fs.writeFileSync(filename, '{"token":"first"}')
+  const { nativeAuthIdentityFiles } = require('../../src/agents/native-config-directory.cjs')
+  const detected = () => {
+    const agent = { kind: 'gemini', executable: '/tmp/gemini', version: '1', compatibilityState: 'compatible' }
+    Object.defineProperty(agent, NATIVE_AUTH_IDENTITY_FILES, { value: nativeAuthIdentityFiles('gemini', {
+      GOOGLE_APPLICATION_CREDENTIALS: filename,
+    }, directory) })
+    return agent
+  }
+  const { catalog, agents, state } = fixture({ detectAgents: async () => [detected()],
+    credentialState: async () => ({ state: 'unknown', source: 'unverified' }) })
+  await catalog.refresh()
+  const identity = agentVerificationIdentity(agents()[0], state.agentPreferences)
+  catalog.markRuntimeCredential('gemini', 'ready', { verificationIdentity: identity })
+  assert.equal(agents()[0].recentlyVerified, true)
+  fs.writeFileSync(filename, '{"token":"replacement"}')
+  await catalog.refresh()
+  assert.equal(agents()[0].recentlyVerified, false)
+  catalog.markRuntimeCredential('gemini', 'ready', { verificationIdentity: identity })
+  assert.equal(agents()[0].recentlyVerified, false)
+  assert.doesNotMatch(JSON.stringify(agents()), /gemini-cloud-identity|replacement/)
+})
+
 test('DeepSeek profile edits immediately invalidate routing verification without a catalog refresh', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-dsh-profile-identity-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
