@@ -35,3 +35,15 @@ it('shows expected configuration files when the selected directory is invalid', 
   expect(wrapper.text()).toContain('/previous')
   wrapper.unmount()
 })
+
+it('explains the DeepSeek Harness directory requirements', async () => {
+  const api = { get: vi.fn().mockResolvedValue({ directory: '' }),
+    choose: vi.fn().mockRejectedValue(new Error('LOCAL_NATIVE_CONFIG_INVALID')) }
+  window.meldworkDesktop = { localAgentNativeConfig: api }
+  const wrapper = mount(AgentNativeConfig, { props: { kind: 'deepseek' } })
+  await flushPromises()
+  await wrapper.findAll('button').find(button => button.text() === t('nativeConfig.choose')).trigger('click')
+  await flushPromises()
+  expect(wrapper.get('[role="alert"]').text()).toContain('profiles')
+  wrapper.unmount()
+})

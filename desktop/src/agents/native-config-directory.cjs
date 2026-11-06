@@ -6,6 +6,7 @@ const NATIVE_CONFIG_DIRECTORIES = Object.freeze({
   codex: { key: 'CODEX_HOME', files: ['config.toml', 'auth.json'] },
   claude: { key: 'CLAUDE_CONFIG_DIR', files: ['settings.json', '.credentials.json'] },
   pi: { key: 'PI_CODING_AGENT_DIR', files: ['settings.json', 'auth.json', 'models.json'] },
+  deepseek: { key: 'DSH_HOME', files: ['cordis.patch.yml', '.credentials.yaml'], directories: ['profiles'] },
 })
 
 function nativeConfigEnvironment(kind, preferences, env = {}) {
@@ -25,9 +26,11 @@ function validateNativeConfigDirectory(kind, directory) {
   try {
     resolved = fs.realpathSync(directory)
     if (!fs.statSync(resolved).isDirectory()
-        || !spec.files.some(name => {
+        || !(spec.files.some(name => {
           try { return fs.statSync(path.join(resolved, name)).isFile() } catch { return false }
-        })) throw new Error('invalid directory')
+        }) || (spec.directories || []).some(name => {
+          try { return fs.statSync(path.join(resolved, name)).isDirectory() } catch { return false }
+        }))) throw new Error('invalid directory')
   } catch { throw new Error('LOCAL_NATIVE_CONFIG_INVALID') }
   return resolved
 }

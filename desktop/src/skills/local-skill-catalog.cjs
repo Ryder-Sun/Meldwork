@@ -168,7 +168,8 @@ function globalRoots(kind, home, configDirectory = '') {
   return (AGENT_SKILL_ROOTS[kind] || []).map(parts => {
     const nativeParts = kind === 'pi' && parts[0] === '.pi' && parts[1] === 'agent'
       ? parts.slice(2)
-      : ['codex', 'hermes', 'claude'].includes(kind) && parts[0] === `.${kind}` ? parts.slice(1) : null
+      : (['codex', 'hermes', 'claude'].includes(kind) && parts[0] === `.${kind}`)
+        || (kind === 'deepseek' && parts[0] === '.dsh') ? parts.slice(1) : null
     const directory = configDirectory && nativeParts
       ? path.join(configDirectory, ...nativeParts) : path.join(home, ...parts)
     return { directory, boundary: directory, namespace: 'global' }

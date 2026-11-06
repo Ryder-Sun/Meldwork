@@ -8,6 +8,7 @@ export default {
     'nativeConfig.expected.codex': 'Expected config.toml or auth.json.',
     'nativeConfig.expected.claude': 'Expected settings.json or .credentials.json.',
     'nativeConfig.expected.pi': 'Expected settings.json, auth.json or models.json.',
+    'nativeConfig.expected.deepseek': 'Expected a profiles directory, cordis.patch.yml or .credentials.yaml.',
     'skillTrust.title': 'Skill trust',
     'skillTrust.hint': 'Review trust granted to an Agent and exact Skill content. Changed content requires approval again.',
     'skillTrust.refresh': 'Refresh',

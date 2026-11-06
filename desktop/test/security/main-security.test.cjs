@@ -225,6 +225,32 @@ test('Skill discovery follows native shell directories and explicit selections t
   assert.equal(catalog.input.configDirectoryForKind('hermes'), selected)
 })
 
+test('DeepSeek native directory selection reaches detection, execution, and Skill discovery', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-dsh-config-ipc-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const native = path.join(directory, 'dsh-home')
+  fs.mkdirSync(path.join(native, 'profiles'), { recursive: true })
+  let detected
+  const { harness } = loadMain(directory, {
+    dialogResult: { canceled: false, filePaths: [native] },
+    nativeShellEnvironment: () => ({ env: { DSH_HOME: '/previous' }, source: 'native-shell' }),
+    nativeEnvironment: (_kind, env) => ({ DSH_HOME: env.DSH_HOME }),
+    detectAgents: input => { detected = input.nativeEnvironmentForKind('deepseek'); return [] },
+  })
+  await harness.ready()
+  const workspace = harness.workspaceInstances[0]
+  workspace.state.agentPreferences = {}
+  workspace.state.agentRuntime = {}
+  workspace.activeRuns = new Map()
+  workspace.save = () => {}
+  const chosen = await harness.ipcHandlers.get('local-agent-native-config:choose')(harness.event(), 'deepseek')
+  await harness.installerInstances[0].input.detectAgents()
+  assert.equal(detected.DSH_HOME, chosen.directory)
+  await workspace.input.runAgent({ kind: 'deepseek', executable: '/tmp/dsh' }, 'hello', directory, { env: { DSH_HOME: '/other' } })
+  assert.equal(harness.runAgentCalls.at(-1)[3].env.DSH_HOME, chosen.directory)
+  assert.equal(harness.skillCatalogInstances[0].input.configDirectoryForKind('deepseek'), chosen.directory)
+})
+
 test('native configuration cannot change if a run starts while the picker is open', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-config-race-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

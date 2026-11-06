@@ -68,12 +68,16 @@ test('selected native directories control Skill discovery and Codex plugin looku
     selected[kind] = path.join(home, `selected-${kind}`)
     writeSkill(path.join(selected[kind], 'skills'), `${kind}-new`)
   }
+  writeSkill(path.join(home, '.dsh', 'skills'), 'deepseek-old')
+  selected.deepseek = path.join(home, 'selected-deepseek')
+  writeSkill(path.join(selected.deepseek, 'skills'), 'deepseek-new')
   writeSkill(path.join(selected.codex, 'plugins', 'cache', 'vendor', 'plugin', '1.0.0', 'skills'), 'plugin-skill')
   writeSkill(path.join(home, '.agents', 'skills'), 'shared')
   const catalog = new LocalSkillCatalog({ home, configDirectoryForKind: kind => selected[kind] || '' })
   assert.deepEqual(catalog.list('hermes').skills.map(skill => skill.slug), ['hermes-new'])
   assert.deepEqual(catalog.list('claude').skills.map(skill => skill.slug).sort(), ['claude-new', 'shared'])
   assert.deepEqual(catalog.list('pi').skills.map(skill => skill.slug), ['pi-new'])
+  assert.deepEqual(catalog.list('deepseek').skills.map(skill => skill.slug).sort(), ['deepseek-new', 'shared'])
   assert.deepEqual(catalog.list('codex').skills.map(skill => skill.slug).sort(), ['codex-new', 'plugin-skill', 'shared'])
   const skill = catalog.list('hermes').skills[0]
   assert.ok(catalog.resolveSelections('hermes', [skill])[0].sourceDirectory.startsWith(fs.realpathSync(selected.hermes)))

@@ -33,6 +33,17 @@ test('a selected native directory survives workspace restart', t => {
   assert.equal(nativeConfigEnvironment('hermes', restored.state.agentPreferences).HERMES_HOME, selected)
 })
 
+test('DeepSeek Harness accepts its native profiles directory and scopes DSH_HOME', t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-dsh-config-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  assert.throws(() => validateNativeConfigDirectory('deepseek', directory), { message: 'LOCAL_NATIVE_CONFIG_INVALID' })
+  fs.mkdirSync(path.join(directory, 'profiles'))
+  const selected = validateNativeConfigDirectory('deepseek', directory)
+  const preferences = { deepseek: { nativeConfigDirectory: selected } }
+  assert.equal(nativeConfigEnvironment('deepseek', preferences, { DSH_HOME: '/previous' }).DSH_HOME, selected)
+  assert.deepEqual(nativeConfigEnvironment('hermes', preferences), {})
+})
+
 for (const [kind, key, file] of [
   ['codex', 'CODEX_HOME', 'config.toml'],
   ['claude', 'CLAUDE_CONFIG_DIR', 'settings.json'],
