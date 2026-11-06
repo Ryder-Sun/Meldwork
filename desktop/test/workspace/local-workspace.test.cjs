@@ -466,6 +466,41 @@ test('invalid explicit targets fail before Task or message persistence', async (
   assert.equal(workspace.runLedger?.list?.().length || 0, 0)
 })
 
+test('an active run cannot bypass newly failed Agent prerequisites or reuse a blocked snapshot', async (t) => {
+  const { directory, calls, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Readiness changes', agentKinds: ['codex'], workdir: directory })
+  const initial = workspace.detectedAgents.find(agent => agent.kind === 'codex')
+  workspace.activeRuns.set(group.id, { runId: 'run-readiness', targetKinds: ['codex'] })
+  for (const blocked of [
+    { invocable: false },
+    { runtimePrerequisitesReady: false },
+    { runtimeBlockSource: 'workbuddy-model-unavailable' },
+    { credentialState: 'missing' },
+    { compatibilityState: 'incompatible' },
+  ]) {
+    workspace.agentInvocation.activeAgentSnapshots.set(`${group.id}:run-readiness:codex`, { ...initial })
+    workspace.detectedAgents = [{ ...initial, available: false, ...blocked }]
+    await assert.rejects(workspace.agentInvocation.invokeLeased(group, 'codex', 'manual'), {
+      message: 'LOCAL_AGENT_UNAVAILABLE',
+    })
+    workspace.detectedAgents = []
+    await assert.rejects(workspace.agentInvocation.invokeLeased(group, 'codex', 'manual'), {
+      message: 'LOCAL_AGENT_UNAVAILABLE',
+    })
+  }
+  workspace.agentInvocation.activeAgentSnapshots.set(`${group.id}:run-readiness:codex`, { ...initial })
+  workspace.state.agentRuntime.codex = { credentialState: 'missing' }
+  workspace.detectedAgents = []
+  await assert.rejects(workspace.agentInvocation.invokeLeased(group, 'codex', 'manual'), {
+    message: 'LOCAL_AGENT_UNAVAILABLE',
+  })
+  assert.equal(calls.length, 0)
+  workspace.activeRuns.delete(group.id)
+})
+
 test('opt-in automatic routing persists the smallest evidence-ranked team', async (t) => {
   const { directory, calls, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

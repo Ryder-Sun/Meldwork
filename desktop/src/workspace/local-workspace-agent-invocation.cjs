@@ -307,20 +307,22 @@ class LocalWorkspaceAgentInvocation {
     const activeRun = this.activeRuns.get(group.id)
     const candidate = detected.find(item => item.kind === kind)
     const snapshotKey = `${group.id}:${activeRun?.runId || 'active'}:${kind}`
-    if (candidate) this.activeAgentSnapshots.set(snapshotKey, { ...candidate })
+    const runtimeBlocked = this.state()?.agentRuntime?.[kind]?.credentialState === 'missing'
+    const usable = item => item.installed !== false && item.invocable !== false
+      && item.runtimePrerequisitesReady !== false && !item.runtimeBlockSource
+      && item.compatibilityState !== 'incompatible' && item.credentialState !== 'missing'
+      && !['runtime-auth-failure', 'none'].includes(item.availabilitySource)
+    if (!runtimeBlocked && candidate && usable(candidate)) this.activeAgentSnapshots.set(snapshotKey, { ...candidate })
+    else if (candidate || runtimeBlocked) this.activeAgentSnapshots.delete(snapshotKey)
     const snapshot = this.activeAgentSnapshots.get(snapshotKey)
-    const agent = detected.find(item => item.kind === kind && item.available)
+    const agent = !runtimeBlocked && (detected.find(item => item.kind === kind && item.available && usable(item))
       || (activeRun?.targetKinds?.includes(kind)
         && candidate
-        && candidate.installed !== false
-        && candidate.compatibilityState !== 'incompatible'
-        && candidate.credentialState !== 'missing'
-        && candidate.availabilitySource !== 'runtime-auth-failure'
-        && candidate.availabilitySource !== 'none'
+        && usable(candidate)
         ? candidate
-        : activeRun?.targetKinds?.includes(kind) && !candidate && snapshot
+        : activeRun?.targetKinds?.includes(kind) && !candidate && snapshot && usable(snapshot)
           ? snapshot
-          : null)
+          : null))
     if (!agent) throw new Error('LOCAL_AGENT_UNAVAILABLE')
     const reviewOnly = isCodeReviewAgentKind(kind)
     const invocationContext = isolatedInvocationContext(context)
