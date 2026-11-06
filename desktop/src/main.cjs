@@ -4,7 +4,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const { redactSecrets } = require('./security/secret-redaction.cjs')
 const { ensurePrivateDirectory } = require('./security/private-file.cjs')
-const { NATIVE_CONFIG_DIRECTORIES, nativeConfigEnvironment } = require('./agents/native-config-directory.cjs')
+const { NATIVE_CONFIG_DIRECTORIES, nativeConfigEnvironment, nativeConfigSettingsFile } = require('./agents/native-config-directory.cjs')
 const { AttachmentStore } = require('./attachments/attachment-store.cjs')
 const { ContentBlobStore } = require('./attachments/content-blob-store.cjs')
 const { ContextPackStore } = require('./collaboration/context-pack-store.cjs')
@@ -248,6 +248,7 @@ async function nativeShellEnvironment(options = {}) {
   const resolved = await resolveNativeShellEnvironment({ home, refresh: options.refresh === true })
   const env = { ...process.env, ...resolved.env }
   for (const [kind, { key }] of Object.entries(NATIVE_CONFIG_DIRECTORIES)) {
+    if (!key) continue
     const directory = typeof env[key] === 'string' ? env[key] : ''
     if ((nativeSkillDirectories[key] || '') !== directory) skillCatalog?.invalidate(kind)
     nativeSkillDirectories[key] = directory
@@ -399,6 +400,9 @@ async function runCoreAgent(agent, prompt, workdir, options = {}) {
     : {}
   return runAgent(agent, prompt, workdir, {
     ...runOptions,
+    ...(connectorCredentialIsolation ? {} : {
+      nativeSettingsFile: nativeConfigSettingsFile(agent.kind, workspace?.state.agentPreferences),
+    }),
     ...injected,
     env: {
       ...networkEnvironment(shellEnvironment?.env),
@@ -578,6 +582,7 @@ function createWorkspace() {
         env: nativeConfigEnvironment(kind, workspace?.state.agentPreferences, shellEnvironment.env),
         home: shellEnvironment.home,
         credentialSource: shellEnvironment.source,
+        nativeSettingsFile: nativeConfigSettingsFile(kind, workspace?.state.agentPreferences),
         ...(kind === 'workbuddy' ? { modelId: workspace?.state.agentPreferences.workbuddy?.modelId } : {}),
       })
     },

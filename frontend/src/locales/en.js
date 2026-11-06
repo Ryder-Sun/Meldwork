@@ -10,6 +10,7 @@ export default {
     'nativeConfig.expected.pi': 'Expected settings.json, auth.json or models.json.',
     'nativeConfig.expected.deepseek': 'Expected a profiles directory, cordis.patch.yml or .credentials.yaml.',
     'nativeConfig.expected.workbuddy': 'Expected models.json, settings.json or .credentials.json.',
+    'nativeConfig.expected.zcode': 'Expected config.json.',
     'skillTrust.title': 'Skill trust',
     'skillTrust.hint': 'Review trust granted to an Agent and exact Skill content. Changed content requires approval again.',
     'skillTrust.refresh': 'Refresh',

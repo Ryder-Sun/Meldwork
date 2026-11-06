@@ -8,6 +8,7 @@ const NATIVE_CONFIG_DIRECTORIES = Object.freeze({
   pi: { key: 'PI_CODING_AGENT_DIR', files: ['settings.json', 'auth.json', 'models.json'] },
   deepseek: { key: 'DSH_HOME', files: ['cordis.patch.yml', '.credentials.yaml'], directories: ['profiles'] },
   workbuddy: { key: 'CODEBUDDY_CONFIG_DIR', files: ['models.json', 'settings.json', '.credentials.json'] },
+  zcode: { files: ['config.json'] },
 })
 
 function nativeConfigEnvironment(kind, preferences, env = {}) {
@@ -16,7 +17,16 @@ function nativeConfigEnvironment(kind, preferences, env = {}) {
   if (!spec || directory === undefined || directory === '') return env
   if (typeof directory !== 'string' || directory.length > 4096
       || directory.includes('\u0000') || !path.isAbsolute(directory)) throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
-  return { ...env, [spec.key]: directory }
+  return spec.key ? { ...env, [spec.key]: directory } : env
+}
+
+function nativeConfigSettingsFile(kind, preferences) {
+  if (kind !== 'zcode') return ''
+  const directory = preferences?.zcode?.nativeConfigDirectory
+  if (directory === undefined || directory === '') return ''
+  if (typeof directory !== 'string' || directory.length > 4096
+      || directory.includes('\u0000') || !path.isAbsolute(directory)) throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
+  return path.join(directory, 'config.json')
 }
 
 function validateNativeConfigDirectory(kind, directory) {
@@ -36,4 +46,4 @@ function validateNativeConfigDirectory(kind, directory) {
   return resolved
 }
 
-module.exports = { NATIVE_CONFIG_DIRECTORIES, nativeConfigEnvironment, validateNativeConfigDirectory }
+module.exports = { NATIVE_CONFIG_DIRECTORIES, nativeConfigEnvironment, nativeConfigSettingsFile, validateNativeConfigDirectory }

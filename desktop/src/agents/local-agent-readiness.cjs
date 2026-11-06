@@ -371,7 +371,7 @@ function nativeCredentialState(kind, options = {}) {
   }
 
   const jsonFiles = {
-    zcode: [path.join(home, '.zcode', 'cli', 'config.json')],
+    zcode: [options.nativeSettingsFile || path.join(home, '.zcode', 'cli', 'config.json')],
     codex: [path.join(codexHome, 'auth.json'), path.join(codexHome, 'config.json')],
     hermes: [path.join(hermesHome, 'auth.json'), path.join(hermesHome, 'config.json')],
     openclaw: [path.join(home, '.openclaw', 'openclaw.json')],
