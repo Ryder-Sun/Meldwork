@@ -290,6 +290,13 @@ function recordState(events) {
           || !PACKAGE_ID.test(String(event.details.fromPackageId || ''))) {
         fail('AGENT_CONNECTOR_PACKAGE_AUDIT_INVALID')
       }
+      const previous = states.get(event.details.fromPackageId)
+      if (!previous || !['installed', 'disabled'].includes(previous.state)
+          || event.details.fromPackageId === event.packageId) {
+        fail('AGENT_CONNECTOR_PACKAGE_AUDIT_INVALID')
+      }
+      previous.state = 'disabled'
+      previous.updatedAt = event.timestamp
       current.state = 'installed'
     } else {
       if (!exactKeys(event.details, [])) fail('AGENT_CONNECTOR_PACKAGE_AUDIT_INVALID')
@@ -404,6 +411,7 @@ class AgentConnectorPackageStore {
       body.previousEventId,
     )
     let descriptor
+    let writeStarted = false
     try {
       this.ensureDirectories()
       descriptor = fs.openSync(
@@ -417,6 +425,7 @@ class AgentConnectorPackageStore {
       if (!stat.isFile() || stat.size + Buffer.byteLength(line) > MAX_AUDIT_BYTES) {
         fail('AGENT_CONNECTOR_PACKAGE_AUDIT_LIMIT')
       }
+      writeStarted = true
       fs.writeFileSync(descriptor, line, 'utf8')
       fs.fsyncSync(descriptor)
       fs.fchmodSync(descriptor, 0o600)
@@ -424,6 +433,7 @@ class AgentConnectorPackageStore {
       descriptor = undefined
     } catch (error) {
       if (descriptor !== undefined) try { fs.closeSync(descriptor) } catch {}
+      if (writeStarted) this.unavailableCode = 'AGENT_CONNECTOR_PACKAGE_AUDIT_UNAVAILABLE'
       if (error?.code?.startsWith('AGENT_CONNECTOR_')) throw error
       fail('AGENT_CONNECTOR_PACKAGE_AUDIT_UNAVAILABLE')
     }
@@ -504,7 +514,6 @@ class AgentConnectorPackageStore {
       target.manifest.connectorVersion,
       installed[0].connectorVersion,
     ) <= 0) fail('AGENT_CONNECTOR_PACKAGE_UPGRADE_INVALID')
-    this.append('disabled', installed[0].packageId)
     this.append('upgraded', normalizedId, { fromPackageId: installed[0].packageId })
     return this.inspect(normalizedId)
   }

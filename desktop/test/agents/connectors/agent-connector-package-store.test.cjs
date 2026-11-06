@@ -137,6 +137,25 @@ test('reimporting a removed package requires fresh approval and preserves its au
   assert.equal(reopened.install(packageId).state, 'installed')
 })
 
+test('an uncertain audit append blocks further operations until the store is reopened', (t) => {
+  const { create, store } = fixture(t)
+  const serialized = serializeAgentConnectorPackage(SAMPLE_LOCAL_ECHO_AGENT_CONNECTOR_PACKAGE)
+  const packageId = SAMPLE_LOCAL_ECHO_AGENT_CONNECTOR_PACKAGE.packageId
+  store.import(serialized, 'first.json')
+  const original = fs.fsyncSync
+  fs.fsyncSync = () => { throw Object.assign(new Error('sync failed'), { code: 'EIO' }) }
+  try {
+    assert.throws(() => store.approve(packageId), { message: 'AGENT_CONNECTOR_PACKAGE_AUDIT_UNAVAILABLE' })
+  } finally {
+    fs.fsyncSync = original
+  }
+  assert.equal(store.diagnostic(), 'AGENT_CONNECTOR_PACKAGE_AUDIT_UNAVAILABLE')
+  assert.throws(() => store.approve(packageId), { message: 'AGENT_CONNECTOR_PACKAGE_AUDIT_UNAVAILABLE' })
+  const reopened = create()
+  assert.equal(reopened.inspect(packageId).state, 'approved')
+  assert.deepEqual(reopened.audit(packageId).map(event => event.action), ['imported', 'approved'])
+})
+
 test('upgrades one installed Connector version and fails closed on audit tampering', (t) => {
   const { create, rootPath, store } = fixture(t)
   const first = SAMPLE_LOCAL_ECHO_AGENT_CONNECTOR_PACKAGE
@@ -158,11 +177,32 @@ test('upgrades one installed Connector version and fails closed on audit tamperi
   store.install(first.packageId)
   store.import(serializeAgentConnectorPackage(second), 'second.json')
   store.approve(second.packageId)
+  const append = store.append.bind(store)
+  store.append = (action, ...args) => {
+    if (action === 'upgraded') throw new Error('SIMULATED_UPGRADE_WRITE_FAILURE')
+    return append(action, ...args)
+  }
+  assert.throws(() => store.upgrade(second.packageId), { message: 'SIMULATED_UPGRADE_WRITE_FAILURE' })
+  assert.equal(store.inspect(first.packageId).state, 'installed')
+  assert.equal(create().inspect(first.packageId).state, 'installed')
+  assert.equal(store.inspect(second.packageId).state, 'approved')
+  store.append = append
   assert.equal(store.upgrade(second.packageId).state, 'installed')
   assert.equal(store.inspect(first.packageId).state, 'disabled')
   assert.deepEqual(store.audit(second.packageId).map(event => event.action), [
     'imported', 'approved', 'upgraded',
   ])
+  const legacy = fixture(t)
+  legacy.store.import(serializeAgentConnectorPackage(first), 'first.json')
+  legacy.store.approve(first.packageId)
+  legacy.store.install(first.packageId)
+  legacy.store.import(serializeAgentConnectorPackage(second), 'second.json')
+  legacy.store.approve(second.packageId)
+  legacy.store.append('disabled', first.packageId)
+  legacy.store.append('upgraded', second.packageId, { fromPackageId: first.packageId })
+  const reopenedLegacy = legacy.create()
+  assert.equal(reopenedLegacy.inspect(first.packageId).state, 'disabled')
+  assert.equal(reopenedLegacy.inspect(second.packageId).state, 'installed')
   const lowerManifestInput = {
     ...SAMPLE_LOCAL_ECHO_AGENT_CONNECTOR_MANIFEST,
     connectorVersion: '0.9.0',
