@@ -234,7 +234,7 @@ async function runAgent(agent, prompt, workdir, options = {}) {
   const runtimeEvents = createRuntimeEventEmitter({ ...options, onActivity: noteActivity }, childEnv)
   const capabilityWarning = connectorLimitedRuntimeEvent(agent.kind, profile)
   if (capabilityWarning) runtimeEvents.emit(capabilityWarning)
-  const profileRunContext = profile.createRunContext(options)
+  const profileRunContext = profile.createRunContext({ ...options, childEnv, workdir, platform })
   return await new Promise((resolve, reject) => {
     const rejectTerminal = (error, status = 'failed') => {
       runtimeEvents.finalize({ status })

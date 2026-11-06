@@ -212,6 +212,29 @@ test('profiles own Codex progress and legacy terminal Session/final recovery hoo
   ])
 })
 
+test('Hermes legacy state lookup follows the child native profile and data suffix', async () => {
+  const legacy = resolveConnectorEventProfile('hermes', { transport: 'legacy' })
+  const cases = [
+    { env: { HERMES_HOME: path.resolve('/tmp/profile'), HERMES_DATA_DIR_SUFFIX: '-ignored' }, expected: path.resolve('/tmp/profile') },
+    { env: { HERMES_DATA_DIR_SUFFIX: '-test' }, expected: path.join('/tmp/test-home', '.hermes-test') },
+    { env: { HERMES_HOME: 'relative-profile' }, expected: path.resolve('/tmp/work/relative-profile') },
+  ]
+  for (const { env, expected } of cases) {
+    let watermarkHome
+    let finalHome
+    const runContext = legacy.createRunContext({
+      home: '/tmp/test-home', workdir: '/tmp/work', platform: 'darwin', childEnv: env,
+      hermesMessageWatermarkFn: options => { watermarkHome = options.hermesHome; return 3 },
+    })
+    await legacy.finalizeResult({
+      result: { text: 'fallback', outcome: 'completed' }, sessionRef: 'session', runContext,
+      options: { hermesFinalResponseFn: (_, options) => { finalHome = options.hermesHome; return '' } },
+    })
+    assert.equal(watermarkHome, expected)
+    assert.equal(finalHome, expected)
+  }
+})
+
 test('legacy profile bounds an authoritative DB final to one MiB', async () => {
   const legacy = resolveConnectorEventProfile('hermes', { transport: 'legacy' })
   const sessionRef = 'hermes-session-bounded-final'

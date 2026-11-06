@@ -939,7 +939,7 @@ function queryHermesState(databasePath, sql, params, options = {}) {
 }
 
 function readHermesMessageWatermark(options = {}) {
-  const databasePath = path.join(options.home || os.homedir(), '.hermes', 'state.db')
+  const databasePath = path.join(options.hermesHome || path.join(options.home || os.homedir(), '.hermes'), 'state.db')
   const existsFn = options.existsFn || fs.existsSync
   if (!existsFn(databasePath)) return 0
   try {
@@ -957,7 +957,7 @@ function readHermesMessageWatermark(options = {}) {
 function readHermesFinalResponse(sessionRef, options = {}) {
   const afterMessageId = Number(options.afterMessageId)
   if (!sessionRef || !Number.isSafeInteger(afterMessageId) || afterMessageId < 0) return ''
-  const databasePath = path.join(options.home || os.homedir(), '.hermes', 'state.db')
+  const databasePath = path.join(options.hermesHome || path.join(options.home || os.homedir(), '.hermes'), 'state.db')
   const existsFn = options.existsFn || fs.existsSync
   if (!existsFn(databasePath)) return ''
   try {

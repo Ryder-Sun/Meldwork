@@ -1767,6 +1767,32 @@ process.stderr.write('session_id: hermes-env-session\\n')
   assert.equal(finalLookup.lookupOptions.afterMessageId, 0)
 })
 
+test('Hermes legacy recovery reads both watermark and final from the selected native directory', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-home-'))
+  const cli = executable(directory, 'hermes-home.cjs', `
+process.stdout.write('quiet fallback')
+process.stderr.write('session_id: selected-home-session\\n')
+`)
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const databasePaths = []
+  const selectedHome = path.join(directory, 'selected-profile')
+  const result = await runAgent(
+    { kind: 'hermes', executable: cli, name: 'Hermes' }, 'hello', directory,
+    {
+      home: directory,
+      hermesAcpAvailable: false,
+      env: { HERMES_HOME: selectedHome },
+      hermesStateExistsFn: () => true,
+      hermesStateQueryFn: ({ databasePath, params }) => {
+        databasePaths.push(databasePath)
+        return params.length ? { content: 'selected profile response' } : { max_id: 7 }
+      },
+    },
+  )
+  assert.equal(result.text, 'selected profile response')
+  assert.deepEqual(databasePaths, [path.join(selectedHome, 'state.db'), path.join(selectedHome, 'state.db')])
+})
+
 test('runAgent restores the Hermes session id reported on successful stderr', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-session-'))
   const cli = executable(directory, 'hermes-session.cjs', `

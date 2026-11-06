@@ -1,5 +1,7 @@
 const { StringDecoder } = require('node:string_decoder')
 const { createHash } = require('node:crypto')
+const os = require('node:os')
+const path = require('node:path')
 const {
   classifyCliOutcome,
   codexProgressEvent,
@@ -182,19 +184,34 @@ function createHermesLegacyFinalOutputAccumulator(sessionRef = '') {
 
 function createHermesLegacyRunContext(options = {}) {
   const watermarkFn = options.hermesMessageWatermarkFn || readHermesMessageWatermark
+  const env = options.childEnv || {}
+  const home = options.home || env.HOME || os.homedir()
+  let hermesHome = String(env.HERMES_HOME || '').trim()
+  if (hermesHome) {
+    hermesHome = hermesHome.replace(/\$(\w+)|\$\{([^}]+)\}/g, (match, plain, braced) => env[plain || braced] ?? match)
+    if (hermesHome === '~' || hermesHome.startsWith('~/')) hermesHome = path.join(home, hermesHome.slice(2))
+    hermesHome = path.resolve(options.workdir || process.cwd(), hermesHome)
+  } else {
+    const suffix = env.HERMES_DATA_DIR_SUFFIX || ''
+    hermesHome = options.platform === 'win32'
+      ? path.join(env.LOCALAPPDATA || path.join(home, 'AppData', 'Local'), `hermes${suffix}`)
+      : path.join(home, `.hermes${suffix}`)
+  }
   try {
     const messageWatermark = watermarkFn({
       home: options.home,
+      hermesHome,
       existsFn: options.hermesStateExistsFn,
       queryFn: options.hermesStateQueryFn,
     })
     return {
+      hermesHome,
       messageWatermark: Number.isSafeInteger(messageWatermark) && messageWatermark >= 0
         ? messageWatermark
         : null,
     }
   } catch {
-    return { messageWatermark: null }
+    return { hermesHome, messageWatermark: null }
   }
 }
 
@@ -213,6 +230,7 @@ async function finalizeHermesLegacyResult(input = {}) {
   try {
     finalResponse = finalResponseFn(sessionRef, {
       home: options.home,
+      hermesHome: runContext.hermesHome,
       afterMessageId: runContext.messageWatermark,
       existsFn: options.hermesStateExistsFn,
       queryFn: options.hermesStateQueryFn,
