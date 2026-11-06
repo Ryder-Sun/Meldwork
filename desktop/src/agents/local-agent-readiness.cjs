@@ -354,28 +354,33 @@ function hermesDeclaredCredentialKeys(options = {}) {
   } catch { return [] }
 }
 
-function zcodeDeclaredCredentialKeys(options = {}) {
+function zcodeConfigFiles(options = {}) {
   const fallbackHome = options.home || os.homedir()
   const platform = options.platform || process.platform
   const configuredHome = platform === 'win32' ? options.env?.USERPROFILE : options.env?.HOME
   const home = typeof configuredHome === 'string' && configuredHome.trim() ? configuredHome.trim() : fallbackHome
-  try {
-    const files = [path.join(home, '.zcode', 'cli', 'config.json')]
-    if (typeof options.workdir === 'string' && path.isAbsolute(options.workdir)) {
-      const directories = []
-      let current = path.resolve(options.workdir)
-      let foundGit = false
-      for (;;) {
-        directories.push(current)
-        try { if (fs.statSync(path.join(current, '.git')).isDirectory() || fs.statSync(path.join(current, '.git')).isFile()) { foundGit = true; break } } catch {}
-        const parent = path.dirname(current)
-        if (parent === current) break
-        current = parent
-      }
-      for (const directory of (foundGit ? directories.reverse() : directories.slice(0, 1))) {
-        files.push(path.join(directory, 'zcode.json'), path.join(directory, '.zcode', 'config.json'))
-      }
+  const files = [path.join(home, '.zcode', 'cli', 'config.json')]
+  if (typeof options.workdir === 'string' && path.isAbsolute(options.workdir)) {
+    const directories = []
+    let current = path.resolve(options.workdir)
+    let foundGit = false
+    for (;;) {
+      directories.push(current)
+      try { if (fs.statSync(path.join(current, '.git')).isDirectory() || fs.statSync(path.join(current, '.git')).isFile()) { foundGit = true; break } } catch {}
+      const parent = path.dirname(current)
+      if (parent === current) break
+      current = parent
     }
+    for (const directory of (foundGit ? directories.reverse() : directories.slice(0, 1))) {
+      files.push(path.join(directory, 'zcode.json'), path.join(directory, '.zcode', 'config.json'))
+    }
+  }
+  return files
+}
+
+function zcodeDeclaredCredentialKeys(options = {}) {
+  try {
+    const files = zcodeConfigFiles(options)
     let model = {}
     const providers = Object.create(null)
     for (const filename of files) {
@@ -417,19 +422,34 @@ function zcodeDeclaredCredentialKeys(options = {}) {
 
 function zcodeSelectedCredentialState(options = {}) {
   const env = options.env || process.env
-  const platform = options.platform || process.platform
-  const configuredHome = platform === 'win32' ? env.USERPROFILE : env.HOME
-  const home = typeof configuredHome === 'string' && configuredHome.trim()
-    ? configuredHome.trim() : (options.home || os.homedir())
-  const filename = path.join(home, '.zcode', 'cli', 'config.json')
-  let config
+  const config = { model: {}, provider: Object.create(null) }
+  let found = false
   try {
-    const stat = fs.statSync(filename)
-    if (!stat.isFile() || stat.size > MAX_CREDENTIAL_FILE_BYTES) return { state: 'unknown', source: 'unverified' }
-    config = JSON.parse(fs.readFileSync(filename, 'utf8'))
+    for (const filename of zcodeConfigFiles(options)) {
+      let stat
+      try { stat = fs.statSync(filename) } catch (error) {
+        if (error?.code === 'ENOENT') continue
+        throw error
+      }
+      if (!stat.isFile() || stat.size > MAX_CREDENTIAL_FILE_BYTES) return { state: 'unknown', source: 'unverified' }
+      const layer = JSON.parse(fs.readFileSync(filename, 'utf8'))
+      if (!layer || typeof layer !== 'object' || Array.isArray(layer)) return { state: 'unknown', source: 'unverified' }
+      found = true
+      if (layer.model && typeof layer.model === 'object' && !Array.isArray(layer.model)) {
+        config.model = { ...config.model, ...layer.model }
+      }
+      if (layer.provider && typeof layer.provider === 'object' && !Array.isArray(layer.provider)) {
+        for (const [id, entry] of Object.entries(layer.provider)) {
+          if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+            config.provider[id] = { ...config.provider[id], ...entry }
+          }
+        }
+      }
+    }
   } catch (error) {
-    return error?.code === 'ENOENT' ? null : { state: 'unknown', source: 'unverified' }
+    return { state: 'unknown', source: 'unverified' }
   }
+  if (!found) return null
   const envModel = typeof env.ZCODE_MODEL === 'string' ? env.ZCODE_MODEL.trim() : ''
   const model = envModel ? { provider: envModel.includes('/') ? envModel.split('/')[0] : 'anthropic' }
     : typeof config?.model?.main === 'string' ? { provider: config.model.main.includes('/')

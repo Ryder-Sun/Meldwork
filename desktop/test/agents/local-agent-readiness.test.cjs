@@ -284,6 +284,24 @@ test('Zcode discovers native project model overrides and their credentials', t =
   assert.deepEqual(zcodeDeclaredCredentialKeys({ home, workdir: child }), ['ANTHROPIC_API_KEY', 'PRIVATE_ACCOUNT_API_KEY', 'PROJECT_API_KEY'])
 })
 
+test('Zcode readiness follows the selected project provider instead of the global provider', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-zcode-project-ready-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const globalDir = path.join(home, '.zcode', 'cli')
+  const project = path.join(home, 'project')
+  fs.mkdirSync(globalDir, { recursive: true })
+  fs.mkdirSync(project)
+  fs.writeFileSync(path.join(globalDir, 'config.json'), JSON.stringify({ model: { main: 'global/model' } }))
+  fs.writeFileSync(path.join(project, 'zcode.json'), JSON.stringify({ model: { main: 'project/model' } }))
+  const env = { GLOBAL_API_KEY: 'global-secret' }
+  assert.equal(nativeCredentialState('zcode', { home, env }).state, 'ready')
+  assert.equal(nativeCredentialState('zcode', { home, workdir: project, env }).state, 'unknown')
+  assert.equal(nativeCredentialState('zcode', { home, workdir: project,
+    env: { ...env, PROJECT_API_KEY: 'project-secret' } }).state, 'ready')
+  fs.writeFileSync(path.join(project, 'zcode.json'), '{ invalid')
+  assert.equal(nativeCredentialState('zcode', { home, workdir: project, env }).state, 'unknown')
+})
+
 test('Zcode reads the home directory inherited by its native CLI', t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-zcode-home-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))
