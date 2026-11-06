@@ -118,7 +118,7 @@ test('a peer failure without a receipt withdraws an already approved candidate',
   })
   messages.push(message('codex', 1, 'The answer is ready.', { status: 'completed', deliverables: ['answer'] }))
   const candidate = runner.v4NaturalConsensus(group, controller, 'task')
-  messages.push(message('hermes', 2, 'Reviewed.', { status: 'completed', reviewedVersion: candidate.version }))
+  messages.push(message('hermes', 2, 'Reviewed.', { status: 'completed', deliverables: ['answer'], reviewedVersion: candidate.version }))
   assert.equal(runner.v4NaturalConsensus(group, controller, 'task').approvedKinds.size, 2)
   messages.push(message('hermes', 3, 'I checked the result.\nI cannot access the required file.'))
   assert.equal(runner.v4NaturalConsensus(group, controller, 'task'), null)
@@ -147,6 +147,26 @@ test('a completion receipt with a failure reason cannot create or approve a cand
   assert.equal(runner.v4NaturalConsensus(group, controller, 'task'), null)
 })
 
+test('a completion receipt without deliverables cannot create or approve a candidate', () => {
+  const messages = []
+  const runner = { ...naturalConsensusMethods, state: () => ({ messages }),
+    v4NaturalMessageMatchesBinding: () => true,
+    v4NaturalMessageContent: naturalDiscussionMethods.v4NaturalMessageContent }
+  const message = { id: 'one', groupId: 'group', threadRootId: 'task', role: 'agent', agentKind: 'codex',
+    content: 'The answer is ready.', trace: { phase: 'discussion', runId: 'run', context: { taskDecision: {
+      status: 'completed', reason: 'Done.', deliverables: [],
+    } } } }
+  messages.push(message)
+  assert.equal(runner.v4NaturalConsensus({ id: 'group' }, { runId: 'run' }, 'task'), null)
+  message.trace.context.taskDecision.deliverables = ['Answer']
+  assert.ok(runner.v4NaturalConsensus({ id: 'group' }, { runId: 'run' }, 'task'))
+  messages.push({ ...message, id: 'two', agentKind: 'hermes', turnSeq: 2,
+    trace: { phase: 'discussion', runId: 'run', context: { taskDecision: {
+      status: 'completed', reason: 'Reviewed.', deliverables: [],
+    } } } })
+  assert.equal(runner.v4NaturalConsensus({ id: 'group' }, { runId: 'run' }, 'task'), null)
+})
+
 test('failed and partial Agent runs cannot provide complete discussion contributions', () => {
   for (const status of ['failed', 'partial', 'cancelled', 'interrupted']) {
     assert.equal(naturalDiscussionMethods.v4NaturalMessageContent({
@@ -168,6 +188,24 @@ test('sequential discussion asks the owner to replace a truncated completion', a
     v4NaturalOwner: () => 'codex',
     v4NaturalNextKinds: () => [],
     v4NaturalMessageContent: () => ({ text: ownerMessage.content, partial: true }),
+  }
+  assert.deepEqual(await runner.v4NaturalRoundOutcome({}, { targetKinds: ['codex'] }, 'task', 1, ['codex']), {
+    nextKinds: ['codex'], ownerReview: true,
+  })
+})
+
+test('sequential discussion requests a valid completion receipt with deliverables', async () => {
+  const ownerMessage = { agentKind: 'codex', content: 'The answer is ready.', trace: {
+    context: { taskDecision: { status: 'completed', reason: 'Done', deliverables: [] } },
+  } }
+  const runner = {
+    ...v4NaturalDecisionMethods,
+    v4NaturalDiscussionRoundMessages: () => [ownerMessage],
+    v4NaturalOwner: () => 'codex',
+    v4NaturalNextKinds: () => [],
+    v4NaturalNotice: () => {},
+    agentLabel: kind => kind,
+    v4NaturalOwnerMissedDecisionBefore: () => false,
   }
   assert.deepEqual(await runner.v4NaturalRoundOutcome({}, { targetKinds: ['codex'] }, 'task', 1, ['codex']), {
     nextKinds: ['codex'], ownerReview: true,

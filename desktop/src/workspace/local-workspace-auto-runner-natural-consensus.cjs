@@ -3,6 +3,7 @@ const { createHash } = require('node:crypto')
 const fs = require('node:fs')
 const path = require('node:path')
 const { explicitTaskFailure } = require('./local-workspace-auto-runner-natural-decisions.cjs')
+const { parseLenientTaskDecision } = require('../collaboration/task-decision.cjs')
 
 // Rebuild consensus from committed, operation-bound messages. No in-memory vote
 // can survive a crash without its corresponding durable Agent response.
@@ -27,7 +28,11 @@ const naturalConsensusMethods = {
         }
       }
       if (message.trace?.phase !== 'discussion') continue
-      const decision = message.trace?.context?.taskDecision
+      const receipt = message.trace?.context?.taskDecision
+      let decision
+      if (receipt) {
+        try { decision = parseLenientTaskDecision(receipt) } catch { candidate = null; continue }
+      }
       const contribution = this.v4NaturalMessageContent(message)
       if (contribution.partial || !contribution.text.trim() || explicitTaskFailure(contribution.text)
           || explicitTaskFailure(decision?.reason)) {

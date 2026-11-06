@@ -88,7 +88,8 @@ const v4NaturalDecisionMethods = {
     }
     const nextKinds = this.v4NaturalNextKinds(group, controller, threadRootId, round, activeKinds)
     if (nextKinds.length) return { nextKinds, ownerReview: false }
-    const decision = ownerMessage?.trace?.context?.taskDecision
+    let decision
+    try { decision = parseLenientTaskDecision(ownerMessage?.trace?.context?.taskDecision) } catch { /* ask for a valid receipt */ }
     if (decision?.handoffTo && !activeKinds.includes(decision.handoffTo)) {
       this.v4NaturalNotice(group, controller, threadRootId, 'system.autoHandoffIgnored',
         `The handoff to ${this.agentLabel(decision.handoffTo)} was ignored because that Agent is not active; ${this.agentLabel(owner)} remains the delivery owner.`,
@@ -223,7 +224,8 @@ const v4NaturalDecisionMethods = {
       && this.v4NaturalMessageMatchesBinding(message, controller)
     ))
     const previous = earlier.at(-1)
-    return Boolean(previous && !previous.trace?.context?.taskDecision)
+    if (!previous) return false
+    try { parseLenientTaskDecision(previous.trace?.context?.taskDecision); return false } catch { return true }
   },
 
   // With activeKinds, an owner who failed or was paused hands ownership to
