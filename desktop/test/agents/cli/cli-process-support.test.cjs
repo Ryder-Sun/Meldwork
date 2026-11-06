@@ -119,6 +119,16 @@ test('Pi receives and redacts credentials declared in native models configuratio
   assert.doesNotMatch(redactChildSecrets('failure synthetic-private-value', env), /synthetic-private-value/)
 })
 
+test('a single Agent retains and redacts more than 32 declared credentials', () => {
+  const keys = Array.from({ length: 40 }, (_, index) => `DECLARED_${index}`)
+  const source = Object.fromEntries(keys.map(key => [key, `synthetic-value-${key}`]))
+  const env = childEnvironment({ kind: 'pi' }, '/tmp/workspace', {
+    env: source, nativeCredentialKeys: keys,
+  }, 'darwin')
+  assert.equal(env.DECLARED_39, 'synthetic-value-DECLARED_39')
+  assert.doesNotMatch(redactChildSecrets('synthetic-value-DECLARED_39', env), /synthetic-value-DECLARED_39/)
+})
+
 test('native Agent child environments preserve shell-selected XDG directories', () => {
   const env = childEnvironment({ kind: 'opencode' }, '/tmp/workspace', {
     env: { XDG_CONFIG_HOME: '/native/config', XDG_DATA_HOME: '/native/data',

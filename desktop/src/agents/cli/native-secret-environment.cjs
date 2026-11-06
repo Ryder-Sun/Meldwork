@@ -4,7 +4,7 @@ const UNSAFE = /^(?:(?:PATH|HOME|USER|LOGNAME|SHELL|ENV|IFS|CDPATH|GLOBIGNORE|TM
 function nativeSecretEnvKeys(input) {
   if (!Array.isArray(input)) return []
   return [...new Set(input.filter(key => typeof key === 'string'
-    && /^[A-Za-z_][A-Za-z0-9_]{0,127}$/.test(key) && !UNSAFE.test(key)))].slice(0, 32).sort()
+    && /^[A-Za-z_][A-Za-z0-9_]{0,127}$/.test(key) && !UNSAFE.test(key)))].slice(0, 128).sort()
 }
 
 module.exports = { SECRET_ENV_KEYS, nativeSecretEnvKeys }

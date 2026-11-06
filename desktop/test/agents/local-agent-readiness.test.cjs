@@ -38,6 +38,18 @@ test('Pi captures only environment references declared by its selected native mo
   assert.deepEqual(piDeclaredCredentialKeys({ home, env: {} }), [])
 })
 
+test('Pi retains more than 32 environment references from its native models configuration', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-pi-many-keys-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const root = path.join(home, '.pi', 'agent')
+  fs.mkdirSync(root, { recursive: true })
+  const headers = Object.fromEntries(Array.from({ length: 40 }, (_, index) => [`X-Key-${index}`, `$PI_CUSTOM_${index}`]))
+  fs.writeFileSync(path.join(root, 'models.json'), JSON.stringify({ providers: { custom: { headers } } }))
+  const keys = piDeclaredCredentialKeys({ home, env: {} })
+  assert.equal(keys.length, 40)
+  assert.ok(keys.includes('PI_CUSTOM_39'))
+})
+
 test('Zcode captures credentials only for configured native models', async t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-zcode-declared-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))

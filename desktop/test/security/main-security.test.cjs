@@ -219,7 +219,7 @@ test('native credentials from multiple Agents are captured in bounded batches wi
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-env-batches-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
   const hermesKeys = Array.from({ length: 20 }, (_, index) => `HERMES_TEST_KEY_${index}`)
-  const piKeys = Array.from({ length: 20 }, (_, index) => `PI_TEST_KEY_${index}`)
+  const piKeys = Array.from({ length: 40 }, (_, index) => `PI_TEST_KEY_${index}`)
   const unset = piKeys.at(-1)
   const previous = process.env[unset]
   process.env[unset] = 'stale-process-value'
@@ -241,9 +241,9 @@ test('native credentials from multiple Agents are captured in bounded batches wi
   await harness.workspaceInstances[0].input.runAgent({ kind: 'pi', executable: '/tmp/pi' }, 'hello', directory, {})
   const options = harness.runAgentCalls.at(-1)[3]
   assert.ok(queries.some(keys => keys.length === 32))
-  assert.ok(queries.some(keys => keys.includes(piKeys[18])))
+  assert.ok(queries.some(keys => keys.includes(piKeys[38])))
   assert.ok(queries.every(keys => keys.length <= 32))
-  assert.equal(options.env[piKeys[18]], `value-${piKeys[18]}`)
+  assert.equal(options.env[piKeys[38]], `value-${piKeys[38]}`)
   assert.equal(options.env[hermesKeys[0]], undefined)
   assert.equal(options.env[unset], undefined)
   assert.ok(options.nativeUnsetKeys.includes(unset))
