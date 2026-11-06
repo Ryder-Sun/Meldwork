@@ -85,6 +85,20 @@ test('product data migration failure stops ready initialization before stores or
   ]])
 })
 
+test('desktop startup restricts existing application-owned data directories', async (t) => {
+  if (process.platform === 'win32') return t.skip('POSIX permissions are not Windows ACLs')
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-private-startup-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const privateRoot = path.join(directory, 'meldwork-private')
+  fs.mkdirSync(privateRoot)
+  fs.chmodSync(directory, 0o755)
+  fs.chmodSync(privateRoot, 0o755)
+  const { harness } = loadMain(directory)
+  await harness.ready()
+  assert.equal(fs.statSync(directory).mode & 0o777, 0o700)
+  assert.equal(fs.statSync(privateRoot).mode & 0o777, 0o700)
+})
+
 test('controlled media protocol serves attachment bytes with range support and rejects invalid ids', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-media-protocol-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

@@ -3,6 +3,7 @@ const { app, BrowserWindow, dialog, ipcMain, Menu, Notification, protocol, shell
 const fs = require('node:fs')
 const path = require('node:path')
 const { redactSecrets } = require('./security/secret-redaction.cjs')
+const { ensurePrivateDirectory } = require('./security/private-file.cjs')
 const { AttachmentStore } = require('./attachments/attachment-store.cjs')
 const { ContentBlobStore } = require('./attachments/content-blob-store.cjs')
 const { ContextPackStore } = require('./collaboration/context-pack-store.cjs')
@@ -454,6 +455,7 @@ async function requestLocalSkillTrust({ binding, coordinates, manifest }) {
 function createWorkspace() {
   cloudAgentStartRetry?.cancel()
   const privateRoot = path.join(app.getPath('userData'), 'meldwork-private')
+  ensurePrivateDirectory(privateRoot)
   const contentBlobStore = new ContentBlobStore({
     rootPath: path.join(privateRoot, 'content-blobs'),
   })
@@ -779,6 +781,13 @@ if (!hasSingleInstanceLock) {
   app.on('second-instance', activateMainWindow)
 
   app.whenReady().then(async () => {
+    try {
+      ensurePrivateDirectory(app.getPath('userData'))
+    } catch (error) {
+      console.error('MELDWORK_PRIVATE_DIRECTORY_UNAVAILABLE', { code: String(error?.code || '') })
+      app.quit()
+      return
+    }
     try {
       migrateLegacyProductData(app.getPath('userData'))
     } catch (error) {

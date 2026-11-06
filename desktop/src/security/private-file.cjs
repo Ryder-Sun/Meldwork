@@ -2,6 +2,23 @@ const crypto = require('node:crypto')
 const fs = require('node:fs')
 const path = require('node:path')
 
+function ensurePrivateDirectory(directory) {
+  fs.mkdirSync(directory, { recursive: true, mode: 0o700 })
+  const stat = fs.lstatSync(directory)
+  if (stat.isSymbolicLink() || !stat.isDirectory()) {
+    throw new Error('PRIVATE_DIRECTORY_INVALID')
+  }
+  if (process.platform === 'win32') return
+  const flags = fs.constants.O_RDONLY | (fs.constants.O_DIRECTORY || 0) | (fs.constants.O_NOFOLLOW || 0)
+  const descriptor = fs.openSync(directory, flags)
+  try {
+    if (!fs.fstatSync(descriptor).isDirectory()) throw new Error('PRIVATE_DIRECTORY_INVALID')
+    fs.fchmodSync(descriptor, 0o700)
+  } finally {
+    fs.closeSync(descriptor)
+  }
+}
+
 function atomicWritePrivateFile(filename, contents) {
   const directory = path.dirname(filename)
   fs.mkdirSync(directory, { recursive: true, mode: 0o700 })
@@ -38,4 +55,4 @@ function atomicWritePrivateFile(filename, contents) {
   }
 }
 
-module.exports = { atomicWritePrivateFile }
+module.exports = { atomicWritePrivateFile, ensurePrivateDirectory }

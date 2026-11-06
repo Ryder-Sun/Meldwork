@@ -4,13 +4,45 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 
-const { atomicWritePrivateFile } = require('../../src/security/private-file.cjs')
+const { atomicWritePrivateFile, ensurePrivateDirectory } = require('../../src/security/private-file.cjs')
 
 function fixture(t) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-private-file-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
   return directory
 }
+
+test('managed private directories repair broad permissions without changing their parent', (t) => {
+  if (process.platform === 'win32') return t.skip('POSIX permissions are not Windows ACLs')
+  const directory = fixture(t)
+  const managed = path.join(directory, 'managed')
+  fs.mkdirSync(managed)
+  fs.chmodSync(directory, 0o755)
+  fs.chmodSync(managed, 0o755)
+  ensurePrivateDirectory(managed)
+  assert.equal(fs.statSync(managed).mode & 0o777, 0o700)
+  assert.equal(fs.statSync(directory).mode & 0o777, 0o755)
+})
+
+test('managed private directories reject symlinks without changing their targets', (t) => {
+  if (process.platform === 'win32') return t.skip('creating directory symlinks can require elevated privileges')
+  const directory = fixture(t)
+  const target = path.join(directory, 'target')
+  const link = path.join(directory, 'link')
+  fs.mkdirSync(target)
+  fs.chmodSync(target, 0o755)
+  fs.symlinkSync(target, link)
+  assert.throws(() => ensurePrivateDirectory(link), { message: 'PRIVATE_DIRECTORY_INVALID' })
+  assert.equal(fs.statSync(target).mode & 0o777, 0o755)
+})
+
+test('atomic writes do not change permissions of an arbitrary caller directory', (t) => {
+  if (process.platform === 'win32') return t.skip('POSIX permissions are not Windows ACLs')
+  const directory = fixture(t)
+  fs.chmodSync(directory, 0o755)
+  atomicWritePrivateFile(path.join(directory, 'private.json'), 'data')
+  assert.equal(fs.statSync(directory).mode & 0o777, 0o755)
+})
 
 test('private file writes replace contents atomically with restrictive permissions', (t) => {
   const directory = fixture(t)
