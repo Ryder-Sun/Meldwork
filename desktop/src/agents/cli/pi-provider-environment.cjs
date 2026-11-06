@@ -4,7 +4,7 @@ const PI_PROVIDER_CREDENTIAL_KEYS = Object.freeze({
   'ant-ling': 'ANT_LING_API_KEY', 'qwen-token-plan': 'QWEN_TOKEN_PLAN_API_KEY',
   'qwen-token-plan-cn': 'QWEN_TOKEN_PLAN_CN_API_KEY',
   'qwen-token-plan-individual': 'QWEN_TOKEN_PLAN_API_KEY',
-  openai: 'OPENAI_API_KEY', anthropic: 'ANTHROPIC_API_KEY',
+  openai: 'OPENAI_API_KEY', anthropic: 'ANTHROPIC_API_KEY', 'github-copilot': 'COPILOT_GITHUB_TOKEN',
   'azure-openai-responses': 'AZURE_OPENAI_API_KEY', nvidia: 'NVIDIA_API_KEY',
   deepseek: 'DEEPSEEK_API_KEY', google: 'GEMINI_API_KEY',
   'google-vertex': 'GOOGLE_CLOUD_API_KEY', groq: 'GROQ_API_KEY',

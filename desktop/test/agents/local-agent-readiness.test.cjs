@@ -99,6 +99,25 @@ test('Pi built-in provider credentials survive shell discovery and reach only Pi
   assert.equal(childEnvironment({ kind: 'codex' }, home, { env: native }, 'win32').DEEPSEEK_API_KEY, undefined)
 })
 
+test('Pi captures its native GitHub Copilot token from the login shell', async t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-pi-copilot-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const root = path.join(home, '.pi', 'agent')
+  fs.mkdirSync(root, { recursive: true })
+  fs.writeFileSync(path.join(root, 'settings.json'), JSON.stringify({ defaultProvider: 'github-copilot' }))
+  const execFile = require('node:util').promisify(require('node:child_process').execFile)
+  const captured = await resolveNativeShellEnvironment({
+    cache: false, platform: 'darwin', shell: '/bin/sh', env: {},
+    execFileFn: (command, args, options) => execFile(command, ['-c', [
+      'export COPILOT_GITHUB_TOKEN=synthetic-copilot-token', args[1],
+    ].join('\n')], options),
+  })
+  const native = nativeCredentialEnvironment('pi', captured.env)
+  assert.equal(nativeCredentialState('pi', { home, env: native }).state, 'ready')
+  assert.equal(childEnvironment({ kind: 'pi' }, home, { env: native }, 'darwin').COPILOT_GITHUB_TOKEN, 'synthetic-copilot-token')
+  assert.equal(childEnvironment({ kind: 'codex' }, home, { env: native }, 'darwin').COPILOT_GITHUB_TOKEN, undefined)
+})
+
 test('Pi retains more than 32 environment references from its native models configuration', t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-pi-many-keys-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))
