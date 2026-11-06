@@ -163,7 +163,20 @@ test('Zcode discovers native project model overrides and their credentials', t =
   }))
   assert.deepEqual(zcodeDeclaredCredentialKeys({ home, workdir: child }), ['PROJECT_API_KEY', 'PROJECT_SERVICE_API_KEY'])
   assert.deepEqual(zcodeDeclaredCredentialKeys({ home, workdir: child, env: { ZCODE_MODEL: 'override/model' } }), ['OVERRIDE_API_KEY'])
+  assert.deepEqual(zcodeDeclaredCredentialKeys({ home, workdir: child, env: { ZCODE_MODEL: 'claude-model' } }), ['ANTHROPIC_API_KEY'])
+  assert.deepEqual(zcodeDeclaredCredentialKeys({ home, workdir: child, env: { ZCODE_MODEL: '  ' } }), ['PROJECT_API_KEY', 'PROJECT_SERVICE_API_KEY'])
   assert.deepEqual(zcodeDeclaredCredentialKeys({ home, workdir: home }), [])
+})
+
+test('Zcode reads the home directory inherited by its native CLI', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-zcode-home-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const selected = path.join(home, 'selected')
+  const configDir = path.join(selected, '.zcode', 'cli')
+  fs.mkdirSync(configDir, { recursive: true })
+  fs.writeFileSync(path.join(configDir, 'config.json'), JSON.stringify({ model: { main: 'selected/model' } }))
+  assert.deepEqual(zcodeDeclaredCredentialKeys({ home, platform: 'darwin', env: { HOME: selected } }), ['SELECTED_API_KEY'])
+  assert.deepEqual(zcodeDeclaredCredentialKeys({ home, platform: 'win32', env: { USERPROFILE: selected } }), ['SELECTED_API_KEY'])
 })
 
 test('Hermes captures only safe credential names declared by its selected YAML config', async t => {

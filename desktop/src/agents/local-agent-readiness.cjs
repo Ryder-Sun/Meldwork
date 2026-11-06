@@ -333,7 +333,10 @@ function hermesDeclaredCredentialKeys(options = {}) {
 }
 
 function zcodeDeclaredCredentialKeys(options = {}) {
-  const home = options.home || os.homedir()
+  const fallbackHome = options.home || os.homedir()
+  const platform = options.platform || process.platform
+  const configuredHome = platform === 'win32' ? options.env?.USERPROFILE : options.env?.HOME
+  const home = typeof configuredHome === 'string' && configuredHome.trim() ? configuredHome.trim() : fallbackHome
   try {
     const files = [path.join(home, '.zcode', 'cli', 'config.json')]
     if (typeof options.workdir === 'string' && path.isAbsolute(options.workdir)) {
@@ -367,7 +370,9 @@ function zcodeDeclaredCredentialKeys(options = {}) {
         }
       }
     }
-    const models = [options.env?.ZCODE_MODEL || model.main, model.lite, ...(Array.isArray(model.available) ? model.available.slice(0, 32) : [])]
+    const envModel = typeof options.env?.ZCODE_MODEL === 'string' ? options.env.ZCODE_MODEL.trim() : ''
+    const selectedModel = envModel ? (envModel.includes('/') ? envModel : `anthropic/${envModel}`) : model.main
+    const models = [selectedModel, model.lite, ...(Array.isArray(model.available) ? model.available.slice(0, 32) : [])]
     const names = []
     for (const item of models) {
       const provider = typeof item === 'string' ? item.split('/')[0]
