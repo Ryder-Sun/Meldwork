@@ -208,8 +208,13 @@ function nativeCredentialKeyEnvironment(kind, env = process.env) {
 function allowedShellEnvironment(env = process.env, platform = process.platform) {
   const source = { ...env, ...networkEnvironment(env, platform) }
   const result = {}
-  for (const key of [...SHELL_ENV_KEYS, ...Object.keys(source).filter(key => VERTEX_MODEL_REGION_KEY.test(key))]) {
-    const value = source[key]
+  const sourceKeys = Object.keys(source)
+  const regionKeys = sourceKeys.map(key => platform === 'win32' ? key.toUpperCase() : key)
+    .filter(key => VERTEX_MODEL_REGION_KEY.test(key))
+  for (const key of [...SHELL_ENV_KEYS, ...regionKeys]) {
+    const sourceKey = Object.hasOwn(source, key) ? key
+      : platform === 'win32' ? sourceKeys.find(candidate => candidate.toUpperCase() === key) : undefined
+    const value = sourceKey === undefined ? undefined : source[sourceKey]
     if (typeof value !== 'string' || value.length > MAX_SHELL_ENV_BYTES) continue
     result[key] = value
   }

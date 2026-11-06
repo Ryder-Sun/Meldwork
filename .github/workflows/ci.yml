@@ -33,6 +33,9 @@ jobs:
       - name: Test actual process tree termination
         run: node --test desktop/test/agents/cli/windows-process-tree.test.cjs
 
+      - name: Test native environment key casing
+        run: node --test --test-name-pattern="Windows native environment canonicalizes" desktop/test/agents/local-agent-readiness.test.cjs
+
       - name: Build unpacked Windows application
         run: npm run pack
         working-directory: desktop

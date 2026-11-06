@@ -26,6 +26,25 @@ test('native environment cache observes credential and proxy changes without a P
   assert.equal(removed.env.HTTPS_PROXY, undefined)
 })
 
+test('Windows native environment canonicalizes allowed keys without leaking unrelated values', async () => {
+  const result = await resolveNativeShellEnvironment({ cache: false, platform: 'win32', env: {
+    Path: 'C:\\tools', Anthropic_Api_Key: 'native-secret', Claude_Config_Dir: 'C:\\claude',
+    Vertex_Region_Claude_Test: 'region', Unrelated_Secret: 'private',
+  } })
+  assert.equal(result.env.PATH, 'C:\\tools')
+  assert.equal(result.env.ANTHROPIC_API_KEY, 'native-secret')
+  assert.equal(result.env.CLAUDE_CONFIG_DIR, 'C:\\claude')
+  assert.equal(result.env.VERTEX_REGION_CLAUDE_TEST, 'region')
+  assert.equal(result.env.UNRELATED_SECRET, undefined)
+  assert.deepEqual(nativeCredentialEnvironment('claude', result.env), {
+    ANTHROPIC_API_KEY: 'native-secret', CLAUDE_CONFIG_DIR: 'C:\\claude', VERTEX_REGION_CLAUDE_TEST: 'region',
+  })
+  const preferred = await resolveNativeShellEnvironment({ cache: false, platform: 'win32', env: {
+    ANTHROPIC_API_KEY: 'canonical', Anthropic_Api_Key: 'other',
+  } })
+  assert.equal(preferred.env.ANTHROPIC_API_KEY, 'canonical')
+})
+
 test('native shell capture preserves XDG configuration directories without unrelated variables', { skip: process.platform === 'win32' }, async () => {
   const execFile = require('node:util').promisify(require('node:child_process').execFile)
   const result = await resolveNativeShellEnvironment({
