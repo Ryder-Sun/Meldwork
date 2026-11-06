@@ -10,7 +10,6 @@ export default {
     'nativeConfig.expected.pi': '需要 settings.json、auth.json 或 models.json。',
     'nativeConfig.expected.deepseek': '需要 profiles 目录、cordis.patch.yml 或 .credentials.yaml。',
     'nativeConfig.expected.workbuddy': '需要 models.json、settings.json 或 .credentials.json。',
-    'nativeConfig.expected.zcode': '需要 config.json。',
     'skillTrust.title': 'Skill 信任',
     'skillTrust.hint': '查看按 Agent 和内容绑定的信任授权。内容变化后需要重新授权。',
     'skillTrust.refresh': '刷新',

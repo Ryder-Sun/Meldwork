@@ -19,6 +19,13 @@ test('Zcode prompts explicitly select permissions and only resume the requested 
   }
 })
 
+test('Zcode does not receive the unsupported settings flag', () => {
+  // Zcode 0.16.1 advertises --settings in help but rejects it at runtime.
+  const spec = invocation('zcode', '/bin/zcode', '/tmp/work', '', { nativeSettingsFile: '/tmp/config.json' })
+  assert.equal(spec.args.includes('--settings'), false)
+  assert.equal(spec.args.includes('/tmp/config.json'), false)
+})
+
 test('Zcode reports its explicit missing-provider credential without a write retry', () => {
   assert.equal(failedAgentProcessError('ProviderBusinessError: [1113][Insufficient balance or no resource package. Please recharge.]',
     { kind: 'zcode' }).code, 'LOCAL_AGENT_PROVIDER_QUOTA_EXHAUSTED')

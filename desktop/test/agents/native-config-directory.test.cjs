@@ -3,9 +3,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
-const { nativeConfigEnvironment, nativeConfigSettingsFile, validateNativeConfigDirectory } = require('../../src/agents/native-config-directory.cjs')
-const { nativeCredentialState } = require('../../src/agents/local-agent-readiness.cjs')
-const { invocation } = require('../../src/agents/cli/cli-invocations.cjs')
+const { nativeConfigEnvironment, validateNativeConfigDirectory } = require('../../src/agents/native-config-directory.cjs')
 const { loadWorkspaceState, saveWorkspaceState } = require('../../src/workspace/local-workspace-state.cjs')
 
 test('validates a selected native directory and scopes it to the owning Agent', t => {
@@ -44,24 +42,6 @@ test('DeepSeek Harness accepts its native profiles directory and scopes DSH_HOME
   const preferences = { deepseek: { nativeConfigDirectory: selected } }
   assert.equal(nativeConfigEnvironment('deepseek', preferences, { DSH_HOME: '/previous' }).DSH_HOME, selected)
   assert.deepEqual(nativeConfigEnvironment('hermes', preferences), {})
-})
-
-test('Zcode selected configuration drives native detection and the settings argument', t => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-zcode-config-'))
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
-  assert.throws(() => validateNativeConfigDirectory('zcode', directory), { message: 'LOCAL_NATIVE_CONFIG_INVALID' })
-  fs.writeFileSync(path.join(directory, 'config.json'), JSON.stringify({ provider: { apiKey: 'test-secret' } }))
-  const selected = validateNativeConfigDirectory('zcode', directory)
-  const preferences = { zcode: { nativeConfigDirectory: selected } }
-  const settingsFile = nativeConfigSettingsFile('zcode', preferences)
-  assert.equal(settingsFile, path.join(selected, 'config.json'))
-  assert.deepEqual(nativeConfigEnvironment('zcode', preferences, { PATH: '/bin' }), { PATH: '/bin' })
-  assert.equal(nativeCredentialState('zcode', { home: directory, env: {}, nativeSettingsFile: settingsFile }).state, 'ready')
-  const args = invocation('zcode', '/native/zcode', '/workspace', '', { nativeSettingsFile: settingsFile }).args
-  assert.equal(args[args.indexOf('--settings') + 1], settingsFile)
-  assert.equal(invocation('zcode', '/native/zcode', '/workspace').args.includes('--settings'), false)
-  assert.throws(() => nativeConfigSettingsFile('zcode', { zcode: { nativeConfigDirectory: 'relative' } }),
-    { message: 'LOCAL_NATIVE_CONFIG_INVALID' })
 })
 
 for (const [kind, key, file] of [

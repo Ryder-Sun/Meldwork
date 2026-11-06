@@ -177,7 +177,6 @@ function invocation(kind, executable, workdir, sessionRef = '', options = {}) {
       command: executable,
       args: ['--json', '--no-color', '--verbose', '--cwd', workdir,
         '--mode', options.sandbox === 'workspace-write' ? 'edit' : 'plan',
-        ...(options.nativeSettingsFile ? ['--settings', options.nativeSettingsFile] : []),
         ...(sessionRef ? ['--resume', sessionRef] : []), '--prompt'],
       promptArg: true,
     }

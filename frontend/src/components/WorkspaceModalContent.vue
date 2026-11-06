@@ -353,7 +353,7 @@ import AgentNativeConfig from './AgentNativeConfig.vue'
 import { desktopApi } from '../desktop.js'
 
 const nativeConfigAvailable = Boolean(desktopApi()?.localAgentNativeConfig)
-const nativeConfigKinds = ['hermes', 'codex', 'claude', 'pi', 'deepseek', 'workbuddy', 'zcode']
+const nativeConfigKinds = ['hermes', 'codex', 'claude', 'pi', 'deepseek', 'workbuddy']
 
 
 const props = defineProps({
