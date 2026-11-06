@@ -83,6 +83,22 @@ test('creates content-addressed acyclic task graphs and durable cursors', () => 
   })
 })
 
+test('nonterminal human rejection ends the graph and legacy cursors remain recoverable', () => {
+  const graph = createTaskGraph({ template: 'task-graph', nodes: [
+    node({ nodeId: 'decision', role: 'human', agentKind: null, parallel: false,
+      acceptance: { requireConclusion: false, minArtifactRefs: 0, minEvidenceRefs: 0 },
+      decisionOptions: [{ optionId: 'yes', name: 'Yes', kind: 'allow_once' },
+        { optionId: 'no', name: 'No', kind: 'reject_once' }] }),
+    node({ nodeId: 'after', dependsOn: ['decision'], inputNodeIds: ['decision'], terminal: true }),
+  ] })
+  let cursor = createTaskGraphCursor(graph)
+  cursor = updateTaskGraphCursor(cursor, 'decision', { status: 'rejected', decisionOptionId: 'no' })
+  assert.equal(cursor.terminalState, 'rejected')
+  const legacy = { ...cursor, terminalState: 'running' }
+  assert.equal(parseTaskGraphCursor(legacy).terminalState, 'running')
+  assert.equal(terminalTaskGraphState(legacy), 'rejected')
+})
+
 test('only primary nodes can declare a safe claim key and it survives graph serialization', () => {
   const input = workflow()
   input.nodes[0].claimKey = 'security-review'

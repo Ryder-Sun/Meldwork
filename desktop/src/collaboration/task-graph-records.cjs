@@ -189,13 +189,18 @@ function createTaskGraphCursor(graphInput, now = Date.now()) {
   })
 }
 
-function terminalStateFor(graph, nodeStates) {
+function legacyTerminalStateFor(graph, nodeStates) {
   const states = new Map(nodeStates.map(state => [state.nodeId, state]))
   const terminal = graph.nodes.filter(node => node.terminal)
   if (terminal.every(node => states.get(node.nodeId)?.status === 'accepted')) return 'accepted'
   if (terminal.some(node => states.get(node.nodeId)?.status === 'rejected')) return 'rejected'
   if (nodeStates.some(state => state.status === 'failed')) return 'failed'
   return 'running'
+}
+
+function terminalStateFor(graph, nodeStates) {
+  if (nodeStates.some(state => state.status === 'rejected')) return 'rejected'
+  return legacyTerminalStateFor(graph, nodeStates)
 }
 
 function parseTaskGraphCursor(input, targetKinds = null) {
@@ -215,7 +220,8 @@ function parseTaskGraphCursor(input, targetKinds = null) {
       ? !['running', 'waiting'].includes(state.status)
       : ['running', 'waiting'].includes(state.status)
   ))) fail('TASK_GRAPH_CURSOR_INVALID')
-  if (cursor.terminalState !== terminalStateFor(graph, cursor.nodeStates)) {
+  if (cursor.terminalState !== terminalStateFor(graph, cursor.nodeStates)
+      && cursor.terminalState !== legacyTerminalStateFor(graph, cursor.nodeStates)) {
     fail('TASK_GRAPH_CURSOR_INVALID')
   }
   return { ...cursor, graph }

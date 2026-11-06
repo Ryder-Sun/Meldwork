@@ -704,6 +704,40 @@ for (const failure of ['explicit failure', 'missing evidence']) test(`a task gra
     && entry.refs.some(id => conflicts.some(conflict => conflict.entryId === id))), false)
 })
 
+test('rejecting a nonterminal task graph decision stops dependent work durably', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const ledger = new RunLedger({ storagePath: path.join(directory, 'run-ledger.json') })
+  options.runLedger = ledger
+  const calls = []
+  options.runAgent = async agent => { calls.push(agent.kind); return { text: 'Ready for review.', outcome: 'completed' } }
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Human decision', agentKinds: ['codex', 'hermes'], workdir: directory })
+  const acceptance = { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 }
+  const graph = { template: 'task-graph', nodes: [
+    graphNode({ acceptance }),
+    graphNode({ nodeId: 'human', role: 'human', agentKind: null, dependsOn: ['primary-codex'],
+      inputNodeIds: ['primary-codex'], acceptance: { requireConclusion: false, minArtifactRefs: 0, minEvidenceRefs: 0 },
+      decisionOptions: [{ optionId: 'allow', name: 'Allow', kind: 'allow_once' },
+        { optionId: 'reject', name: 'Reject', kind: 'reject_once' }] }),
+    graphNode({ nodeId: 'followup', agentKind: 'hermes', dependsOn: ['human'], inputNodeIds: ['human'],
+      acceptance, terminal: true }),
+  ] }
+  await workspace.sendMessage({ groupId: group.id, text: 'Review this work.', mode: 'auto', maxRounds: 4,
+    targetKinds: group.agentKinds, workflow: graph })
+  const gate = await pendingHumanGate(workspace)
+  workspace.decideHumanGate(gate.gateId, { status: 'rejected', optionId: 'reject', actorId: 'local-user' })
+  await workspace.activeRuns.get(group.id).promise
+  const saved = ledger.get(gate.runId)
+  assert.equal(saved.status, 'stopped')
+  assert.equal(saved.orchestration.taskGraph.terminalState, 'rejected')
+  assert.equal(saved.orchestration.taskGraph.nodeStates[2].status, 'pending')
+  assert.deepEqual(calls, ['codex'])
+  assert.equal(new RunLedger({ storagePath: path.join(directory, 'run-ledger.json') })
+    .get(gate.runId).orchestration.taskGraph.terminalState, 'rejected')
+})
+
 test('task graph Human node uses a typed decision instead of Agent consensus', async (t) => {
   const { directory, calls, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
