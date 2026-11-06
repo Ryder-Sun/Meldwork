@@ -9,7 +9,7 @@ const {
   parseAgentConnectorManifest,
 } = require('./agent-connector-manifest.cjs')
 const { canonicalJson } = require('../../collaboration/outcome-records.cjs')
-const { atomicWritePrivateFile } = require('../../security/private-file.cjs')
+const { atomicWritePrivateFile, ensurePrivateDirectory } = require('../../security/private-file.cjs')
 const { redactSecrets } = require('../../security/secret-redaction.cjs')
 
 const AGENT_CONNECTOR_PACKAGE_VERSION = 1
@@ -333,14 +333,8 @@ class AgentConnectorPackageStore {
   }
 
   ensureDirectories() {
-    fs.mkdirSync(this.packageDirectory, { recursive: true, mode: 0o700 })
-    for (const directory of [this.rootPath, this.packageDirectory]) {
-      const stat = fs.lstatSync(directory)
-      if (stat.isSymbolicLink() || !stat.isDirectory()) {
-        fail('AGENT_CONNECTOR_PACKAGE_STORE_UNAVAILABLE')
-      }
-      try { fs.chmodSync(directory, 0o700) } catch { /* best effort */ }
-    }
+    ensurePrivateDirectory(this.rootPath)
+    ensurePrivateDirectory(this.packageDirectory)
   }
 
   loadAudit() {

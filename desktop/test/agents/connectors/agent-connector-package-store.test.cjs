@@ -26,6 +26,39 @@ function fixture(t) {
   return { create, rootPath, store: create() }
 }
 
+test('existing Connector package directories are made private', { skip: process.platform === 'win32' }, t => {
+  const { rootPath, create } = fixture(t)
+  fs.chmodSync(rootPath, 0o755)
+  fs.chmodSync(path.join(rootPath, 'packages'), 0o755)
+  const store = create()
+  assert.equal(store.diagnostic(), '')
+  assert.equal(fs.statSync(rootPath).mode & 0o777, 0o700)
+  assert.equal(fs.statSync(path.join(rootPath, 'packages')).mode & 0o777, 0o700)
+})
+
+test('Connector package store fails closed if private directory permissions cannot be enforced', { skip: process.platform === 'win32' }, t => {
+  const { rootPath, create } = fixture(t)
+  const original = fs.fchmodSync
+  fs.fchmodSync = () => { throw Object.assign(new Error('permission denied'), { code: 'EACCES' }) }
+  t.after(() => { fs.fchmodSync = original })
+  const store = create()
+  assert.equal(store.diagnostic(), 'EACCES')
+  assert.deepEqual(store.installedPackages(), [])
+  assert.throws(() => store.list(), { code: 'EACCES' })
+  assert.deepEqual(fs.readdirSync(path.join(rootPath, 'packages')), [])
+})
+
+test('Connector package store rejects a symlink root before creating directories in its target', { skip: process.platform === 'win32' }, t => {
+  const { rootPath } = fixture(t)
+  const target = path.join(rootPath, 'unrelated')
+  const link = path.join(rootPath, 'redirect')
+  fs.mkdirSync(target)
+  fs.symlinkSync(target, link)
+  const store = new AgentConnectorPackageStore({ rootPath: link })
+  assert.equal(store.diagnostic(), 'AGENT_CONNECTOR_PACKAGE_STORE_UNAVAILABLE')
+  assert.deepEqual(fs.readdirSync(target), [])
+})
+
 test('creates and parses a strict content-addressed Connector package', () => {
   const serialized = serializeAgentConnectorPackage(SAMPLE_LOCAL_ECHO_AGENT_CONNECTOR_PACKAGE)
   const parsed = parseAgentConnectorPackage(serialized)
