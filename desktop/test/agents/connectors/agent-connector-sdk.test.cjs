@@ -196,6 +196,15 @@ test('HTTP JSON provider enforces destinations, credentials, cancellation, and f
     assert.equal(rejected.failure.code, 'AGENT_CONNECTOR_HTTP_RESPONSE_INVALID')
     assert.doesNotMatch(JSON.stringify(rejected), /private-token/)
   }
+  const runtimeEvents = []
+  connectors.fetch = async () => { throw Object.assign(new Error('request failed'), { code: 'private-token' }) }
+  const leakedFailure = await connectors.run(agent, 'check error', directory, {
+    runId: 'run-leak-error', agentRunId: 'agent-run-leak-error', sandbox: 'read-only',
+    onEvent: event => runtimeEvents.push(event),
+  })
+  assert.equal(leakedFailure.outcome, 'failed')
+  assert.equal(leakedFailure.failure.code, 'AGENT_CONNECTOR_HTTP_FAILED')
+  assert.doesNotMatch(JSON.stringify({ leakedFailure, runtimeEvents }), /private-token/)
   connectors.fetch = async () => ({ ok: true, body: new ReadableStream({
     start(controller) {
       const bytes = Buffer.from(JSON.stringify({ text: '分块回复' }))

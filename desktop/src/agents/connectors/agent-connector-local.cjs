@@ -756,6 +756,7 @@ class LocalAgentConnectors {
       cursor: `${input.agentRunId}:terminal`,
       sequence: 1,
     }
+    let credential = ''
     try {
       const body = JSON.stringify({
         prompt: input.prompt,
@@ -769,7 +770,6 @@ class LocalAgentConnectors {
       }))
       const headers = { 'content-type': 'application/json' }
       const authSlotId = packageRecord.provider.config.authSlotId
-      let credential = ''
       if (authSlotId) {
         const credentials = this.instanceStore.resolveCredential(input.credentialRefId)
         credential = credentials[authSlotId]
@@ -805,6 +805,7 @@ class LocalAgentConnectors {
         return { outcome: 'cancelled', sessionRef: input.sessionRef || '' }
       }
       const failure = failureDetails(error)
+      if (credential && failure.code.includes(credential)) failure.code = 'AGENT_CONNECTOR_HTTP_FAILED'
       input.emit({ ...terminal, type: 'Failed', ...failure })
       return { outcome: 'failed', failure }
     }
