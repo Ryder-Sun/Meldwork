@@ -284,7 +284,13 @@ class CloudAgentBridgeStore {
     const timeoutMs = Number.isFinite(options.timeoutMs)
       ? Math.max(1000, Math.min(MAX_REQUEST_TIMEOUT_MS, Math.floor(options.timeoutMs)))
       : this.timeoutMs
-    const timer = setTimeout(() => controller.abort(), timeoutMs)
+    let abortCause = ''
+    const abort = cause => {
+      if (abortCause) return
+      abortCause = cause
+      controller.abort()
+    }
+    const timer = setTimeout(() => abort('timeout'), timeoutMs)
     const activityIntervalMs = Math.min(1000, Math.max(10, Math.floor(timeoutMs / 4)))
     const reportActivity = () => {
       try { options.onActivity?.() } catch { /* activity reporting must not fail the request */ }
@@ -293,9 +299,9 @@ class CloudAgentBridgeStore {
     const activityTimer = options.onActivity
       ? setInterval(reportActivity, activityIntervalMs)
       : null
-    const abortFromCaller = () => controller.abort()
+    const abortFromCaller = () => abort('caller')
     options.signal?.addEventListener?.('abort', abortFromCaller, { once: true })
-    if (options.signal?.aborted) controller.abort()
+    if (options.signal?.aborted) abortFromCaller()
     try {
       const response = await this.fetch(`${options.address}${pathname}`, {
         method: options.method || 'GET',
@@ -308,7 +314,9 @@ class CloudAgentBridgeStore {
       const text = await boundedHttpResponseText(response, MAX_RESPONSE_BYTES, 'CLOUD_AGENT_BRIDGE_RESPONSE_TOO_LARGE')
       try { return JSON.parse(text) } catch { fail('CLOUD_AGENT_BRIDGE_RESPONSE_INVALID') }
     } catch (error) {
-      if (error?.name === 'AbortError') fail('CLOUD_AGENT_BRIDGE_TIMEOUT')
+      if (error?.name === 'AbortError') {
+        fail(abortCause === 'caller' ? 'LOCAL_AGENT_EXECUTION_STOPPED' : 'CLOUD_AGENT_BRIDGE_TIMEOUT')
+      }
       throw error
     } finally {
       clearTimeout(timer)

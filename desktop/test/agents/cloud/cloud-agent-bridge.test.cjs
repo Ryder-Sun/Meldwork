@@ -56,8 +56,22 @@ test('Bridge requests cancel oversized streams and respect a pre-aborted caller'
     throw Object.assign(new Error('aborted'), { name: 'AbortError' })
   }
   await assert.rejects(store.request('/test', { address: 'https://203.0.113.10', signal: controller.signal }), {
+    code: 'LOCAL_AGENT_EXECUTION_STOPPED',
+  })
+  store.fetch = async () => { throw Object.assign(new Error('timeout'), { name: 'AbortError' }) }
+  await assert.rejects(store.request('/test', { address: 'https://203.0.113.10' }), {
     code: 'CLOUD_AGENT_BRIDGE_TIMEOUT',
   })
+  const lateCaller = new AbortController()
+  store.fetch = async (_url, options) => new Promise((_resolve, reject) => {
+    options.signal.addEventListener('abort', () => {
+      lateCaller.abort()
+      reject(Object.assign(new Error('aborted'), { name: 'AbortError' }))
+    }, { once: true })
+  })
+  await assert.rejects(store.request('/test', {
+    address: 'https://203.0.113.10', signal: lateCaller.signal, timeoutMs: 1000,
+  }), { code: 'CLOUD_AGENT_BRIDGE_TIMEOUT' })
 })
 
 test('reports activity while a cloud Agent request is waiting for its final response', async () => {
