@@ -3,6 +3,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
+const { childEnvironment } = require('../../src/agents/cli/cli-process-support.cjs')
 
 const {
   hermesDeclaredCredentialKeys,
@@ -1313,6 +1314,43 @@ test('native cloud configuration is forwarded only to compatible Agents', () => 
     GOOGLE_APPLICATION_CREDENTIALS: '/tmp/adc.json', GOOGLE_CLOUD_PROJECT: 'native-project',
   })
   assert.deepEqual(nativeCredentialEnvironment('codex', cloud), {})
+})
+
+test('AWS SDK options survive shell discovery and are shared by cloud Agent probes and execution', async () => {
+  const cloud = {
+    AWS_SDK_LOAD_CONFIG: '1', AWS_EC2_METADATA_DISABLED: 'true',
+    AWS_STS_REGIONAL_ENDPOINTS: 'regional', AWS_RETRY_MODE: 'adaptive', AWS_MAX_ATTEMPTS: '5',
+  }
+  const result = await resolveNativeShellEnvironment({
+    cache: false, platform: 'win32', env: { ...cloud, GITHUB_TOKEN: 'unrelated' },
+  })
+  const execFile = require('node:util').promisify(require('node:child_process').execFile)
+  const shellResult = await resolveNativeShellEnvironment({
+    cache: false, platform: 'darwin', shell: '/bin/sh', env: {},
+    execFileFn: (command, args, options) => execFile(command, ['-c', [
+      ...Object.entries(cloud).map(([key, value]) => `export ${key}=${value}`), args[1],
+    ].join('\n')], options),
+  })
+  assert.equal(shellResult.source, 'native-shell')
+  assert.deepEqual(nativeCredentialEnvironment('claude', shellResult.env), cloud)
+  for (const kind of ['claude', 'pi']) {
+    const native = nativeCredentialEnvironment(kind, result.env)
+    assert.deepEqual(native, cloud)
+    const execution = childEnvironment({ kind }, '/tmp/workspace', { env: native }, 'win32')
+    for (const [key, value] of Object.entries(cloud)) assert.equal(execution[key], value)
+    assert.equal(execution.GITHUB_TOKEN, undefined)
+  }
+  let probeEnv
+  await resolveNativeCredentialState('claude', {
+    env: result.env, platform: 'win32', executable: 'claude.exe',
+    execFileFn: async (_command, _args, options) => {
+      probeEnv = options.env
+      return { stdout: '{"loggedIn":true,"authMethod":"api_key"}' }
+    },
+  })
+  for (const [key, value] of Object.entries(cloud)) assert.equal(probeEnv[key], value)
+  assert.equal(probeEnv.GITHUB_TOKEN, undefined)
+  assert.deepEqual(nativeCredentialEnvironment('codex', result.env), {})
 })
 
 test('Pi retains its native Bedrock, Azure and Vertex environment without unrelated secrets', async () => {
