@@ -231,10 +231,18 @@ class RunScheduler {
         }
       },
     })
+    let releaseDeferred = false
     try {
       return await operation(lease)
+    } catch (error) {
+      const pendingExit = error?.[Symbol.for('meldwork.pending-process-exit')]
+      if (error?.code === 'LOCAL_AGENT_TERMINATION_FAILED' && pendingExit instanceof Promise) {
+        releaseDeferred = true
+        pendingExit.then(() => lease.release(), () => {})
+      }
+      throw error
     } finally {
-      lease.release()
+      if (!releaseDeferred) lease.release()
     }
   }
 

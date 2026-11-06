@@ -47,8 +47,20 @@ function terminateWindowsProcessTree(child, spawnFn, timeoutMs = TERMINATE_GRACE
       clearTimeout(timer)
       child.removeListener('close', onChildClose)
       killer?.removeListener('close', onKillerClose)
-      if (error) reject(agentExecutionError('LOCAL_AGENT_TERMINATION_FAILED'))
-      else resolve()
+      if (error) {
+        const failure = agentExecutionError('LOCAL_AGENT_TERMINATION_FAILED')
+        if (child.pid && child.exitCode == null && child.signalCode == null) {
+          const pending = new Promise(resolveExit => {
+            child.once('exit', resolveExit)
+            if (child.exitCode != null || child.signalCode != null) {
+              child.removeListener('exit', resolveExit)
+              resolveExit()
+            }
+          })
+          Object.defineProperty(failure, Symbol.for('meldwork.pending-process-exit'), { value: pending })
+        }
+        reject(failure)
+      } else resolve()
     }
     const onFailure = () => finish(true)
     const onChildClose = () => { childClosed = true; if (killerSucceeded) finish(false) }

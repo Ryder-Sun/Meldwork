@@ -1313,11 +1313,17 @@ test('a failed process termination is recorded as failure instead of a successfu
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
   const started = deferred()
+  const exited = deferred()
+  const { RunScheduler } = require('../../src/runs/run-scheduler.cjs')
+  const scheduler = new RunScheduler({ globalLimit: 1 })
+  options.runScheduler = scheduler
   options.runAbortGraceMs = 200
   options.runAgent = async (_agent, _prompt, _workdir, input) => new Promise((_resolve, reject) => {
     started.resolve()
     input.signal.addEventListener('abort', () => setTimeout(() => {
-      reject(Object.assign(new Error('LOCAL_AGENT_TERMINATION_FAILED'), { code: 'LOCAL_AGENT_TERMINATION_FAILED' }))
+      const error = Object.assign(new Error('LOCAL_AGENT_TERMINATION_FAILED'), { code: 'LOCAL_AGENT_TERMINATION_FAILED' })
+      Object.defineProperty(error, Symbol.for('meldwork.pending-process-exit'), { value: exited.promise })
+      reject(error)
     }, 10), { once: true })
   })
   const workspace = new LocalWorkspace(options)
@@ -1336,6 +1342,10 @@ test('a failed process termination is recorded as failure instead of a successfu
     message.system?.key === 'system.agentCallFailed'
       && message.system?.params?.reason === 'LOCAL_AGENT_TERMINATION_FAILED'
   )))
+  assert.equal(scheduler.snapshot().active.global, 1)
+  exited.resolve()
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(scheduler.snapshot().active.global, 0)
 })
 
 test('a stale controller cannot clear a newer active run for the same group', async (t) => {

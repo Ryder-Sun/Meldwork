@@ -1,5 +1,7 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
+const { EventEmitter } = require('node:events')
+const { terminateWindowsProcessTree } = require('../../src/agents/cli/cli-process-support.cjs')
 
 const {
   RunScheduler,
@@ -24,6 +26,32 @@ function deferred() {
   })
   return { promise, resolve, reject }
 }
+
+test('failed Windows process termination retains capacity until the child exits', async () => {
+  const scheduler = new RunScheduler({ globalLimit: 1 })
+  const child = new EventEmitter()
+  child.pid = 1234
+  const killer = new EventEmitter()
+  const started = deferred()
+  const first = scheduler.withLease({ taskId: 'first', workspaceKey: 'workspace', permissionMode: 'workspace-write' }, async () => {
+    const termination = terminateWindowsProcessTree(child, () => killer, 1000)
+    started.resolve()
+    killer.emit('close', 1)
+    return termination
+  })
+  await started.promise
+  await assert.rejects(first, { code: 'LOCAL_AGENT_TERMINATION_FAILED' })
+  assert.equal(scheduler.snapshot().active.global, 1)
+  const next = scheduler.acquire({ taskId: 'next', workspaceKey: 'workspace', permissionMode: 'workspace-write' })
+  const state = deferredState(next)
+  await Promise.resolve()
+  assert.equal(state.settled, false)
+  child.exitCode = 1
+  child.emit('exit', 1, null)
+  const lease = await next
+  lease.release()
+  assert.equal(scheduler.snapshot().active.global, 0)
+})
 
 test('exports one process-wide scheduler with no run deadline', () => {
   assert.equal(processRunScheduler instanceof RunScheduler, true)
