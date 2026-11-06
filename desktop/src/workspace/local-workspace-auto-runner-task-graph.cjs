@@ -147,6 +147,8 @@ const taskGraphMethods = {
     const conflicts = this.unresolvedTaskGraphConflicts(controller.orchestration.collaboration)
     const verifiedRefs = this.taskGraphVerifiedOutcomeRefs(node, result, controller)
     const verifiedResult = { ...result, outcomeRefs: verifiedRefs }
+    const accepted = this.taskGraphResultAccepted(node, result, controller, verifiedRefs)
+    const acceptedDecision = node.role === 'arbiter' && accepted
     const entryIds = this.recordCollaborationResult(
       group,
       controller,
@@ -155,14 +157,13 @@ const taskGraphMethods = {
       verifiedResult,
       {
         role: node.role,
-        entryType: node.role === 'arbiter' ? 'decision' : 'claim',
+        entryType: acceptedDecision ? 'decision' : 'claim',
         subject: node.role === 'primary'
           ? `task:${controller.taskId}:conclusion`
           : `task:${controller.taskId}:node:${node.nodeId}`,
-        refs: node.role === 'arbiter' ? conflicts.map(entry => entry.entryId) : [],
+        refs: acceptedDecision ? conflicts.map(entry => entry.entryId) : [],
       },
     )
-    const accepted = this.taskGraphResultAccepted(node, result, controller, verifiedRefs)
     const conclusion = publicCollaborationText(result?.message?.content || '')
     const { artifactIds, evidenceIds } = verifiedRefs
     let cursor = updateTaskGraphCursor(

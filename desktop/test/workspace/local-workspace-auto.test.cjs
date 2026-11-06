@@ -518,6 +518,33 @@ test('task graph runs independent branches in parallel and completes from typed 
   )).length, 4)
 })
 
+for (const failure of ['explicit failure', 'missing evidence']) test(`a task graph arbiter with ${failure} cannot resolve a conflict`, async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const ledger = new RunLedger({ storagePath: path.join(directory, 'run-ledger.json') })
+  options.runLedger = ledger
+  options.runAgent = async agent => ({ text: agent.kind === 'codex' ? 'The release is ready.'
+    : agent.kind === 'hermes' ? 'The release is blocked.'
+      : agent.kind === 'kimi' && failure === 'explicit failure' ? 'I cannot complete the decision.' : 'Review completed.', outcome: 'completed' })
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Failed arbiter',
+    agentKinds: ['codex', 'hermes', 'workbuddy', 'kimi'], workdir: directory, allowWrite: false })
+  const workflow = evidenceTaskGraph()
+  if (failure === 'missing evidence') workflow.nodes.at(-1).acceptance.minEvidenceRefs = 2
+  await workspace.sendMessage({ groupId: group.id, text: 'Assess the release.', mode: 'auto', maxRounds: 6,
+    targetKinds: group.agentKinds, workflow })
+  await workspace.activeRuns.get(group.id).promise
+  const durable = ledger.list(group.id)[0]
+  const entries = durable.orchestration.collaboration.entries
+  const conflicts = entries.filter(entry => entry.entryType === 'conflict')
+  assert.ok(conflicts.length)
+  assert.notEqual(durable.status, 'completed')
+  assert.equal(durable.orchestration.taskGraph.nodeStates.find(state => state.nodeId === 'decide-kimi').status, 'failed')
+  assert.equal(entries.some(entry => entry.entryType === 'decision'
+    && entry.refs.some(id => conflicts.some(conflict => conflict.entryId === id))), false)
+})
+
 test('task graph Human node uses a typed decision instead of Agent consensus', async (t) => {
   const { directory, calls, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
