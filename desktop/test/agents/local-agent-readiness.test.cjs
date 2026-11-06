@@ -1590,18 +1590,24 @@ test('native cloud configuration is forwarded only to compatible Agents', () => 
 
 test('Gemini retains its native Vertex AI selection from the shell through execution', async () => {
   const execFile = require('node:util').promisify(require('node:child_process').execFile)
+  const config = {
+    GOOGLE_API_KEY: 'synthetic-key', GOOGLE_GENAI_USE_VERTEXAI: 'true',
+    GOOGLE_GENAI_USE_GCA: 'true', GOOGLE_CLOUD_ACCESS_TOKEN: 'synthetic-token',
+    GOOGLE_VERTEX_BASE_URL: 'https://vertex.example', GOOGLE_GENAI_API_VERSION: 'v1',
+    GOOGLE_CLOUD_PROJECT_ID: 'native-project', GOOGLE_CLOUD_UNIVERSE_DOMAIN: 'example.test',
+    GEMINI_DEFAULT_AUTH_TYPE: 'oauth-personal', GEMINI_CLI_USE_COMPUTE_ADC: 'true',
+  }
   const result = await resolveNativeShellEnvironment({
     cache: false, platform: 'darwin', shell: '/bin/sh', env: {},
     execFileFn: (command, args, options) => execFile(command, ['-c', [
-      'export GOOGLE_GENAI_USE_VERTEXAI=true', 'export GOOGLE_API_KEY=synthetic-key', args[1],
+      ...Object.entries(config).map(([key, value]) => `export ${key}=${value}`), args[1],
     ].join('\n')], options),
   })
   assert.equal(result.source, 'native-shell')
   const native = nativeCredentialEnvironment('gemini', result.env)
-  assert.deepEqual(native, { GOOGLE_API_KEY: 'synthetic-key', GOOGLE_GENAI_USE_VERTEXAI: 'true' })
+  assert.deepEqual(native, config)
   const execution = childEnvironment({ kind: 'gemini' }, '/tmp/workspace', { env: native }, 'darwin')
-  assert.equal(execution.GOOGLE_GENAI_USE_VERTEXAI, 'true')
-  assert.equal(execution.GOOGLE_API_KEY, 'synthetic-key')
+  for (const [key, value] of Object.entries(config)) assert.equal(execution[key], value)
   assert.deepEqual(nativeCredentialEnvironment('codex', result.env), {})
 })
 
