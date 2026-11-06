@@ -185,6 +185,17 @@ test('HTTP JSON provider enforces destinations, credentials, cancellation, and f
   assert.doesNotMatch(outboundWirePayloadBytes(recordedOutbound).toString('utf8'), /private-token/)
 
   const originalFetch = connectors.fetch
+  for (const leaked of [{ text: 'response contains private-token' },
+    { text: 'response', sessionRef: 'session-private-token' }]) {
+    connectors.fetch = async () => ({ ok: true, text: async () => JSON.stringify(leaked) })
+    const rejected = await connectors.run(agent, 'check response', directory, {
+      runId: `run-leak-${leaked.sessionRef ? 'session' : 'text'}`,
+      agentRunId: `agent-run-leak-${leaked.sessionRef ? 'session' : 'text'}`, sandbox: 'read-only',
+    })
+    assert.equal(rejected.outcome, 'failed')
+    assert.equal(rejected.failure.code, 'AGENT_CONNECTOR_HTTP_RESPONSE_INVALID')
+    assert.doesNotMatch(JSON.stringify(rejected), /private-token/)
+  }
   connectors.fetch = async () => ({ ok: true, body: new ReadableStream({
     start(controller) {
       const bytes = Buffer.from(JSON.stringify({ text: '分块回复' }))
@@ -273,6 +284,9 @@ test('HTTP Connector completes a workspace chat with verified outbound bytes', a
   assert.equal(workspace.contentBlobStore.read(delivery.wirePayloadRef).toString('utf8'), requests[0].body)
   assert.equal(workspace.contextPacks.compareDelivery(delivery.deliveryRecordId).status, 'match')
   assert.doesNotMatch(requests[0].body, /private-token/)
+  connectors.fetch = async () => ({ ok: true, text: async () => JSON.stringify({ text: 'private-token' }) })
+  await workspace.sendMessage({ groupId: group.id, text: 'Check second reply', targetKinds: ['codex'] })
+  assert.doesNotMatch(JSON.stringify(workspace.snapshot()), /private-token/)
 })
 
 test('disable, reinstall, revoke, and remove fail closed around configured instances', (t) => {

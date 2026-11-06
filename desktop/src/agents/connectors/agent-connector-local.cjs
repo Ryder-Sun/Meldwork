@@ -769,9 +769,11 @@ class LocalAgentConnectors {
       }))
       const headers = { 'content-type': 'application/json' }
       const authSlotId = packageRecord.provider.config.authSlotId
+      let credential = ''
       if (authSlotId) {
         const credentials = this.instanceStore.resolveCredential(input.credentialRefId)
-        headers.authorization = `Bearer ${credentials[authSlotId]}`
+        credential = credentials[authSlotId]
+        headers.authorization = `Bearer ${credential}`
       }
       const response = await this.fetch(endpoint, {
         method: 'POST',
@@ -790,7 +792,9 @@ class LocalAgentConnectors {
           || typeof parsed.text !== 'string' || parsed.text.includes('\u0000')
           || (parsed.sessionRef !== undefined
             && (typeof parsed.sessionRef !== 'string' || parsed.sessionRef.length > 8192
-              || /[\u0000-\u001f\u007f]/.test(parsed.sessionRef)))) {
+              || /[\u0000-\u001f\u007f]/.test(parsed.sessionRef)))
+          || (credential && (parsed.text.includes(credential)
+            || parsed.sessionRef?.includes(credential)))) {
         fail('AGENT_CONNECTOR_HTTP_RESPONSE_INVALID')
       }
       input.emit({ ...terminal, type: 'Completed', outcome: 'completed' })
