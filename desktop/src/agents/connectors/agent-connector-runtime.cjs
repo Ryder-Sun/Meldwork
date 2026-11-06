@@ -31,14 +31,14 @@ function clone(value) {
 function attachmentInputType(attachment) {
   if (typeof attachment === 'string') return attachment ? 'image' : ''
   if (!attachment || typeof attachment !== 'object' || Array.isArray(attachment)) return ''
-  const declared = String(attachment.inputType || attachment.type || '')
-  if (['image', 'audio', 'video', 'file', 'structured-data'].includes(declared)) {
-    return declared
-  }
   const mimeType = String(attachment.mimeType || attachment.mediaType || '').toLowerCase()
   if (mimeType.startsWith('image/')) return 'image'
   if (mimeType.startsWith('audio/')) return 'audio'
   if (mimeType.startsWith('video/')) return 'video'
+  const declared = String(attachment.inputType || attachment.type || '')
+  if (['image', 'audio', 'video', 'file', 'structured-data'].includes(declared)) {
+    return declared
+  }
   return mimeType ? 'file' : ''
 }
 

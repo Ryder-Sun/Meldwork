@@ -320,6 +320,18 @@ test('rejects every undeclared Connector capability before it crosses the recipe
   ), { message: 'AGENT_CONNECTOR_SESSION_UNSUPPORTED' })
 })
 
+test('a generic file declaration cannot bypass media input capabilities', async () => {
+  const { runtime } = runtimeFixture(async () => {
+    assert.fail('unsupported media must not reach the connector recipe')
+  })
+  for (const mimeType of ['image/png', 'audio/mpeg', 'video/mp4']) {
+    await assert.rejects(runtime.run(runtime.detectAgents()[0], 'Review', '/tmp/workspace', {
+      runId: 'run-media', agentRunId: 'agent-media', sandbox: 'read-only',
+      attachments: [{ inputType: 'file', mimeType }],
+    }), { message: 'AGENT_CONNECTOR_ATTACHMENT_UNSUPPORTED' })
+  }
+})
+
 test('untrusted recipes cannot bypass event or permission capability checks through callbacks', async () => {
   const events = []
   let permissions = 0
