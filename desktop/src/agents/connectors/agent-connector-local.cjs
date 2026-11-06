@@ -24,6 +24,7 @@ const { BRIDGE_RECIPE_ID, SSH_RECIPE_ID } = require('../cloud/cloud-agent-bridge
 const LOCAL_DELEGATE_RECIPE_ID = 'external.local-agent.delegate'
 const MAX_LOCAL_MANIFESTS = 64
 const MAX_HTTP_RESPONSE_BYTES = 4 * 1024 * 1024
+const DEFAULT_HTTP_TIMEOUT_MS = 10 * 60 * 1000
 
 const SAMPLE_AGENT_CONNECTOR_MANIFEST = createAgentConnectorManifest({
   connectorId: 'external.codex-sample',
@@ -142,7 +143,7 @@ function fail(code) {
 function exactOptions(value) {
   return value && typeof value === 'object' && !Array.isArray(value)
     && Object.keys(value).every(key => [
-      'cloudBridges', 'fetch', 'instanceStore', 'manifestDirectory', 'packageStore', 'runAgent', 'seedSample',
+      'cloudBridges', 'fetch', 'httpTimeoutMs', 'instanceStore', 'manifestDirectory', 'packageStore', 'runAgent', 'seedSample',
     ].includes(key))
 }
 
@@ -231,7 +232,9 @@ class LocalAgentConnectors {
         || (options.packageStore !== undefined
           && (typeof options.packageStore.installedPackages !== 'function'
             || typeof options.packageStore.packageForManifest !== 'function'))
-        || (options.fetch !== undefined && typeof options.fetch !== 'function')) {
+        || (options.fetch !== undefined && typeof options.fetch !== 'function')
+        || (options.httpTimeoutMs !== undefined && (!Number.isInteger(options.httpTimeoutMs)
+          || options.httpTimeoutMs < 1 || options.httpTimeoutMs > 20 * 60 * 1000))) {
       fail('LOCAL_AGENT_CONNECTORS_OPTIONS_INVALID')
     }
     this.manifestDirectory = path.normalize(options.manifestDirectory)
@@ -239,6 +242,7 @@ class LocalAgentConnectors {
     this.packageStore = options.packageStore || null
     this.runAgent = options.runAgent
     this.fetch = options.fetch || globalThis.fetch
+    this.httpTimeoutMs = options.httpTimeoutMs ?? DEFAULT_HTTP_TIMEOUT_MS
     this.seedSample = options.seedSample === true
     this.registry = this.createRegistry()
     this.runtime = this.createRuntime(this.registry)
@@ -759,6 +763,12 @@ class LocalAgentConnectors {
       sequence: 1,
     }
     let credential = ''
+    let timedOut = false
+    const controller = new AbortController()
+    const abortTransport = () => controller.abort()
+    input.transportSignal?.addEventListener('abort', abortTransport, { once: true })
+    if (input.transportSignal?.aborted) abortTransport()
+    const timer = setTimeout(() => { timedOut = true; controller.abort() }, this.httpTimeoutMs)
     try {
       const body = JSON.stringify({
         prompt: input.prompt,
@@ -781,7 +791,7 @@ class LocalAgentConnectors {
         method: 'POST',
         redirect: 'error',
         headers,
-        signal: input.signal,
+        signal: controller.signal,
         body,
       })
       if (!response?.ok) throw Object.assign(new Error('AGENT_CONNECTOR_HTTP_FAILED'), {
@@ -813,7 +823,17 @@ class LocalAgentConnectors {
       input.emit({ ...terminal, type: 'Completed', outcome })
       return { text: parsed.text, sessionRef: parsed.sessionRef || '', outcome }
     } catch (error) {
-      if (input.signal?.aborted || error?.name === 'AbortError') {
+      if (timedOut && !input.transportSignal?.aborted) {
+        const failure = { code: 'AGENT_CONNECTOR_HTTP_TIMEOUT', category: 'timeout', retryable: false }
+        input.emit({ ...terminal, type: 'Failed', ...failure })
+        return { outcome: 'failed', failure }
+      }
+      if (input.transportSignal?.aborted && !input.connector.capabilities.session.cancel) {
+        const failure = { code: 'AGENT_CONNECTOR_HTTP_TRANSPORT_ABORTED', category: 'unknown', retryable: false }
+        input.emit({ ...terminal, type: 'Failed', ...failure })
+        return { outcome: 'failed', failure }
+      }
+      if (input.signal?.aborted) {
         input.emit({ ...terminal, type: 'Cancelled', reason: 'user' })
         return { outcome: 'cancelled', sessionRef: input.sessionRef || '' }
       }
@@ -821,6 +841,9 @@ class LocalAgentConnectors {
       if (credential && failure.code.includes(credential)) failure.code = 'AGENT_CONNECTOR_HTTP_FAILED'
       input.emit({ ...terminal, type: 'Failed', ...failure })
       return { outcome: 'failed', failure }
+    } finally {
+      clearTimeout(timer)
+      input.transportSignal?.removeEventListener('abort', abortTransport)
     }
   }
 

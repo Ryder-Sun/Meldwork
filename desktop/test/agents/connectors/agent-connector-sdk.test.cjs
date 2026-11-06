@@ -3,6 +3,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
+const http = require('node:http')
 const { outboundWirePayloadBytes } = require('../../../src/collaboration/outbound-payload.cjs')
 const { LocalWorkspace } = require('../../../src/workspace/local-workspace.cjs')
 const { fixture: workspaceFixture } = require('../../support/local-workspace-test-helpers.cjs')
@@ -28,7 +29,7 @@ function fakeSafeStorage() {
   }
 }
 
-function fixture(t, fetch) {
+function fixture(t, fetch, extra = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-connector-sdk-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
   const packageStore = new AgentConnectorPackageStore({
@@ -44,6 +45,7 @@ function fixture(t, fetch) {
       safeStorage: fakeSafeStorage(),
     }),
     fetch,
+    ...extra,
     runAgent: async (...args) => {
       delegatedCalls.push(args)
       return { text: 'unexpected delegation', outcome: 'completed' }
@@ -58,7 +60,7 @@ function install(store, packageRecord, filename = 'connector.json') {
   store.install(packageRecord.packageId)
 }
 
-function httpPackage() {
+function httpPackage(sessionOverrides = {}) {
   const manifest = createAgentConnectorManifest({
     connectorId: 'external.http-json-test',
     connectorVersion: '1.0.0',
@@ -69,7 +71,7 @@ function httpPackage() {
     upstream: { id: 'meldwork-sdk', minVersion: '1.0.0', maxVersion: '1.0.0' },
     invocation: { recipeId: SDK_HTTP_JSON_RECIPE_ID },
     domains: ['general'],
-    session: { supported: true, resume: true, cancel: true, checkpoint: false },
+    session: { supported: true, resume: true, cancel: true, checkpoint: false, ...sessionOverrides },
     inputTypes: ['text'],
     permissionModes: ['read-only'],
     eventProtocolVersion: 1,
@@ -97,6 +99,78 @@ function httpPackage() {
     manifest,
   })
 }
+
+test('HTTP transport times out and releases its request', async t => {
+  let aborted = false
+  const { connectors, directory, packageStore } = fixture(t, (_url, { signal }) => new Promise((_resolve, reject) => {
+    signal.addEventListener('abort', () => { aborted = true; reject(Object.assign(new Error('aborted'), { name: 'AbortError' })) }, { once: true })
+  }), { httpTimeoutMs: 20 })
+  const pkg = httpPackage()
+  install(packageStore, pkg)
+  connectors.refresh([])
+  connectors.configure({ manifestId: pkg.manifest.manifestId, label: 'Timeout', credentials: { 'access-token': 'private-token' } })
+  const [agent] = connectors.detectAgents()
+  const result = await connectors.run(agent, 'request', directory, {
+    runId: 'run-timeout', agentRunId: 'agent-run-timeout', sandbox: 'read-only',
+  })
+  assert.equal(aborted, true)
+  assert.equal(result.outcome, 'failed')
+  assert.deepEqual(result.failure, { code: 'AGENT_CONNECTOR_HTTP_TIMEOUT', category: 'timeout', retryable: false })
+})
+
+test('HTTP timeout closes a response body that stops streaming', async t => {
+  let closed
+  const responseClosed = new Promise(resolve => { closed = resolve })
+  const server = http.createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'application/json' })
+    response.write('{"text":"')
+    response.on('close', closed)
+  })
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  t.after(() => server.close())
+  const url = `http://127.0.0.1:${server.address().port}/run`
+  const { connectors, directory, packageStore } = fixture(t,
+    (_endpoint, options) => fetch(url, options), { httpTimeoutMs: 200 })
+  const pkg = httpPackage()
+  install(packageStore, pkg)
+  connectors.refresh([])
+  connectors.configure({ manifestId: pkg.manifest.manifestId, label: 'Stalled body', credentials: { 'access-token': 'private-token' } })
+  const [agent] = connectors.detectAgents()
+  const result = await connectors.run(agent, 'request', directory, {
+    runId: 'run-body-timeout', agentRunId: 'agent-run-body-timeout', sandbox: 'read-only',
+  })
+  assert.equal(result.failure.code, 'AGENT_CONNECTOR_HTTP_TIMEOUT')
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('response not closed')), 2000)
+    responseClosed.then(() => { clearTimeout(timer); resolve() })
+  })
+})
+
+test('stopping a non-cancellable HTTP Connector aborts transport without claiming remote cancellation', async t => {
+  let started
+  const requestStarted = new Promise(resolve => { started = resolve })
+  let aborted = false
+  const { connectors, directory, packageStore } = fixture(t, (_url, { signal }) => new Promise((_resolve, reject) => {
+    signal.addEventListener('abort', () => { aborted = true; reject(Object.assign(new Error('aborted'), { name: 'AbortError' })) }, { once: true })
+    started()
+  }))
+  const pkg = httpPackage({ cancel: false })
+  install(packageStore, pkg)
+  connectors.refresh([])
+  connectors.configure({ manifestId: pkg.manifest.manifestId, label: 'No cancel', credentials: { 'access-token': 'private-token' } })
+  const [agent] = connectors.detectAgents()
+  const controller = new AbortController()
+  const pending = connectors.run(agent, 'request', directory, {
+    runId: 'run-transport-stop', agentRunId: 'agent-run-transport-stop', sandbox: 'read-only', signal: controller.signal,
+  })
+  await requestStarted
+  controller.abort()
+  const result = await pending
+  assert.equal(aborted, true)
+  assert.equal(result.outcome, 'failed')
+  assert.equal(result.failure.code, 'AGENT_CONNECTOR_HTTP_TRANSPORT_ABORTED')
+  assert.equal(result.failure.retryable, false)
+})
 
 test('SDK packages reject capabilities their providers cannot emit or resume', () => {
   for (const pkg of [SAMPLE_LOCAL_ECHO_AGENT_CONNECTOR_PACKAGE, httpPackage()]) {

@@ -1,5 +1,6 @@
 const crypto = require('node:crypto')
 const { automaticPermissionResponse, READ_ONLY_SAFE_TOOL_KINDS } = require('../agent-permission-policy.cjs')
+const { SDK_HTTP_JSON_RECIPE_ID } = require('./agent-connector-package-store.cjs')
 
 const { canonicalJson } = require('../../collaboration/outcome-records.cjs')
 const {
@@ -473,6 +474,7 @@ class AgentConnectorRuntime {
       sessionRef,
       attachments,
       signal: connector.capabilities.session.cancel ? options.signal : undefined,
+      transportSignal: execution.recipeId === SDK_HTTP_JSON_RECIPE_ID ? options.signal : undefined,
       onActivity: options.onActivity,
       emit,
       onProgress: this.trustedLegacyEventRecipes.has(execution.recipeId) ? options.onProgress : undefined,
