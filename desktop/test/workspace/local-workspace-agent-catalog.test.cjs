@@ -6,7 +6,7 @@ const path = require('node:path')
 
 const catalogApi = require('../../src/workspace/local-workspace-agent-catalog.cjs')
 const { agentVerificationIdentity } = require('../../src/workspace/agent-verification-identity.cjs')
-const { NATIVE_ENVIRONMENT_IDENTITY, nativeEnvironmentIdentity } = require('../../src/agents/native-config-directory.cjs')
+const { NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_ENVIRONMENT_IDENTITY, nativeEnvironmentIdentity } = require('../../src/agents/native-config-directory.cjs')
 const { LocalWorkspaceAgentCatalog } = catalogApi
 
 test('Agent verification identity changes when the executable is replaced', t => {
@@ -192,6 +192,30 @@ test('credential files inside selected native directories participate in verific
   const first = agentVerificationIdentity(agent, preferences)
   fs.writeFileSync(filename, 'second account')
   assert.notEqual(agentVerificationIdentity(agent, preferences), first)
+})
+
+test('Gemini native credential changes invalidate a successful verification', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-gemini-identity-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const filename = path.join(directory, 'oauth_creds.json')
+  fs.writeFileSync(filename, '{"refresh_token":"first"}')
+  const detected = () => {
+    const agent = { kind: 'gemini', executable: '/tmp/gemini', version: '1', compatibilityState: 'compatible' }
+    Object.defineProperty(agent, NATIVE_CONFIG_IDENTITY_DIRECTORY, { value: directory })
+    return agent
+  }
+  const { catalog, agents, state } = fixture({ detectAgents: async () => [detected()],
+    credentialState: async () => ({ state: 'unknown', source: 'unverified' }) })
+  await catalog.refresh()
+  const identity = agentVerificationIdentity(agents()[0], state.agentPreferences)
+  catalog.markRuntimeCredential('gemini', 'ready', { verificationIdentity: identity })
+  assert.equal(agents()[0].recentlyVerified, true)
+  assert.doesNotMatch(JSON.stringify(agents()), /gemini-identity|refresh_token/)
+  fs.writeFileSync(filename, '{"refresh_token":"replacement"}')
+  await catalog.refresh()
+  assert.equal(agents()[0].recentlyVerified, false)
+  catalog.markRuntimeCredential('gemini', 'ready', { verificationIdentity: identity })
+  assert.equal(agents()[0].recentlyVerified, false)
 })
 
 test('DeepSeek profile edits immediately invalidate routing verification without a catalog refresh', async t => {

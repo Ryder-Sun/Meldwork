@@ -21,8 +21,15 @@ const NATIVE_CONFIG_DIRECTORIES = Object.freeze({
   deepseek: { key: 'DSH_HOME', files: ['cordis.patch.yml', '.credentials.yaml'], directories: ['profiles'] },
   workbuddy: { key: 'CODEBUDDY_CONFIG_DIR', files: ['models.json', 'settings.json', '.credentials.json'] },
 })
+const NATIVE_IDENTITY_ONLY_DIRECTORIES = Object.freeze({
+  gemini: { files: ['oauth_creds.json', 'gemini-credentials.json', 'google_accounts.json', 'settings.json', '.env'] },
+})
 
 function nativeIdentityDirectory(kind, env, home, platform = process.platform) {
+  if (kind === 'gemini') {
+    const base = env?.GEMINI_CLI_HOME || home
+    return typeof base === 'string' && path.isAbsolute(base) ? path.join(base, '.gemini') : ''
+  }
   const spec = Object.hasOwn(NATIVE_CONFIG_DIRECTORIES, kind) ? NATIVE_CONFIG_DIRECTORIES[kind] : null
   if (!spec || !path.isAbsolute(home)) return ''
   const configured = env?.[spec.key]
@@ -67,6 +74,6 @@ function validateNativeConfigDirectory(kind, directory) {
   return resolved
 }
 
-module.exports = { NATIVE_CONFIG_DIRECTORIES, NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_ENVIRONMENT_IDENTITY,
+module.exports = { NATIVE_CONFIG_DIRECTORIES, NATIVE_IDENTITY_ONLY_DIRECTORIES, NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_ENVIRONMENT_IDENTITY,
   nativeEnvironmentIdentity, nativeConfigEnvironment,
   nativeIdentityDirectory, validateNativeConfigDirectory }
