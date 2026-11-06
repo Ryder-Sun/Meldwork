@@ -100,7 +100,8 @@ const taskGraphMethods = {
     const conclusion = publicCollaborationText(result?.message?.content || '')
     const artifactIds = result?.outcomeRefs?.artifactIds || []
     const evidenceIds = result?.outcomeRefs?.evidenceIds || []
-    return (!node.acceptance.requireConclusion || Boolean(conclusion))
+    return result?.message?.trace?.status === 'completed'
+      && (!node.acceptance.requireConclusion || Boolean(conclusion))
       && artifactIds.length >= node.acceptance.minArtifactRefs
       && evidenceIds.length >= node.acceptance.minEvidenceRefs
   },

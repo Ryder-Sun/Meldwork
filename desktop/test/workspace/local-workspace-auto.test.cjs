@@ -232,6 +232,30 @@ function evidenceTaskGraph() {
   }
 }
 
+test('task graph does not accept a partial Agent result as a completed node', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const ledger = new RunLedger({ storagePath: path.join(directory, 'run-ledger.json') })
+  options.runLedger = ledger
+  const calls = []
+  options.runAgent = async agent => { calls.push(agent.kind); return { text: 'Only part of the requested result is ready.', outcome: 'partial' } }
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Partial graph', agentKinds: ['codex', 'hermes'], workdir: directory, allowWrite: false })
+  await workspace.sendMessage({ groupId: group.id, text: 'Complete this task.', mode: 'auto', maxRounds: 2,
+    targetKinds: ['codex', 'hermes'], workflow: { template: 'task-graph', nodes: [graphNode({
+      acceptance: { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 },
+    }), graphNode({ nodeId: 'review-hermes', role: 'reviewer', agentKind: 'hermes',
+      dependsOn: ['primary-codex'], inputNodeIds: ['primary-codex'], terminal: true,
+      acceptance: { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 },
+    })] } })
+  await workspace.activeRuns.get(group.id).promise
+  const durable = ledger.list(group.id)[0]
+  assert.notEqual(durable.status, 'completed')
+  assert.equal(durable.orchestration.taskGraph.nodeStates[0].status, 'failed')
+  assert.deepEqual(calls, ['codex'])
+})
+
 test('task graph runs independent branches in parallel and completes from typed Evidence', async (t) => {
   const { directory, calls, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
