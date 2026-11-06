@@ -369,6 +369,23 @@ test('a recipe declaring Permission retains the permission request callback', as
   assert.equal(permissions, 1)
 })
 
+test('workspace write permission events respect the active run mode', async () => {
+  const { runtime } = runtimeFixture(async input => {
+    input.emit({ eventId: 'write-request', cursor: 'write-request', sequence: 1,
+      type: 'Permission', requestId: 'write-request', permission: 'workspace-write', decision: 'requested' })
+    return {}
+  }, { permissionModes: ['read-only', 'workspace-write'] })
+  const agent = runtime.detectAgents()[0]
+  await assert.rejects(runtime.run(agent, 'Review', '/tmp/workspace', {
+    runId: 'run-read-only-write', agentRunId: 'agent-run-read-only-write', sandbox: 'read-only',
+  }), { message: 'AGENT_CONNECTOR_PERMISSION_MODE_UNSUPPORTED' })
+  const allowed = await runtime.run(agent, 'Review', '/tmp/workspace', {
+    runId: 'run-write', agentRunId: 'agent-run-write', sandbox: 'workspace-write',
+  })
+  assert.equal(allowed.outcome, 'waiting_permission')
+  assert.equal(allowed.waitingRequest.permission, 'workspace-write')
+})
+
 test('Connector outcome references must come from declared, validated events', async () => {
   const artifactId = `artifact-${'a'.repeat(64)}`
   const evidenceId = `evidence-${'b'.repeat(64)}`

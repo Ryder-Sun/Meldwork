@@ -87,13 +87,17 @@ function assertOutboundDestination(connector, value, outbound = {}) {
   return origin
 }
 
-function assertEventCapabilities(connector, input) {
+function assertEventCapabilities(connector, input, permissionMode) {
   const type = String(input?.type || '')
   if (!connector.capabilities.eventTypes.includes(type)) {
     fail('AGENT_CONNECTOR_EVENT_UNDECLARED')
   }
   if (type === 'Cancelled' && !connector.capabilities.session.cancel) {
     fail('AGENT_CONNECTOR_CANCEL_UNSUPPORTED')
+  }
+  if (type === 'Permission' && input.permission === 'workspace-write'
+      && permissionMode !== 'workspace-write') {
+    fail('AGENT_CONNECTOR_PERMISSION_MODE_UNSUPPORTED')
   }
   if (type === 'Usage') {
     for (const field of Object.keys(input?.usage || {})) {
@@ -415,7 +419,7 @@ class AgentConnectorRuntime {
     }
     const attachments = validatedAttachments(options.attachments, connector.capabilities)
     const emit = (input) => {
-      assertEventCapabilities(connector, input)
+      assertEventCapabilities(connector, input, permissionMode)
       const event = parseConnectorRunEvent(input, provenance)
       const duplicate = state.events.find(existing => existing.eventId === event.eventId)
       if (duplicate && canonicalJson(duplicate) === canonicalJson(event)) return event
