@@ -1,5 +1,6 @@
 const path = require('node:path')
 const { createHash } = require('node:crypto')
+const { taskPermissionGroup } = require('./run-permission-cap.cjs')
 const {
   KNOWLEDGE_BASE_KINDS,
   MAX_KNOWLEDGE_BASE_HINTS,
@@ -1165,6 +1166,7 @@ class LocalWorkspaceMessageSubmission {
   }
 
   async runV4Manual({ group, targetKinds, userMessage, prepared, controller, threadRootId }) {
+    group = taskPermissionGroup(group, this.state(), userMessage.id)
     const writableKinds = group.allowWrite === true ? targetKinds.filter(kind => (
       agentRuntimeCapabilities(kind, {
         agent: this.detectedAgents().find(agent => agent.kind === kind),
@@ -1249,6 +1251,7 @@ class LocalWorkspaceMessageSubmission {
   }
 
   async resumeV4Manual({ group, durable, controller, onlyKind = '', resumedGate = null }) {
+    group = taskPermissionGroup(group, this.state(), durable.taskId || durable.threadRootId)
     let orchestration
     try {
       orchestration = parseOrchestrationV4(controller.orchestration, {
@@ -1465,6 +1468,10 @@ class LocalWorkspaceMessageSubmission {
       discussionStyle,
     } = this.validateInput(group, input)
     const regeneration = this.resolveRegeneration(group, regenerateMessageId, targetKinds)
+    if (regeneration && routingDecision.permissionCap === 'read-only'
+        && regeneration.userMessage.routingDecision?.permissionCap !== 'read-only') {
+      throw new Error('LOCAL_AGENT_ROUTING_REQUIREMENTS_INVALID')
+    }
     const reservation = this.reserveRun(
       group.id,
       mode,
@@ -1491,7 +1498,8 @@ class LocalWorkspaceMessageSubmission {
       const reportedFailures = new Set()
       try {
         const prepared = await this.preflight(
-          group,
+          routingDecision.permissionCap === 'read-only' || regeneration?.userMessage.routingDecision?.permissionCap === 'read-only'
+            ? { ...group, allowWrite: false } : group,
           targetKinds,
           regeneration ? this.regenerationInput(input, regeneration, targetKinds[0]) : input,
           reservation,
@@ -1515,7 +1523,7 @@ class LocalWorkspaceMessageSubmission {
           )
           try {
             const contextPack = this.createContextPack({
-              group,
+              group: taskPermissionGroup(group, this.state(), userMessage.id),
               taskId: userMessage.id,
               mode: 'auto',
               targetKinds,
@@ -1567,7 +1575,7 @@ class LocalWorkspaceMessageSubmission {
           : (group.conversationType === 'direct' ? '' : userMessage.id)
         try {
           const contextPack = this.createContextPack({
-            group,
+            group: taskPermissionGroup(group, this.state(), userMessage.id),
             taskId: userMessage.id,
             mode: group.conversationType === 'direct' ? 'direct' : 'manual',
             targetKinds,
@@ -1847,7 +1855,7 @@ class LocalWorkspaceMessageSubmission {
     try {
       this.configureRunBudget(reservation, input.budget || {})
       const contextPack = this.createContextPack({
-        group,
+        group: taskPermissionGroup(group, this.state(), threadRootId),
         taskId: threadRootId,
         mode: 'auto',
         targetKinds,

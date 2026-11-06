@@ -80,7 +80,7 @@ function normalizeRoutingRequirements(value, defaults = {}) {
   const minContextChars = input.minContextChars ?? defaults.minContextChars ?? 1
   const resumableRequired = input.resumableRequired ?? false
   if (!AGENT_PERMISSION_MODES.includes(permissionMode)
-      || (defaults.permissionMode && permissionMode !== defaults.permissionMode)
+      || (defaults.permissionMode === 'read-only' && permissionMode !== 'read-only')
       || !COLLABORATION_MODES.has(collaboration)
       || !LIMIT_BANDS.has(maxLatencyBand)
       || !LIMIT_BANDS.has(maxCostBand)
@@ -288,11 +288,14 @@ function normalizeRoutingDecision(value) {
     'candidates', 'evidenceVersion', 'mode', 'rationale', 'requirements',
     'selectedKinds', 'version',
   ])
+  if (Object.hasOwn(input || {}, 'permissionCap')) fields.add('permissionCap')
   if (!exactKeys(input, fields) || input.version !== ROUTING_DECISION_VERSION
       || !ROUTING_MODES.has(input.mode) || !RATIONALES.has(input.rationale)
+      || (Object.hasOwn(input, 'permissionCap') && input.permissionCap !== 'read-only')
       || (input.evidenceVersion && !PUBLIC_ID.test(input.evidenceVersion))) return null
   let requirements
   try { requirements = normalizeRoutingRequirements(input.requirements) } catch { return null }
+  if (input.permissionCap && requirements.permissionMode !== 'read-only') return null
   let selectedKinds
   try { selectedKinds = targetList(input.selectedKinds) } catch { return null }
   const candidates = Array.isArray(input.candidates) && input.candidates.length <= MAX_ROUTING_CANDIDATES
@@ -312,6 +315,7 @@ function normalizeRoutingDecision(value) {
     selectedKinds,
     rationale: input.rationale,
     evidenceVersion: input.evidenceVersion,
+    ...(input.permissionCap ? { permissionCap: input.permissionCap } : {}),
   }
 }
 
@@ -442,6 +446,7 @@ class AgentRouter {
         ? 'explicit-user-selection'
         : (selectedHasEvidence ? 'evidence-ranked-team' : 'smallest-suitable-team'),
       evidenceVersion: selectedHasEvidence ? this.fitMatrix.version : '',
+      ...(input.routingRequirements?.permissionMode === 'read-only' ? { permissionCap: 'read-only' } : {}),
     })
     if (!decision) throw routingError('LOCAL_AGENT_ROUTING_DECISION_INVALID')
     return Object.freeze(decision)

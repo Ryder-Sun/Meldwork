@@ -1,4 +1,5 @@
 const { createHash } = require('node:crypto')
+const { taskPermissionGroup } = require('./run-permission-cap.cjs')
 const { cleanText, normalizeKnowledgeBaseHint } = require('./local-workspace-inputs.cjs')
 const { normalizeSkillHint } = require('./local-workspace-message-records.cjs')
 const { canonicalJson } = require('../collaboration/context-pack-records.cjs')
@@ -182,6 +183,7 @@ class LocalWorkspaceAutoRunner {
     group, targetKinds, threadRootId, maxRounds, reservation = null, preparedContext = null,
     unlimitedRounds = false, taskGraph = null,
   ) {
+    group = taskPermissionGroup(group, this.state(), threadRootId)
     const v4 = reservation?.v4 === true
     if (!v4) reservation.orchestration = this.orchestrationCursor(targetKinds, taskGraph)
     const controller = this.beginRun(
@@ -235,6 +237,7 @@ class LocalWorkspaceAutoRunner {
   }
 
   async resume(group, durable, controller, replayedResult = null, resumedGate = null) {
+    group = taskPermissionGroup(group, this.state(), durable.taskId || durable.threadRootId)
     if (controller.orchestration?.version === 4 || controller.v4 === true) {
       controller.v4 = true
       const context = {

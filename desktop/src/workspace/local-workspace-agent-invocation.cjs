@@ -1,4 +1,5 @@
 const { createHash, randomUUID } = require('node:crypto')
+const { taskPermissionGroup } = require('./run-permission-cap.cjs')
 const { agentVerificationIdentity } = require('./agent-verification-identity.cjs')
 const { workPreferencesPrompt } = require('./work-preferences.cjs')
 const {
@@ -242,6 +243,7 @@ class LocalWorkspaceAgentInvocation {
     const activeRun = this.activeRuns.get(group.id)
     const taskId = cleanText(activeRun?.taskId || context.taskId || threadRootId, 120)
     if (!taskId) throw new Error('LOCAL_RUN_TASK_INVALID')
+    group = taskPermissionGroup(group, this.state(), taskId)
     // Every conversation, group or direct, is its own execution surface. The
     // writer lease is scoped to the conversation, so a writable chat never
     // makes an Agent in another conversation wait, including when both use the

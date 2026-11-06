@@ -67,6 +67,21 @@ test('an explicit target bypasses automatic formation and remains authoritative'
   assert.equal(decision.rationale, 'explicit-user-selection')
 })
 
+test('an explicit read-only task narrows writable group permission and persists its cap', () => {
+  const router = new AgentRouter()
+  const result = router.route(request({
+    group: { id: 'group-routing', agentKinds: ['codex', 'hermes'], allowWrite: true },
+    input: { targetKinds: ['codex'], routingRequirements: { permissionMode: 'read-only' } },
+  }))
+  assert.equal(result.requirements.permissionMode, 'read-only')
+  assert.equal(result.permissionCap, 'read-only')
+  assert.deepEqual(normalizeRoutingDecision(result), result)
+  assert.equal(normalizeRoutingDecision({ ...result, requirements: { ...result.requirements, permissionMode: 'workspace-write' } }), null)
+  assert.throws(() => router.route(request({
+    input: { targetKinds: ['codex'], routingRequirements: { permissionMode: 'workspace-write' } },
+  })), { code: 'LOCAL_AGENT_ROUTING_REQUIREMENTS_INVALID' })
+})
+
 test('automatic routing excludes unverified Agents while explicit selection can start a first run', () => {
   const router = new AgentRouter()
   const agents = [agent('codex', { recentlyVerified: false, credentialState: 'ready' }), agent('hermes')]

@@ -652,6 +652,84 @@ test('V4 automatic collaboration falls back to a read-only team when the writer 
   assert.ok(calls.every(call => call.runOptions.sandbox === 'read-only'))
 })
 
+for (const [mode, protocol, targetKinds] of [
+  ['manual', 'legacy', ['codex']], ['manual', 'v4', ['codex', 'hermes']],
+  ['auto', 'legacy', ['codex', 'hermes']], ['auto', 'v4', ['codex', 'hermes']],
+]) test(`${protocol} ${mode} task respects an explicit read-only cap in a writable group`, async t => {
+  const { directory, calls, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  options.naturalAgentResponses = true
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Explicit read only', agentKinds: ['codex', 'hermes'],
+    workdir: directory, allowWrite: true })
+  await workspace.sendMessage({ groupId: group.id, text: 'Read only', targetKinds, mode, protocol, maxRounds: 1,
+    routingRequirements: { permissionMode: 'read-only' } })
+  await workspace.activeRuns.get(group.id)?.promise
+  assert.ok(calls.length > 0)
+  assert.ok(calls.every(call => call.runOptions.sandbox === 'read-only'))
+  const root = workspace.snapshot().messages.find(message => message.role === 'user')
+  assert.equal(root.routingDecision.permissionCap, 'read-only')
+  assert.equal(workspace.state.groups.find(item => item.id === group.id).allowWrite, true)
+  const restored = new LocalWorkspace(options)
+  assert.equal(restored.snapshot().messages.find(message => message.role === 'user').routingDecision.permissionCap, 'read-only')
+})
+
+test('automatic run recovery reapplies a persisted read-only task cap', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Recovery cap', agentKinds: ['codex'], workdir: directory, allowWrite: true })
+  await workspace.sendMessage({ groupId: group.id, text: 'Read only', targetKinds: ['codex'],
+    routingRequirements: { permissionMode: 'read-only' } })
+  const taskId = workspace.snapshot().messages.find(message => message.role === 'user').id
+  const restored = new LocalWorkspace(options)
+  const restoredGroup = restored.state.groups.find(item => item.id === group.id)
+  restored.autoRunner.runV4Discussion = async (runGroup) => {
+    assert.equal(runGroup.allowWrite, false)
+    return 'completed'
+  }
+  const result = await restored.autoRunner.resume(restoredGroup, { taskId, threadRootId: taskId },
+    { orchestration: { version: 4 }, targetKinds: ['codex'] })
+  assert.equal(result, 'completed')
+  assert.equal(restoredGroup.allowWrite, true)
+})
+
+test('a direct conversation respects an explicit read-only task cap', async t => {
+  const { directory, calls, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ conversationType: 'direct', directAgentKind: 'codex',
+    agentKinds: ['codex'], workdir: directory, allowWrite: true })
+  await workspace.sendMessage({ groupId: group.id, text: 'Read only', targetKinds: ['codex'],
+    routingRequirements: { permissionMode: 'read-only' } })
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].runOptions.sandbox, 'read-only')
+  assert.equal(workspace.snapshot().messages.find(message => message.role === 'user').routingDecision.permissionCap, 'read-only')
+})
+
+test('regeneration retains the original task permission cap without silently changing it', async t => {
+  const { directory, calls, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ conversationType: 'direct', directAgentKind: 'codex',
+    agentKinds: ['codex'], workdir: directory, allowWrite: true })
+  await workspace.sendMessage({ groupId: group.id, text: 'Writable task', targetKinds: ['codex'] })
+  const writableReply = workspace.snapshot().messages.find(message => message.role === 'agent')
+  await assert.rejects(workspace.sendMessage({ groupId: group.id, targetKinds: ['codex'],
+    regenerateMessageId: writableReply.id, routingRequirements: { permissionMode: 'read-only' } }),
+  { message: 'LOCAL_AGENT_ROUTING_REQUIREMENTS_INVALID' })
+  assert.equal(calls.length, 1)
+  await workspace.sendMessage({ groupId: group.id, text: 'Read-only task', targetKinds: ['codex'],
+    routingRequirements: { permissionMode: 'read-only' } })
+  const readOnlyReply = workspace.snapshot().messages.filter(message => message.role === 'agent').at(-1)
+  await workspace.sendMessage({ groupId: group.id, targetKinds: ['codex'], regenerateMessageId: readOnlyReply.id })
+  assert.equal(calls.at(-1).runOptions.sandbox, 'read-only')
+})
+
 test('a successful authentication probe does not count as a successful Agent run', async t => {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

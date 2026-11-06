@@ -130,7 +130,7 @@ function sequentialAutoV4Receipt(agentKind, phase, workItemId = '') {
   return { version: 1, phase, verdict: 'support', summary: `${agentKind} accepts` }
 }
 
-async function restartAutoV4ProposalGate(t, tamper = '') {
+async function restartAutoV4ProposalGate(t, tamper = '', readOnlyCap = false) {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
   const ledgerPath = path.join(directory, 'run-ledger.json')
@@ -148,7 +148,7 @@ async function restartAutoV4ProposalGate(t, tamper = '') {
   options.runAgent = async (agent, prompt, _workdir, runOptions) => {
     const phase = prompt.match(/^Phase: ([a-z-]+)$/m)?.[1] || ''
     const workItemId = prompt.match(/^Work item: ([A-Za-z0-9._:-]+)$/m)?.[1] || ''
-    invocations.push({ kind: agent.kind, phase, operationId: runOptions.operationId })
+    invocations.push({ kind: agent.kind, phase, operationId: runOptions.operationId, sandbox: runOptions.sandbox })
     if (agent.kind === 'codex' && phase === 'proposal') {
       await runOptions.onSessionRef('codex-auto-v4-gate-session', { transport: 'acp' })
       const decision = await runOptions.onPermissionRequest(permissionRequest, {
@@ -169,7 +169,7 @@ async function restartAutoV4ProposalGate(t, tamper = '') {
     name: 'Auto V4 proposal Gate restart',
     agentKinds: ['codex', 'hermes', 'workbuddy'],
     workdir: directory,
-    allowWrite: false,
+    allowWrite: readOnlyCap,
   })
   const gatePromise = pendingGate(workspace)
   const send = workspace.sendMessage({
@@ -179,6 +179,7 @@ async function restartAutoV4ProposalGate(t, tamper = '') {
     maxRounds: 3,
     targetKinds: ['codex', 'hermes', 'workbuddy'],
     protocol: 'v4',
+    ...(readOnlyCap ? { routingRequirements: { permissionMode: 'read-only' } } : {}),
   })
   const gate = await gatePromise
   const waiting = await waitFor(() => {
@@ -296,6 +297,7 @@ async function restartAutoV4ProposalGate(t, tamper = '') {
     phase: completed.orchestration?.phase,
     continuation: completed.continuation,
   }))
+  if (readOnlyCap) assert.ok(invocations.every(call => call.sandbox === 'read-only'))
   assert.deepEqual(
     invocations.filter(call => call.phase === 'proposal' && call.kind === 'codex')
       .map(call => call.operationId),
@@ -546,6 +548,10 @@ async function restartAutoV4SecondWorkGate(t, rejected = false) {
 
 test('Auto V4 proposal Gate restart resumes the exact slot and completes receipts', { timeout: 30000 }, async (t) => {
   await restartAutoV4ProposalGate(t)
+})
+
+test('Auto V4 Gate restart preserves an explicit read-only task cap in a writable group', { timeout: 30000 }, async t => {
+  await restartAutoV4ProposalGate(t, '', true)
 })
 
 test('Auto V4 proposal Gate restart rejects a tampered round before replay', async (t) => {
