@@ -386,6 +386,28 @@ test('workspace write permission events respect the active run mode', async () =
   assert.equal(allowed.waitingRequest.permission, 'workspace-write')
 })
 
+test('read-only connector callbacks cannot approve write tool requests', async () => {
+  let prompts = 0
+  const request = { toolCall: { kind: 'edit' }, options: [
+    { optionId: 'allow', kind: 'allow_once' }, { optionId: 'deny', kind: 'reject_once' },
+  ] }
+  const { runtime } = runtimeFixture(async input => {
+    const decision = await input.onPermissionRequest(request)
+    if (input.permissionMode === 'read-only') assert.deepEqual(decision, { status: 'rejected', optionId: 'deny' })
+    else assert.deepEqual(decision, { status: 'approved', optionId: 'allow' })
+    input.emit({ eventId: 'completed', cursor: 'completed', sequence: 1, type: 'Completed', outcome: 'completed' })
+    return { text: 'done', outcome: 'completed' }
+  }, { permissionModes: ['read-only', 'workspace-write'] })
+  const agent = runtime.detectAgents()[0]
+  for (const sandbox of ['read-only', 'workspace-write']) {
+    await runtime.run(agent, 'Review', '/tmp/workspace', {
+      runId: `run-${sandbox}`, agentRunId: `agent-run-${sandbox}`, sandbox,
+      onPermissionRequest: () => { prompts += 1; return { status: 'approved', optionId: 'allow' } },
+    })
+  }
+  assert.equal(prompts, 1)
+})
+
 test('Connector outcome references must come from declared, validated events', async () => {
   const artifactId = `artifact-${'a'.repeat(64)}`
   const evidenceId = `evidence-${'b'.repeat(64)}`

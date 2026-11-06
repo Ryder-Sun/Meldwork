@@ -1,4 +1,5 @@
 const crypto = require('node:crypto')
+const { automaticPermissionResponse, READ_ONLY_SAFE_TOOL_KINDS } = require('../agent-permission-policy.cjs')
 
 const { canonicalJson } = require('../../collaboration/outcome-records.cjs')
 const {
@@ -433,6 +434,16 @@ class AgentConnectorRuntime {
       assertOutboundDestination(connector, outbound.destination, outbound)
       return options.onOutboundPayload?.(outbound)
     }
+    const onPermissionRequest = connector.capabilities.eventTypes.includes('Permission')
+      && typeof options.onPermissionRequest === 'function'
+      ? (request, context) => {
+          if (permissionMode === 'read-only' && (['workspace-write', 'write'].includes(request?.permission)
+              || (request?.toolCall && !READ_ONLY_SAFE_TOOL_KINDS.has(request.toolCall.kind)))) {
+            return automaticPermissionResponse(request, { allowWrite: false })
+          }
+          return options.onPermissionRequest(request, context)
+        }
+      : undefined
 
     const result = await handler(Object.freeze({
       agent: Object.freeze({
@@ -460,8 +471,7 @@ class AgentConnectorRuntime {
       assertOutboundDestination: destination => assertOutboundDestination(
         connector, destination,
       ),
-      onPermissionRequest: connector.capabilities.eventTypes.includes('Permission')
-        ? options.onPermissionRequest : undefined,
+      onPermissionRequest,
       resume,
     }))
 
