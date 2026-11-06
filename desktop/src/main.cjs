@@ -261,12 +261,22 @@ async function nativeShellEnvironment(options = {}) {
   const mimoCredentialKeys = mimoDeclaredCredentialKeys({ home, env: initialEnv, workdir: options.workdir })
   const declaredKeys = [...new Set([...hermesCredentialKeys, ...zcodeCredentialKeys, ...piCredentialKeys, ...mimoCredentialKeys])]
   if (declaredKeys.length) {
-    const extended = await resolveNativeShellEnvironment({ home, refresh: options.refresh === true, extraEnvKeys: declaredKeys })
-    const extra = Object.fromEntries(declaredKeys.filter(key => Object.hasOwn(extended.env, key))
-      .map(key => [key, extended.env[key]]))
+    const chunks = []
+    for (let index = 0; index < declaredKeys.length; index += 32) chunks.push(declaredKeys.slice(index, index + 32))
+    const results = await Promise.all(chunks.map(extraEnvKeys => resolveNativeShellEnvironment({
+      home, refresh: options.refresh === true, extraEnvKeys,
+    })))
+    const extra = {}
+    const unset = []
+    for (let index = 0; index < chunks.length; index += 1) {
+      for (const key of chunks[index]) {
+        if (Object.hasOwn(results[index].env, key)) extra[key] = results[index].env[key]
+        if (results[index].unsetKeys?.includes(key)) unset.push(key)
+      }
+    }
     resolved = { ...resolved, env: { ...resolved.env, ...extra },
       unsetKeys: [...new Set([...(resolved.unsetKeys || []).filter(key => !declaredKeys.includes(key)),
-        ...(extended.unsetKeys || []).filter(key => declaredKeys.includes(key))])] }
+        ...unset])] }
   }
   const env = { ...process.env, ...resolved.env }
   for (const key of resolved.unsetKeys || []) delete env[key]

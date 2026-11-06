@@ -215,6 +215,40 @@ test('Pi native configuration declarations reach discovery and execution', async
   assert.deepEqual(options.nativeCredentialKeys, ['CUSTOM_TOKEN'])
 })
 
+test('native credentials from multiple Agents are captured in bounded batches without restoring unset values', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-env-batches-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const hermesKeys = Array.from({ length: 20 }, (_, index) => `HERMES_TEST_KEY_${index}`)
+  const piKeys = Array.from({ length: 20 }, (_, index) => `PI_TEST_KEY_${index}`)
+  const unset = piKeys.at(-1)
+  const previous = process.env[unset]
+  process.env[unset] = 'stale-process-value'
+  t.after(() => { if (previous === undefined) delete process.env[unset]; else process.env[unset] = previous })
+  const queries = []
+  const readiness = require('../../src/agents/local-agent-readiness.cjs')
+  const { harness } = loadMain(directory, {
+    hermesDeclaredCredentialKeys: () => hermesKeys,
+    piDeclaredCredentialKeys: () => piKeys,
+    nativeEnvironment: readiness.nativeCredentialEnvironment,
+    nativeShellEnvironment: input => {
+      const keys = input.extraEnvKeys || []
+      if (keys.length) queries.push(keys)
+      return { source: 'native-shell', env: Object.fromEntries(keys.filter(key => key !== unset).map(key => [key, `value-${key}`])),
+        unsetKeys: keys.includes(unset) ? [unset] : [] }
+    },
+  })
+  await harness.ready()
+  await harness.workspaceInstances[0].input.runAgent({ kind: 'pi', executable: '/tmp/pi' }, 'hello', directory, {})
+  const options = harness.runAgentCalls.at(-1)[3]
+  assert.ok(queries.some(keys => keys.length === 32))
+  assert.ok(queries.some(keys => keys.includes(piKeys[18])))
+  assert.ok(queries.every(keys => keys.length <= 32))
+  assert.equal(options.env[piKeys[18]], `value-${piKeys[18]}`)
+  assert.equal(options.env[hermesKeys[0]], undefined)
+  assert.equal(options.env[unset], undefined)
+  assert.ok(options.nativeUnsetKeys.includes(unset))
+})
+
 test('native Agent configuration selection is validated and used for execution', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-config-ipc-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
