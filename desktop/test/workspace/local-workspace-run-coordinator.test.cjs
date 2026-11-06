@@ -638,6 +638,33 @@ test('terminal outbox resumes automatically after the initial retry budget is ex
   assert.equal(calls.filter(call => call[0] === 'emit' && call[1] === 'run-finished').length, 1)
 })
 
+test('shutdown continues terminal persistence retries without changing the recorded outcome', async () => {
+  let writable = false
+  let scheduled
+  const { activeRuns, calls, coordinator, isShuttingDown } = fixture({
+    hasRunLedger: true,
+    setTimeout: callback => { scheduled = callback; return { unref() {} } },
+    finishRunCheckpoint: () => writable,
+  })
+  const controller = coordinator.createController('manual', ['codex'], 'task-1')
+  controller.stopReason = ''
+  activeRuns.set('group-1', controller)
+  await assert.rejects(coordinator.finish('group-1', controller, 'completed'), {
+    code: 'LOCAL_RUN_TERMINAL_PERSIST_FAILED',
+  })
+  const shutdown = coordinator.stopAll()
+  assert.equal(isShuttingDown(), true)
+  assert.equal(controller.signal.aborted, false)
+  assert.equal(controller.stopReason, '')
+  writable = true
+  scheduled()
+  await shutdown
+  assert.equal(controller.terminalPersistence.state, 'committed')
+  const finished = calls.filter(call => call[0] === 'emit' && call[1] === 'run-finished')
+  assert.equal(finished.length, 1)
+  assert.equal(finished[0][2].status, 'completed')
+})
+
 test('RunHarness and silence warnings remain lazy, dynamic, and checkpointed in order', () => {
   let scheduled = null
   const cleared = []

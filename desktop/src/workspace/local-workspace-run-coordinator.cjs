@@ -378,12 +378,12 @@ class LocalWorkspaceRunCoordinator {
   }
 
   scheduleTerminalRetry(groupId, controller) {
-    if (controller.finished || controller.terminalRetryTimer || this.isShuttingDown()) return
+    if (controller.finished || controller.terminalRetryTimer) return
     const delayMs = this.terminalRetryMaxDelayMs
     controller.terminalPersistence.nextRetryAt = Date.now() + delayMs
     controller.terminalRetryTimer = this.setTimeout(() => {
       controller.terminalRetryTimer = null
-      if (controller.finished || this.isShuttingDown()) return
+      if (controller.finished) return
       this.finish(groupId, controller, controller.terminalOutbox.status).catch(() => {})
     }, delayMs)
     controller.terminalRetryTimer?.unref?.()
@@ -571,6 +571,7 @@ class LocalWorkspaceRunCoordinator {
       ...this.activeRuns.values(),
     ])
     for (const controller of controllers) {
+      if (controller.terminalOutbox) continue
       controller.stopReason ||= 'shutdown'
       controller.abort()
     }
