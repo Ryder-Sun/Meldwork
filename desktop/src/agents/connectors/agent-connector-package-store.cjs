@@ -108,7 +108,11 @@ const packageContentSchema = z.strictObject({
     }
     return
   }
-  const endpoint = new URL(value.provider.config.endpoint)
+  let endpoint
+  try { endpoint = new URL(value.provider.config.endpoint) } catch {
+    context.addIssue({ code: 'custom', message: 'HTTP JSON endpoint invalid' })
+    return
+  }
   const slotId = value.provider.config.authSlotId
   const authSlot = manifest.credentials.slots.find(slot => slot.slotId === slotId)
   if (manifest.transport.type !== 'http' || manifest.transport.protocol !== 'json'
@@ -380,11 +384,13 @@ class AgentConnectorPackageStore {
     this.requireAvailable()
     const filename = this.packagePath(packageId)
     try {
-      return parseAgentConnectorPackage(readRegularNoFollow(
+      const packageRecord = parseAgentConnectorPackage(readRegularNoFollow(
         filename,
         MAX_PACKAGE_BYTES,
         'AGENT_CONNECTOR_PACKAGE_UNAVAILABLE',
       ))
+      if (packageRecord.packageId !== packageId) fail('AGENT_CONNECTOR_PACKAGE_ID_MISMATCH')
+      return packageRecord
     } catch (error) {
       if (error?.code?.startsWith('AGENT_CONNECTOR_')) throw error
       fail('AGENT_CONNECTOR_PACKAGE_UNAVAILABLE')

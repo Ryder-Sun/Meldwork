@@ -117,6 +117,27 @@ test('persists the complete trust lifecycle with a hash-chained audit trail', (t
   assert.match(fs.readFileSync(path.join(rootPath, 'audit.jsonl'), 'utf8'), /connector-audit-/)
 })
 
+test('replacing an approved package with another valid package never transfers trust', t => {
+  const { create, rootPath, store } = fixture(t)
+  const approved = SAMPLE_LOCAL_ECHO_AGENT_CONNECTOR_PACKAGE
+  const { manifestId, recordType, schemaVersion, ...manifestInput } = approved.manifest
+  const { createAgentConnectorManifest } = require('../../../src/agents/connectors/agent-connector-manifest.cjs')
+  const replacement = createAgentConnectorPackage({
+    publisher: { ...approved.publisher, name: 'Unapproved publisher' },
+    provider: approved.provider, manifest: createAgentConnectorManifest({ ...manifestInput, label: 'Unapproved connector' }),
+  })
+  store.import(serializeAgentConnectorPackage(approved))
+  store.approve(approved.packageId)
+  store.install(approved.packageId)
+  fs.writeFileSync(path.join(rootPath, 'packages', `${approved.packageId}.json`),
+    serializeAgentConnectorPackage(replacement))
+  assert.throws(() => store.inspect(approved.packageId), { code: 'AGENT_CONNECTOR_PACKAGE_ID_MISMATCH' })
+  const reopened = create()
+  assert.deepEqual(reopened.installedPackages(), [])
+  assert.equal(reopened.diagnostic(), 'AGENT_CONNECTOR_PACKAGE_ID_MISMATCH')
+  assert.throws(() => reopened.list(), { code: 'AGENT_CONNECTOR_PACKAGE_ID_MISMATCH' })
+})
+
 test('reimporting a removed package requires fresh approval and preserves its audit history', (t) => {
   const { create, store } = fixture(t)
   const serialized = serializeAgentConnectorPackage(SAMPLE_LOCAL_ECHO_AGENT_CONNECTOR_PACKAGE)

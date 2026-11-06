@@ -183,6 +183,14 @@ test('HTTP JSON provider enforces destinations, credentials, cancellation, and f
     },
     manifest: packageRecord.manifest,
   }), { message: 'AGENT_CONNECTOR_PACKAGE_SCHEMA_INVALID' })
+  assert.throws(() => createAgentConnectorPackage({
+    publisher: packageRecord.publisher,
+    provider: { ...packageRecord.provider, config: {
+      ...packageRecord.provider.config, endpoint: 'invalid-url-private-token',
+    } },
+    manifest: packageRecord.manifest,
+  }), error => error.message === 'AGENT_CONNECTOR_PACKAGE_SCHEMA_INVALID'
+    && !JSON.stringify(error).includes('private-token'))
   install(packageStore, packageRecord, 'http.connector.json')
   connectors.refresh([])
   const configured = connectors.configure({
