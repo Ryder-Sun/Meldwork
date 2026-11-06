@@ -60,4 +60,22 @@ describe('Connector package settings', () => {
     expect(wrapper.text()).toContain(t('connectorPackages.instanceInUse'))
     wrapper.unmount()
   })
+
+  it('displays inspected permissions and durable trust history', async () => {
+    const item = { packageId: 'package', manifestId: 'manifest', state: 'imported', label: 'Example', connectorVersion: '1.0.0', publisher: { name: 'Publisher' } }
+    const api = { packages: vi.fn().mockResolvedValue([item]), list: vi.fn().mockResolvedValue([]),
+      inspect: vi.fn().mockResolvedValue({ packageId: 'package', origin: { filename: 'example.json', sha256: 'abc' }, manifest: {
+        transport: { type: 'http', protocol: 'json' }, permissionModes: ['read-only'],
+        credentials: { slots: [{ slotId: 'key' }] }, outboundDestinations: ['https://example.com'],
+      } }), audit: vi.fn().mockResolvedValue([{ eventId: 'event', action: 'imported', timestamp: '2026-11-06T00:00:00Z' }]) }
+    window.meldworkDesktop = { localAgentConnector: api }
+    const wrapper = mount(ConnectorPackagesPanel)
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text() === t('connectorPackages.inspect')).trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('read-only')
+    expect(wrapper.text()).toContain('https://example.com')
+    expect(wrapper.text()).toContain(t('connectorPackages.event.imported'))
+    wrapper.unmount()
+  })
 })

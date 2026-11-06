@@ -10,6 +10,7 @@
     <article v-for="item in packages" :key="item.packageId" class="connector-row">
       <div><strong>{{ item.label }}</strong> <span>{{ item.connectorVersion }}</span><p>{{ item.publisher.name }} · {{ t(`connectorPackages.state.${item.state}`) }}</p></div>
       <div class="connector-actions">
+        <button type="button" :disabled="busy" @click="inspect(item)">{{ t('connectorPackages.inspect') }}</button>
         <button v-if="item.state === 'imported'" type="button" :disabled="busy" @click="perform('approve', item)">{{ t('connectorPackages.approve') }}</button>
         <button v-if="item.state === 'approved' || item.state === 'disabled'" type="button" :disabled="busy" @click="perform('install', item)">{{ t('connectorPackages.install') }}</button>
         <button v-if="item.state === 'approved' && packages.some(other => other.connectorId === item.connectorId && other.state === 'installed')" type="button" :disabled="busy" @click="perform('upgrade', item)">{{ t('connectorPackages.upgrade') }}</button>
@@ -17,6 +18,15 @@
         <button v-if="item.state === 'installed'" type="button" :disabled="busy" @click="perform('disable', item)">{{ t('connectorPackages.disable') }}</button>
         <button v-if="!['revoked', 'removed'].includes(item.state)" type="button" :disabled="busy" @click="perform('revoke', item)">{{ t('connectorPackages.revoke') }}</button>
         <button v-if="['imported', 'approved', 'disabled', 'revoked'].includes(item.state)" type="button" :disabled="busy" @click="perform('remove', item)">{{ t('connectorPackages.remove') }}</button>
+      </div>
+      <div v-if="selected?.packageId === item.packageId" class="connector-detail">
+        <p>{{ t('connectorPackages.origin') }}: {{ selected.origin.filename }} · {{ selected.origin.sha256 }}</p>
+        <p>{{ t('connectorPackages.transport') }}: {{ selected.manifest.transport.type }} / {{ selected.manifest.transport.protocol }}</p>
+        <p>{{ t('connectorPackages.permissions') }}: {{ selected.manifest.permissionModes.join(', ') || t('connectorPackages.none') }}</p>
+        <p>{{ t('connectorPackages.credentials') }}: {{ selected.manifest.credentials.slots.map(slot => slot.slotId).join(', ') || t('connectorPackages.none') }}</p>
+        <p>{{ t('connectorPackages.destinations') }}: {{ selected.manifest.outboundDestinations.join(', ') || t('connectorPackages.none') }}</p>
+        <h4>{{ t('connectorPackages.audit') }}</h4>
+        <ol><li v-for="event in audit" :key="event.eventId">{{ t(`connectorPackages.event.${event.action}`) }} · {{ event.timestamp }}</li></ol>
       </div>
     </article>
     <h3 v-if="instances.length">{{ t('connectorPackages.instances') }}</h3>
@@ -49,6 +59,8 @@ const busy = ref(false)
 const error = ref('')
 const notice = ref('')
 const confirmingInstance = ref('')
+const selected = ref(null)
+const audit = ref([])
 async function run(action) {
   busy.value = true
   error.value = ''
@@ -58,7 +70,16 @@ async function run(action) {
   finally { busy.value = false }
 }
 function importPackage() { return run(() => api.import()) }
-function perform(action, item) { return run(() => api[action](item.packageId)) }
+function perform(action, item) {
+  selected.value = null
+  return run(() => api[action](item.packageId))
+}
+function inspect(item) {
+  if (selected.value?.packageId === item.packageId) { selected.value = null; return }
+  return run(async () => {
+    ;[selected.value, audit.value] = await Promise.all([api.inspect(item.packageId), api.audit(item.packageId)])
+  })
+}
 function testInstance(instance) {
   return run(async () => {
     const result = await api.test(instance.instanceId)
@@ -88,6 +109,8 @@ onMounted(() => run(async () => {}))
 .connector-heading, .connector-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
 .connector-heading h2 { font-size: 18px; }
 .connector-row { padding: 14px 0; border-bottom: 1px solid var(--border); }
+.connector-row:has(.connector-detail) { flex-wrap: wrap; }
+.connector-detail { flex-basis: 100%; overflow-wrap: anywhere; }
 .connector-row p { color: var(--muted); margin: 4px 0 0; }
 .connector-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .connector-actions button { border: 0; background: transparent; color: var(--accent-text); cursor: pointer; padding: 8px; }
