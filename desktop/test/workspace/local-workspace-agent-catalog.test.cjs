@@ -73,6 +73,23 @@ test('a late result from an older CLI cannot verify its replacement', () => {
   assert.equal(state.agentRuntime.codex, undefined)
 })
 
+for (const credentialState of ['ready', 'missing']) {
+  test(`a late ${credentialState} result cannot update an Agent removed during its run`, async () => {
+    const original = { kind: 'codex', executable: '/tmp/codex-original', version: '1', compatibilityState: 'compatible' }
+    let detected = []
+    const { catalog, state, agents } = fixture({ initialAgents: [original], detectAgents: async () => detected })
+    const identity = agentVerificationIdentity(original)
+    await catalog.refresh()
+    assert.equal(agents().length, 0)
+    catalog.markRuntimeCredential('codex', credentialState, { verificationIdentity: identity })
+    assert.equal(state.agentRuntime.codex, undefined)
+    detected = [{ ...original, executable: '/tmp/codex-reinstalled', version: '2' }]
+    await catalog.refresh()
+    assert.notEqual(agents()[0].credentialState, 'missing')
+    assert.equal(agents()[0].recentlyVerified, false)
+  })
+}
+
 test('a late authentication failure from an older CLI cannot block its replacement', () => {
   const oldAgent = { kind: 'codex', executable: '/tmp/codex-old', version: '1' }
   const current = { kind: 'codex', executable: '/tmp/codex-new', version: '2', available: true,
@@ -82,6 +99,23 @@ test('a late authentication failure from an older CLI cannot block its replaceme
   assert.equal(agents()[0].available, true)
   assert.equal(agents()[0].credentialState, 'ready')
   assert.equal(state.agentRuntime.codex, undefined)
+})
+
+test('an authentication failure does not block a replacement CLI during the cooldown', async () => {
+  let detected = [{ kind: 'codex', executable: '/tmp/codex-original', version: '1', compatibilityState: 'compatible' }]
+  const { catalog, agents, state } = fixture({ detectAgents: async () => detected })
+  await catalog.refresh()
+  const identity = agentVerificationIdentity(agents()[0], state.agentPreferences)
+  catalog.markRuntimeCredential('codex', 'missing', { verificationIdentity: identity })
+  assert.equal(agents()[0].available, false)
+  await catalog.refresh()
+  assert.equal(agents()[0].available, false)
+  assert.equal(state.agentRuntime.codex.failureIdentity, identity)
+  detected = [{ kind: 'codex', executable: '/tmp/codex-reinstalled', version: '2', compatibilityState: 'compatible' }]
+  await catalog.refresh()
+  assert.equal(state.agentRuntime.codex, undefined)
+  assert.equal(agents()[0].credentialState, 'unknown')
+  assert.equal(agents()[0].available, true)
 })
 
 test('a failed probe cannot borrow a successful run from another installation', async () => {

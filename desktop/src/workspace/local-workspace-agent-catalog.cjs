@@ -124,6 +124,13 @@ class LocalWorkspaceAgentCatalog {
       const nativeState = ['ready', 'missing'].includes(native?.state) ? native.state : 'unknown'
       const workBuddyUnavailable = ['workbuddy-desktop-locked', 'workbuddy-model-unavailable'].includes(native?.source)
       const authoritativeNativeState = native?.source === 'native-auth-status'
+      if (runtime?.credentialState === 'missing' && runtime.failureIdentity
+          && runtime.failureIdentity !== agentVerificationIdentity(agent, state.agentPreferences)
+          && runtime === runtimeAtRefreshStart.get(agent.kind)) {
+        delete state.agentRuntime[agent.kind]
+        runtime = undefined
+        recoveredRuntimeCredential = true
+      }
       // Give corrected native credentials a retry after the cooldown, never erase a newer failure.
       if (expiredAuthFailure(runtime, this.now())
           && !(authoritativeNativeState && nativeState === 'ready')
@@ -273,11 +280,12 @@ class LocalWorkspaceAgentCatalog {
   markRuntimeCredential(kind, credentialState, { verifiedRun = true, verificationIdentity = '' } = {}) {
     const state = this.state()
     const agent = this.detectedAgents().find(item => item.kind === kind)
-    if (agent && verificationIdentity && verificationIdentity !== agentVerificationIdentity(agent, state.agentPreferences)) return
+    if (verificationIdentity && (!agent || verificationIdentity !== agentVerificationIdentity(agent, state.agentPreferences))) return
     const identity = verificationIdentity || agentVerificationIdentity(agent, state.agentPreferences)
     state.agentRuntime[kind] = {
       credentialState,
       checkedAt: this.now(),
+      ...(credentialState === 'missing' && verificationIdentity ? { failureIdentity: verificationIdentity } : {}),
       ...(credentialState === 'ready' && verifiedRun && identity
         ? { verificationSource: 'successful-run', verificationIdentity: identity } : {}),
     }
