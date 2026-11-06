@@ -259,7 +259,7 @@ function recordState(events) {
   for (const event of events) {
     const current = states.get(event.packageId)
     if (event.action === 'imported') {
-      if (current || !exactKeys(event.details, ['originFilename', 'originSha256'])
+      if ((current && current.state !== 'removed') || !exactKeys(event.details, ['originFilename', 'originSha256'])
           || typeof event.details.originFilename !== 'string'
           || event.details.originFilename !== path.basename(event.details.originFilename)
           || !/^[a-f0-9]{64}$/.test(String(event.details.originSha256 || ''))) {
@@ -436,8 +436,8 @@ class AgentConnectorPackageStore {
     this.requireAvailable()
     const packageRecord = parseAgentConnectorPackage(input)
     const existing = this.states.get(packageRecord.packageId)
-    if (existing) return this.inspect(packageRecord.packageId)
-    if (this.states.size >= MAX_PACKAGES) fail('AGENT_CONNECTOR_PACKAGE_LIMIT')
+    if (existing && existing.state !== 'removed') return this.inspect(packageRecord.packageId)
+    if (!existing && this.states.size >= MAX_PACKAGES) fail('AGENT_CONNECTOR_PACKAGE_LIMIT')
     const filename = path.basename(String(originFilename || 'connector-package.json'))
     if (!filename || filename.length > 255 || /[\u0000-\u001f\u007f]/.test(filename)) {
       fail('AGENT_CONNECTOR_PACKAGE_ORIGIN_INVALID')

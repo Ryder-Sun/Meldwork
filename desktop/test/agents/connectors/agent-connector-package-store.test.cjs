@@ -117,6 +117,26 @@ test('persists the complete trust lifecycle with a hash-chained audit trail', (t
   assert.match(fs.readFileSync(path.join(rootPath, 'audit.jsonl'), 'utf8'), /connector-audit-/)
 })
 
+test('reimporting a removed package requires fresh approval and preserves its audit history', (t) => {
+  const { create, store } = fixture(t)
+  const serialized = serializeAgentConnectorPackage(SAMPLE_LOCAL_ECHO_AGENT_CONNECTOR_PACKAGE)
+  const packageId = SAMPLE_LOCAL_ECHO_AGENT_CONNECTOR_PACKAGE.packageId
+  store.import(serialized, 'first.json')
+  store.approve(packageId)
+  store.install(packageId)
+  store.revoke(packageId)
+  assert.equal(store.import(serialized, 'again.json').state, 'revoked')
+  store.remove(packageId)
+  assert.equal(store.import(serialized, 'again.json').state, 'imported')
+  assert.equal(store.inspect(packageId).origin.filename, 'again.json')
+  assert.throws(() => store.install(packageId), { message: 'AGENT_CONNECTOR_PACKAGE_TRANSITION_INVALID' })
+  assert.deepEqual(store.audit(packageId).map(event => event.action), ['imported', 'approved', 'installed', 'revoked', 'removed', 'imported'])
+  const reopened = create()
+  assert.equal(reopened.inspect(packageId).state, 'imported')
+  assert.equal(reopened.approve(packageId).state, 'approved')
+  assert.equal(reopened.install(packageId).state, 'installed')
+})
+
 test('upgrades one installed Connector version and fails closed on audit tampering', (t) => {
   const { create, rootPath, store } = fixture(t)
   const first = SAMPLE_LOCAL_ECHO_AGENT_CONNECTOR_PACKAGE
