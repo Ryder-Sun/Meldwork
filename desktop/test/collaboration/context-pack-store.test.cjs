@@ -256,6 +256,31 @@ test('rejects unknown, credential, executable, raw command, and reasoning fields
   }), { message: 'DELIVERY_RECORD_FORBIDDEN_FIELD' })
 })
 
+test('delivery records accept token counts while still rejecting credential fields', () => {
+  const pack = createContextPackRecord(packInput())
+  const delivery = createDeliveryRecord(deliveryInput(pack.contextPackId, {
+    inputTokenCount: 42, outputTokenCount: 7,
+  }))
+  assert.equal(delivery.inputTokenCount, 42)
+  assert.equal(delivery.outputTokenCount, 7)
+  assert.deepEqual(parseDeliveryRecord(canonicalJson(delivery)), delivery)
+  for (const field of ['inputTokenCount', 'outputTokenCount']) {
+    assert.throws(() => createDeliveryRecord(deliveryInput(pack.contextPackId, {
+      [field]: 'synthetic-secret',
+    })), { message: 'DELIVERY_RECORD_SCHEMA_INVALID' })
+  }
+  for (const field of ['accessToken', 'API_KEY', 'refresh_token', 'privateKey', 'rawCommand']) {
+    assert.throws(() => createDeliveryRecord(deliveryInput(pack.contextPackId, {
+      [field]: 'synthetic-secret',
+    })), { message: 'DELIVERY_RECORD_FORBIDDEN_FIELD' }, field)
+  }
+  for (const field of ['commandHistoryCount', 'tokenizerVersion', 'apiKeyboard']) {
+    assert.throws(() => createDeliveryRecord(deliveryInput(pack.contextPackId, {
+      [field]: 2,
+    })), { message: 'DELIVERY_RECORD_SCHEMA_INVALID' }, field)
+  }
+})
+
 test('enforces collection bounds, uniqueness, target scope, and matching hashes', () => {
   assert.throws(() => createContextPackRecord(packInput({
     targetKinds: Array.from({ length: 33 }, (_, index) => `agent-${index}`),

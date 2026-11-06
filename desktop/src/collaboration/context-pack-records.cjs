@@ -256,6 +256,8 @@ const deliveryContentFields = {
   wirePayloadRef: blobRefSchema,
   wirePayloadHash: hashSchema,
   wirePayloadBytes: z.number().int().nonnegative().max(MAX_CONTENT_BLOB_BYTES),
+  inputTokenCount: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
+  outputTokenCount: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
   serialization: z.enum([
     'cli-argv-stdin-v1',
     'acp-session-prompt-v1',
@@ -303,23 +305,18 @@ const deliveryRecordSchema = z.strictObject({
 }).superRefine(validateDeliveryRelations)
 
 function forbiddenField(key) {
-  const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, '')
-  return normalized.includes('credential')
-    || normalized.includes('password')
-    || normalized.includes('apikey')
-    || normalized.includes('accesskey')
-    || normalized.includes('token')
-    || normalized.includes('secret')
-    || normalized.includes('authorization')
-    || normalized.includes('privatekey')
-    || normalized.includes('executable')
-    || normalized.includes('command')
-    || normalized.includes('reasoning')
-    || normalized.includes('chainofthought')
-    || normalized === 'cot'
-    || normalized.includes('sessionref')
-    || normalized === 'thought'
-    || normalized === 'thoughts'
+  const words = key.replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2')
+    .toLowerCase().split(/[^a-z0-9]+/).filter(Boolean)
+  const joined = words.join('')
+  if (['inputtokencount', 'outputtokencount', 'commandhistorycount'].includes(joined)) return false
+  return words.some(word => [
+    'credential', 'credentials', 'password', 'passwords', 'apikey', 'accesskey',
+    'token', 'tokens', 'secret', 'secrets', 'authorization', 'privatekey',
+    'executable', 'command', 'commands', 'reasoning', 'chainofthought',
+    'cot', 'sessionref', 'thought', 'thoughts',
+  ].includes(word)) || /\b(?:api key|access key|private key|chain of thought|session ref)\b/
+    .test(words.join(' '))
 }
 
 function assertNoForbiddenContent(value, prefix, seen = new Set()) {
