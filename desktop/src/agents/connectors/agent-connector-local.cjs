@@ -805,9 +805,9 @@ class LocalAgentConnectors {
         permissionMode: input.permissionMode,
         operationId: input.operationId,
       })
-      await input.onOutboundPayload(createHttpOutboundPayload({
+      await abortableHttpOperation(input.onOutboundPayload(createHttpOutboundPayload({
         prompt: input.prompt, destination: endpoint, wireBytes: Buffer.from(body, 'utf8'),
-      }))
+      })), controller.signal)
       const currentPackage = this.packageStore.packageForManifest(input.connector.manifestId)
       if (!currentPackage || currentPackage.packageId !== packageRecord.packageId
           || this.packageStore.audit(packageRecord.packageId).at(-1)?.eventId !== packageRevision) {

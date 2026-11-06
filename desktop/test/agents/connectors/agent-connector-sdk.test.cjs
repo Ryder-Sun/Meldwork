@@ -176,6 +176,29 @@ test('HTTP transport does not send when stopped during outbound recording', asyn
   assert.equal(result.outcome, 'cancelled')
 })
 
+test('HTTP transport stops while outbound recording remains pending', async t => {
+  let sent = false
+  let entered
+  const recording = new Promise(resolve => { entered = resolve })
+  const { connectors, directory, packageStore } = fixture(t, async () => { sent = true })
+  const pkg = httpPackage()
+  install(packageStore, pkg)
+  connectors.refresh([])
+  connectors.configure({ manifestId: pkg.manifest.manifestId, label: 'Pending record', credentials: { 'access-token': 'private-token' } })
+  const [agent] = connectors.detectAgents()
+  const controller = new AbortController()
+  const pending = connectors.run(agent, 'request', directory, {
+    runId: 'run-pending-record', agentRunId: 'agent-run-pending-record', sandbox: 'read-only',
+    signal: controller.signal,
+    onOutboundPayload: () => { entered(); return new Promise(() => {}) },
+  })
+  await recording
+  controller.abort()
+  const result = await pending
+  assert.equal(sent, false)
+  assert.equal(result.outcome, 'cancelled')
+})
+
 for (const action of ['disable', 'revoke', 'disable-and-reinstall', 'delete-instance']) {
   test(`HTTP transport does not send after ${action} during outbound recording`, async t => {
     let sent = false
