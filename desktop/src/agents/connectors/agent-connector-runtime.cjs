@@ -110,6 +110,24 @@ function assertResultCapabilities(connector, result) {
   }
 }
 
+function validatedOutcomeRefs(result, state) {
+  const refs = result?.outcomeRefs
+  if (refs != null) {
+    if (typeof refs !== 'object' || Array.isArray(refs)
+        || Object.keys(refs).some(key => !['artifactIds', 'evidenceIds'].includes(key))) {
+      fail('AGENT_CONNECTOR_OUTCOME_UNDECLARED')
+    }
+    for (const field of ['artifactIds', 'evidenceIds']) {
+      if (refs[field] == null) continue
+      if (!Array.isArray(refs[field]) || refs[field].some(id => !state[field].includes(id))) {
+        fail('AGENT_CONNECTOR_OUTCOME_UNDECLARED')
+      }
+    }
+  }
+  if (!refs && !state.artifactIds.length && !state.evidenceIds.length) return undefined
+  return { artifactIds: [...state.artifactIds], evidenceIds: [...state.evidenceIds] }
+}
+
 function normalizeResume(input) {
   if (input == null) return null
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
@@ -430,6 +448,7 @@ class AgentConnectorRuntime {
       fail('AGENT_CONNECTOR_RESULT_INVALID')
     }
     assertResultCapabilities(connector, result)
+    const outcomeRefs = validatedOutcomeRefs(result, state)
     if (result.outcome != null && result.outcome !== state.status) {
       fail('AGENT_CONNECTOR_RESULT_MISMATCH')
     }
@@ -441,6 +460,7 @@ class AgentConnectorRuntime {
       if (!validWaiting) fail('AGENT_CONNECTOR_WAITING_EVENT_REQUIRED')
       return {
         ...result,
+        ...(outcomeRefs ? { outcomeRefs } : {}),
         outcome: state.status,
         usage: state.usage,
         waitingRequest: clone(waiting),
@@ -479,6 +499,7 @@ class AgentConnectorRuntime {
     }
     return {
       ...result,
+      ...(outcomeRefs ? { outcomeRefs } : {}),
       outcome: state.status,
       usage: state.usage,
       connector,

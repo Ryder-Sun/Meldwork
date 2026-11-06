@@ -299,6 +299,35 @@ test('a recipe declaring Permission retains the permission request callback', as
   assert.equal(permissions, 1)
 })
 
+test('Connector outcome references must come from declared, validated events', async () => {
+  const artifactId = `artifact-${'a'.repeat(64)}`
+  const evidenceId = `evidence-${'b'.repeat(64)}`
+  for (const outcomeRefs of [
+    { artifactIds: [artifactId] },
+    { evidenceIds: [evidenceId] },
+    { findingIds: [`finding-${'c'.repeat(64)}`] },
+    { artifactIds: 'not-an-array' },
+  ]) {
+    const { runtime } = runtimeFixture(async input => {
+      input.emit({ eventId: 'done', cursor: 'done', sequence: 1, type: 'Completed', outcome: 'completed' })
+      return { text: 'done', outcome: 'completed', outcomeRefs }
+    }, { eventTypes: ['Completed', 'Failed', 'Cancelled'] })
+    await assert.rejects(runtime.run(runtime.detectAgents()[0], 'Review', '/tmp/workspace', {
+      runId: 'run-forged-ref', agentRunId: 'agent-run-forged-ref', sandbox: 'read-only',
+    }), { message: 'AGENT_CONNECTOR_OUTCOME_UNDECLARED' })
+  }
+  const { runtime } = runtimeFixture(async input => {
+    input.emit({ eventId: 'artifact', cursor: 'artifact', sequence: 1, type: 'Artifact', artifactId })
+    input.emit({ eventId: 'evidence', cursor: 'evidence', sequence: 2, type: 'Evidence', evidenceId })
+    input.emit({ eventId: 'done', cursor: 'done', sequence: 3, type: 'Completed', outcome: 'completed' })
+    return { text: 'done', outcome: 'completed', outcomeRefs: { artifactIds: [artifactId] } }
+  })
+  const result = await runtime.run(runtime.detectAgents()[0], 'Review', '/tmp/workspace', {
+    runId: 'run-valid-ref', agentRunId: 'agent-run-valid-ref', sandbox: 'read-only',
+  })
+  assert.deepEqual(result.outcomeRefs, { artifactIds: [artifactId], evidenceIds: [evidenceId] })
+})
+
 test('fails closed when a recipe, permission mode, or terminal event is missing', async () => {
   const missingTerminal = runtimeFixture(async () => ({ text: 'Not terminal' })).runtime
   await assert.rejects(
