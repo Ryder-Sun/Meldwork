@@ -176,11 +176,16 @@ function normalizeResume(input) {
   }
   const status = String(input.status || '')
   const optionId = String(input.optionId || '')
+  const permission = input.permission == null ? '' : String(input.permission)
   if (!['approved', 'rejected'].includes(status) || !PUBLIC_ID.test(optionId)) {
+    fail('AGENT_CONNECTOR_RESUME_INVALID')
+  }
+  if (permission && !['workspace-read', 'workspace-write', 'network', 'browser', 'external-message'].includes(permission)) {
     fail('AGENT_CONNECTOR_RESUME_INVALID')
   }
   return Object.freeze({
     type, requestId, requestHash, sessionRefHash, sessionProvenanceHash, status, optionId,
+    ...(permission ? { permission } : {}),
   })
 }
 
@@ -423,7 +428,7 @@ class AgentConnectorRuntime {
       assertEventCapabilities(connector, input, permissionMode)
       if (input?.type === 'Permission' && input.decision !== 'requested'
           && (resume?.type !== 'permission' || resume.requestId !== input.requestId
-            || resume.status !== input.decision)) {
+            || resume.status !== input.decision || resume.permission !== input.permission)) {
         fail('AGENT_CONNECTOR_PERMISSION_DECISION_UNBOUND')
       }
       const event = parseConnectorRunEvent(input, provenance)

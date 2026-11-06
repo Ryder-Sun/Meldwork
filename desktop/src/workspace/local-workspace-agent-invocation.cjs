@@ -729,6 +729,7 @@ class LocalWorkspaceAgentInvocation {
           : {
               status: resumedConnectorGate.status,
               optionId: resumedConnectorGate.optionId,
+              permission: request.permission,
             }),
       }
     }
@@ -1194,7 +1195,7 @@ class LocalWorkspaceAgentInvocation {
           ...binding,
           ...(gateType === 'input'
             ? { response: decision.response }
-            : { status: decision.status, optionId: decision.optionId }),
+            : { status: decision.status, optionId: decision.optionId, permission: request.permission }),
         }
         result = await raceCurrentSession()
       }

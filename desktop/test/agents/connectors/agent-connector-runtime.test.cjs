@@ -601,11 +601,12 @@ test('permission decision events must match the resumed human decision', async (
   })
   const agent = runtime.detectAgents()[0]
   const base = { runId: 'run-bound-permission', agentRunId: 'agent-run-bound-permission', sandbox: 'read-only' }
-  const resume = { type: 'permission', requestId: 'request-one', status: 'approved', optionId: 'allow',
+  const resume = { type: 'permission', requestId: 'request-one', status: 'approved', optionId: 'allow', permission: 'network',
     requestHash: 'a'.repeat(64), sessionRefHash: 'b'.repeat(64), sessionProvenanceHash: 'c'.repeat(64) }
   await assert.rejects(runtime.run(agent, 'Review', '/tmp/workspace', base),
     { message: 'AGENT_CONNECTOR_PERMISSION_DECISION_UNBOUND' })
-  for (const bad of [{ ...resume, requestId: 'other' }, { ...resume, status: 'rejected' }]) {
+  for (const bad of [{ ...resume, requestId: 'other' }, { ...resume, status: 'rejected' },
+    { ...resume, permission: 'browser' }, { ...resume, permission: undefined }]) {
     await assert.rejects(runtime.run(agent, 'Review', '/tmp/workspace', { ...base, connectorResume: bad }),
       { message: 'AGENT_CONNECTOR_PERMISSION_DECISION_UNBOUND' })
   }
