@@ -139,6 +139,41 @@ test('a native configuration switch invalidates previous and late verification',
   assert.equal(agents()[0].available, false)
 })
 
+test('editing selected native configuration invalidates a previous and late successful run', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-agent-config-identity-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const config = path.join(directory, 'config.yaml')
+  fs.writeFileSync(config, 'model: first\n')
+  const agent = { kind: 'hermes', executable: '/tmp/hermes', version: '1', compatibilityState: 'compatible' }
+  const { catalog, agents, state } = fixture({ detectAgents: async () => [{ ...agent }],
+    credentialState: async () => ({ state: 'unknown', source: 'unverified' }) })
+  state.agentPreferences.hermes = { nativeConfigDirectory: directory }
+  await catalog.refresh()
+  const oldIdentity = agentVerificationIdentity(agent, state.agentPreferences)
+  catalog.markRuntimeCredential('hermes', 'ready', { verificationIdentity: oldIdentity })
+  assert.equal(agents()[0].recentlyVerified, true)
+  fs.writeFileSync(config, 'model: another-provider\n')
+  catalog.markRuntimeCredential('hermes', 'ready', { verificationIdentity: oldIdentity })
+  await catalog.refresh()
+  assert.equal(agents()[0].recentlyVerified, false)
+  assert.equal(agents()[0].authenticated, false)
+  assert.equal(agents()[0].invocable, true)
+})
+
+test('credential files inside selected native directories participate in verification identity', t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-agent-credential-identity-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const credentials = path.join(directory, 'credentials')
+  fs.mkdirSync(credentials)
+  const filename = path.join(credentials, 'profile.json')
+  fs.writeFileSync(filename, 'first')
+  const agent = { kind: 'kimi' }
+  const preferences = { kimi: { nativeConfigDirectory: directory } }
+  const first = agentVerificationIdentity(agent, preferences)
+  fs.writeFileSync(filename, 'second account')
+  assert.notEqual(agentVerificationIdentity(agent, preferences), first)
+})
+
 test('Agent catalog module exposes only its coordinator', () => {
   assert.deepEqual(Object.keys(catalogApi), ['LocalWorkspaceAgentCatalog'])
 })
