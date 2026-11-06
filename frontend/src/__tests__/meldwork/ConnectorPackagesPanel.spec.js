@@ -78,4 +78,22 @@ describe('Connector package settings', () => {
     expect(wrapper.text()).toContain(t('connectorPackages.event.imported'))
     wrapper.unmount()
   })
+
+  it('reloads after a failed action and removes stale controls if refresh fails', async () => {
+    const item = { packageId: 'package', manifestId: 'manifest', state: 'installed', label: 'Example', connectorVersion: '1.0.0', publisher: { name: 'Publisher' } }
+    const api = { packages: vi.fn().mockResolvedValueOnce([item]).mockRejectedValueOnce(new Error('refresh failed')).mockResolvedValueOnce([]),
+      list: vi.fn().mockResolvedValue([]), disable: vi.fn().mockRejectedValue(new Error('refresh after mutation failed')) }
+    window.meldworkDesktop = { localAgentConnector: api }
+    const wrapper = mount(ConnectorPackagesPanel)
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text() === t('connectorPackages.disable')).trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('Example')
+    expect(wrapper.text()).not.toContain(t('connectorPackages.empty'))
+    expect(api.packages).toHaveBeenCalledTimes(2)
+    await wrapper.findAll('button').find(button => button.text() === t('connectorPackages.retry')).trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain(t('connectorPackages.empty'))
+    wrapper.unmount()
+  })
 })

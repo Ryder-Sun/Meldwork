@@ -15,6 +15,7 @@ export default {
     'connectorPackages.available': 'Available',
     'connectorPackages.unavailable': 'Unavailable',
     'connectorPackages.test': 'Test',
+    'connectorPackages.retry': 'Reload',
     'connectorPackages.testPassed': 'Connector test passed.',
     'connectorPackages.testFailed': 'Connector test failed; check its configuration.',
     'connectorPackages.delete': 'Delete instance',

@@ -15,6 +15,7 @@ export default {
     'connectorPackages.available': '可用',
     'connectorPackages.unavailable': '不可用',
     'connectorPackages.test': '测试',
+    'connectorPackages.retry': '重新加载',
     'connectorPackages.testPassed': 'Connector 测试通过。',
     'connectorPackages.testFailed': 'Connector 测试失败，请检查配置。',
     'connectorPackages.delete': '删除实例',

@@ -5,8 +5,8 @@
       <button class="secondary-button" type="button" @click="$emit('close')">{{ t('common.close') }}</button>
     </div>
     <button class="secondary-button" type="button" :disabled="busy" @click="importPackage">{{ t('connectorPackages.import') }}</button>
-    <p v-if="error" role="alert">{{ error }}</p>
-    <p v-if="!packages.length && !busy">{{ t('connectorPackages.empty') }}</p>
+    <p v-if="error" role="alert">{{ error }} <button type="button" :disabled="busy" @click="run(async () => {})">{{ t('connectorPackages.retry') }}</button></p>
+    <p v-if="!packages.length && !busy && !error">{{ t('connectorPackages.empty') }}</p>
     <article v-for="item in packages" :key="item.packageId" class="connector-row">
       <div><strong>{{ item.label }}</strong> <span>{{ item.connectorVersion }}</span><p>{{ item.publisher.name }} · {{ t(`connectorPackages.state.${item.state}`) }}</p></div>
       <div class="connector-actions">
@@ -65,9 +65,16 @@ async function run(action) {
   busy.value = true
   error.value = ''
   notice.value = ''
-  try { await action(); [packages.value, instances.value] = await Promise.all([api.packages(), api.list()]) }
+  try { await action() }
   catch (caught) { error.value = translateError(caught) }
-  finally { busy.value = false }
+  try { [packages.value, instances.value] = await Promise.all([api.packages(), api.list()]) }
+  catch (caught) {
+    packages.value = []
+    instances.value = []
+    selected.value = null
+    notice.value = ''
+    error.value = translateError(caught)
+  } finally { busy.value = false }
 }
 function importPackage() { return run(() => api.import()) }
 function perform(action, item) {
