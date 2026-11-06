@@ -118,6 +118,30 @@ test('Pi captures its native GitHub Copilot token from the login shell', async t
   assert.equal(childEnvironment({ kind: 'codex' }, home, { env: native }, 'darwin').COPILOT_GITHUB_TOKEN, undefined)
 })
 
+test('Pi Cloudflare readiness and execution retain required account and gateway settings', async t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-pi-cloudflare-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const root = path.join(home, '.pi', 'agent')
+  fs.mkdirSync(root, { recursive: true })
+  const captured = await resolveNativeShellEnvironment({ cache: false, platform: 'win32', env: {
+    CLOUDFLARE_API_KEY: 'synthetic-cloudflare-token', CLOUDFLARE_ACCOUNT_ID: 'account-id',
+    CLOUDFLARE_GATEWAY_ID: 'gateway-id',
+  } })
+  const native = nativeCredentialEnvironment('pi', captured.env)
+  const child = childEnvironment({ kind: 'pi' }, home, { env: native }, 'win32')
+  assert.equal(child.CLOUDFLARE_ACCOUNT_ID, 'account-id')
+  assert.equal(child.CLOUDFLARE_GATEWAY_ID, 'gateway-id')
+  assert.deepEqual(nativeCredentialEnvironment('codex', captured.env), {})
+  for (const provider of ['cloudflare-workers-ai', 'cloudflare-ai-gateway']) {
+    fs.writeFileSync(path.join(root, 'settings.json'), JSON.stringify({ defaultProvider: provider }))
+    assert.equal(nativeCredentialState('pi', { home, env: native }).state, 'ready')
+    assert.equal(nativeCredentialState('pi', { home, env: { CLOUDFLARE_API_KEY: native.CLOUDFLARE_API_KEY } }).state, 'unknown')
+  }
+  assert.equal(nativeCredentialState('pi', { home, env: {
+    CLOUDFLARE_API_KEY: native.CLOUDFLARE_API_KEY, CLOUDFLARE_ACCOUNT_ID: 'account-id',
+  } }).state, 'unknown')
+})
+
 test('Pi retains more than 32 environment references from its native models configuration', t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-pi-many-keys-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))

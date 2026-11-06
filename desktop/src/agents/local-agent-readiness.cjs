@@ -14,7 +14,7 @@ const { NETWORK_ENV_KEYS, networkEnvironment } = require('./cli/cli-network-envi
 const { CONFIG_DIRECTORY_ENV_KEYS } = require('./cli/cli-config-directories.cjs')
 const { workBuddyCredentialState } = require('./cli/workbuddy-runtime.cjs')
 const { mimoConfiguredProvider } = require('./cli/mimo-native-config.cjs')
-const { PI_PROVIDER_CREDENTIAL_KEYS, PI_BUILTIN_CREDENTIAL_KEYS } = require('./cli/pi-provider-environment.cjs')
+const { PI_PROVIDER_CREDENTIAL_KEYS, PI_BUILTIN_CREDENTIAL_KEYS, PI_BUILTIN_CONFIG_KEYS } = require('./cli/pi-provider-environment.cjs')
 
 const execFileAsync = promisify(execFile)
 
@@ -85,7 +85,7 @@ const RUNTIME_ENV_KEYS = Object.freeze({
   zcode: ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL', 'ZCODE_API_KEY', 'ZCODE_BASE_URL',
     'ZCODE_MODEL', 'ZCODE_HTTP_PROXY', 'ZCODE_NO_PROXY', 'ZCODE_AGENT_CA_CERT'],
   pi: [
-    'PI_API_KEY', 'PI_BASE_URL', 'PI_MODEL', ...PI_BUILTIN_CREDENTIAL_KEYS,
+    'PI_API_KEY', 'PI_BASE_URL', 'PI_MODEL', ...PI_BUILTIN_CREDENTIAL_KEYS, ...PI_BUILTIN_CONFIG_KEYS,
     'OPENAI_API_KEY', 'OPENAI_BASE_URL', 'OPENAI_MODEL', 'ANTHROPIC_API_KEY',
     'OPENROUTER_API_KEY', 'GEMINI_API_KEY', 'PI_CODING_AGENT_DIR',
     'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_SESSION_TOKEN',
@@ -758,7 +758,11 @@ function nativeCredentialState(kind, options = {}) {
     ? Object.keys(credentialEnv).length > 0
     : Boolean(selectedPiKey && credentialEnv[selectedPiKey]
       || piProvider === 'anthropic' && (credentialEnv.ANTHROPIC_AUTH_TOKEN || credentialEnv.ANTHROPIC_OAUTH_TOKEN))
-  if (hasCredentialEnv) {
+  const piCloudflareConfigured = !['cloudflare-workers-ai', 'cloudflare-ai-gateway'].includes(piProvider)
+    || (typeof env.CLOUDFLARE_ACCOUNT_ID === 'string' && Boolean(env.CLOUDFLARE_ACCOUNT_ID.trim())
+      && (piProvider !== 'cloudflare-ai-gateway'
+        || (typeof env.CLOUDFLARE_GATEWAY_ID === 'string' && Boolean(env.CLOUDFLARE_GATEWAY_ID.trim()))))
+  if (hasCredentialEnv && piCloudflareConfigured) {
     return {
       state: 'ready',
       source: options.credentialSource === 'native-shell' ? 'native-shell' : 'native-credential',

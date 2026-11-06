@@ -3,7 +3,7 @@ const { launchEnvironment, searchPath, systemChildEnvironment } = require('./cli
 const { NETWORK_ENV_KEYS, networkEnvironment } = require('./cli-network-environment.cjs')
 const { CONFIG_DIRECTORY_ENV_KEYS } = require('./cli-config-directories.cjs')
 const { SECRET_ENV_KEYS, nativeSecretEnvKeys } = require('./native-secret-environment.cjs')
-const { PI_BUILTIN_CREDENTIAL_KEYS } = require('./pi-provider-environment.cjs')
+const { PI_BUILTIN_CREDENTIAL_KEYS, PI_BUILTIN_CONFIG_KEYS } = require('./pi-provider-environment.cjs')
 const { redactChildSecrets } = require('./cli-runtime-events.cjs')
 const {
   agentRuntimeError,
@@ -205,7 +205,7 @@ function childEnvironment(agent, workdir, options, platform) {
   const controlled = Object.fromEntries(Object.entries(options.env || {}).filter(([key, value]) => (
     typeof value === 'string'
       && (CONTROLLED_RUNTIME_ENV.test(key) || nativeKeys.includes(key)
-        || (agent.kind === 'pi' && PI_BUILTIN_CREDENTIAL_KEYS.includes(key)) || NETWORK_ENV_KEYS.includes(key)
+        || (agent.kind === 'pi' && (PI_BUILTIN_CREDENTIAL_KEYS.includes(key) || PI_BUILTIN_CONFIG_KEYS.includes(key))) || NETWORK_ENV_KEYS.includes(key)
         || CONFIG_DIRECTORY_ENV_KEYS.includes(key))
       && !BLOCKED_RUNTIME_ENV.test(key)
   )))
