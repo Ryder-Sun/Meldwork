@@ -421,6 +421,11 @@ class AgentConnectorRuntime {
     const attachments = validatedAttachments(options.attachments, connector.capabilities)
     const emit = (input) => {
       assertEventCapabilities(connector, input, permissionMode)
+      if (input?.type === 'Permission' && input.decision !== 'requested'
+          && (resume?.type !== 'permission' || resume.requestId !== input.requestId
+            || resume.status !== input.decision)) {
+        fail('AGENT_CONNECTOR_PERMISSION_DECISION_UNBOUND')
+      }
       const event = parseConnectorRunEvent(input, provenance)
       const duplicate = state.events.find(existing => existing.eventId === event.eventId)
       if (duplicate && canonicalJson(duplicate) === canonicalJson(event)) return event

@@ -590,3 +590,25 @@ test('returns durable waiting permission and validates the bound decision', asyn
   })
   assert.equal(completed.text, 'approved')
 })
+
+test('permission decision events must match the resumed human decision', async () => {
+  let event = { eventId: 'decision', cursor: 'decision', sequence: 1, type: 'Permission',
+    requestId: 'request-one', permission: 'network', decision: 'approved' }
+  const { runtime } = runtimeFixture(async input => {
+    input.emit(event)
+    input.emit({ eventId: 'done', cursor: 'done', sequence: 2, type: 'Completed', outcome: 'completed' })
+    return { text: 'done', outcome: 'completed' }
+  })
+  const agent = runtime.detectAgents()[0]
+  const base = { runId: 'run-bound-permission', agentRunId: 'agent-run-bound-permission', sandbox: 'read-only' }
+  const resume = { type: 'permission', requestId: 'request-one', status: 'approved', optionId: 'allow',
+    requestHash: 'a'.repeat(64), sessionRefHash: 'b'.repeat(64), sessionProvenanceHash: 'c'.repeat(64) }
+  await assert.rejects(runtime.run(agent, 'Review', '/tmp/workspace', base),
+    { message: 'AGENT_CONNECTOR_PERMISSION_DECISION_UNBOUND' })
+  for (const bad of [{ ...resume, requestId: 'other' }, { ...resume, status: 'rejected' }]) {
+    await assert.rejects(runtime.run(agent, 'Review', '/tmp/workspace', { ...base, connectorResume: bad }),
+      { message: 'AGENT_CONNECTOR_PERMISSION_DECISION_UNBOUND' })
+  }
+  const result = await runtime.run(agent, 'Review', '/tmp/workspace', { ...base, connectorResume: resume })
+  assert.equal(result.outcome, 'completed')
+})
