@@ -128,6 +128,18 @@ test('Hermes receives the selected native provider key without an endpoint overr
   assert.equal(captured.env.OTHER_API_KEY, undefined)
 })
 
+test('Hermes honors environment-selected native provider when config.yaml is absent', async t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-env-provider-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const root = path.join(home, '.hermes'); fs.mkdirSync(root)
+  const env = { HERMES_INFERENCE_PROVIDER: 'north-star' }
+  assert.deepEqual(hermesDeclaredCredentialKeys({ home, env }), ['NORTH_STAR_API_KEY'])
+  fs.writeFileSync(path.join(root, 'config.yaml'), 'model:\n  provider: selected\n')
+  assert.deepEqual(hermesDeclaredCredentialKeys({ home, env }), ['SELECTED_API_KEY'])
+  fs.writeFileSync(path.join(root, 'config.yaml'), 'model: [invalid')
+  assert.deepEqual(hermesDeclaredCredentialKeys({ home, env }), [])
+})
+
 test('native environment cache observes credential and proxy changes without a PATH change', async () => {
   const base = { platform: 'win32', home: 'C:\\meldwork-cache-test', env: { PATH: 'C:\\bin',
     ANTHROPIC_API_KEY: 'synthetic-before', HTTPS_PROXY: 'http://before.example:8080' } }

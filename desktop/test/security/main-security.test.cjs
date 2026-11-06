@@ -253,6 +253,29 @@ test('Zcode receives only its native provider credential', async t => {
   assert.equal(harness.runAgentCalls.at(-1)[3].env.ACME_API_KEY, undefined)
 })
 
+test('Hermes environment-selected provider is captured without a native config file', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-env-provider-main-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const readiness = require('../../src/agents/local-agent-readiness.cjs')
+  const { harness } = loadMain(directory, {
+    hermesDeclaredCredentialKeys: readiness.hermesDeclaredCredentialKeys,
+    nativeEnvironment: readiness.nativeCredentialEnvironment,
+    nativeShellEnvironment: input => ({ source: 'native-shell', env: {
+      HERMES_INFERENCE_PROVIDER: 'north-star',
+      ...(input.extraEnvKeys?.includes('NORTH_STAR_API_KEY') ? { NORTH_STAR_API_KEY: 'synthetic-secret' } : {}),
+    } }),
+  })
+  await harness.ready()
+  const workspace = harness.workspaceInstances[0]
+  await workspace.input.runAgent({ kind: 'hermes', executable: '/tmp/hermes' }, 'hello', directory, {})
+  const options = harness.runAgentCalls.at(-1)[3]
+  assert.equal(options.env.HERMES_INFERENCE_PROVIDER, 'north-star')
+  assert.equal(options.env.NORTH_STAR_API_KEY, 'synthetic-secret')
+  assert.equal(options.env.OPENAI_BASE_URL, undefined)
+  await workspace.input.runAgent({ kind: 'codex', executable: '/tmp/codex' }, 'hello', directory, {})
+  assert.equal(harness.runAgentCalls.at(-1)[3].env.NORTH_STAR_API_KEY, undefined)
+})
+
 test('Skill discovery follows native shell directories and explicit selections take precedence', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-skill-env-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

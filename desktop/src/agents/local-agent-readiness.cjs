@@ -204,10 +204,15 @@ function hermesDeclaredCredentialKeys(options = {}) {
   if (!path.isAbsolute(root)) return []
   try {
     const filename = path.join(root, 'config.yaml')
-    const stat = fs.statSync(filename)
-    if (!stat.isFile() || stat.size > 1024 * 1024) return []
-    const config = yaml.load(fs.readFileSync(filename, 'utf8'))
-    if (!config || typeof config !== 'object' || Array.isArray(config)) return []
+    let config = {}
+    try {
+      const stat = fs.statSync(filename)
+      if (!stat.isFile() || stat.size > 1024 * 1024) return []
+      config = yaml.load(fs.readFileSync(filename, 'utf8')) || {}
+      if (typeof config !== 'object' || Array.isArray(config)) return []
+    } catch (error) {
+      if (error?.code !== 'ENOENT') return []
+    }
     const model = config.model && typeof config.model === 'object' && !Array.isArray(config.model)
       ? config.model : {}
     const fallbacks = [config.fallback_providers, config.fallback_model]
