@@ -444,22 +444,31 @@ const taskGraphMethods = {
       const currentKind = batch.length === 1 ? batch[0].agentKind : ''
       cursor = this.checkpointTaskGraph(group, controller, cursor, { currentKind })
       this.emitChanged()
-      const settled = await Promise.allSettled(batch.map(node => (
-        this.executeTaskGraphAgentNode(
+      const settled = await Promise.allSettled(batch.map(async node => {
+        const outcome = await this.executeTaskGraphAgentNode(
           group, controller, threadRootId, context, node, batch.length > 1,
         )
-      )))
+        if (outcome?.result) {
+          try {
+            if (outcome.result.outcomeRefs?.artifactIds?.length
+                && !controller.orchestration.attachmentRecipients.includes(node.agentKind)) {
+              this.checkpointOrchestration(group, controller, {
+                attachmentRecipients: [...controller.orchestration.attachmentRecipients, node.agentKind],
+              })
+            }
+            this.applyTaskGraphAgentResult(group, controller, node, outcome.result)
+            this.emitChanged()
+          } catch (error) {
+            return { checkpointError: error }
+          }
+        }
+        return outcome
+      }))
       for (let index = 0; index < batch.length; index += 1) {
         const node = batch[index]
         const outcome = settled[index]
+        if (outcome.status === 'fulfilled' && outcome.value?.checkpointError) throw outcome.value.checkpointError
         if (outcome.status === 'fulfilled' && outcome.value?.result) {
-          if (outcome.value.result.outcomeRefs?.artifactIds?.length
-              && !controller.orchestration.attachmentRecipients.includes(node.agentKind)) {
-            this.checkpointOrchestration(group, controller, {
-              attachmentRecipients: [...controller.orchestration.attachmentRecipients, node.agentKind],
-            })
-          }
-          this.applyTaskGraphAgentResult(group, controller, node, outcome.value.result)
           continue
         }
         const error = outcome.status === 'rejected'

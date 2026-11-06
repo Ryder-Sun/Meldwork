@@ -533,6 +533,51 @@ test('task graph retains verified evidence and filters fabricated references on 
   assert.equal(persisted.includes(forgedEvidence), false)
 })
 
+test('task graph checkpoints a completed parallel branch while another branch is running', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const ledger = new RunLedger({ storagePath: path.join(directory, 'run-ledger.json') })
+  options.runLedger = ledger
+  const slow = deferred()
+  t.after(() => slow.resolve())
+  options.runAgent = async agent => {
+    if (agent.kind === 'hermes') await slow.promise
+    return { text: 'Shared conclusion.', outcome: 'completed' }
+  }
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Parallel checkpoint', agentKinds: ['codex', 'hermes', 'workbuddy'],
+    workdir: directory, allowWrite: false })
+  const checkpointed = deferred()
+  const onChanged = () => {
+    const record = ledger.list(group.id)[0]
+    if (record?.orchestration?.taskGraph?.nodeStates.some(state => state.nodeId === 'fast' && state.status === 'accepted')) {
+      checkpointed.resolve()
+    }
+  }
+  workspace.on('changed', onChanged)
+  t.after(() => workspace.off('changed', onChanged))
+  await workspace.sendMessage({ groupId: group.id, text: 'Run independent work', mode: 'auto', maxRounds: 3,
+    targetKinds: ['codex', 'hermes', 'workbuddy'], workflow: { template: 'task-graph', nodes: [
+      graphNode({ nodeId: 'fast', parallel: true, acceptance: { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 } }),
+      graphNode({ nodeId: 'slow', agentKind: 'hermes', parallel: true, acceptance: { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 } }),
+      graphNode({ nodeId: 'final', agentKind: 'workbuddy', dependsOn: ['fast', 'slow'], inputNodeIds: ['fast', 'slow'],
+        terminal: true, acceptance: { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 } }),
+    ] } })
+  let timer
+  try {
+    await Promise.race([checkpointed.promise, new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('TEST_CHECKPOINT_TIMEOUT')), 5000)
+    })])
+  } finally { clearTimeout(timer) }
+  const states = Object.fromEntries(ledger.list(group.id)[0].orchestration.taskGraph.nodeStates.map(state => [state.nodeId, state.status]))
+  assert.equal(states.fast, 'accepted')
+  assert.equal(states.slow, 'running')
+  slow.resolve()
+  await workspace.activeRuns.get(group.id).promise
+  assert.equal(ledger.list(group.id)[0].status, 'completed')
+})
+
 test('task graph runs independent branches in parallel and completes from typed Evidence', async (t) => {
   const { directory, calls, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

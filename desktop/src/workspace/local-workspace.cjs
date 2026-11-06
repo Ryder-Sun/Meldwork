@@ -1445,6 +1445,19 @@ class LocalWorkspace extends EventEmitter {
   canResumeOrchestration(durable, workflow) {
     const cursor = durable?.orchestration
     const continuation = durable?.continuation
+    if (workflow === 'auto' && cursor?.version === 3 && cursor.template === 'task-graph') {
+      const currentIds = cursor.taskGraph?.currentNodeIds
+      const node = currentIds?.length === 1
+        ? cursor.taskGraph?.graph?.nodes?.find(candidate => candidate.nodeId === currentIds[0]) : null
+      const state = node && cursor.taskGraph?.nodeStates?.find(candidate => candidate.nodeId === node.nodeId)
+      return durable?.mode === 'auto' && cursor.workflow === 'auto'
+        && continuation?.resumeKind === 'agent_slot' && node?.role !== 'human'
+        && node?.agentKind === continuation.agentKind && state?.status === 'running'
+        && durable.currentRound >= 1 && continuation.round === durable.currentRound
+        && Array.isArray(cursor.activeKinds) && cursor.activeKinds.length > 0
+        && cursor.activeKinds.includes(node.agentKind)
+        && cursor.activeKinds.every(kind => Array.isArray(durable.targetKinds) && durable.targetKinds.includes(kind))
+    }
     if (workflow === 'auto' && continuation?.resumeKind === 'v4_synthesis_recovery') {
       const recovery = cursor?.synthesisRecovery
       const binding = recovery?.pendingGate

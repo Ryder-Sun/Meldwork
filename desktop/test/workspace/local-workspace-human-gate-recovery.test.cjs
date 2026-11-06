@@ -232,6 +232,56 @@ test('task-graph Human decisions resume from the durable v3 cursor after restart
   assert.equal(calls.length, 1)
 })
 
+test('parallel task graph preserves completed work and resumes the remaining gated node after restart', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const ledgerPath = path.join(directory, 'run-ledger.json')
+  const ledger = new RunLedger({ storagePath: ledgerPath })
+  options.runLedger = ledger
+  const calls = []
+  options.runAgent = async (agent, _prompt, _workdir, runOptions) => {
+    calls.push(agent.kind)
+    if (agent.kind === 'kimi') {
+      await runOptions.onSessionRef('parallel-kimi-session', { transport: 'acp' })
+      await runOptions.onPermissionRequest({
+        options: [{ optionId: 'allow-once', name: 'Allow once', kind: 'allow_once' },
+          { optionId: 'reject-once', name: 'Reject once', kind: 'reject_once' }],
+        toolCall: { kind: 'read', title: 'Read source' },
+      }, { signal: runOptions.signal })
+    }
+    return { text: 'Shared conclusion.', sessionRef: agent.kind === 'kimi' ? 'parallel-kimi-session' : '' }
+  }
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Parallel recovery', agentKinds: ['codex', 'kimi', 'workbuddy'],
+    workdir: directory, allowWrite: false })
+  const acceptance = { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 }
+  const node = (nodeId, agentKind, rest = {}) => ({ nodeId, role: 'primary', agentKind,
+    dependsOn: [], inputNodeIds: [], expectedOutput: 'Produce a conclusion.', acceptance,
+    terminal: false, parallel: true, decisionOptions: [], ...rest })
+  await workspace.sendMessage({ groupId: group.id, text: 'Review together', mode: 'auto', maxRounds: 3,
+    targetKinds: ['codex', 'kimi', 'workbuddy'], workflow: { template: 'task-graph', nodes: [
+      node('fast', 'codex'), node('gated', 'kimi'),
+      node('final', 'workbuddy', { dependsOn: ['fast', 'gated'], inputNodeIds: ['fast', 'gated'], terminal: true, parallel: false }),
+    ] } })
+  const gate = await pendingGate(workspace)
+  const deadline = Date.now() + 5000
+  while (ledger.get(gate.runId)?.orchestration?.taskGraph?.nodeStates.find(state => state.nodeId === 'fast')?.status !== 'accepted') {
+    if (Date.now() > deadline) throw new Error('TEST_CHECKPOINT_TIMEOUT')
+    await new Promise(resolve => setTimeout(resolve, 20))
+  }
+  await workspace.stopAll()
+  const restartedLedger = new RunLedger({ storagePath: ledgerPath })
+  const restarted = new LocalWorkspace({ ...options, runLedger: restartedLedger })
+  await restarted.refreshAgents()
+  restarted.decideHumanGate(gate.gateId, { status: 'approved', optionId: 'allow-once', actorId: 'local-user' })
+  const terminal = await waitForTerminalRun(restartedLedger, gate.runId)
+  assert.equal(terminal.status, 'completed', terminal.reason)
+  assert.equal(terminal.orchestration.taskGraph.nodeStates.every(state => state.status === 'accepted'), true)
+  assert.equal(calls.filter(kind => kind === 'codex').length, 1)
+  assert.equal(calls.filter(kind => kind === 'kimi').length, 2)
+})
+
 test('task-graph Agent slots resume into typed acceptance after a permission Gate restart', async (t) => {
   const { directory, calls, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
