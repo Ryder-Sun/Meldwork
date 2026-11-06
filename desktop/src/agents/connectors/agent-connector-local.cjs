@@ -768,7 +768,7 @@ class LocalAgentConnectors {
     const abortTransport = () => controller.abort()
     input.transportSignal?.addEventListener('abort', abortTransport, { once: true })
     if (input.transportSignal?.aborted) abortTransport()
-    const timer = setTimeout(() => { timedOut = true; controller.abort() }, this.httpTimeoutMs)
+    let timer
     try {
       const body = JSON.stringify({
         prompt: input.prompt,
@@ -787,6 +787,8 @@ class LocalAgentConnectors {
         credential = credentials[authSlotId]
         headers.authorization = `Bearer ${credential}`
       }
+      controller.signal.throwIfAborted()
+      timer = setTimeout(() => { timedOut = true; controller.abort() }, this.httpTimeoutMs)
       const response = await this.fetch(endpoint, {
         method: 'POST',
         redirect: 'error',

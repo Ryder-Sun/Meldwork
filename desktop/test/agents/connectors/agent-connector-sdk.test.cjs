@@ -100,6 +100,44 @@ function httpPackage(sessionOverrides = {}) {
   })
 }
 
+test('HTTP transport timeout starts after outbound recording', async t => {
+  let requestSignal
+  const { connectors, directory, packageStore } = fixture(t, async (_url, { signal }) => {
+    requestSignal = signal
+    return { ok: true, text: async () => JSON.stringify({ text: 'completed' }) }
+  }, { httpTimeoutMs: 30 })
+  const pkg = httpPackage()
+  install(packageStore, pkg)
+  connectors.refresh([])
+  connectors.configure({ manifestId: pkg.manifest.manifestId, label: 'Slow record', credentials: { 'access-token': 'private-token' } })
+  const [agent] = connectors.detectAgents()
+  const result = await connectors.run(agent, 'request', directory, {
+    runId: 'run-slow-record', agentRunId: 'agent-run-slow-record', sandbox: 'read-only',
+    onOutboundPayload: () => new Promise(resolve => setTimeout(resolve, 60)),
+  })
+  assert.equal(requestSignal.aborted, false)
+  assert.equal(result.outcome, 'completed')
+  assert.equal(result.text, 'completed')
+})
+
+test('HTTP transport does not send when stopped during outbound recording', async t => {
+  let sent = false
+  const { connectors, directory, packageStore } = fixture(t, async () => { sent = true })
+  const pkg = httpPackage()
+  install(packageStore, pkg)
+  connectors.refresh([])
+  connectors.configure({ manifestId: pkg.manifest.manifestId, label: 'Stopped record', credentials: { 'access-token': 'private-token' } })
+  const [agent] = connectors.detectAgents()
+  const controller = new AbortController()
+  const result = await connectors.run(agent, 'request', directory, {
+    runId: 'run-stopped-record', agentRunId: 'agent-run-stopped-record', sandbox: 'read-only',
+    signal: controller.signal,
+    onOutboundPayload: () => { controller.abort() },
+  })
+  assert.equal(sent, false)
+  assert.equal(result.outcome, 'cancelled')
+})
+
 test('HTTP transport times out and releases its request', async t => {
   let aborted = false
   const { connectors, directory, packageStore } = fixture(t, (_url, { signal }) => new Promise((_resolve, reject) => {
