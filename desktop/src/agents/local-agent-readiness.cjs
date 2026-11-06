@@ -374,6 +374,7 @@ function zcodeDeclaredCredentialKeys(options = {}) {
     const selectedModel = envModel ? (envModel.includes('/') ? envModel : `anthropic/${envModel}`) : model.main
     const models = [selectedModel, model.lite, ...(Array.isArray(model.available) ? model.available.slice(0, 32) : [])]
     const names = []
+    const declaredKeys = []
     for (const item of models) {
       const provider = typeof item === 'string' ? item.split('/')[0]
         : item && typeof item === 'object' ? item.provider : ''
@@ -381,12 +382,15 @@ function zcodeDeclaredCredentialKeys(options = {}) {
       const id = provider.trim()
       const entry = providers[id] && typeof providers[id] === 'object' ? providers[id] : {}
       names.push(id, id.replace(/^default[-_]/, ''), entry.name)
+      if (typeof entry.apiKeyEnv === 'string') declaredKeys.push(entry.apiKeyEnv)
       if (entry.kind === 'openai' || id === 'openai') names.push('openai')
+      if (entry.kind === 'anthropic' || id === 'anthropic') names.push('anthropic')
+      if (entry.kind === 'gateway' && !entry.apiKeyEnv) declaredKeys.push('AI_GATEWAY_API_KEY')
     }
-    return nativeSecretEnvKeys(names.filter(value => typeof value === 'string').map(value => {
+    return nativeSecretEnvKeys([...declaredKeys, ...names.filter(value => typeof value === 'string').map(value => {
       const name = value.trim().replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '').toUpperCase()
       return name ? `${name}_API_KEY` : ''
-    }))
+    })])
   } catch { return [] }
 }
 

@@ -159,13 +159,20 @@ test('Zcode discovers native project model overrides and their credentials', t =
   fs.mkdirSync(path.join(child, '.zcode'), { recursive: true })
   fs.writeFileSync(path.join(project, 'zcode.json'), JSON.stringify({ model: { main: 'root/model' } }))
   fs.writeFileSync(path.join(child, '.zcode', 'config.json'), JSON.stringify({
-    model: { main: 'project/model' }, provider: { project: { name: 'Project service' } },
+    model: { main: 'project/model' }, provider: { project: { name: 'Project service', apiKeyEnv: 'TEAM_TOKEN' },
+      unrelated: { apiKeyEnv: 'OTHER_TOKEN' } },
   }))
-  assert.deepEqual(zcodeDeclaredCredentialKeys({ home, workdir: child }), ['PROJECT_API_KEY', 'PROJECT_SERVICE_API_KEY'])
+  assert.deepEqual(zcodeDeclaredCredentialKeys({ home, workdir: child }), ['PROJECT_API_KEY', 'PROJECT_SERVICE_API_KEY', 'TEAM_TOKEN'])
   assert.deepEqual(zcodeDeclaredCredentialKeys({ home, workdir: child, env: { ZCODE_MODEL: 'override/model' } }), ['OVERRIDE_API_KEY'])
   assert.deepEqual(zcodeDeclaredCredentialKeys({ home, workdir: child, env: { ZCODE_MODEL: 'claude-model' } }), ['ANTHROPIC_API_KEY'])
-  assert.deepEqual(zcodeDeclaredCredentialKeys({ home, workdir: child, env: { ZCODE_MODEL: '  ' } }), ['PROJECT_API_KEY', 'PROJECT_SERVICE_API_KEY'])
+  assert.deepEqual(zcodeDeclaredCredentialKeys({ home, workdir: child, env: { ZCODE_MODEL: '  ' } }), ['PROJECT_API_KEY', 'PROJECT_SERVICE_API_KEY', 'TEAM_TOKEN'])
   assert.deepEqual(zcodeDeclaredCredentialKeys({ home, workdir: home }), [])
+  fs.writeFileSync(path.join(child, '.zcode', 'config.json'), JSON.stringify({ model: { main: 'project/model' },
+    provider: { project: { kind: 'gateway', apiKeyEnv: 'NODE_OPTIONS' } } }))
+  assert.deepEqual(zcodeDeclaredCredentialKeys({ home, workdir: child }), ['PROJECT_API_KEY'])
+  fs.writeFileSync(path.join(child, '.zcode', 'config.json'), JSON.stringify({ model: { main: 'project/model' },
+    provider: { project: { kind: 'gateway' } } }))
+  assert.deepEqual(zcodeDeclaredCredentialKeys({ home, workdir: child }), ['AI_GATEWAY_API_KEY', 'PROJECT_API_KEY'])
 })
 
 test('Zcode reads the home directory inherited by its native CLI', t => {
