@@ -399,6 +399,18 @@ test('a generic file declaration cannot bypass media input capabilities', async 
   }
 })
 
+test('a media declaration cannot disguise an ordinary file', async () => {
+  const { runtime } = runtimeFixture(async () => {
+    assert.fail('undeclared file must not reach the connector recipe')
+  }, { inputTypes: ['text', 'image', 'audio', 'video'] })
+  for (const inputType of ['image', 'audio', 'video']) {
+    await assert.rejects(runtime.run(runtime.detectAgents()[0], 'Review', '/tmp/workspace', {
+      runId: 'run-disguised', agentRunId: 'agent-disguised', sandbox: 'read-only',
+      attachments: [{ inputType, mimeType: 'application/pdf' }],
+    }), { message: 'AGENT_CONNECTOR_ATTACHMENT_UNSUPPORTED' })
+  }
+})
+
 test('workspace preflight applies the same strict Connector media capabilities', () => {
   const { LocalWorkspaceMessageSubmission } = require('../../../src/workspace/local-workspace-message-submission.cjs')
   const validate = LocalWorkspaceMessageSubmission.prototype.validateAttachmentSupport

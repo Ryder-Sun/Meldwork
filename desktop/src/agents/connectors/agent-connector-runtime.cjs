@@ -40,6 +40,7 @@ function attachmentInputType(attachment) {
   if (mimeType.startsWith('audio/')) return 'audio'
   if (mimeType.startsWith('video/')) return 'video'
   const declared = String(attachment.inputType || attachment.type || '')
+  if (mimeType && ['image', 'audio', 'video'].includes(declared)) return 'file'
   if (['image', 'audio', 'video', 'file', 'structured-data'].includes(declared)) {
     return declared
   }
