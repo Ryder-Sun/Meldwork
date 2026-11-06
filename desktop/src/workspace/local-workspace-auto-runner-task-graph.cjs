@@ -96,15 +96,30 @@ const taskGraphMethods = {
     return taskGraph
   },
 
-  taskGraphResultAccepted(node, result) {
+  taskGraphResultAccepted(node, result, controller) {
     const conclusion = publicCollaborationText(result?.message?.content || '')
-    const artifactIds = result?.outcomeRefs?.artifactIds || []
-    const evidenceIds = result?.outcomeRefs?.evidenceIds || []
+    const artifacts = new Map()
+    const evidence = new Set()
+    for (const id of new Set(result?.outcomeRefs?.artifactIds || [])) {
+      try {
+        const identity = this.v4ArtifactIdentity(id)
+        const producer = identity.artifact.producedBy
+        if (producer.runId === controller?.runId && producer.agentRunId === result?.message?.trace?.agentRunId
+            && producer.agentKind === node.agentKind) artifacts.set(id, identity.contentHash)
+      } catch { /* Missing or invalid outcomes cannot satisfy acceptance. */ }
+    }
+    for (const id of new Set(result?.outcomeRefs?.evidenceIds || [])) {
+      try {
+        if ([...artifacts].some(([artifactId, hash]) => this.v4EvidenceSupportsArtifact(id, artifactId, hash))) {
+          evidence.add(id)
+        }
+      } catch { /* Missing or invalid evidence cannot satisfy acceptance. */ }
+    }
     return result?.message?.trace?.status === 'completed'
       && (!node.acceptance.requireConclusion
         || (Boolean(conclusion) && result.message.trace.truncated !== true))
-      && artifactIds.length >= node.acceptance.minArtifactRefs
-      && evidenceIds.length >= node.acceptance.minEvidenceRefs
+      && artifacts.size >= node.acceptance.minArtifactRefs
+      && evidence.size >= node.acceptance.minEvidenceRefs
   },
 
   applyTaskGraphAgentResult(group, controller, node, result) {
@@ -124,7 +139,7 @@ const taskGraphMethods = {
         refs: node.role === 'arbiter' ? conflicts.map(entry => entry.entryId) : [],
       },
     )
-    const accepted = this.taskGraphResultAccepted(node, result)
+    const accepted = this.taskGraphResultAccepted(node, result, controller)
     const conclusion = publicCollaborationText(result?.message?.content || '')
     const artifactIds = result?.outcomeRefs?.artifactIds || []
     const evidenceIds = result?.outcomeRefs?.evidenceIds || []

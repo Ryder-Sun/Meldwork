@@ -313,6 +313,35 @@ test('task graph does not accept a partial Agent result as a completed node', as
   assert.deepEqual(calls, ['codex'])
 })
 
+test('task graph does not count fabricated outcome references as evidence', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const ledger = new RunLedger({ storagePath: path.join(directory, 'run-ledger.json') })
+  options.runLedger = ledger
+  const calls = []
+  options.runAgent = async agent => {
+    calls.push(agent.kind)
+    return { text: 'A real conclusion.', outcome: 'completed', outcomeRefs: {
+      artifactIds: [`artifact-${'a'.repeat(64)}`], evidenceIds: [`evidence-${'b'.repeat(64)}`],
+    } }
+  }
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Forged graph evidence', agentKinds: ['codex', 'hermes'], workdir: directory, allowWrite: false })
+  await workspace.sendMessage({ groupId: group.id, text: 'Complete the task.', mode: 'auto', maxRounds: 2,
+    targetKinds: ['codex', 'hermes'], workflow: { template: 'task-graph', nodes: [graphNode({
+      acceptance: { requireConclusion: true, minArtifactRefs: 2, minEvidenceRefs: 2 },
+    }), graphNode({ nodeId: 'review-hermes', role: 'reviewer', agentKind: 'hermes',
+      dependsOn: ['primary-codex'], inputNodeIds: ['primary-codex'], terminal: true,
+      acceptance: { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 },
+    })] } })
+  await workspace.activeRuns.get(group.id).promise
+  const run = ledger.list(group.id)[0]
+  assert.notEqual(run.status, 'completed')
+  assert.equal(run.orchestration.taskGraph.nodeStates[0].status, 'failed')
+  assert.deepEqual(calls, ['codex'])
+})
+
 test('task graph runs independent branches in parallel and completes from typed Evidence', async (t) => {
   const { directory, calls, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
