@@ -4,12 +4,32 @@ const os = require('node:os')
 const JSON5 = require('json5')
 const { nativeSecretEnvKeys } = require('./native-secret-environment.cjs')
 
+function projectDirectories(workdir) {
+  if (typeof workdir !== 'string' || !path.isAbsolute(workdir)) return []
+  const directories = []
+  let current = path.resolve(workdir)
+  for (let depth = 0; depth < 64; depth += 1) {
+    directories.push(current)
+    if (fs.existsSync(path.join(current, '.git'))) return directories.reverse()
+    const parent = path.dirname(current)
+    if (parent === current) break
+    current = parent
+  }
+  return directories.reverse()
+}
+
 function mimoProviderKey(options = {}) {
   const env = options.env || process.env
-  const root = env.XDG_CONFIG_HOME || path.join(options.home || os.homedir(), '.config')
+  const home = options.home || os.homedir()
+  const root = env.XDG_CONFIG_HOME || path.join(home, '.config')
   try {
+    const projects = /^(?:1|true)$/i.test(env.MIMOCODE_DISABLE_PROJECT_CONFIG || '')
+      ? [] : projectDirectories(options.workdir)
     const files = [path.join(root, 'mimocode', 'mimocode.json'), path.join(root, 'mimocode', 'mimocode.jsonc'),
-      env.MIMOCODE_CONFIG, env.MIMOCODE_CONFIG_DIR && path.join(env.MIMOCODE_CONFIG_DIR, 'mimocode.json'),
+      env.MIMOCODE_CONFIG, ...projects.flatMap(directory => [path.join(directory, 'mimocode.json'), path.join(directory, 'mimocode.jsonc')]),
+      ...[...projects].reverse().flatMap(directory => [path.join(directory, '.mimocode', 'mimocode.json'), path.join(directory, '.mimocode', 'mimocode.jsonc')]),
+      path.join(home, '.mimocode', 'mimocode.json'), path.join(home, '.mimocode', 'mimocode.jsonc'),
+      env.MIMOCODE_CONFIG_DIR && path.join(env.MIMOCODE_CONFIG_DIR, 'mimocode.json'),
       env.MIMOCODE_CONFIG_DIR && path.join(env.MIMOCODE_CONFIG_DIR, 'mimocode.jsonc')].filter(Boolean)
     const configs = []
     for (const file of files) {

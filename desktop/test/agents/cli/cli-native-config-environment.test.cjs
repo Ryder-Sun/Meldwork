@@ -154,3 +154,31 @@ test('MiMo resolves provider references across native configuration overrides', 
   fs.writeFileSync(path.join(selected, 'mimocode.json'), '{bad json')
   assert.deepEqual(mimoDeclaredCredentialKeys({ env }), [])
 })
+
+test('MiMo selects project provider references for the current work directory', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-mimo-project-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const root = path.join(home, 'project')
+  const workdir = path.join(root, 'nested')
+  const xdg = path.join(home, 'config')
+  fs.mkdirSync(path.join(root, '.git'), { recursive: true })
+  fs.mkdirSync(workdir)
+  fs.mkdirSync(path.join(xdg, 'mimocode'), { recursive: true })
+  const provider = key => ({ model: 'custom/model', provider: { custom: { options: { apiKey: `{env:${key}}` } } } })
+  fs.writeFileSync(path.join(xdg, 'mimocode', 'mimocode.json'), JSON.stringify(provider('GLOBAL_SECRET')))
+  fs.writeFileSync(path.join(root, 'mimocode.json'), JSON.stringify(provider('PROJECT_SECRET')))
+  fs.writeFileSync(path.join(workdir, 'mimocode.jsonc'), JSON.stringify(provider('NESTED_SECRET')))
+  const { mimoDeclaredCredentialKeys } = require('../../../src/agents/cli/mimo-native-config.cjs')
+  const env = { XDG_CONFIG_HOME: xdg }
+  assert.deepEqual(mimoDeclaredCredentialKeys({ home, env, workdir }), ['NESTED_SECRET'])
+  assert.deepEqual(mimoDeclaredCredentialKeys({ home, env, workdir: root }), ['PROJECT_SECRET'])
+  for (const [directory, key] of [[root, 'ROOT_DIR_SECRET'], [workdir, 'NESTED_DIR_SECRET']]) {
+    fs.mkdirSync(path.join(directory, '.mimocode'))
+    fs.writeFileSync(path.join(directory, '.mimocode', 'mimocode.json'), JSON.stringify(provider(key)))
+  }
+  assert.deepEqual(mimoDeclaredCredentialKeys({ home, env, workdir }), ['ROOT_DIR_SECRET'])
+  assert.deepEqual(mimoDeclaredCredentialKeys({ home, env: { ...env, MIMOCODE_DISABLE_PROJECT_CONFIG: '1' }, workdir }), ['GLOBAL_SECRET'])
+  assert.deepEqual(mimoDeclaredCredentialKeys({ home, env, workdir: home }), ['GLOBAL_SECRET'])
+  fs.rmSync(path.join(root, '.git'), { recursive: true })
+  assert.deepEqual(mimoDeclaredCredentialKeys({ home, env, workdir }), ['ROOT_DIR_SECRET'])
+})

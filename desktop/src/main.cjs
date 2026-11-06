@@ -254,7 +254,7 @@ async function nativeShellEnvironment(options = {}) {
   const hermesEnv = nativeConfigEnvironment('hermes', workspace?.state.agentPreferences, initialEnv)
   const hermesCredentialKeys = hermesDeclaredCredentialKeys({ home, env: hermesEnv })
   const zcodeCredentialKeys = zcodeDeclaredCredentialKeys({ home })
-  const mimoCredentialKeys = mimoDeclaredCredentialKeys({ home, env: initialEnv })
+  const mimoCredentialKeys = mimoDeclaredCredentialKeys({ home, env: initialEnv, workdir: options.workdir })
   const declaredKeys = [...new Set([...hermesCredentialKeys, ...zcodeCredentialKeys, ...mimoCredentialKeys])]
   if (declaredKeys.length) {
     const extended = await resolveNativeShellEnvironment({ home, refresh: options.refresh === true, extraEnvKeys: declaredKeys })
@@ -407,7 +407,7 @@ async function runCoreAgent(agent, prompt, workdir, options = {}) {
       connectorConfigEnv[key] = directory
     }
   }
-  const shellEnvironment = connectorCredentialIsolation ? null : await nativeShellEnvironment()
+  const shellEnvironment = connectorCredentialIsolation ? null : await nativeShellEnvironment({ workdir })
   const selectedNativeEnv = shellEnvironment
     ? nativeConfigEnvironment(agent.kind, workspace?.state.agentPreferences, shellEnvironment.env) : null
   // OpenClaw runs through its isolated native runtime scope; every other Agent
