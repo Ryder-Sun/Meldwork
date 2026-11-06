@@ -26,6 +26,21 @@ test('native environment cache observes credential and proxy changes without a P
   assert.equal(removed.env.HTTPS_PROXY, undefined)
 })
 
+test('native shell capture preserves XDG configuration directories without unrelated variables', { skip: process.platform === 'win32' }, async () => {
+  const execFile = require('node:util').promisify(require('node:child_process').execFile)
+  const result = await resolveNativeShellEnvironment({
+    cache: false, platform: 'darwin', home: '/tmp/native-home', shell: '/bin/sh', env: { PATH: '/usr/bin' },
+    execFileFn: (command, args, options) => execFile(command, ['-c', [
+      'export XDG_CONFIG_HOME=/native/config XDG_DATA_HOME=/native/data XDG_RUNTIME_DIR=',
+      'export UNRELATED_SECRET=private', args[1],
+    ].join('\n')], options),
+  })
+  assert.equal(result.env.XDG_CONFIG_HOME, '/native/config')
+  assert.equal(result.env.XDG_DATA_HOME, '/native/data')
+  assert.equal(result.env.XDG_RUNTIME_DIR, '')
+  assert.equal(result.env.UNRELATED_SECRET, undefined)
+})
+
 test('explicit refresh replaces cached native shell settings and subsequent calls share the new result', {
   skip: process.platform === 'win32',
 }, async (t) => {

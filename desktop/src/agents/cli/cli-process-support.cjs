@@ -1,6 +1,7 @@
 const path = require('node:path')
 const { launchEnvironment, searchPath, systemChildEnvironment } = require('./cli-discovery.cjs')
 const { NETWORK_ENV_KEYS, networkEnvironment } = require('./cli-network-environment.cjs')
+const { CONFIG_DIRECTORY_ENV_KEYS } = require('./cli-config-directories.cjs')
 const { redactChildSecrets } = require('./cli-runtime-events.cjs')
 const {
   agentRuntimeError,
@@ -190,7 +191,8 @@ function childEnvironment(agent, workdir, options, platform) {
   const source = { ...process.env, ...options.env }
   const controlled = Object.fromEntries(Object.entries(options.env || {}).filter(([key, value]) => (
     typeof value === 'string'
-      && (CONTROLLED_RUNTIME_ENV.test(key) || NETWORK_ENV_KEYS.includes(key))
+      && (CONTROLLED_RUNTIME_ENV.test(key) || NETWORK_ENV_KEYS.includes(key)
+        || CONFIG_DIRECTORY_ENV_KEYS.includes(key))
       && !BLOCKED_RUNTIME_ENV.test(key)
   )))
   return {

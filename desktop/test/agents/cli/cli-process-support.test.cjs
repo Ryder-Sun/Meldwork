@@ -108,6 +108,17 @@ test('local Agent child environments keep supported runtime settings but reject 
   assert.equal(Object.hasOwn(env, 'DYLD_INSERT_LIBRARIES'), false)
 })
 
+test('native Agent child environments preserve shell-selected XDG directories', () => {
+  const env = childEnvironment({ kind: 'opencode' }, '/tmp/workspace', {
+    env: { XDG_CONFIG_HOME: '/native/config', XDG_DATA_HOME: '/native/data',
+      XDG_RUNTIME_DIR: '', XDG_UNRELATED: 'ignored' },
+  }, 'darwin')
+  assert.equal(env.XDG_CONFIG_HOME, '/native/config')
+  assert.equal(env.XDG_DATA_HOME, '/native/data')
+  assert.equal(env.XDG_RUNTIME_DIR, '')
+  assert.equal(env.XDG_UNRELATED, undefined)
+})
+
 test('Pi child environment receives native cloud configuration without process injection', () => {
   const source = {
     AWS_PROFILE: 'native-profile', AZURE_OPENAI_API_KEY: 'synthetic-azure',

@@ -7,6 +7,7 @@ const { promisify } = require('node:util')
 const { prepareCommand, searchPath } = require('./cli/cli-adapters.cjs')
 const { isOpenClawSecretReference } = require('./cli/openclaw-runtime.cjs')
 const { NETWORK_ENV_KEYS, networkEnvironment } = require('./cli/cli-network-environment.cjs')
+const { CONFIG_DIRECTORY_ENV_KEYS } = require('./cli/cli-config-directories.cjs')
 const { workBuddyCredentialState } = require('./cli/workbuddy-runtime.cjs')
 const { mimoConfiguredProvider } = require('./cli/mimo-native-config.cjs')
 
@@ -128,6 +129,7 @@ const RUNTIME_ENV_KEYS = Object.freeze({
 })
 const SHELL_ENV_KEYS = Object.freeze([...new Set([
   'PATH',
+  ...CONFIG_DIRECTORY_ENV_KEYS,
   ...NETWORK_ENV_KEYS,
   ...Object.values(RUNTIME_ENV_KEYS).flat(),
 ])])

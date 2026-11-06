@@ -408,6 +408,7 @@ test('Agent Connector IPC persists isolated accounts without returning Credentia
       kind: 'codex', name: 'Codex CLI', executable: '/private/bin/codex',
       version: 'codex-cli 0.147.0', compatibilityState: 'compatible',
     }],
+    nativeShellEnvironment: () => ({ env: { XDG_CONFIG_HOME: '/native/private-config' }, source: 'native-shell' }),
   }
   const { harness } = loadMain(directory, options)
   await harness.ready()
@@ -443,6 +444,7 @@ test('Agent Connector IPC persists isolated accounts without returning Credentia
   assert.equal(harness.runAgentCalls.at(-1)[3].env.OPENAI_API_KEY, 'connector-main-secret-a')
   assert.equal(Object.hasOwn(harness.runAgentCalls.at(-1)[3].env, 'OPENAI_BASE_URL'), false)
   assert.equal(Object.hasOwn(harness.runAgentCalls.at(-1)[3].env, 'OPENAI_MODEL'), false)
+  assert.equal(Object.hasOwn(harness.runAgentCalls.at(-1)[3].env, 'XDG_CONFIG_HOME'), false)
   assert.equal(Object.hasOwn(harness.runAgentCalls.at(-1)[3], 'connectorCredentialIsolation'), false)
 
   await workspace.input.connectorRuntime.run(
@@ -1983,7 +1985,7 @@ test('native Agent credentials are injected only through local Agent execution o
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
   const { harness } = loadMain(directory, {
     nativeShellEnvironment: () => ({
-      env: { PATH: '/opt/native-agent/bin:/usr/bin', https_proxy: 'http://proxy.example:3128', NO_PROXY: 'localhost,127.0.0.1', ANTHROPIC_API_KEY: 'native-hermes-key' },
+      env: { PATH: '/opt/native-agent/bin:/usr/bin', https_proxy: 'http://proxy.example:3128', NO_PROXY: 'localhost,127.0.0.1', ANTHROPIC_API_KEY: 'native-hermes-key', XDG_CONFIG_HOME: '/native/config', XDG_DATA_HOME: '/native/data' },
       source: 'native-shell',
     }),
     nativeEnvironment: (...args) => require('../../src/agents/local-agent-readiness.cjs')
@@ -2002,6 +2004,8 @@ test('native Agent credentials are injected only through local Agent execution o
   assert.equal(options.env.PATH, '/opt/native-agent/bin:/usr/bin')
   assert.equal(options.env.https_proxy, 'http://proxy.example:3128')
   assert.equal(options.env.NO_PROXY, 'localhost,127.0.0.1')
+  assert.equal(options.env.XDG_CONFIG_HOME, '/native/config')
+  assert.equal(options.env.XDG_DATA_HOME, '/native/data')
 })
 
 test('Pi execution receives its native cloud configuration from the shell', async (t) => {

@@ -44,6 +44,7 @@ const {
 const { ChannelInboxStore } = require('./channels/channel-inbox-store.cjs')
 const { ChannelIngressRuntime } = require('./channels/channel-ingress-runtime.cjs')
 const { CustomAgentStore } = require('./agents/custom-agent-store.cjs')
+const { configDirectoryEnvironment } = require('./agents/cli/cli-config-directories.cjs')
 const {
   nativeCredentialEnvironment,
   resolveNativeOpenClawRuntime,
@@ -372,6 +373,7 @@ async function runCoreAgent(agent, prompt, workdir, options = {}) {
   const nativeEnv = connectorCredentialIsolation || agent.kind === 'openclaw'
     ? {}
     : {
+        ...configDirectoryEnvironment(shellEnvironment.env),
         ...nativeCredentialEnvironment(agent.kind, shellEnvironment.env),
         ...(agent.kind === 'workbuddy' ? workBuddyEnvironment({
           env: shellEnvironment.env, home: shellEnvironment.home,
