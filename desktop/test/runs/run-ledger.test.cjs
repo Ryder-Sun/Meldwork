@@ -2374,6 +2374,30 @@ test('terminal outbox cleanup is idempotent after a committed terminal checkpoin
   assert.deepEqual(fs.readdirSync(`${storagePath}.terminal-outbox`), [])
 })
 
+test('terminal outbox cleanup syncs its directory, including retries after a sync failure', { skip: process.platform === 'win32' }, (t) => {
+  const { storagePath } = fixture(t)
+  const ledger = new RunLedger({ storagePath, now: () => 1000 })
+  ledger.checkpoint(runRecord('run-cleanup', 'group-cleanup'))
+  const completed = runRecord('run-cleanup', 'group-cleanup', 'completed')
+  ledger.recordTerminalIntent(completed)
+  ledger.checkpoint(completed)
+  const original = fs.fsyncSync
+  let directorySyncs = 0
+  fs.fsyncSync = fd => {
+    if (fs.fstatSync(fd).isDirectory()) {
+      directorySyncs += 1
+      if (directorySyncs === 1) throw Object.assign(new Error('SYNC_FAILED'), { code: 'EIO' })
+    }
+    return original(fd)
+  }
+  t.after(() => { fs.fsyncSync = original })
+  assert.throws(() => ledger.clearTerminalIntent(completed.runId), { message: 'SYNC_FAILED' })
+  assert.equal(ledger.get(completed.runId).status, 'completed')
+  ledger.clearTerminalIntent(completed.runId)
+  assert.equal(directorySyncs, 2)
+  assert.deepEqual(fs.readdirSync(`${storagePath}.terminal-outbox`), [])
+})
+
 test('outbox cleanup does not recreate a subsequently deleted group', (t) => {
   const { storagePath } = fixture(t)
   const ledger = new RunLedger({ storagePath, now: () => 1000 })

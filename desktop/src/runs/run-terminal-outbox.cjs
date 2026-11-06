@@ -4,10 +4,10 @@ const path = require('node:path')
 const { atomicWritePrivateFile, ensurePrivateDirectory } = require('../security/private-file.cjs')
 const { TERMINAL_STATUSES, cleanId, isRecord } = require('./run-ledger-records.cjs')
 
-function syncParentDirectory(directory) {
+function syncDirectory(directory) {
   let fd
   try {
-    fd = fs.openSync(path.dirname(directory), 'r')
+    fd = fs.openSync(directory, 'r')
     fs.fsyncSync(fd)
   } catch (error) {
     const unsupported = ['EINVAL', 'ENOTSUP', 'EOPNOTSUPP'].includes(error.code)
@@ -54,7 +54,7 @@ class RunTerminalOutbox {
   prepare(record) {
     if (!isRecord(record) || !TERMINAL_STATUSES.has(record.status)) throw new Error('RUN_TERMINAL_OUTBOX_INVALID')
     ensurePrivateDirectory(this.root)
-    syncParentDirectory(this.root)
+    syncDirectory(path.dirname(this.root))
     const filename = this.filename(record.runId)
     if (fs.existsSync(filename)) {
       const previous = this.read(filename)
@@ -91,6 +91,7 @@ class RunTerminalOutbox {
     try { fs.unlinkSync(this.filename(runId)) } catch (error) {
       if (error.code !== 'ENOENT') throw error
     }
+    syncDirectory(this.root)
   }
 }
 
