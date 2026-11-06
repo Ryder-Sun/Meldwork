@@ -340,6 +340,21 @@ test('Hermes readiness detects a native credential without returning its value',
   }
 })
 
+test('Hermes readiness ignores a config.yml file that its native CLI does not load', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-yml-readiness-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const root = path.join(home, '.hermes')
+  fs.mkdirSync(root)
+  fs.writeFileSync(path.join(root, 'config.yml'), 'api_key: synthetic-secret\n')
+  assert.deepEqual(nativeCredentialState('hermes', { home, env: {} }), {
+    state: 'unknown', source: 'unverified',
+  })
+  fs.writeFileSync(path.join(root, 'config.yaml'), 'api_key: synthetic-secret\n')
+  assert.deepEqual(nativeCredentialState('hermes', { home, env: {} }), {
+    state: 'ready', source: 'native-credential',
+  })
+})
+
 test('custom Provider config is recognized while unresolved Env references remain unverified', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-custom-provider-readiness-'))
   const config = path.join(home, '.hermes', 'config.yaml')

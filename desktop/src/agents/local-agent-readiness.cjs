@@ -494,7 +494,6 @@ function nativeCredentialState(kind, options = {}) {
     hermes: [
       path.join(hermesHome, '.env'),
       path.join(hermesHome, 'config.yaml'),
-      path.join(hermesHome, 'config.yml'),
     ],
     openclaw: [path.join(home, '.openclaw', '.env')],
     pi: env.PI_CODING_AGENT_DIR ? [] : [
