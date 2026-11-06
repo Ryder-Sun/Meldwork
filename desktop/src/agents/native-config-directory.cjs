@@ -13,6 +13,11 @@ function nativeEnvironmentIdentity(env) {
 }
 
 function nativeAuthIdentityFiles(kind, env, home) {
+  if (kind === 'zcode') {
+    const configured = process.platform === 'win32' ? env?.USERPROFILE : env?.HOME
+    const root = typeof configured === 'string' && configured.trim() ? configured.trim() : home
+    return typeof root === 'string' && path.isAbsolute(root) ? [path.join(root, '.zcode', 'cli', 'config.json')] : []
+  }
   if (kind !== 'opencode') return []
   const root = env?.XDG_DATA_HOME || (typeof home === 'string' && path.isAbsolute(home) ? path.join(home, '.local', 'share') : '')
   return typeof root === 'string' && path.isAbsolute(root) ? [path.join(root, 'opencode', 'auth.json')] : []

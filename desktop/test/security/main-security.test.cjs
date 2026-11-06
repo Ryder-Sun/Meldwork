@@ -173,6 +173,26 @@ test('detected Agent verification directory stays internal to the main process',
   assert.doesNotMatch(JSON.stringify({ ...agent }), /private-hermes/)
 })
 
+test('Zcode native configuration changes invalidate its private verification identity', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-zcode-auth-main-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const nativeHome = path.join(directory, 'private-home')
+  const nativeConfig = path.join(nativeHome, '.zcode', 'cli', 'config.json')
+  fs.mkdirSync(path.dirname(nativeConfig), { recursive: true })
+  fs.writeFileSync(nativeConfig, '{"model":{"main":"first/model"}}')
+  const { harness } = loadMain(directory, {
+    nativeShellEnvironment: () => ({ env: { HOME: nativeHome, USERPROFILE: nativeHome }, source: 'native-shell' }),
+    detectAgents: () => [{ kind: 'zcode', version: '1', compatibilityState: 'compatible' }],
+  })
+  await harness.ready()
+  const [agent] = await harness.installerInstances[0].input.detectAgents()
+  const { agentVerificationIdentity } = require('../../src/workspace/agent-verification-identity.cjs')
+  const first = agentVerificationIdentity(agent)
+  fs.writeFileSync(nativeConfig, '{"model":{"main":"replacement/model"}}')
+  assert.notEqual(agentVerificationIdentity(agent), first)
+  assert.doesNotMatch(JSON.stringify({ ...agent }), /private-home|replacement/)
+})
+
 test('OpenCode authentication identity remains private and follows the native XDG data directory', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-opencode-auth-main-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
