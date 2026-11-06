@@ -1,6 +1,7 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
+const http = require('node:http')
 const net = require('node:net')
 const os = require('node:os')
 const path = require('node:path')
@@ -8,6 +9,7 @@ const { spawn } = require('node:child_process')
 
 const {
   discoverAgents,
+  createServer,
   AGENT_DEFINITIONS,
   invocationFor,
   parentSessionDetached,
@@ -131,6 +133,59 @@ test('OpenCode returns a completed response even if the native process keeps run
     const result = await runAgent('opencode', 'hello')
     assert.deepEqual(result, { text: 'Done', sessionRef: 'ses_test', outcome: 'completed' })
   } finally {
+    process.env.PATH = originalPath
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test('cancelling a remote Agent run terminates its native process', async t => {
+  if (process.platform === 'win32') return t.skip('uses a POSIX executable fixture')
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-cloud-cancel-'))
+  const originalPath = process.env.PATH
+  const pidFile = path.join(directory, 'pid')
+  fs.writeFileSync(path.join(directory, 'hermes'), `#!/bin/sh\necho $$ > '${pidFile}'\nexec sleep 30\n`, { mode: 0o755 })
+  process.env.PATH = `${directory}${path.delimiter}${originalPath}`
+  const controller = new AbortController()
+  try {
+    const pending = runAgent('hermes', 'hello', '', controller.signal)
+    for (let i = 0; i < 100 && !fs.existsSync(pidFile); i++) await new Promise(resolve => setTimeout(resolve, 10))
+    assert.ok(fs.existsSync(pidFile))
+    const pid = Number(fs.readFileSync(pidFile, 'utf8'))
+    controller.abort()
+    assert.deepEqual(await pending, { outcome: 'cancelled' })
+    assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' })
+  } finally {
+    process.env.PATH = originalPath
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test('disconnecting a Bridge request terminates the remote Agent process', async t => {
+  if (process.platform === 'win32') return t.skip('uses a POSIX executable fixture')
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-cloud-disconnect-'))
+  const originalPath = process.env.PATH
+  const pidFile = path.join(directory, 'pid')
+  fs.writeFileSync(path.join(directory, 'hermes'), `#!/bin/sh\nif [ "$1" = "--version" ]; then echo 'Hermes 1.2.3'; exit; fi\necho $$ > '${pidFile}'\nexec sleep 30\n`, { mode: 0o755 })
+  process.env.PATH = `${directory}${path.delimiter}${originalPath}`
+  const server = createServer()
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  try {
+    const request = http.request({ host: '127.0.0.1', port: server.address().port, method: 'POST',
+      path: '/v1/agents/hermes/runs', headers: { 'content-type': 'application/json' } })
+    request.on('error', () => {})
+    request.end(JSON.stringify({ prompt: 'hello', permissionMode: 'read-only' }))
+    for (let i = 0; i < 500 && !fs.existsSync(pidFile); i++) await new Promise(resolve => setTimeout(resolve, 10))
+    assert.ok(fs.existsSync(pidFile))
+    const pid = Number(fs.readFileSync(pidFile, 'utf8'))
+    request.destroy()
+    let alive = true
+    for (let i = 0; i < 200 && alive; i++) {
+      try { process.kill(pid, 0) } catch (error) { if (error.code === 'ESRCH') alive = false; else throw error }
+      if (alive) await new Promise(resolve => setTimeout(resolve, 10))
+    }
+    assert.equal(alive, false)
+  } finally {
+    await new Promise(resolve => server.close(resolve))
     process.env.PATH = originalPath
     fs.rmSync(directory, { recursive: true, force: true })
   }

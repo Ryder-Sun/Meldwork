@@ -237,8 +237,9 @@ function parentSessionDetached(parentPid = process.ppid, readFileSync = fs.readF
   }
 }
 
-function runAgent(agentId, prompt, sessionRef = '') {
+function runAgent(agentId, prompt, sessionRef = '', signal = null) {
   return new Promise(resolve => {
+    if (signal?.aborted) return resolve({ outcome: 'cancelled' })
     let invocation
     try { invocation = invocationFor(agentId, prompt, sessionRef) } catch {
       resolve({ outcome: 'failed', failure: { code: 'REMOTE_AGENT_UNSUPPORTED' } })
@@ -246,6 +247,7 @@ function runAgent(agentId, prompt, sessionRef = '') {
     }
     const child = spawn(invocation.command, invocation.args, {
       stdio: ['pipe', 'pipe', 'pipe'], cwd: process.env.HOME || undefined,
+      detached: process.platform !== 'win32',
       ...(agentId === 'opencode' ? { env: { ...process.env, OPENCODE_PERMISSION: JSON.stringify({
         '*': 'deny', read: 'allow', glob: 'allow', grep: 'allow', list: 'allow',
         webfetch: 'allow', websearch: 'allow', question: 'deny', plan_enter: 'deny', plan_exit: 'deny',
@@ -255,10 +257,24 @@ function runAgent(agentId, prompt, sessionRef = '') {
     let terminalResult = null
     let terminalTimer = null
     let forceTimer = null
+    let cancelled = false
+    const sendSignal = value => {
+      if (process.platform !== 'win32' && child.pid) {
+        try { process.kill(-child.pid, value); return } catch { /* use direct child */ }
+      }
+      try { child.kill(value) } catch { /* already exited */ }
+    }
+    const cancel = () => {
+      cancelled = true
+      sendSignal('SIGTERM')
+      if (!forceTimer) forceTimer = setTimeout(() => sendSignal('SIGKILL'), 1500)
+    }
+    signal?.addEventListener('abort', cancel, { once: true })
+    if (signal?.aborted) cancel()
     child.stdout.on('data', chunk => {
       stdout += chunk.toString('utf8')
       if (Buffer.byteLength(stdout) > MAX_RESPONSE_BYTES) child.kill('SIGTERM')
-      if (agentId === 'opencode' && !terminalResult) {
+      if (agentId === 'opencode' && !terminalResult && !cancelled) {
         terminalResult = parseAgentOutput(agentId, stdout)
         if (terminalResult) terminalTimer = setTimeout(() => {
           child.kill('SIGTERM')
@@ -267,10 +283,17 @@ function runAgent(agentId, prompt, sessionRef = '') {
       }
     })
     child.stderr.resume()
-    child.once('error', () => resolve({ outcome: 'failed', failure: { code: 'REMOTE_AGENT_UNAVAILABLE' } }))
+    child.once('error', () => {
+      signal?.removeEventListener('abort', cancel)
+      if (forceTimer) clearTimeout(forceTimer)
+      resolve(cancelled ? { outcome: 'cancelled' }
+        : { outcome: 'failed', failure: { code: 'REMOTE_AGENT_UNAVAILABLE' } })
+    })
     child.once('close', code => {
       if (terminalTimer) clearTimeout(terminalTimer)
       if (forceTimer) clearTimeout(forceTimer)
+      signal?.removeEventListener('abort', cancel)
+      if (cancelled) return resolve({ outcome: 'cancelled' })
       if (terminalResult) return resolve(terminalResult)
       if (code !== 0) return resolve({ outcome: 'failed', failure: { code: 'REMOTE_AGENT_FAILED' } })
       resolve(parseAgentOutput(agentId, stdout)
@@ -297,7 +320,13 @@ function createServer() {
       if (!agent || typeof body.prompt !== 'string' || body.permissionMode !== 'read-only') {
         return json(res, 400, { error: 'REQUEST_INVALID' })
       }
-      return json(res, 200, await runAgent(agent.id, body.prompt, body.sessionRef || ''))
+      const controller = new AbortController()
+      const disconnect = () => { if (!res.writableFinished) controller.abort() }
+      res.once('close', disconnect)
+      if (res.destroyed) controller.abort()
+      const result = await runAgent(agent.id, body.prompt, body.sessionRef || '', controller.signal)
+      res.removeListener('close', disconnect)
+      if (!res.destroyed) return json(res, 200, result)
     } catch {
       return json(res, 400, { error: 'REQUEST_INVALID' })
     }
