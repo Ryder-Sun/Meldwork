@@ -71,6 +71,7 @@ const v4NaturalDecisionMethods = {
       const contribution = this.v4NaturalMessageContent(message)
       return status === 'blocked' || status === 'needs-human'
         || contribution.partial || explicitTaskFailure(contribution.text)
+        || explicitTaskFailure(message.trace?.context?.taskDecision?.reason)
     })
     const ownerSawBlocker = peerBlocker && ownerMessage
       && controller.discussionStyle === 'sequential'
@@ -109,7 +110,8 @@ const v4NaturalDecisionMethods = {
     }
     if (decision.status === 'completed') {
       const contribution = this.v4NaturalMessageContent(ownerMessage)
-      if (contribution.partial || !contribution.text.trim() || explicitTaskFailure(contribution.text)) {
+      if (contribution.partial || !contribution.text.trim() || explicitTaskFailure(contribution.text)
+          || explicitTaskFailure(decision.reason)) {
         return { nextKinds: [owner], ownerReview: true }
       }
       const unresolved = this.v4NaturalUnresolvedBlockers(group, controller, threadRootId, round)
@@ -166,7 +168,8 @@ const v4NaturalDecisionMethods = {
     ))
     for (const { message } of messages) {
       const contribution = this.v4NaturalMessageContent(message)
-      if (contribution.partial || explicitTaskFailure(contribution.text)) {
+      if (contribution.partial || explicitTaskFailure(contribution.text)
+          || explicitTaskFailure(message.trace?.context?.taskDecision?.reason)) {
         unresolved.add(message.agentKind)
         continue
       }

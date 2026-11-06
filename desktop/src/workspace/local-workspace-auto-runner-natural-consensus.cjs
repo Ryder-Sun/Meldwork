@@ -29,7 +29,8 @@ const naturalConsensusMethods = {
       if (message.trace?.phase !== 'discussion') continue
       const decision = message.trace?.context?.taskDecision
       const contribution = this.v4NaturalMessageContent(message)
-      if (contribution.partial || !contribution.text.trim() || explicitTaskFailure(contribution.text)) {
+      if (contribution.partial || !contribution.text.trim() || explicitTaskFailure(contribution.text)
+          || explicitTaskFailure(decision?.reason)) {
         candidate = null
         continue
       }

@@ -118,6 +118,27 @@ test('a peer failure without a receipt withdraws an already approved candidate',
   assert.equal(runner.v4NaturalConsensus(group, controller, 'task'), null)
 })
 
+test('a completion receipt with a failure reason cannot create or approve a candidate', () => {
+  const messages = []
+  const runner = { ...naturalConsensusMethods, state: () => ({ messages }),
+    v4NaturalMessageMatchesBinding: () => true,
+    v4NaturalMessageContent: naturalDiscussionMethods.v4NaturalMessageContent }
+  const group = { id: 'group' }
+  const controller = { runId: 'run' }
+  const receipt = { status: 'completed', reason: 'I cannot complete the task.', deliverables: ['answer'] }
+  messages.push({ id: 'one', groupId: 'group', threadRootId: 'task', role: 'agent', agentKind: 'codex',
+    content: 'I checked the task.', trace: { phase: 'discussion', runId: 'run', context: { taskDecision: receipt } } })
+  assert.equal(runner.v4NaturalConsensus(group, controller, 'task'), null)
+  receipt.reason = 'Done.'
+  const candidate = runner.v4NaturalConsensus(group, controller, 'task')
+  assert.ok(candidate)
+  messages.push({ ...messages[0], id: 'two', agentKind: 'hermes', turnSeq: 2,
+    trace: { phase: 'discussion', runId: 'run', context: { taskDecision: {
+      status: 'completed', reason: '权限不足，无法读取所需文件。', deliverables: ['answer'], reviewedVersion: candidate.version,
+    } } } })
+  assert.equal(runner.v4NaturalConsensus(group, controller, 'task'), null)
+})
+
 test('failed and partial Agent runs cannot provide complete discussion contributions', () => {
   for (const status of ['failed', 'partial', 'cancelled', 'interrupted']) {
     assert.equal(naturalDiscussionMethods.v4NaturalMessageContent({
@@ -439,6 +460,22 @@ for (const discussionStyle of ['agent-led', 'sequential']) {
     const controller = await runDiscussion(workspace, group, { discussionStyle, maxRounds: 4 })
     assert.notEqual(ledger.get(controller.runId).status, 'completed')
   })
+
+  test(`Natural ${discussionStyle} rejects a completion receipt with a failure reason`, async t => {
+    const { directory, options } = fixture()
+    t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+    const ledger = new RunLedger({ storagePath: path.join(directory, 'run-ledger.json') })
+    const workspace = new LocalWorkspace({
+      ...options, runLedger: ledger, naturalAgentResponses: true,
+      runAgent: async (_agent, prompt) => ({ outcome: 'completed', text: naturalPhase(prompt) === 'proposal'
+        ? 'I checked the workspace.'
+        : 'I checked the workspace.\n[[MELDWORK_COLLABORATION:{"summary":"Checked","taskDecision":{"status":"completed","reason":"I cannot complete the task.","deliverables":["answer"]}}]]' }),
+    })
+    await workspace.refreshAgents()
+    const group = workspace.createGroup({ name: 'Failure reason', agentKinds: ['codex'], workdir: directory, allowWrite: false })
+    const controller = await runDiscussion(workspace, group, { discussionStyle, maxRounds: 4 })
+    assert.notEqual(ledger.get(controller.runId).status, 'completed')
+  })
 }
 
 test('Natural discussion shows peers workspace files as relative paths', async t => {
@@ -492,6 +529,8 @@ test('Natural discussion keeps failed and truncated peer contributions unresolve
   assert.deepEqual(runner.v4NaturalUnresolvedBlockers(group, controller, 'task', 2), ['hermes'])
   messages.push(peer(3, { status: 'completed' }))
   assert.deepEqual(runner.v4NaturalUnresolvedBlockers(group, controller, 'task', 3), [])
+  messages.push(peer(4, { context: { taskDecision: { ...decision, reason: 'I cannot complete the task.' } } }))
+  assert.deepEqual(runner.v4NaturalUnresolvedBlockers(group, controller, 'task', 4), ['hermes'])
 })
 
 test('Natural discussion forwards a peer failure without a structured decision to the owner', async () => {
