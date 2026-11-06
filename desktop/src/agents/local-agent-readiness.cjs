@@ -396,17 +396,22 @@ function piDeclaredCredentialKeys(options = {}) {
   } catch { return [] }
 }
 
-function codexDeclaredCredentialKeys(options = {}) {
+function codexProviderCredentialKey(options = {}) {
   const home = options.home || os.homedir()
   const root = options.env?.CODEX_HOME || path.join(home, '.codex')
   try {
     const filename = path.join(root, 'config.toml')
-    if (fs.statSync(filename).size > 1024 * 1024) return []
+    if (fs.statSync(filename).size > 1024 * 1024) return null
     const config = toml.parse(fs.readFileSync(filename, 'utf8'))
     const profile = typeof config.profile === 'string' ? config.profiles?.[config.profile] : null
     const provider = profile?.model_provider || config.model_provider
-    return nativeSecretEnvKeys([config.model_providers?.[provider]?.env_key])
-  } catch { return [] }
+    const key = config.model_providers?.[provider]?.env_key
+    return typeof key === 'string' && key ? key : null
+  } catch { return null }
+}
+
+function codexDeclaredCredentialKeys(options = {}) {
+  return nativeSecretEnvKeys([codexProviderCredentialKey(options)])
 }
 
 function nativeCredentialEnvironment(kind, env = process.env, declaredKeys = []) {
@@ -611,6 +616,15 @@ function nativeCredentialState(kind, options = {}) {
       ? path.join(env.LOCALAPPDATA || path.join(home, 'AppData', 'Local'), `hermes${env.HERMES_DATA_DIR_SUFFIX || ''}`)
       : path.join(home, `.hermes${env.HERMES_DATA_DIR_SUFFIX || ''}`)
   const openCodeAuth = path.join(env.XDG_DATA_HOME || path.join(home, '.local', 'share'), 'opencode', 'auth.json')
+  if (kind === 'codex') {
+    const key = codexProviderCredentialKey({ home, env })
+    if (key) {
+      const safe = nativeSecretEnvKeys([key]).includes(key)
+      return safe && typeof env[key] === 'string' && env[key].trim()
+        ? { state: 'ready', source: options.credentialSource === 'native-shell' ? 'native-shell' : 'native-credential' }
+        : { state: 'unknown', source: 'unverified' }
+    }
+  }
   const piProvider = kind === 'pi' ? piDefaultProvider(piHome) : ''
   const credentialEnv = nativeCredentialKeyEnvironment(kind, env)
   const selectedPiKey = Object.hasOwn(PI_PROVIDER_CREDENTIAL_KEYS, piProvider) ? PI_PROVIDER_CREDENTIAL_KEYS[piProvider] : ''

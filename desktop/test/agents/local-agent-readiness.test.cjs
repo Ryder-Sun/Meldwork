@@ -310,6 +310,21 @@ test('an OpenAI environment key alone does not prove the default Codex provider 
   })
 })
 
+test('Codex readiness follows the selected provider env_key, not other accounts', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-codex-selected-key-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const selected = path.join(home, 'selected')
+  fs.mkdirSync(selected)
+  fs.writeFileSync(path.join(selected, 'config.toml'), "profile = 'work'\nmodel_provider = 'other'\n[profiles.work]\nmodel_provider = 'custom'\n[model_providers.custom]\nenv_key = 'CUSTOM_CREDENTIAL'\n[model_providers.other]\nenv_key = 'OTHER_SECRET'\n")
+  fs.writeFileSync(path.join(selected, 'auth.json'), JSON.stringify({ OPENAI_API_KEY: 'other-account' }))
+  const env = { CODEX_HOME: selected, CODEX_API_KEY: 'other-account', OTHER_SECRET: 'other' }
+  assert.deepEqual(nativeCredentialState('codex', { home, env }), { state: 'unknown', source: 'unverified' })
+  assert.deepEqual(nativeCredentialState('codex', { home, env: { ...env, CUSTOM_CREDENTIAL: ' ' } }), { state: 'unknown', source: 'unverified' })
+  assert.deepEqual(nativeCredentialState('codex', { home, env: { ...env, CUSTOM_CREDENTIAL: 'secret' } }), { state: 'ready', source: 'native-credential' })
+  fs.writeFileSync(path.join(selected, 'config.toml'), "model_provider = 'custom'\n[model_providers.custom]\nenv_key = 'NODE_OPTIONS'\n")
+  assert.deepEqual(nativeCredentialState('codex', { home, env: { ...env, NODE_OPTIONS: 'unsafe' } }), { state: 'unknown', source: 'unverified' })
+})
+
 test('Windows native environment canonicalizes allowed keys without leaking unrelated values', async () => {
   const result = await resolveNativeShellEnvironment({ cache: false, platform: 'win32', env: {
     Path: 'C:\\tools', Anthropic_Api_Key: 'native-secret', Claude_Config_Dir: 'C:\\claude',
