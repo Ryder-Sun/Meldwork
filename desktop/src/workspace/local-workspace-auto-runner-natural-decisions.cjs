@@ -61,6 +61,7 @@ const v4NaturalDecisionMethods = {
       if (message.agentKind === owner) return false
       const status = message.trace?.context?.taskDecision?.status
       return status === 'blocked' || status === 'needs-human'
+        || explicitTaskFailure(this.v4NaturalMessageContent(message).text)
     })
     const ownerSawBlocker = peerBlocker && ownerMessage
       && controller.discussionStyle === 'sequential'
@@ -69,7 +70,7 @@ const v4NaturalDecisionMethods = {
       const peerDecision = peerBlocker.trace?.context?.taskDecision
       this.v4NaturalNotice(group, controller, threadRootId, 'system.autoPeerBlockerForwarded',
         `${this.agentLabel(peerBlocker.agentKind)} reported a blocker; the delivery owner will decide how to proceed.`,
-        { agent: this.agentLabel(peerBlocker.agentKind), reason: peerDecision.reason })
+        { agent: this.agentLabel(peerBlocker.agentKind), reason: peerDecision?.reason || '' })
       return { nextKinds: [owner], ownerReview: true }
     }
     const nextKinds = this.v4NaturalNextKinds(group, controller, threadRootId, round, activeKinds)
@@ -155,12 +156,16 @@ const v4NaturalDecisionMethods = {
       || left.index - right.index
     ))
     for (const { message } of messages) {
+      const contribution = this.v4NaturalMessageContent(message)
+      if (explicitTaskFailure(contribution.text)) {
+        unresolved.add(message.agentKind)
+        continue
+      }
       let status
       try { status = parseLenientTaskDecision(message.trace?.context?.taskDecision).status } catch { continue }
       if (status === 'blocked' || status === 'needs-human') unresolved.add(message.agentKind)
       else if (status === 'completed') {
-        const contribution = this.v4NaturalMessageContent(message)
-        if (!contribution.partial && contribution.text.trim() && !explicitTaskFailure(contribution.text)) {
+        if (!contribution.partial && contribution.text.trim()) {
           unresolved.delete(message.agentKind)
         }
       }

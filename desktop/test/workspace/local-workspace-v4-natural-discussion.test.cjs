@@ -428,6 +428,32 @@ test('Natural discussion shows peers workspace files as relative paths', async t
   assert.doesNotMatch(discussion.prompt, /would change \[path\]/)
 })
 
+test('Natural discussion retains an explicit peer failure without a structured decision', () => {
+  const messages = [
+    { groupId: 'group', threadRootId: 'task', role: 'agent', agentKind: 'hermes', content: '权限不足，无法访问所需文件。', trace: { phase: 'discussion', round: 1, runId: 'run' } },
+    { groupId: 'group', threadRootId: 'task', role: 'agent', agentKind: 'codex', content: 'The answer is ready.', trace: { phase: 'discussion', round: 2, runId: 'run', context: { taskDecision: { status: 'completed', reason: 'Done', deliverables: ['answer'] } } } },
+  ]
+  const runner = { ...v4NaturalDecisionMethods, state: () => ({ messages }),
+    v4NaturalMessageMatchesBinding: () => true, v4NaturalMessageContent: naturalDiscussionMethods.v4NaturalMessageContent }
+  assert.deepEqual(runner.v4NaturalUnresolvedBlockers({ id: 'group' }, { runId: 'run' }, 'task', 2), ['hermes'])
+  messages.push({ ...messages[0], content: 'The missing file is now available.', trace: { ...messages[0].trace, round: 3, context: { taskDecision: { status: 'completed', reason: 'Resolved', deliverables: ['file'] } } } })
+  assert.deepEqual(runner.v4NaturalUnresolvedBlockers({ id: 'group' }, { runId: 'run' }, 'task', 3), [])
+})
+
+test('Natural discussion forwards a peer failure without a structured decision to the owner', async () => {
+  const peer = { agentKind: 'hermes', content: 'I cannot access the required file.', trace: {} }
+  let notice
+  const runner = { ...v4NaturalDecisionMethods,
+    v4NaturalDiscussionRoundMessages: () => [peer], v4NaturalOwner: () => 'codex',
+    v4NaturalMessageContent: naturalDiscussionMethods.v4NaturalMessageContent,
+    agentLabel: kind => kind,
+    v4NaturalNotice: (...args) => { notice = args },
+  }
+  const result = await runner.v4NaturalRoundOutcome({ id: 'group' }, { runId: 'run', discussionStyle: 'agent-led' }, 'task', 1, ['codex', 'hermes'])
+  assert.deepEqual(result, { nextKinds: ['codex'], ownerReview: true })
+  assert.equal(notice[3], 'system.autoPeerBlockerForwarded')
+})
+
 test('Natural automatic discussion does not override a peer blocker with owner completion', async t => {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
