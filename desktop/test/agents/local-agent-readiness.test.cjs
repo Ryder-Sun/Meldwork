@@ -45,6 +45,20 @@ test('Windows native environment canonicalizes allowed keys without leaking unre
   assert.equal(preferred.env.ANTHROPIC_API_KEY, 'canonical')
 })
 
+test('Zcode native provider settings survive shell capture and readiness detection', async () => {
+  const result = await resolveNativeShellEnvironment({ cache: false, platform: 'win32', env: {
+    Zcode_Api_Key: 'test-secret', Zcode_Base_Url: 'https://provider.example',
+    Anthropic_Base_Url: 'https://anthropic.example', UNRELATED_SECRET: 'private',
+  } })
+  assert.deepEqual(nativeCredentialEnvironment('zcode', result.env), {
+    ZCODE_API_KEY: 'test-secret', ZCODE_BASE_URL: 'https://provider.example',
+    ANTHROPIC_BASE_URL: 'https://anthropic.example',
+  })
+  assert.deepEqual(nativeCredentialState('zcode', { env: result.env, home: '/no-config' }),
+    { state: 'ready', source: 'native-credential' })
+  assert.equal(result.env.UNRELATED_SECRET, undefined)
+})
+
 test('native shell capture preserves XDG configuration directories without unrelated variables', { skip: process.platform === 'win32' }, async () => {
   const execFile = require('node:util').promisify(require('node:child_process').execFile)
   const result = await resolveNativeShellEnvironment({

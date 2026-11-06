@@ -24,3 +24,15 @@ test('native configuration controls reach only the CLI that owns them', () => {
     assert.equal(child.UNRELATED_SECRET, undefined)
   }
 })
+
+test('Zcode native provider environment reaches its child without leaking to other Agents', () => {
+  const env = { ZCODE_API_KEY: 'test-secret', ZCODE_BASE_URL: 'https://provider.example',
+    ANTHROPIC_BASE_URL: 'https://anthropic.example', NODE_OPTIONS: '--require /untrusted.js' }
+  const selected = nativeCredentialEnvironment('zcode', env)
+  assert.deepEqual(selected, { ZCODE_API_KEY: 'test-secret', ZCODE_BASE_URL: 'https://provider.example',
+    ANTHROPIC_BASE_URL: 'https://anthropic.example' })
+  const child = childEnvironment({ kind: 'zcode', executable: '/native/zcode' }, '/workspace', { env: selected }, 'darwin')
+  for (const [key, value] of Object.entries(selected)) assert.equal(child[key], value)
+  assert.equal(child.NODE_OPTIONS, undefined)
+  assert.equal(nativeCredentialEnvironment('codex', env).ZCODE_API_KEY, undefined)
+})
