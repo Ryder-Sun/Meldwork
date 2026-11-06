@@ -152,7 +152,10 @@ const v4NaturalDecisionMethods = {
       let status
       try { status = parseLenientTaskDecision(message.trace?.context?.taskDecision).status } catch { continue }
       if (status === 'blocked' || status === 'needs-human') unresolved.add(message.agentKind)
-      else if (status === 'completed') unresolved.delete(message.agentKind)
+      else if (status === 'completed') {
+        const contribution = this.v4NaturalMessageContent(message)
+        if (!contribution.partial && contribution.text.trim()) unresolved.delete(message.agentKind)
+      }
     }
     return [...unresolved]
   },

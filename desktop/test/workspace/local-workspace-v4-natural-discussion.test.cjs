@@ -665,9 +665,16 @@ test('Natural V4 requires a prior peer discussion round before the owner complet
     await workspace.autoRunner.v4NaturalRoundOutcome(group, controller, 'thread', 6, ['codex', 'hermes']),
     { nextKinds: ['hermes'], ownerReview: true },
   )
-  turns.push(turn('hermes', 7, 'completed'), turn('codex', 8, 'completed'))
+  const truncatedClearance = turn('hermes', 7, 'completed')
+  truncatedClearance.trace.truncated = true
+  turns.push(truncatedClearance, turn('codex', 8, 'completed'))
   assert.deepEqual(
     await workspace.autoRunner.v4NaturalRoundOutcome(group, controller, 'thread', 8, ['codex', 'hermes']),
+    { nextKinds: ['hermes'], ownerReview: true },
+  )
+  turns.push(turn('hermes', 9, 'completed'), turn('codex', 10, 'completed'))
+  assert.deepEqual(
+    await workspace.autoRunner.v4NaturalRoundOutcome(group, controller, 'thread', 10, ['codex', 'hermes']),
     { status: 'completed' },
   )
 })
