@@ -113,6 +113,7 @@ test('task graph resumes a human decision after its blackboard checkpoint withou
 
 for (const role of ['primary', 'arbiter']) test(`task graph replays a checkpointed ${role} result without losing references`, () => {
   const node = graphNode({ role, terminal: true,
+    ...(role === 'primary' ? { claimKey: 'reviewed-result' } : {}),
     acceptance: { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 } })
   const graph = createTaskGraph({ template: 'task-graph', nodes: [node] })
   const cursor = updateTaskGraphCursor(createTaskGraphCursor(graph), node.nodeId, { status: 'running', attempts: 1 })
@@ -650,6 +651,30 @@ test('conflicting terminal primary branches cannot both complete the task graph'
   assert.ok(durable.orchestration.collaboration.entries.some(entry => entry.entryType === 'conflict'))
   assert.notEqual(durable.status, 'completed')
   assert.equal(durable.orchestration.taskGraph.nodeStates.some(state => state.status === 'failed'), true)
+})
+
+for (const shared of [true, false]) test(`task graph ${shared ? 'compares shared' : 'separates independent'} claim keys`, async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const ledger = new RunLedger({ storagePath: path.join(directory, 'run-ledger.json') })
+  options.runLedger = ledger
+  options.runAgent = async agent => ({ text: agent.kind === 'codex' ? 'Security review.' : 'Performance review.', outcome: 'completed' })
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Explicit claim keys',
+    agentKinds: ['codex', 'hermes'], workdir: directory, allowWrite: false })
+  const workflow = { template: 'task-graph', nodes: [
+    graphNode({ terminal: true, parallel: true, claimKey: 'security' }),
+    graphNode({ nodeId: 'primary-hermes', agentKind: 'hermes', terminal: true, parallel: true,
+      claimKey: shared ? 'security' : 'performance' }),
+  ] }
+  await workspace.sendMessage({ groupId: group.id, text: 'Review the system.', mode: 'auto', maxRounds: 4,
+    targetKinds: group.agentKinds, workflow })
+  await workspace.activeRuns.get(group.id).promise
+  const durable = ledger.list(group.id)[0]
+  const conflicts = durable.orchestration.collaboration.entries.filter(entry => entry.entryType === 'conflict')
+  assert.equal(conflicts.length > 0, shared)
+  assert.equal(durable.status === 'completed', !shared)
 })
 
 for (const failure of ['explicit failure', 'missing evidence']) test(`a task graph arbiter with ${failure} cannot resolve a conflict`, async t => {

@@ -55,12 +55,16 @@ const nodeContentFields = {
   dependsOn: uniqueArray(publicIdSchema),
   inputNodeIds: uniqueArray(publicIdSchema),
   expectedOutput: boundedTextSchema,
+  claimKey: publicIdSchema.optional(),
   acceptance: acceptanceSchema,
   terminal: z.boolean(),
   parallel: z.boolean(),
   decisionOptions: uniqueArray(decisionOptionSchema, 16),
 }
 const nodeSchema = z.strictObject(nodeContentFields).superRefine((node, context) => {
+  if (node.claimKey !== undefined && (node.role !== 'primary' || redactSecrets(node.claimKey) !== node.claimKey)) {
+    context.addIssue({ code: 'custom', path: ['claimKey'], message: 'invalid claim key' })
+  }
   if (node.inputNodeIds.some(nodeId => !node.dependsOn.includes(nodeId))) {
     context.addIssue({ code: 'custom', path: ['inputNodeIds'], message: 'input must be a dependency' })
   }

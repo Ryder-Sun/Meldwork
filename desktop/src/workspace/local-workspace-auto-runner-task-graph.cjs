@@ -150,7 +150,8 @@ const taskGraphMethods = {
     let accepted = this.taskGraphResultAccepted(node, result, controller, verifiedRefs)
     const acceptedDecision = node.role === 'arbiter' && accepted
     const subject = node.role === 'primary'
-      ? `task:${controller.taskId}:conclusion` : `task:${controller.taskId}:node:${node.nodeId}`
+      ? (node.claimKey ? `task:${controller.taskId}:claim:${node.claimKey}` : `task:${controller.taskId}:conclusion`)
+      : `task:${controller.taskId}:node:${node.nodeId}`
     const agentRunId = result?.message?.trace?.agentRunId
     const previous = agentRunId ? controller.orchestration.collaboration.entries.filter(entry => (
       entry.provenance.runId === controller.runId && entry.provenance.agentRunId === agentRunId

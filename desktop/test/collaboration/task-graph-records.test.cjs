@@ -83,6 +83,16 @@ test('creates content-addressed acyclic task graphs and durable cursors', () => 
   })
 })
 
+test('only primary nodes can declare a safe claim key and it survives graph serialization', () => {
+  const input = workflow()
+  input.nodes[0].claimKey = 'security-review'
+  const graph = createTaskGraph(input, ['codex', 'hermes'])
+  assert.equal(parseTaskGraph(graph).nodes[0].claimKey, 'security-review')
+  const invalid = workflow()
+  invalid.nodes[1].claimKey = 'security-review'
+  assert.throws(() => createTaskGraph(invalid, ['codex', 'hermes']), /TASK_GRAPH_SCHEMA_INVALID/)
+})
+
 test('rejects cycles, unknown Agents, malformed Human decisions, and tampering', () => {
   assert.throws(() => createTaskGraph({
     template: 'task-graph',
