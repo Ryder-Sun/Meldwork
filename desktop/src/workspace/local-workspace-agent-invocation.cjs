@@ -1,6 +1,6 @@
 const { createHash, randomUUID } = require('node:crypto')
 const { taskPermissionGroup } = require('./run-permission-cap.cjs')
-const { agentVerificationIdentity } = require('./agent-verification-identity.cjs')
+const { agentVerificationIdentity, projectVerificationIdentity } = require('./agent-verification-identity.cjs')
 const { workPreferencesPrompt } = require('./work-preferences.cjs')
 const {
   assertResumedPermissionBinding,
@@ -331,6 +331,7 @@ class LocalWorkspaceAgentInvocation {
           : null))
     if (!agent) throw new Error('LOCAL_AGENT_UNAVAILABLE')
     const verificationIdentity = agentVerificationIdentity(agent, this.state()?.agentPreferences)
+    const projectIdentity = projectVerificationIdentity(kind, group.workdir)
     const revalidateApprovedSkills = async () => {
       if (!context.skillHints?.some(skill => skill?.approvedSkillManifest)) return
       const previous = context.skillHints
@@ -1335,7 +1336,8 @@ class LocalWorkspaceAgentInvocation {
           lastDeliveredMessageId: packedContext.latestMessageId || session.meta.lastDeliveredMessageId,
         })
       }
-      this.markRuntimeCredential(kind, 'ready', { verifiedRun: result.outcome === 'completed', verificationIdentity })
+      this.markRuntimeCredential(kind, 'ready', { verifiedRun: result.outcome === 'completed', verificationIdentity,
+        workdir: group.workdir, projectIdentity })
       return {
         message,
         pendingMessage,

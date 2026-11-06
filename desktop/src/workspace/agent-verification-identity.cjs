@@ -59,4 +59,26 @@ function agentVerificationIdentity(agent, preferences = {}) {
   return createHash('sha256').update(JSON.stringify(identity)).digest('hex')
 }
 
-module.exports = { agentVerificationIdentity }
+function projectVerificationIdentity(kind, workdir) {
+  const files = {
+    zcode: ['zcode.json', '.zcode/config.json'],
+    opencode: ['opencode.json', 'opencode.jsonc', '.opencode/opencode.json', '.opencode/opencode.jsonc'],
+    mimo: ['.mimocode/mimocode.json', '.mimocode/mimocode.jsonc'],
+    gemini: ['.gemini/settings.json'],
+  }[kind]
+  if (!files) return ''
+  if (typeof workdir !== 'string' || !path.isAbsolute(workdir)) return null
+  const root = path.resolve(workdir)
+  const entries = [kind, root]
+  let current = root
+  for (let depth = 0; depth < 64; depth += 1) {
+    entries.push([current, ...files.map(file => [file, fileIdentity(path.join(current, file))])])
+    if (fs.existsSync(path.join(current, '.git'))) break
+    const parent = path.dirname(current)
+    if (parent === current) break
+    current = parent
+  }
+  return createHash('sha256').update(JSON.stringify(entries)).digest('hex')
+}
+
+module.exports = { agentVerificationIdentity, projectVerificationIdentity }

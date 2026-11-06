@@ -575,6 +575,27 @@ test('automatic routing waits for an explicit successful first run', async t => 
     targetKinds: [], routingMode: 'automatic' }), { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
 })
 
+test('automatic routing requires a successful Zcode run in the current project', async t => {
+  const { directory, calls, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const first = path.join(directory, 'first')
+  const second = path.join(directory, 'second')
+  fs.mkdirSync(first); fs.mkdirSync(second)
+  options.detectAgents = async () => [{ kind: 'zcode', name: 'Zcode', executable: '/tmp/zcode', version: '1' }]
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const groupA = workspace.createGroup({ name: 'Project A', agentKinds: ['zcode'], workdir: first })
+  const groupB = workspace.createGroup({ name: 'Project B', agentKinds: ['zcode'], workdir: second })
+  await workspace.sendMessage({ groupId: groupA.id, text: 'Verify', targetKinds: ['zcode'] })
+  await workspace.sendMessage({ groupId: groupA.id, text: 'Route', targetKinds: [], routingMode: 'automatic' })
+  await assert.rejects(workspace.sendMessage({ groupId: groupB.id, text: 'Route',
+    targetKinds: [], routingMode: 'automatic' }), { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
+  assert.equal(calls.length, 2)
+  fs.writeFileSync(path.join(first, 'zcode.json'), '{"model":"changed"}')
+  await assert.rejects(workspace.sendMessage({ groupId: groupA.id, text: 'Route again',
+    targetKinds: [], routingMode: 'automatic' }), { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
+})
+
 test('automatic routing starts the verified read-only Agent when the only writer is unverified', async t => {
   const { directory, calls, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

@@ -5,7 +5,7 @@ const os = require('node:os')
 const path = require('node:path')
 
 const catalogApi = require('../../src/workspace/local-workspace-agent-catalog.cjs')
-const { agentVerificationIdentity } = require('../../src/workspace/agent-verification-identity.cjs')
+const { agentVerificationIdentity, projectVerificationIdentity } = require('../../src/workspace/agent-verification-identity.cjs')
 const { NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_ENVIRONMENT_IDENTITY, NATIVE_AUTH_IDENTITY_FILES, nativeEnvironmentIdentity } = require('../../src/agents/native-config-directory.cjs')
 const { LocalWorkspaceAgentCatalog } = catalogApi
 
@@ -58,6 +58,32 @@ function fixture(overrides = {}) {
     now: overrides.now || (() => '2026-08-03T00:00:00.000Z'),
   })
   return { agents: () => agents, catalog, events, state }
+}
+
+for (const [kind, config] of [['zcode', 'zcode.json'], ['opencode', 'opencode.json'],
+  ['mimo', '.mimocode/mimocode.json'], ['gemini', '.gemini/settings.json']]) {
+  test(`${kind} project verification cannot cross directories or survive a configuration change`, t => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-project-verification-'))
+    t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+    const first = path.join(root, 'first')
+    const second = path.join(root, 'second')
+    fs.mkdirSync(first); fs.mkdirSync(second)
+    const filename = path.join(first, config)
+    fs.mkdirSync(path.dirname(filename), { recursive: true })
+    fs.writeFileSync(filename, '{"model":"first"}')
+    const agent = { kind, executable: '/tmp/agent', version: '1', available: true, compatibilityState: 'compatible' }
+    const { catalog, state } = fixture({ initialAgents: [agent] })
+    const verificationIdentity = agentVerificationIdentity(agent)
+    const projectIdentity = projectVerificationIdentity(kind, first)
+    catalog.markRuntimeCredential(kind, 'ready', { verificationIdentity, projectIdentity, workdir: first })
+    assert.equal(catalog.isRecentlyVerified(kind, first), true)
+    assert.equal(catalog.isRecentlyVerified(kind, second), false)
+    assert.doesNotMatch(JSON.stringify(state.agentRuntime), /meldwork-project-verification/)
+    fs.writeFileSync(filename, '{"model":"replacement"}')
+    assert.equal(catalog.isRecentlyVerified(kind, first), false)
+    catalog.markRuntimeCredential(kind, 'ready', { verificationIdentity, projectIdentity, workdir: first })
+    assert.equal(catalog.isRecentlyVerified(kind, first), false)
+  })
 }
 
 test('a late result from an older CLI cannot verify its replacement', () => {

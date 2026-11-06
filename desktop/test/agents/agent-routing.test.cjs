@@ -97,6 +97,16 @@ test('automatic routing excludes unverified Agents while explicit selection can 
     input: { routingMode: 'automatic', targetKinds: [] } })), { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
 })
 
+test('automatic routing evaluates verification in the current work directory', () => {
+  const router = new AgentRouter({ isRecentlyVerified: (_agent, workdir) => workdir === '/verified-project' })
+  const base = request({ agents: [agent('codex')],
+    group: { id: 'group-routing', agentKinds: ['codex'], allowWrite: false, workdir: '/verified-project' },
+    input: { routingMode: 'automatic', targetKinds: [] } })
+  assert.deepEqual(router.route(base).selectedKinds, ['codex'])
+  assert.throws(() => router.route({ ...base, group: { ...base.group, workdir: '/other-project' } }),
+    { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
+})
+
 test('explicit specialized Agents are not assigned an invented general-domain requirement', () => {
   const specialized = agent('custom-aaaaaaaaaaaaaaaa', {
     routingCapabilities: {

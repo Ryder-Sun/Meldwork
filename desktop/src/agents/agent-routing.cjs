@@ -352,7 +352,7 @@ class AgentRouter {
     const targetWriteSupport = permissionTargets.map((kind) => {
       const candidate = detected.get(kind)
       return (effectiveMode === 'explicit' || (candidate
-        && (candidate.invocable ?? candidate.available) && this.isRecentlyVerified(candidate)))
+        && (candidate.invocable ?? candidate.available) && this.isRecentlyVerified(candidate, group.workdir)))
       && agentRuntimeCapabilities(kind, {
         agent: detected.get(kind),
         attachmentSupport: this.attachmentSupport(kind),
@@ -388,7 +388,7 @@ class AgentRouter {
       detected.get(kind) || { kind, available: false },
       requirements,
       { attachmentSupport: this.attachmentSupport, fitMatrix: this.fitMatrix,
-        requireVerified: effectiveMode === 'automatic', isRecentlyVerified: this.isRecentlyVerified,
+        requireVerified: effectiveMode === 'automatic', isRecentlyVerified: agent => this.isRecentlyVerified(agent, group.workdir),
         allowReadOnlyPeer },
     ))
     let candidates = evaluateCandidates()

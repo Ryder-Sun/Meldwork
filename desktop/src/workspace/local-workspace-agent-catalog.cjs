@@ -1,4 +1,4 @@
-const { agentVerificationIdentity } = require('./agent-verification-identity.cjs')
+const { agentVerificationIdentity, projectVerificationIdentity } = require('./agent-verification-identity.cjs')
 const { NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_AUTH_IDENTITY_FILES } = require('../agents/native-config-directory.cjs')
 const {
   agentRuntimeCapabilities,
@@ -79,10 +79,13 @@ class LocalWorkspaceAgentCatalog {
     this.detectedIdentities = new Map(this.detectedAgents().map(agent => [agent.kind, agentVerificationIdentity(agent, this.state().agentPreferences)]))
   }
 
-  isRecentlyVerified(kind) {
+  isRecentlyVerified(kind, workdir) {
     const runtime = this.state().agentRuntime[kind]
     const agent = this.detectedAgents().find(item => item.kind === kind)
-    return matchesRecentVerification(runtime, agent, this.now(), this.state().agentPreferences)
+    if (!matchesRecentVerification(runtime, agent, this.now(), this.state().agentPreferences)) return false
+    if (workdir === undefined) return true
+    const projectIdentity = projectVerificationIdentity(kind, workdir)
+    return projectIdentity === '' || (projectIdentity !== null && runtime.projectVerificationIdentity === projectIdentity)
   }
 
   async refresh() {
@@ -277,17 +280,19 @@ class LocalWorkspaceAgentCatalog {
     return this.snapshot()
   }
 
-  markRuntimeCredential(kind, credentialState, { verifiedRun = true, verificationIdentity = '' } = {}) {
+  markRuntimeCredential(kind, credentialState, { verifiedRun = true, verificationIdentity = '', workdir, projectIdentity } = {}) {
     const state = this.state()
     const agent = this.detectedAgents().find(item => item.kind === kind)
     if (verificationIdentity && (!agent || verificationIdentity !== agentVerificationIdentity(agent, state.agentPreferences))) return
+    if (projectIdentity !== undefined && projectIdentity !== projectVerificationIdentity(kind, workdir)) return
     const identity = verificationIdentity || agentVerificationIdentity(agent, state.agentPreferences)
     state.agentRuntime[kind] = {
       credentialState,
       checkedAt: this.now(),
       ...(credentialState === 'missing' && verificationIdentity ? { failureIdentity: verificationIdentity } : {}),
       ...(credentialState === 'ready' && verifiedRun && identity
-        ? { verificationSource: 'successful-run', verificationIdentity: identity } : {}),
+        ? { verificationSource: 'successful-run', verificationIdentity: identity,
+          ...(projectIdentity ? { projectVerificationIdentity: projectIdentity } : {}) } : {}),
     }
     if (credentialState === 'ready') this.indeterminateSince.delete(kind)
     if (agent && !(credentialState === 'unknown' && agent.authenticated === true)) {

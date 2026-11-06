@@ -219,7 +219,7 @@ class LocalWorkspace extends EventEmitter {
     this.agentRouter = options.agentRouter || new AgentRouter({
       attachmentSupport: kind => this.attachmentSupportFn(kind),
       fitMatrix: options.agentFitMatrix,
-      isRecentlyVerified: agent => this.agentCatalog.isRecentlyVerified(agent.kind),
+      isRecentlyVerified: (agent, workdir) => this.agentCatalog.isRecentlyVerified(agent.kind, workdir),
     })
     this.runLedgerCoordinator = new LocalWorkspaceRunLedger({
       runLedger: this.runLedger,
