@@ -61,13 +61,55 @@ function fixture(overrides = {}) {
 
 test('a late result from an older CLI cannot verify its replacement', () => {
   const oldAgent = { kind: 'codex', executable: '/tmp/codex-old', version: '1' }
-  const current = { kind: 'codex', executable: '/tmp/codex-new', version: '2', available: true }
-  const { catalog, agents } = fixture({ initialAgents: [current] })
+  const current = { kind: 'codex', executable: '/tmp/codex-new', version: '2', available: false, recentlyVerified: false }
+  const { catalog, agents, state } = fixture({ initialAgents: [current] })
   catalog.markRuntimeCredential('codex', 'ready', {
     verificationIdentity: agentVerificationIdentity(oldAgent),
   })
   assert.equal(catalog.isRecentlyVerified('codex'), false)
   assert.equal(agents()[0].recentlyVerified, false)
+  assert.equal(agents()[0].available, false)
+  assert.equal(state.agentRuntime.codex, undefined)
+})
+
+test('a failed probe cannot borrow a successful run from another installation', async () => {
+  const oldAgent = { kind: 'codex', executable: '/tmp/codex-old', version: '1', compatibilityState: 'compatible' }
+  const current = { kind: 'codex', executable: '/tmp/codex-new', version: '2', compatibilityState: 'compatible' }
+  const { catalog, agents, state } = fixture({
+    detectAgents: async () => [current],
+    credentialState: async () => ({ state: 'unknown', source: 'native-probe-failed' }),
+  })
+  state.agentRuntime.codex = { credentialState: 'ready', checkedAt: '2026-08-03T00:00:00.000Z',
+    verificationSource: 'successful-run', verificationIdentity: agentVerificationIdentity(oldAgent) }
+  await catalog.refresh()
+  assert.equal(agents()[0].recentlyVerified, false)
+  assert.equal(agents()[0].runtimePrerequisitesReady, false)
+  assert.equal(agents()[0].available, false)
+})
+
+test('probe failure cannot retain availability when the executable changes', async () => {
+  const oldAgent = { kind: 'codex', executable: '/tmp/codex-old', version: '1',
+    compatibilityState: 'compatible', available: true, credentialState: 'ready' }
+  const current = { ...oldAgent, executable: '/tmp/codex-new', version: '2' }
+  const { catalog, agents } = fixture({ initialAgents: [oldAgent], detectAgents: async () => [current],
+    credentialState: async () => ({ state: 'unknown', source: 'native-probe-failed' }) })
+  await catalog.refresh()
+  assert.equal(agents()[0].available, false)
+})
+
+test('probe failure cannot retain availability after an in-place executable replacement', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-agent-replaced-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const executable = path.join(directory, 'agent')
+  fs.writeFileSync(executable, 'old executable')
+  const agent = { kind: 'codex', executable, version: '1', compatibilityState: 'compatible',
+    available: true, credentialState: 'ready' }
+  const { catalog, agents } = fixture({ initialAgents: [agent], detectAgents: async () => [{ ...agent }],
+    credentialState: async () => ({ state: 'unknown', source: 'native-probe-failed' }) })
+  fs.renameSync(executable, path.join(directory, 'old-agent'))
+  fs.writeFileSync(executable, 'new executable')
+  await catalog.refresh()
+  assert.equal(agents()[0].available, false)
 })
 
 test('Agent catalog module exposes only its coordinator', () => {

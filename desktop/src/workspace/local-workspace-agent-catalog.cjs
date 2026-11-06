@@ -74,6 +74,7 @@ class LocalWorkspaceAgentCatalog {
     this.refreshTask = null
     this.refreshAgain = false
     this.indeterminateSince = new Map()
+    this.detectedIdentities = new Map(this.detectedAgents().map(agent => [agent.kind, agentVerificationIdentity(agent)]))
   }
 
   isRecentlyVerified(kind) {
@@ -141,7 +142,7 @@ class LocalWorkspaceAgentCatalog {
         recoveredRuntimeCredential = true
       }
       const runtimeMissing = runtime?.credentialState === 'missing'
-      const verifiedReady = recentlyVerified(runtime, this.now())
+      const verifiedReady = matchesRecentVerification(runtime, agent, this.now())
       const nativeReadySource = nativeState === 'ready'
         ? (native.source || 'native-credential')
         : ''
@@ -175,7 +176,7 @@ class LocalWorkspaceAgentCatalog {
       ))
       const runtimePrerequisitesReady = retained !== null
         || (native?.source !== 'native-runtime-unavailable'
-          && (native?.source !== 'native-probe-failed' || recentlyVerified(runtime, this.now())))
+          && (native?.source !== 'native-probe-failed' || verifiedReady))
       const invocable = agentInvocable({ installed, versionIdentified, compatible, configured,
         authenticated, runtimePrerequisitesReady, unavailable: workBuddyUnavailable })
       const verifiedRecently = matchesRecentVerification(runtime, agent, this.now())
@@ -218,6 +219,7 @@ class LocalWorkspaceAgentCatalog {
       }
     })
     this.setDetectedAgents(agents)
+    this.detectedIdentities = new Map(agents.map(agent => [agent.kind, agentVerificationIdentity(agent)]))
     if (recoveredRuntimeCredential) this.save()
     this.emitChanged()
     return this.snapshot()
@@ -237,6 +239,7 @@ class LocalWorkspaceAgentCatalog {
     const since = this.indeterminateSince.get(agent.kind)
     if (previous?.available !== true || runtimeMissing || !Number.isFinite(nowMs)
         || !Number.isFinite(since) || nowMs - since >= INDETERMINATE_PROBE_GRACE_MS
+        || this.detectedIdentities.get(agent.kind) !== agentVerificationIdentity(agent)
         || !agentVersionIdentified(agent) || !agentCompatible(agent)) return null
     return {
       credentialState: previous.credentialState,
@@ -258,6 +261,7 @@ class LocalWorkspaceAgentCatalog {
   markRuntimeCredential(kind, credentialState, { verifiedRun = true, verificationIdentity = '' } = {}) {
     const state = this.state()
     const agent = this.detectedAgents().find(item => item.kind === kind)
+    if (agent && verificationIdentity && verificationIdentity !== agentVerificationIdentity(agent)) return
     const identity = verificationIdentity || agentVerificationIdentity(agent)
     state.agentRuntime[kind] = {
       credentialState,
