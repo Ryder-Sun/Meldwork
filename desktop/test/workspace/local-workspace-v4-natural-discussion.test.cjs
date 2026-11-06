@@ -59,11 +59,11 @@ function acceptedReply(prompt, text, extra = {}) {
 }
 
 test('explicit first-person task failures are distinguished from discussion and quotations', () => {
-  for (const text of ['I cannot access the requested files.', "I can't complete the task.", '我无法访问所需文件。', '我们不能完成任务。']) {
+  for (const text of ['I cannot access the requested files.', "I can't complete the task.", 'Permission denied; I cannot access the file.', 'Access denied: we cannot complete the task.', '我无法访问所需文件。', '我们不能完成任务。']) {
     assert.equal(explicitTaskFailure(text), true, text)
   }
   for (const text of ['I cannot reproduce the reported issue; all tests pass.',
-    'The user said: "I cannot access the file."', 'I can access the file.', '问题是用户无法访问文件。']) {
+    'The user said: "I cannot access the file."', 'Permission denied was the original error; I can access the file now.', 'I can access the file.', '问题是用户无法访问文件。']) {
     assert.equal(explicitTaskFailure(text), false, text)
   }
 })
@@ -321,6 +321,21 @@ for (const discussionStyle of ['agent-led', 'sequential']) {
     })
     await workspace.refreshAgents()
     const group = workspace.createGroup({ name: 'Contradictory failure', agentKinds: ['codex'], workdir: directory, allowWrite: false })
+    const controller = await runDiscussion(workspace, group, { discussionStyle, maxRounds: 4 })
+    assert.notEqual(new RunLedger({ storagePath: ledger.storagePath }).get(controller.runId).status, 'completed')
+  })
+
+  test(`Natural ${discussionStyle} rejects permission-denied output with a contradictory receipt`, async t => {
+    const { directory, options } = fixture()
+    t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+    const ledger = new RunLedger({ storagePath: path.join(directory, 'run-ledger.json') })
+    const workspace = new LocalWorkspace({
+      ...options, runLedger: ledger, naturalAgentResponses: true,
+      runAgent: async (_agent, prompt) => ({ outcome: 'completed', text: naturalPhase(prompt) === 'proposal'
+        ? 'Initial attempt.' : decisionReply('Permission denied; I cannot access the required file.') }),
+    })
+    await workspace.refreshAgents()
+    const group = workspace.createGroup({ name: 'Permission denied with receipt', agentKinds: ['codex'], workdir: directory, allowWrite: false })
     const controller = await runDiscussion(workspace, group, { discussionStyle, maxRounds: 4 })
     assert.notEqual(new RunLedger({ storagePath: ledger.storagePath }).get(controller.runId).status, 'completed')
   })
