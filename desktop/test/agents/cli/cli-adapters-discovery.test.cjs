@@ -94,18 +94,21 @@ test('a WorkBuddy build that ships only the lite bundle is probed through it', a
 
 test('capability timeouts retry once and remain inconclusive when both attempts time out', async () => {
   for (const recover of [true, false]) {
-    const timeouts = []
+    const timeouts = new Map()
     const result = await probeAgentCapabilities('pi', '/test/timeout-pi', {
       env: {},
       execFileFn: async (_command, _args, options) => {
-        timeouts.push(options.timeout)
-        if (!recover || timeouts.length === 1) {
+        const key = _args.includes('--mode') ? 'json' : 'help'
+        const probeTimeouts = timeouts.get(key) || []
+        probeTimeouts.push(options.timeout)
+        timeouts.set(key, probeTimeouts)
+        if (!recover || probeTimeouts.length === 1) {
           throw Object.assign(new Error('timeout'), { killed: true })
         }
         return { stdout: argsForProbe(_command, _args) }
       },
     })
-    assert.deepEqual(timeouts, [8000, 16000])
+    assert.deepEqual([...timeouts.values()], [[8000, 16000], [8000, 16000]])
     assert.equal(result.compatibilityState, recover ? 'compatible' : 'unknown')
     if (!recover) assert.equal(result.incompatibilityReason, 'LOCAL_AGENT_CAPABILITY_PROBE_TIMEOUT')
   }
@@ -113,7 +116,7 @@ test('capability timeouts retry once and remain inconclusive when both attempts 
 
 function argsForProbe(_command, args) {
   return args.includes('--mode')
-    ? '{"type":"session","id":"probe-session"}'
+    ? '{"type":"session","version":3,"id":"probe-session"}'
     : '--mode json --print --session --tools --approve --no-approve'
 }
 
@@ -169,7 +172,8 @@ test('Pi detection rejects same-name programs and CLIs missing required permissi
     const [agent] = await detectAgents({
       env: {},
       resolveExecutableFn: async kind => kind === 'pi' ? `/test/pi-${name}/pi` : null,
-      execFileFn: async (_command, args) => ({ stdout: args[0] === '--version' ? '0.84.2' : help }),
+      execFileFn: async (_command, args) => ({ stdout: args[0] === '--version'
+        ? '0.84.2' : args.includes('--mode') ? argsForProbe(_command, args) : help }),
     })
     assert.equal(agent.kind, 'pi')
     assert.equal(agent.compatibilityState, expected, name)
@@ -177,6 +181,48 @@ test('Pi detection rejects same-name programs and CLIs missing required permissi
       assert.equal(agent.incompatibilityReason, 'LOCAL_AGENT_REQUIRED_CAPABILITY_MISSING', name)
     }
   }
+})
+
+test('Pi detection rejects malformed JSON events even when help claims compatibility', async () => {
+  for (const output of [
+    'not JSON',
+    '{"type":"session","id":"missing-version"}',
+    '{"type":"message","version":3,"id":"wrong-event"}',
+  ]) {
+    const result = await probeAgentCapabilities('pi', '/test/pi', {
+      env: {},
+      execFileFn: async (_command, args) => ({ stdout: args.includes('--mode')
+        ? output : argsForProbe(_command, args) }),
+    })
+    assert.equal(result.compatibilityState, 'incompatible')
+    assert.equal(result.incompatibilityProbe, 'pi-json')
+  }
+})
+
+test('Pi protocol alone does not mark an unidentified version compatible', async () => {
+  const [agent] = await detectAgents({
+    env: {},
+    resolveExecutableFn: async kind => kind === 'pi' ? '/test/pi' : null,
+    execFileFn: async (command, args) => ({ stdout: args[0] === '--version'
+      ? 'unrelated program' : argsForProbe(command, args) }),
+  })
+  assert.equal(agent.compatibilityState, 'unknown')
+  assert.equal(agent.version, '')
+})
+
+test('Pi JSON probe closes stdin before waiting for a session event', { skip: process.platform === 'win32' }, async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-pi-probe-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const launcher = executable(directory, 'pi', `
+if (process.argv.includes('--help')) {
+  console.log('--mode json --print --session --tools --approve --no-approve')
+} else {
+  process.stdin.resume()
+  process.stdin.on('end', () => console.log(JSON.stringify({ type: 'session', version: 3, id: 'fixture' })))
+}
+`)
+  const result = await within(probeAgentCapabilities('pi', launcher), 3000)
+  assert.equal(result.compatibilityState, 'compatible')
 })
 
 test('Agent discovery scans independent Agent kinds concurrently', async () => {

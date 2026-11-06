@@ -378,11 +378,13 @@ async function probeAgentCapabilities(kind, executable, options = {}) {
     for (const timeout of probe.timeout ? [probe.timeout] : [8000, 16000]) {
       try {
         const command = prepareCommandFn(executable, probe.args, options)
-        const result = await execFileFn(command.command, command.args, {
+        const execution = execFileFn(command.command, command.args, {
           timeout,
           windowsHide: true,
           env: childEnv,
         })
+        if (probe.id === 'pi-json') execution.child?.stdin?.end()
+        const result = await execution
         return { probe, output: `${result.stdout || ''}\n${result.stderr || ''}` }
       } catch (error) {
         const timedOut = error?.killed === true || error?.code === 'ETIMEDOUT'
@@ -415,7 +417,8 @@ async function probeAgentCapabilities(kind, executable, options = {}) {
         incompatibilityProbe: probe.id,
       }
     }
-    if (probe.requiredText.some(value => !result.output.includes(value))) {
+    if (probe.requiredText.some(value => !result.output.includes(value))
+        || (probe.validateOutput && !probe.validateOutput(result.output))) {
       return {
         compatibilityState: 'incompatible',
         incompatibilityReason: 'LOCAL_AGENT_REQUIRED_CAPABILITY_MISSING',
@@ -490,6 +493,8 @@ async function inspectAgentCandidate(kind, executable, options, childEnv) {
   const [capabilityCompatibility, acpAvailable] = await Promise.all([capabilityTask, acpTask])
   const compatibility = capabilityCompatibility.compatibilityState !== 'compatible'
     ? { ...versionCompatibility, ...capabilityCompatibility }
+    : kind === 'pi' && !version
+      ? { ...versionCompatibility, compatibilityState: 'unknown', incompatibilityProbe: '' }
     : {
         ...versionCompatibility,
         compatibilityState: 'compatible',

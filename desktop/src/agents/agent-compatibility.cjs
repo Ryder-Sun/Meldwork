@@ -67,6 +67,11 @@ const AGENT_COMPATIBILITY = Object.freeze({
     probe('pi-cli', ['--help'], [
       '--mode', '--print', '--session', '--tools', '--approve', '--no-approve', 'json',
     ]),
+    probe('pi-json', [
+      '--mode', 'json', '--print', '--no-approve', '--tools', 'read,grep,find,ls',
+      '--no-session', '--no-extensions', '--no-skills', '--no-prompt-templates',
+      '--no-themes', '--no-context-files', '--offline',
+    ], [], piSessionEvent),
   ]),
   kimi: profile('0.19.2', '0.32.0', [
     probe('kimi-stream', ['--help'], [
@@ -110,6 +115,16 @@ const AGENT_COMPATIBILITY = Object.freeze({
     ]),
   ]),
 })
+
+function piSessionEvent(output) {
+  return String(output || '').split(/\r?\n/).some(line => {
+    try {
+      const event = JSON.parse(line)
+      return event?.type === 'session' && Number.isInteger(event.version)
+        && event.version > 0 && typeof event.id === 'string' && event.id.length > 0
+    } catch { return false }
+  })
+}
 
 function probe(id, args, requiredText, validateOutput = null, timeout = null) {
   return Object.freeze({
