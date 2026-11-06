@@ -177,6 +177,20 @@ test('OpenCode does not report success when an error follows its terminal event'
   }
 })
 
+test('OpenCode does not report success when it exits nonzero after a terminal event', async t => {
+  if (process.platform === 'win32') return t.skip('uses a POSIX executable fixture')
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-cloud-opencode-exit-'))
+  const originalPath = process.env.PATH
+  fs.writeFileSync(path.join(directory, 'opencode'), `#!/usr/bin/env node\nprocess.stdout.write(JSON.stringify({type:'text',part:{type:'text',text:'Done'}})+'\\n')\nprocess.stdout.write(JSON.stringify({type:'step_finish',part:{reason:'stop'}})+'\\n')\nsetTimeout(()=>process.exit(1), 30)\n`, { mode: 0o755 })
+  process.env.PATH = `${directory}${path.delimiter}${originalPath}`
+  try {
+    assert.deepEqual(await runAgent('opencode', 'hello'), { outcome: 'failed', failure: { code: 'REMOTE_AGENT_FAILED' } })
+  } finally {
+    process.env.PATH = originalPath
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
+})
+
 test('OpenCode does not report success when output exceeds the response limit', async t => {
   if (process.platform === 'win32') return t.skip('uses a POSIX executable fixture')
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-cloud-opencode-limit-'))

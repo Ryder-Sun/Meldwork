@@ -278,6 +278,7 @@ function runAgent(agentId, prompt, sessionRef = '', signal = null) {
     const stdoutDecoder = new StringDecoder('utf8')
     let terminalResult = null
     let terminalTimer = null
+    let terminalStopRequested = false
     let forceTimer = null
     let cancelled = false
     let invalidOutput = false
@@ -313,6 +314,7 @@ function runAgent(agentId, prompt, sessionRef = '', signal = null) {
       if (agentId === 'opencode' && !terminalResult && !cancelled) {
         terminalResult = parseAgentOutput(agentId, stdout)
         if (terminalResult) terminalTimer = setTimeout(() => {
+          terminalStopRequested = true
           child.kill('SIGTERM')
           forceTimer = setTimeout(() => child.kill('SIGKILL'), 1500)
         }, 1500)
@@ -325,7 +327,7 @@ function runAgent(agentId, prompt, sessionRef = '', signal = null) {
       resolve(cancelled ? { outcome: 'cancelled' }
         : { outcome: 'failed', failure: { code: 'REMOTE_AGENT_UNAVAILABLE' } })
     })
-    child.once('close', code => {
+    child.once('close', (code, signalName) => {
       if (terminalTimer) clearTimeout(terminalTimer)
       if (forceTimer) clearTimeout(forceTimer)
       signal?.removeEventListener('abort', cancel)
@@ -338,7 +340,8 @@ function runAgent(agentId, prompt, sessionRef = '', signal = null) {
       if (invalidOutput || (agentId === 'opencode' && hasOpenCodeError(pendingOutputLine))) {
         return resolve({ outcome: 'failed', failure: { code: 'REMOTE_AGENT_RESPONSE_INVALID' } })
       }
-      if (terminalResult) return resolve(terminalResult)
+      if (terminalResult && (code === 0 || (terminalStopRequested
+          && ['SIGTERM', 'SIGKILL'].includes(signalName)))) return resolve(terminalResult)
       if (code !== 0) return resolve({ outcome: 'failed', failure: { code: 'REMOTE_AGENT_FAILED' } })
       resolve(parseAgentOutput(agentId, stdout)
         || { outcome: 'failed', failure: { code: 'REMOTE_AGENT_RESPONSE_INVALID' } })
