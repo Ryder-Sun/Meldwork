@@ -31,6 +31,7 @@ export default {
     'error.workflowProtocolUnsupported': '当前任务图暂不支持 V4 讨论协议，请选择兼容的工作流。',
     'connectorPackages.title': 'Connector 管理',
     'connectorPackages.sessionInvalid': 'Connector 的会话引用无效，请开始新对话或检查其配置。',
+    'connectorPackages.upstreamIncompatible': '本地 Agent 版本不在此 Connector 支持的范围内，请检查 Agent 和 Connector 版本。',
     'connectorPackages.import': '导入 Connector',
     'connectorPackages.empty': '尚未导入 Connector。',
     'connectorPackages.approve': '查看并批准',

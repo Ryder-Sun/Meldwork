@@ -31,6 +31,7 @@ export default {
     'error.workflowProtocolUnsupported': 'Task graphs do not yet support the V4 discussion protocol. Choose a compatible workflow.',
     'connectorPackages.title': 'Manage Connectors',
     'connectorPackages.sessionInvalid': 'The Connector session reference is invalid. Start a new conversation or check its configuration.',
+    'connectorPackages.upstreamIncompatible': 'The local Agent version is outside this Connector’s supported range. Check the Agent and Connector versions.',
     'connectorPackages.import': 'Import Connector',
     'connectorPackages.empty': 'No Connectors imported.',
     'connectorPackages.approve': 'Review and approve',

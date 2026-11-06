@@ -448,6 +448,18 @@ test('untrusted and incompatible local Manifests fail closed', (t) => {
   assert.equal(semanticVersionFrom('not a version'), '')
 })
 
+test('rejects an upstream version outside the manifest range before storing credentials or an instance', t => {
+  const { connectors, instanceStore, credentialStoragePath } = fixture(t, { seedSample: true })
+  connectors.refresh([codex('codex-cli 1000000.0.0')])
+  assert.throws(() => connectors.configure({
+    manifestId: SAMPLE_CREDENTIAL_AGENT_CONNECTOR_MANIFEST.manifestId,
+    label: 'Incompatible account',
+    credentials: { 'openai-api-key': 'connector-secret' },
+  }), { code: 'AGENT_CONNECTOR_UPSTREAM_INCOMPATIBLE' })
+  assert.deepEqual(instanceStore.list(), [])
+  assert.equal(fs.existsSync(credentialStoragePath), false)
+})
+
 test('restores multiple credential-bearing accounts and drops invalid references', async (t) => {
   const {
     calls, connectors, createInstanceStore, credentialStoragePath, directory,

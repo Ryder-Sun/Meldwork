@@ -7,6 +7,7 @@ const { createHttpOutboundPayload } = require('../../collaboration/outbound-payl
 const {
   createAgentConnectorManifest,
   isSemanticVersion,
+  isUpstreamVersionCompatible,
   serializeAgentConnectorManifest,
 } = require('./agent-connector-manifest.cjs')
 const { AgentConnectorRegistry } = require('./agent-connector-registry.cjs')
@@ -487,6 +488,10 @@ class LocalAgentConnectors {
       && semanticVersionFrom(agent.version)
     ))
     if (!upstream) fail('AGENT_CONNECTOR_UPSTREAM_UNAVAILABLE')
+    const { trust: _trust, ...versionedManifest } = manifest
+    if (!isUpstreamVersionCompatible(versionedManifest, semanticVersionFrom(upstream.version))) {
+      fail('AGENT_CONNECTOR_UPSTREAM_INCOMPATIBLE')
+    }
     const created = this.instanceStore.create({
       manifestId: manifest.manifestId,
       connectorId: manifest.connectorId,
