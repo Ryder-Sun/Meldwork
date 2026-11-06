@@ -89,6 +89,25 @@ test('Pi retains more than 32 environment references from its native models conf
   assert.ok(keys.includes('PI_CUSTOM_39'))
 })
 
+test('Pi model readiness resolves native credential references without running commands or using another provider', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-pi-provider-readiness-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const root = path.join(home, '.pi', 'agent'); fs.mkdirSync(root, { recursive: true })
+  const models = path.join(root, 'models.json')
+  fs.writeFileSync(path.join(root, 'settings.json'), JSON.stringify({ defaultProvider: 'selected' }))
+  const write = key => fs.writeFileSync(models, JSON.stringify({ providers: {
+    selected: { apiKey: key }, other: { apiKey: 'unrelated-secret' },
+  } }))
+  write('${PREFIX}_$SUFFIX')
+  assert.equal(nativeCredentialState('pi', { home, env: { PREFIX: 'prefix' } }).state, 'unknown')
+  assert.equal(nativeCredentialState('pi', { home, env: { PREFIX: 'prefix', SUFFIX: 'suffix' } }).state, 'ready')
+  write('!touch ' + path.join(home, 'should-not-exist'))
+  assert.equal(nativeCredentialState('pi', { home, env: {} }).state, 'unknown')
+  assert.equal(fs.existsSync(path.join(home, 'should-not-exist')), false)
+  write('$$literal-$!credential')
+  assert.equal(nativeCredentialState('pi', { home, env: {} }).state, 'ready')
+})
+
 test('Zcode captures credentials only for configured native models', async t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-zcode-declared-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))

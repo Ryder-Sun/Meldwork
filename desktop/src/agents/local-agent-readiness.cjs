@@ -198,6 +198,36 @@ function openCodeAuthContainsCredential(filename) {
   } catch { return false }
 }
 
+function piModelsContainCredential(root, env) {
+  try {
+    const contents = readCredentialFile(path.join(root, 'models.json'))
+    const config = contents && JSON5.parse(contents)
+    const providers = config?.providers
+    if (!providers || typeof providers !== 'object' || Array.isArray(providers)) return false
+    let selected = ''
+    try {
+      const settings = readCredentialFile(path.join(root, 'settings.json'))
+      const parsed = settings && JSON5.parse(settings)
+      if (typeof parsed?.defaultProvider === 'string') selected = parsed.defaultProvider
+    } catch { return false }
+    const candidates = selected ? [providers[selected]] : Object.values(providers)
+    return candidates.some(provider => {
+      const value = provider?.apiKey
+      if (typeof value !== 'string' || value.startsWith('!')) return false
+      let missing = false
+      const resolved = value.replace(/\$\$|\$!|\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g,
+        (match, braced, simple) => {
+          if (match === '$$') return '$'
+          if (match === '$!') return '!'
+          const part = env[braced || simple]
+          if (typeof part !== 'string' || !part) { missing = true; return '' }
+          return part
+        })
+      return !missing && credentialLiteral(resolved)
+    })
+  } catch { return false }
+}
+
 function textContainsCredential(filename) {
   try {
     return readCredentialFile(filename).split(/\r?\n/).some((line) => {
@@ -562,7 +592,6 @@ function nativeCredentialState(kind, options = {}) {
     openclaw: [path.join(home, '.openclaw', 'openclaw.json')],
     pi: [
       path.join(piHome, 'auth.json'),
-      path.join(piHome, 'models.json'),
       ...(env.PI_CODING_AGENT_DIR ? [] : [
         path.join(home, '.pi', 'auth.json'),
         path.join(home, '.pi', 'config.json'),
@@ -581,7 +610,8 @@ function nativeCredentialState(kind, options = {}) {
     opencode: [openCodeAuth],
     opencodereview: [path.join(home, '.opencodereview', 'config.json')],
   }[kind] || []
-  if (jsonFiles.some(jsonContainsCredential) || (kind === 'opencode' && openCodeAuthContainsCredential(openCodeAuth))) {
+  if (jsonFiles.some(jsonContainsCredential) || (kind === 'pi' && piModelsContainCredential(piHome, env))
+      || (kind === 'opencode' && openCodeAuthContainsCredential(openCodeAuth))) {
     return { state: 'ready', source: 'native-credential' }
   }
 
