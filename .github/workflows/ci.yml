@@ -39,6 +39,9 @@ jobs:
       - name: Test selected native configuration directories
         run: node --test desktop/test/agents/native-config-directory.test.cjs
 
+      - name: Test Skills in selected native directories
+        run: node --test --test-name-pattern="selected native directories control" desktop/test/skills/local-skill-catalog.test.cjs
+
       - name: Test Connector package storage
         run: node --test --test-name-pattern="persists the complete trust lifecycle|reimporting a removed package|uncertain audit append|upgrades one installed Connector" desktop/test/agents/connectors/agent-connector-package-store.test.cjs
 

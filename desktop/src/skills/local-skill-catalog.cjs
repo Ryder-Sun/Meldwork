@@ -163,12 +163,12 @@ function directoryEntryKind(entry, filename) {
   return ''
 }
 
-function globalRoots(kind, home) {
-  return (AGENT_SKILL_ROOTS[kind] || []).map(parts => ({
-    directory: path.join(home, ...parts),
-    boundary: path.join(home, ...parts),
-    namespace: 'global',
-  }))
+function globalRoots(kind, home, configDirectory = '') {
+  return (AGENT_SKILL_ROOTS[kind] || []).map(parts => {
+    const directory = configDirectory && ['codex', 'hermes', 'claude'].includes(kind) && parts[0] === `.${kind}`
+      ? path.join(configDirectory, ...parts.slice(1)) : path.join(home, ...parts)
+    return { directory, boundary: directory, namespace: 'global' }
+  })
 }
 
 function safePluginRoot(installLocation, ...parts) {
@@ -211,8 +211,8 @@ function workBuddyPluginRoots(home) {
   return roots
 }
 
-function codexPluginRoots(home) {
-  const cacheRoot = path.join(home, '.codex', 'plugins', 'cache')
+function codexPluginRoots(home, configDirectory = '') {
+  const cacheRoot = path.join(configDirectory || path.join(home, '.codex'), 'plugins', 'cache')
   const roots = []
   const visited = new Set()
   let directoryCount = 0
@@ -260,9 +260,9 @@ function codexPluginRoots(home) {
   ))
 }
 
-function skillRoots(kind, home) {
-  const roots = globalRoots(kind, home)
-  if (kind === 'codex') roots.push(...codexPluginRoots(home))
+function skillRoots(kind, home, configDirectory = '') {
+  const roots = globalRoots(kind, home, configDirectory)
+  if (kind === 'codex') roots.push(...codexPluginRoots(home, configDirectory))
   if (kind === 'workbuddy') roots.push(...workBuddyPluginRoots(home))
   return roots
 }
@@ -352,10 +352,11 @@ function copyResult(result) {
 }
 
 class LocalSkillCatalog {
-  constructor({ home = os.homedir(), now = Date.now, cacheTtlMs = DEFAULT_CACHE_TTL_MS } = {}) {
+  constructor({ home = os.homedir(), now = Date.now, cacheTtlMs = DEFAULT_CACHE_TTL_MS, configDirectoryForKind = () => '' } = {}) {
     this.home = path.resolve(String(home || os.homedir()))
     this.now = now
     this.cacheTtlMs = cacheTtlMs
+    this.configDirectoryForKind = configDirectoryForKind
     this.cache = new Map()
   }
 
@@ -368,7 +369,8 @@ class LocalSkillCatalog {
     const cached = this.cache.get(targetKind)
     if (cached && now < cached.expiresAt) return cached.result
 
-    const skills = collectSkills(targetKind, skillRoots(targetKind, this.home)).sort(compareSkills)
+    const configDirectory = this.configDirectoryForKind(targetKind)
+    const skills = collectSkills(targetKind, skillRoots(targetKind, this.home, configDirectory)).sort(compareSkills)
     const result = {
       supported: true,
       total: skills.length,

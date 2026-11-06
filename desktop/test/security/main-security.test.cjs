@@ -183,7 +183,9 @@ test('native Agent configuration selection is validated and used for execution',
   const get = harness.ipcHandlers.get('local-agent-native-config:get')
   const clear = harness.ipcHandlers.get('local-agent-native-config:clear')
   await assert.rejects(() => choose(harness.event(), 'unsupported'), { message: 'LOCAL_NATIVE_CONFIG_INVALID' })
+  const invalidations = harness.skillCatalogInstances[0].invalidateCalls
   const chosen = await choose(harness.event(), 'hermes')
+  assert.equal(harness.skillCatalogInstances[0].invalidateCalls, invalidations + 1)
   assert.equal(chosen.directory, fs.realpathSync(native))
   assert.equal((await get(harness.event(), 'hermes')).directory, chosen.directory)
   await harness.installerInstances[0].input.detectAgents()

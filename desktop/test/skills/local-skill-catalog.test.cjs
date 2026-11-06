@@ -59,6 +59,28 @@ test('supported Agent scans stay isolated and return targetKind-safe global meta
   assert.equal(JSON.stringify(listLocalAgentSkills('codex', { home })).includes(home), false)
 })
 
+test('selected native directories control Skill discovery and Codex plugin lookup', t => {
+  const home = fixture(t)
+  const selected = {}
+  for (const kind of ['hermes', 'codex', 'claude']) {
+    writeSkill(path.join(home, `.${kind}`, 'skills'), `${kind}-old`)
+    selected[kind] = path.join(home, `selected-${kind}`)
+    writeSkill(path.join(selected[kind], 'skills'), `${kind}-new`)
+  }
+  writeSkill(path.join(selected.codex, 'plugins', 'cache', 'vendor', 'plugin', '1.0.0', 'skills'), 'plugin-skill')
+  writeSkill(path.join(home, '.agents', 'skills'), 'shared')
+  const catalog = new LocalSkillCatalog({ home, configDirectoryForKind: kind => selected[kind] || '' })
+  assert.deepEqual(catalog.list('hermes').skills.map(skill => skill.slug), ['hermes-new'])
+  assert.deepEqual(catalog.list('claude').skills.map(skill => skill.slug).sort(), ['claude-new', 'shared'])
+  assert.deepEqual(catalog.list('codex').skills.map(skill => skill.slug).sort(), ['codex-new', 'plugin-skill', 'shared'])
+  const skill = catalog.list('hermes').skills[0]
+  assert.ok(catalog.resolveSelections('hermes', [skill])[0].sourceDirectory.startsWith(fs.realpathSync(selected.hermes)))
+  selected.hermes = ''
+  catalog.invalidate('hermes')
+  assert.deepEqual(catalog.list('hermes').skills.map(item => item.slug), ['hermes-old'])
+  assert.throws(() => catalog.resolveSelections('hermes', [skill]), { message: 'LOCAL_SKILL_SELECTION_INVALID' })
+})
+
 test('frontmatter names are optional, sanitized, bounded, and deduplicated by coordinate', (t) => {
   const home = fixture(t)
   writeSkill(path.join(home, '.codex', 'skills'), 'My Skill', [

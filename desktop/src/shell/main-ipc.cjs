@@ -456,6 +456,7 @@ function registerDesktopIpc(options) {
         throw error
       }
       installer.invalidateDetectionCache()
+      skillCatalog?.invalidate(kind)
       await refreshLocalAgentState()
       return { canceled: false, directory }
     })

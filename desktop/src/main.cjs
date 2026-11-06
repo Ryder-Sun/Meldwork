@@ -4,7 +4,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const { redactSecrets } = require('./security/secret-redaction.cjs')
 const { ensurePrivateDirectory } = require('./security/private-file.cjs')
-const { nativeConfigEnvironment } = require('./agents/native-config-directory.cjs')
+const { NATIVE_CONFIG_DIRECTORIES, nativeConfigEnvironment } = require('./agents/native-config-directory.cjs')
 const { AttachmentStore } = require('./attachments/attachment-store.cjs')
 const { ContentBlobStore } = require('./attachments/content-blob-store.cjs')
 const { ContextPackStore } = require('./collaboration/context-pack-store.cjs')
@@ -836,7 +836,13 @@ if (!hasSingleInstanceLock) {
       attachmentStore = null
     }
     attachments.registerProtocol(protocol)
-    skillCatalog = new LocalSkillCatalog({ home: app.getPath('home') })
+    skillCatalog = new LocalSkillCatalog({
+      home: app.getPath('home'),
+      configDirectoryForKind: kind => {
+        const key = NATIVE_CONFIG_DIRECTORIES[kind]?.key
+        return key ? nativeConfigEnvironment(kind, workspace?.state.agentPreferences)[key] || '' : ''
+      },
+    })
     installer = new AgentInstaller({
       detectAgents: detectLocalAgents,
       listSkills: kind => skillCatalog.list(kind),
