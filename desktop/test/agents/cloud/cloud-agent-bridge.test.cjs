@@ -117,6 +117,42 @@ function response(value, ok = true, status = 200) {
   }
 }
 
+test('does not send to a removed or changed cloud bridge after outbound review', async t => {
+  for (const transport of ['bridge', 'ssh-tunnel', 'ssh']) {
+    for (const change of ['remove', 'address', 'agent', 'abort']) {
+      await t.test(`${transport}: ${change}`, async t => {
+        const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-cloud-target-'))
+        t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+        let sent = false
+        const store = new CloudAgentBridgeStore({
+          storagePath: path.join(directory, 'bridges.json'),
+          fetch: async () => { sent = true; return response({ text: 'reply', outcome: 'completed' }) },
+        })
+        store.sshCommand = async () => { sent = true; return { stdout: '' } }
+        const record = store.normalizeRecord({
+          bridgeId: 'cloud-bridge-0123456789abcdef01234567', transport,
+          address: transport === 'bridge' ? 'https://203.0.113.10' : '203.0.113.10',
+          endpoint: 'http://127.0.0.1:45678', available: true, agents: manifest().agents,
+        })
+        record.available = true
+        store.records = [record]
+        const controller = new AbortController()
+        await assert.rejects(store.run({
+          bridgeId: record.bridgeId, agentId: 'codex', prompt: 'hello',
+          permissionMode: 'read-only', signal: controller.signal,
+          onOutboundPayload: async () => {
+            if (change === 'remove') store.remove(record.bridgeId)
+            if (change === 'address') record.address = '203.0.113.11'
+            if (change === 'agent') record.agents[0].available = false
+            if (change === 'abort') controller.abort()
+          },
+        }), { code: change === 'abort' ? 'LOCAL_AGENT_EXECUTION_STOPPED' : 'CLOUD_AGENT_BRIDGE_NOT_FOUND' })
+        assert.equal(sent, false)
+      })
+    }
+  }
+})
+
 function manifest() {
   return {
     protocol: 'meldwork-agent-bridge',

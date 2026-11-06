@@ -693,7 +693,11 @@ class CloudAgentBridgeStore {
     const agent = record.agents.find(item => item.id === agentId)
     if (!agent) fail('CLOUD_AGENT_BRIDGE_AGENT_NOT_FOUND')
     if (agent.available === false) fail('CLOUD_AGENT_BRIDGE_AGENT_UNAVAILABLE')
-    if (record.transport === 'ssh') return this.runSsh(record, agent, input)
+    const target = {
+      transport: record.transport, address: record.address, endpoint: record.endpoint,
+      manifestId: manifestFor(record, agent).manifestId,
+    }
+    if (target.transport === 'ssh') return this.runSsh(record, agent, input, target)
     const body = {
       prompt: input.prompt,
       sessionRef: input.sessionRef || null,
@@ -704,12 +708,13 @@ class CloudAgentBridgeStore {
     const serializedBody = JSON.stringify(body)
     await input.onOutboundPayload?.(createHttpOutboundPayload({
       prompt: input.prompt,
-      destination: record.transport === 'ssh-tunnel' ? '' : record.address,
-      tunneled: record.transport === 'ssh-tunnel',
+      destination: target.transport === 'ssh-tunnel' ? '' : target.address,
+      tunneled: target.transport === 'ssh-tunnel',
       wireBytes: Buffer.from(serializedBody, 'utf8'),
     }))
+    this.assertRunTarget(record, agent.id, target, input.signal)
     return this.request(`/v1/agents/${encodeURIComponent(agentId)}/runs`, {
-      address: record.transport === 'ssh-tunnel' ? record.endpoint : record.address,
+      address: target.transport === 'ssh-tunnel' ? target.endpoint : target.address,
       method: 'POST',
       signal: input.signal,
       timeoutMs: this.runTimeoutMs,
@@ -719,12 +724,24 @@ class CloudAgentBridgeStore {
     })
   }
 
-  async runSsh(record, agent, input) {
+  assertRunTarget(record, agentId, target, signal) {
+    if (signal?.aborted) fail('LOCAL_AGENT_EXECUTION_STOPPED')
+    const current = this.records.find(item => item.bridgeId === record.bridgeId)
+    const agent = current?.agents.find(item => item.id === agentId)
+    if (current !== record || !current.available || !agent || agent.available === false
+        || current.transport !== target.transport || current.address !== target.address
+        || current.endpoint !== target.endpoint || manifestFor(current, agent).manifestId !== target.manifestId) {
+      fail('CLOUD_AGENT_BRIDGE_NOT_FOUND')
+    }
+  }
+
+  async runSsh(record, agent, input, target) {
     if (agent.id !== 'codex' || input.permissionMode !== 'read-only') {
       fail('CLOUD_AGENT_SSH_PERMISSION_UNSUPPORTED')
     }
     await input.onOutboundPayload?.(createSshOutboundPayload({ prompt: input.prompt }))
-    const result = await this.sshCommand(record.address, SSH_CODEX_COMMAND, input.prompt, input.signal)
+    this.assertRunTarget(record, agent.id, target, input.signal)
+    const result = await this.sshCommand(target.address, SSH_CODEX_COMMAND, input.prompt, input.signal)
     const messages = []
     let sessionRef = ''
     for (const line of String(result.stdout || '').split('\n')) {
