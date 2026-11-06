@@ -228,6 +228,9 @@ function identifyAgentVersion(kind, outputs, options = {}) {
   const lines = normalizedVersionLines(outputs)
   const identified = identifiedVersionCandidate(kind, lines)
   if (identified) return identified
+  // A bare version must not resolve contradictory or ambiguous product lines.
+  if (lines.some(line => (AGENT_VERSION_IDENTITIES[kind] || []).some(identity => identity.test(line))
+      && versionMatches(line).length)) return null
 
   if (!executableIdentifiesAgent(kind, options.executable)) return null
   return uniqueVersionCandidate(lines.filter(line => (

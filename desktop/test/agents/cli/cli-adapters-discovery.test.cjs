@@ -1033,7 +1033,7 @@ test('Agent detection accepts ambiguous product versions after successful capabi
       }
     },
     execFileFn: async () => ({
-      stdout: 'Kimi Code 0.19.2\nKimi Code 0.20.0\n',
+      stdout: 'Kimi Code 0.19.2\nKimi Code 0.20.0\n0.19.2\n',
       stderr: '',
     }),
   })
