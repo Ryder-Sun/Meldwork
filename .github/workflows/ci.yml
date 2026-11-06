@@ -8,6 +8,24 @@ permissions:
   contents: read
 
 jobs:
+  private-file-portability:
+    name: Private file portability (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22.12"
+
+      - name: Test private file persistence
+        run: node --test desktop/test/security/private-file.test.cjs
+
   frontend:
     name: Frontend tests and builds
     runs-on: ubuntu-latest

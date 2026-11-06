@@ -52,7 +52,7 @@ test('private file writes replace contents atomically with restrictive permissio
   atomicWritePrivateFile(filename, 'second')
 
   assert.equal(fs.readFileSync(filename, 'utf8'), 'second')
-  assert.equal(fs.statSync(filename).mode & 0o777, 0o600)
+  if (process.platform !== 'win32') assert.equal(fs.statSync(filename).mode & 0o777, 0o600)
   assert.deepEqual(fs.readdirSync(path.dirname(filename)), ['private.json'])
 })
 
