@@ -337,6 +337,41 @@ test('HTTP timeout closes a response body that stops streaming', async t => {
   })
 })
 
+test('revoking an HTTP Connector closes an active streaming response', async t => {
+  let started
+  let closed
+  const responseStarted = new Promise(resolve => { started = resolve })
+  const responseClosed = new Promise(resolve => { closed = resolve })
+  const server = http.createServer((_request, response) => {
+    response.on('close', closed)
+    response.writeHead(200, { 'content-type': 'application/json' })
+    response.write('{"text":"')
+    started()
+  })
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  t.after(() => server.close())
+  const url = `http://127.0.0.1:${server.address().port}/run`
+  const { connectors, directory, packageStore } = fixture(t, (_endpoint, options) => fetch(url, options))
+  const pkg = httpPackage()
+  install(packageStore, pkg)
+  connectors.refresh([])
+  connectors.configure({ manifestId: pkg.manifest.manifestId, label: 'Streaming account',
+    credentials: { 'access-token': 'private-token' } })
+  const [agent] = connectors.detectAgents()
+  const pending = connectors.run(agent, 'request', directory, {
+    runId: 'run-stream-revoke', agentRunId: 'agent-stream-revoke', sandbox: 'read-only',
+  })
+  await responseStarted
+  connectors.revokePackage(pkg.packageId)
+  const result = await pending
+  assert.equal(result.outcome, 'failed')
+  assert.deepEqual(result.failure, { code: 'AGENT_CONNECTOR_HTTP_TRUST_CHANGED', category: 'unknown', retryable: false })
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('response not closed')), 2000)
+    responseClosed.then(() => { clearTimeout(timer); resolve() })
+  })
+})
+
 for (const cancel of [false, true]) test(`stopping an HTTP Connector with cancel=${cancel} does not claim remote cancellation`, async t => {
   let started
   const requestStarted = new Promise(resolve => { started = resolve })
