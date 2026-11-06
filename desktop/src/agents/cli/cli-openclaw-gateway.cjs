@@ -163,6 +163,8 @@ async function verifyGatewayHealth({
   gatewayPort,
   signal,
   workdir,
+  spawnHealth = spawn,
+  terminateHealth = terminateGateway,
 }) {
   if (!gatewayChildAlive(gatewayChild)) throw gatewayStartError()
   const args = [
@@ -173,7 +175,7 @@ async function verifyGatewayHealth({
   ]
   let healthChild
   try {
-    healthChild = spawn(executable, args, {
+    healthChild = spawnHealth(executable, args, {
       cwd: path.resolve(workdir),
       detached: process.platform !== 'win32',
       env,
@@ -206,12 +208,12 @@ async function verifyGatewayHealth({
       settled = true
       cleanup()
       const stopHealth = error && gatewayChildAlive(healthChild)
-        ? terminateGateway(healthChild)
+        ? terminateHealth(healthChild)
         : Promise.resolve()
-      stopHealth.catch(() => {}).then(() => {
+      stopHealth.then(() => {
         if (error) reject(error)
         else resolve()
-      })
+      }, reject)
     }
     const onData = (chunk) => {
       stdoutBytes += chunk.length
@@ -314,4 +316,4 @@ async function withOpenClawGateway(options, callback) {
   throw gatewayStartError()
 }
 
-module.exports = { withOpenClawGateway }
+module.exports = { withOpenClawGateway, verifyGatewayHealth }

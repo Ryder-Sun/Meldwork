@@ -188,6 +188,25 @@ test('startup migration rejects an oversized config before parsing it', (t) => {
   })
 })
 
+test('Gateway health termination failure is not hidden by cancellation', async () => {
+  const { EventEmitter } = require('node:events')
+  const { PassThrough } = require('node:stream')
+  const { verifyGatewayHealth } = require('../../../src/agents/cli/cli-openclaw-gateway.cjs')
+  const gateway = new EventEmitter()
+  const health = new EventEmitter()
+  health.stdout = new PassThrough()
+  const signal = new AbortController()
+  const failure = Object.assign(new Error('LOCAL_AGENT_TERMINATION_FAILED'), { code: 'LOCAL_AGENT_TERMINATION_FAILED' })
+  const pendingExit = new Promise(() => {})
+  Object.defineProperty(failure, Symbol.for('meldwork.pending-process-exit'), { value: pendingExit })
+  const result = verifyGatewayHealth({ child: gateway, env: {}, executable: '/tmp/openclaw',
+    gatewayPort: 12345, workdir: '/tmp', signal: signal.signal,
+    spawnHealth: () => health, terminateHealth: async () => { throw failure } })
+  signal.abort()
+  await assert.rejects(result, error => error === failure
+    && error[Symbol.for('meldwork.pending-process-exit')] === pendingExit)
+})
+
 test('Gateway lifecycle retries setup before callback and closes the isolated process', async (t) => {
   const { withOpenClawGateway } = require('../../../src/agents/cli/cli-openclaw-gateway.cjs')
   const { directory, workdir } = fixture()
