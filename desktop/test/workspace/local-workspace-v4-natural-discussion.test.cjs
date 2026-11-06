@@ -98,6 +98,26 @@ test('a truncated peer review cannot approve or retain a discussion candidate', 
   assert.equal(runner.v4NaturalConsensus(group, controller, 'task'), null)
 })
 
+test('a peer failure without a receipt withdraws an already approved candidate', () => {
+  const messages = []
+  const runner = { ...naturalConsensusMethods, state: () => ({ messages }),
+    v4NaturalMessageMatchesBinding: () => true,
+    v4NaturalMessageContent: naturalDiscussionMethods.v4NaturalMessageContent }
+  const group = { id: 'group' }
+  const controller = { runId: 'run' }
+  const message = (kind, sequence, content, decision) => ({
+    id: `message-${sequence}`, groupId: 'group', threadRootId: 'task', role: 'agent',
+    agentKind: kind, turnSeq: sequence, content,
+    trace: { phase: 'discussion', runId: 'run', context: decision ? { taskDecision: decision } : {} },
+  })
+  messages.push(message('codex', 1, 'The answer is ready.', { status: 'completed', deliverables: ['answer'] }))
+  const candidate = runner.v4NaturalConsensus(group, controller, 'task')
+  messages.push(message('hermes', 2, 'Reviewed.', { status: 'completed', reviewedVersion: candidate.version }))
+  assert.equal(runner.v4NaturalConsensus(group, controller, 'task').approvedKinds.size, 2)
+  messages.push(message('hermes', 3, 'I checked the result.\nI cannot access the required file.'))
+  assert.equal(runner.v4NaturalConsensus(group, controller, 'task'), null)
+})
+
 test('failed and partial Agent runs cannot provide complete discussion contributions', () => {
   for (const status of ['failed', 'partial', 'cancelled', 'interrupted']) {
     assert.equal(naturalDiscussionMethods.v4NaturalMessageContent({
