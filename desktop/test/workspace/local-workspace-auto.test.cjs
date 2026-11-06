@@ -75,6 +75,31 @@ test('task graph rejects explicit failure even when no conclusion is required', 
   assert.equal(taskGraphMethods.taskGraphResultAccepted(node, result), false)
 })
 
+test('task graph counts only evidence recorded by the current run or trusted main process', () => {
+  const recorders = {
+    current: { kind: 'agent', runId: 'run', agentRunId: 'agent-run', agentKind: 'codex' },
+    otherRun: { kind: 'agent', runId: 'other', agentRunId: 'agent-run', agentKind: 'codex' },
+    otherAgent: { kind: 'agent', runId: 'run', agentRunId: 'agent-run', agentKind: 'hermes' },
+    trusted: { kind: 'system', actorId: 'meldwork-main' },
+    untrusted: { kind: 'system', actorId: 'other-system' },
+    indirect: { kind: 'system', actorId: 'meldwork-main' },
+    mismatch: { kind: 'system', actorId: 'meldwork-main' },
+  }
+  const runner = { ...taskGraphMethods,
+    v4ArtifactIdentity: () => ({ artifact: { contentRef: { hash: 'hash' }, producedBy: {
+      runId: 'run', agentRunId: 'agent-run', agentKind: 'codex',
+    } }, contentHash: 'hash' }),
+    v4EvidenceRecord: id => ({ recordedBy: recorders[id], subject: { type: 'artifact', artifactId: 'artifact' },
+      refs: id === 'indirect' ? [{ type: 'evidence', evidenceId: 'untrusted' }]
+        : [{ type: 'blob', contentHash: 'hash', contentRef: { hash: id === 'mismatch' ? 'other' : 'hash' } }] }),
+  }
+  const result = { message: { trace: { agentRunId: 'agent-run' } },
+    outcomeRefs: { artifactIds: ['artifact'], evidenceIds: Object.keys(recorders) } }
+  assert.deepEqual(runner.taskGraphVerifiedOutcomeRefs({ agentKind: 'codex' }, result, { runId: 'run' }), {
+    artifactIds: ['artifact'], evidenceIds: ['current', 'trusted'],
+  })
+})
+
 function challengeBindingInput(workspace, targetKinds, round, bodyHash = 'a'.repeat(64), runId = 'run-binding') {
   const controller = workspace.createRunController('auto', targetKinds, 'root-binding', 8, false)
   controller.runId = runId

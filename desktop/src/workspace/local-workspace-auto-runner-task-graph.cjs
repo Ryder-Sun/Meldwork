@@ -1,5 +1,6 @@
 // V3 task-graph runs. Kept so older runs can be resumed; new runs do not use it.
 const { createHash } = require('node:crypto')
+const { canonicalJson } = require('../collaboration/context-pack-records.cjs')
 const {
   appendBlackboardEntry,
   emptyCollaborationState,
@@ -105,12 +106,25 @@ const taskGraphMethods = {
         const identity = this.v4ArtifactIdentity(id)
         const producer = identity.artifact.producedBy
         if (producer.runId === controller?.runId && producer.agentRunId === result?.message?.trace?.agentRunId
-            && producer.agentKind === node.agentKind) artifacts.set(id, identity.contentHash)
+            && producer.agentKind === node.agentKind) artifacts.set(id, identity)
       } catch { /* Missing or invalid outcomes cannot satisfy acceptance. */ }
     }
     for (const id of new Set(result?.outcomeRefs?.evidenceIds || [])) {
       try {
-        if ([...artifacts].some(([artifactId, hash]) => this.v4EvidenceSupportsArtifact(id, artifactId, hash))) {
+        const record = this.v4EvidenceRecord(id)
+        const recorder = record.recordedBy || {}
+        const authorized = recorder.kind === 'system' ? recorder.actorId === 'meldwork-main'
+          : recorder.kind === 'agent' && recorder.runId === controller?.runId
+            && recorder.agentRunId === result?.message?.trace?.agentRunId
+            && recorder.agentKind === node.agentKind
+        const bound = [...artifacts].some(([artifactId, identity]) => (
+          (record.subject?.type === 'artifact' && record.subject.artifactId === artifactId
+            || record.refs.some(reference => reference.type === 'artifact' && reference.artifactId === artifactId))
+          && record.refs.some(reference => reference.type === 'blob'
+            && reference.contentHash === identity.contentHash
+            && canonicalJson(reference.contentRef) === canonicalJson(identity.artifact.contentRef))
+        ))
+        if (authorized && bound) {
           evidence.add(id)
         }
       } catch { /* Missing or invalid evidence cannot satisfy acceptance. */ }
