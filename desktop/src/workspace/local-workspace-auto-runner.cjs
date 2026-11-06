@@ -1,5 +1,7 @@
 const { createHash } = require('node:crypto')
 const { cleanText, normalizeKnowledgeBaseHint } = require('./local-workspace-inputs.cjs')
+const { normalizeSkillHint } = require('./local-workspace-message-records.cjs')
+const { canonicalJson } = require('../collaboration/context-pack-records.cjs')
 const { emptyCollaborationState } = require('../collaboration/collaboration-records.cjs')
 const { parseTaskGraphCursor } = require('../collaboration/task-graph-records.cjs')
 const { abortableDelay, terminalRunStatusForReason } = require('./local-workspace-auto-runner-support.cjs')
@@ -92,17 +94,18 @@ class LocalWorkspaceAutoRunner {
           rootSkillsByKind.set(kind, [])
           continue
         }
-        try {
-          const validated = await this.validateSkillSelections(kind, scoped)
-          rootSkillsByKind.set(
-            kind,
-            Array.isArray(validated) && validated.every(skill => skill?.targetKind === kind)
-              ? validated
-              : [],
-          )
-        } catch {
-          rootSkillsByKind.set(kind, [])
+        const validated = await this.validateSkillSelections(kind, scoped)
+        if (!Array.isArray(validated) || validated.length !== scoped.length
+            || validated.some((skill, index) => {
+              const before = normalizeSkillHint(scoped[index])
+              const after = normalizeSkillHint(skill)
+              if (!before || !after || ['targetKind', 'namespace', 'slug', 'name']
+                .some(field => before[field] !== after[field])) return true
+              return Boolean(before.snapshotId && canonicalJson(before) !== canonicalJson(after))
+            })) {
+          throw new Error('LOCAL_SKILL_SELECTION_INVALID')
         }
+        rootSkillsByKind.set(kind, validated)
       }
       let storedKnowledgeBaseHints = []
       try {

@@ -3820,6 +3820,36 @@ test('later group rounds use a compact Harness continuation instead of the boots
   assert.equal(codexReplies.at(-1).trace.context.promptChars, calls[2].prompt.length)
 })
 
+test('legacy group recovery fails closed when a selected Skill cannot be restored', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Recovered Skill', agentKinds: ['codex'], workdir: directory })
+  const skill = { targetKind: 'codex', namespace: 'global', slug: 'review', name: 'Review' }
+  workspace.state.messages.push({ id: 'recovered-root', groupId: group.id, role: 'user', skillHints: [skill] })
+  const controller = { targetKinds: ['codex'], orchestration: { version: 2 } }
+  const durable = { threadRootId: 'recovered-root', maxRounds: 2 }
+  let runs = 0
+  workspace.autoRunner.runRounds = async (_group, _controller, _root, _max, context) => {
+    runs += 1
+    assert.deepEqual(context.rootSkillsByKind.get('codex'), [skill])
+    return 'completed'
+  }
+  for (const [validate, code] of [
+    [async () => { throw new Error('LOCAL_SKILL_TRUST_REQUIRED') }, 'LOCAL_SKILL_TRUST_REQUIRED'],
+    [async () => [], 'LOCAL_SKILL_SELECTION_INVALID'],
+    [async () => [{ ...skill, slug: 'other' }], 'LOCAL_SKILL_SELECTION_INVALID'],
+  ]) {
+    workspace.validateSkillSelectionsFn = validate
+    await assert.rejects(workspace.autoRunner.resume(group, durable, controller), { message: code })
+    assert.equal(runs, 0)
+  }
+  workspace.validateSkillSelectionsFn = async (_kind, selections) => selections
+  assert.equal(await workspace.autoRunner.resume(group, durable, controller), 'completed')
+  assert.equal(runs, 1)
+})
+
 test('auto send rejects failed preflight without persisting a root or starting an Agent', async (t) => {
   const { directory, calls, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
