@@ -338,6 +338,31 @@ test('non-legacy Connector results cannot bypass event declarations with raw pro
   assert.deepEqual(result.progress, [{ title: 'undeclared tool call' }])
 })
 
+test('Connector session references must be bounded strings without control characters', async () => {
+  for (const invalid of [{}, 42, 'session\nnext', 'session\u0000next', 'x'.repeat(8193)]) {
+    const inputRuntime = runtimeFixture(async () => assert.fail('invalid session reached recipe')).runtime
+    await assert.rejects(inputRuntime.run(inputRuntime.detectAgents()[0], 'Review', '/tmp/workspace', {
+      runId: 'run-bad-session-input', agentRunId: 'agent-bad-session-input', sandbox: 'read-only', sessionRef: invalid,
+    }), { message: 'AGENT_CONNECTOR_SESSION_INVALID' })
+    const resultRuntime = runtimeFixture(async input => {
+      input.emit({ eventId: 'completed', cursor: 'completed', sequence: 1, type: 'Completed', outcome: 'completed' })
+      return { text: 'done', sessionRef: invalid }
+    }).runtime
+    await assert.rejects(resultRuntime.run(resultRuntime.detectAgents()[0], 'Review', '/tmp/workspace', {
+      runId: 'run-bad-session-result', agentRunId: 'agent-bad-session-result', sandbox: 'read-only',
+    }), { message: 'AGENT_CONNECTOR_SESSION_INVALID' })
+  }
+  const valid = 'x'.repeat(8192)
+  const { runtime } = runtimeFixture(async input => {
+    assert.equal(input.sessionRef, valid)
+    input.emit({ eventId: 'completed', cursor: 'completed', sequence: 1, type: 'Completed', outcome: 'completed' })
+    return { text: 'done', sessionRef: valid }
+  })
+  assert.equal((await runtime.run(runtime.detectAgents()[0], 'Review', '/tmp/workspace', {
+    runId: 'run-good-session', agentRunId: 'agent-good-session', sandbox: 'read-only', sessionRef: valid,
+  })).sessionRef, valid)
+})
+
 test('a generic file declaration cannot bypass media input capabilities', async () => {
   const { runtime } = runtimeFixture(async () => {
     assert.fail('unsupported media must not reach the connector recipe')

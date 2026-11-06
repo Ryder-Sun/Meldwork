@@ -30,6 +30,7 @@ export default {
     'skillTrust.confirm': '确定撤销此授权？',
     'error.workflowProtocolUnsupported': '当前任务图暂不支持 V4 讨论协议，请选择兼容的工作流。',
     'connectorPackages.title': 'Connector 管理',
+    'connectorPackages.sessionInvalid': 'Connector 的会话引用无效，请开始新对话或检查其配置。',
     'connectorPackages.import': '导入 Connector',
     'connectorPackages.empty': '尚未导入 Connector。',
     'connectorPackages.approve': '查看并批准',

@@ -14,6 +14,7 @@ const SHA256 = /^[a-f0-9]{64}$/
 const MAX_PROMPT_BYTES = 4 * 1024 * 1024
 const MAX_INPUT_RESPONSE_BYTES = 128 * 1024
 const MAX_ATTACHMENTS = 16
+const MAX_SESSION_REF_LENGTH = 8192
 const OUTBOUND_TRANSPORTS = new Set(['http', 'a2a'])
 
 function runtimeError(code) {
@@ -110,8 +111,16 @@ function assertEventCapabilities(connector, input, permissionMode) {
   }
 }
 
+function validatedSessionRef(value) {
+  if (value == null) return ''
+  if (typeof value !== 'string' || value.length > MAX_SESSION_REF_LENGTH || /[\u0000-\u001f\u007f]/.test(value)) {
+    fail('AGENT_CONNECTOR_SESSION_INVALID')
+  }
+  return value
+}
+
 function assertResultCapabilities(connector, result, state) {
-  if (String(result?.sessionRef || '') && !connector.capabilities.session.supported) {
+  if (validatedSessionRef(result?.sessionRef) && !connector.capabilities.session.supported) {
     fail('AGENT_CONNECTOR_SESSION_UNSUPPORTED')
   }
   if (result?.outcome === 'cancelled' && !connector.capabilities.session.cancel) {
@@ -410,7 +419,7 @@ class AgentConnectorRuntime {
     if (!connector.capabilities.inputTypes.includes('text')) {
       fail('AGENT_CONNECTOR_INPUT_UNSUPPORTED')
     }
-    const sessionRef = String(options.sessionRef || '')
+    const sessionRef = validatedSessionRef(options.sessionRef)
     if (sessionRef && !connector.capabilities.session.supported) {
       fail('AGENT_CONNECTOR_SESSION_UNSUPPORTED')
     }
