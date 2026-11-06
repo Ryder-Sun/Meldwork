@@ -512,8 +512,8 @@ test('opt-in automatic routing persists the smallest evidence-ranked team', asyn
     ],
   }
   const workspace = new LocalWorkspace(options)
-  workspace.state.agentRuntime.codex = { credentialState: 'ready', checkedAt: options.now() }
-  workspace.state.agentRuntime.hermes = { credentialState: 'ready', checkedAt: options.now() }
+  workspace.state.agentRuntime.codex = { credentialState: 'ready', checkedAt: options.now(), verificationSource: 'successful-run' }
+  workspace.state.agentRuntime.hermes = { credentialState: 'ready', checkedAt: options.now(), verificationSource: 'successful-run' }
   await workspace.refreshAgents()
   const group = workspace.createGroup({
     name: 'Automatic routing', agentKinds: ['codex', 'hermes'], workdir: directory,
@@ -557,6 +557,22 @@ test('automatic routing waits for an explicit successful first run', async t => 
   now = new Date(Date.parse(now) + 25 * 60 * 60 * 1000).toISOString()
   await assert.rejects(workspace.sendMessage({ groupId: group.id, text: 'Choose an Agent',
     targetKinds: [], routingMode: 'automatic' }), { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
+})
+
+test('a successful authentication probe does not count as a successful Agent run', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  options.credentialState = async () => ({ state: 'ready', source: 'native-auth-status' })
+  const workspace = new LocalWorkspace(options)
+  workspace.state.agentRuntime.codex = { credentialState: 'missing' }
+  await workspace.refreshAgents()
+  assert.equal(workspace.state.agentRuntime.codex.credentialState, 'ready')
+  const group = workspace.createGroup({ name: 'Authentication only', agentKinds: ['codex'], workdir: directory })
+  await assert.rejects(workspace.sendMessage({ groupId: group.id, text: 'Choose an Agent',
+    targetKinds: [], routingMode: 'automatic' }), { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
+  await workspace.sendMessage({ groupId: group.id, text: 'Verify this Agent', targetKinds: ['codex'] })
+  assert.equal(workspace.state.agentRuntime.codex.verificationSource, 'successful-run')
+  await workspace.sendMessage({ groupId: group.id, text: 'Choose an Agent', targetKinds: [], routingMode: 'automatic' })
 })
 
 test('all supported workspace versions preserve stored or omitted read-only permission', (t) => {

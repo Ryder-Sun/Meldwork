@@ -399,7 +399,7 @@ test('unidentified product versions remain unavailable after credential validati
   assert.equal(agents()[0].configured, true)
   assert.equal(agents()[0].authenticated, true)
   assert.equal(agents()[0].invocable, false)
-  assert.equal(agents()[0].recentlyVerified, true)
+  assert.equal(agents()[0].recentlyVerified, false)
   assert.equal(agents()[0].available, false)
 })
 
@@ -454,7 +454,7 @@ test('authoritative native validation persists recovery from a runtime auth fail
     credentialState: 'ready', checkedAt: '2026-08-03T00:00:00.000Z',
   })
   assert.equal(agents()[0].credentialState, 'ready')
-  assert.equal(agents()[0].recentlyVerified, true)
+  assert.equal(agents()[0].recentlyVerified, false)
   assert.equal(agents()[0].invocable, true)
   assert.equal(agents()[0].available, true)
   assert.equal(agents()[0].availabilitySource, 'native-auth-status')

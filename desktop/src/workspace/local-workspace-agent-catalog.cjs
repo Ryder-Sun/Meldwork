@@ -71,7 +71,8 @@ class LocalWorkspaceAgentCatalog {
   }
 
   isRecentlyVerified(kind) {
-    return recentlyVerified(this.state().agentRuntime[kind], this.now())
+    const runtime = this.state().agentRuntime[kind]
+    return runtime?.verificationSource === 'successful-run' && recentlyVerified(runtime, this.now())
   }
 
   async refresh() {
@@ -170,8 +171,7 @@ class LocalWorkspaceAgentCatalog {
           && (native?.source !== 'native-probe-failed' || recentlyVerified(runtime, this.now())))
       const invocable = agentInvocable({ installed, versionIdentified, compatible, configured,
         authenticated, runtimePrerequisitesReady, unavailable: workBuddyUnavailable })
-      const verifiedRecently = (authoritativeNativeState && nativeState === 'ready')
-        || recentlyVerified(runtime, this.now())
+      const verifiedRecently = this.isRecentlyVerified(agent.kind)
       const available = invocable
       const preferred = state.agentPreferences[agent.kind]?.showInSidebar
       const capabilities = agentRuntimeCapabilities(agent.kind, {
@@ -253,6 +253,7 @@ class LocalWorkspaceAgentCatalog {
     state.agentRuntime[kind] = {
       credentialState,
       checkedAt: this.now(),
+      ...(credentialState === 'ready' ? { verificationSource: 'successful-run' } : {}),
     }
     if (credentialState === 'ready') this.indeterminateSince.delete(kind)
     const agent = this.detectedAgents().find(item => item.kind === kind)
