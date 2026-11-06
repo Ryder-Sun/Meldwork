@@ -1381,12 +1381,13 @@ class LocalWorkspaceAgentInvocation {
       // provider refusals stay run-scoped so a healthy Agent remains usable.
       if (error?.code === 'LOCAL_AGENT_AUTH_REQUIRED'
           && context.deferCredentialFailure !== true) {
-        this.markRuntimeCredential(kind, 'missing')
+        this.markRuntimeCredential(kind, 'missing', { verificationIdentity })
       }
       // Failure and stop notices take the turn's slot in the timeline.
       attachErrorMetadata(error, {
         runTrace: finishHarness(stop.status),
         turnSeq: context.turnSeq,
+        verificationIdentity,
       })
       throw attachInvocationFailure(error, {
         outcomeCertainty: terminalFailureKnown

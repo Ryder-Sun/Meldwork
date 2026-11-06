@@ -72,6 +72,17 @@ test('a late result from an older CLI cannot verify its replacement', () => {
   assert.equal(state.agentRuntime.codex, undefined)
 })
 
+test('a late authentication failure from an older CLI cannot block its replacement', () => {
+  const oldAgent = { kind: 'codex', executable: '/tmp/codex-old', version: '1' }
+  const current = { kind: 'codex', executable: '/tmp/codex-new', version: '2', available: true,
+    credentialState: 'ready' }
+  const { catalog, agents, state } = fixture({ initialAgents: [current] })
+  catalog.markRuntimeCredential('codex', 'missing', { verificationIdentity: agentVerificationIdentity(oldAgent) })
+  assert.equal(agents()[0].available, true)
+  assert.equal(agents()[0].credentialState, 'ready')
+  assert.equal(state.agentRuntime.codex, undefined)
+})
+
 test('a failed probe cannot borrow a successful run from another installation', async () => {
   const oldAgent = { kind: 'codex', executable: '/tmp/codex-old', version: '1', compatibilityState: 'compatible' }
   const current = { kind: 'codex', executable: '/tmp/codex-new', version: '2', compatibilityState: 'compatible' }
