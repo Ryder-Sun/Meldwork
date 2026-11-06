@@ -96,3 +96,30 @@ test('Hermes invocation receives declared credentials and redacts them from its 
   })
   assert.equal(result.text, 'reply=[redacted]')
 })
+
+test('MiMo captures only the selected provider environment reference and redacts it', t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-mimo-reference-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  fs.mkdirSync(path.join(directory, 'mimocode'))
+  const filename = path.join(directory, 'mimocode', 'mimocode.json')
+  const write = key => fs.writeFileSync(filename, JSON.stringify({ model: 'custom/model', provider: {
+    custom: { options: { apiKey: key } }, other: { options: { apiKey: '{env:OTHER_SECRET}' } },
+  } }))
+  const { mimoDeclaredCredentialKeys, mimoConfiguredProvider } = require('../../../src/agents/cli/mimo-native-config.cjs')
+  const env = { XDG_CONFIG_HOME: directory, CUSTOM_CREDENTIAL: 'abc', OTHER_SECRET: 'other' }
+  write('{env:CUSTOM_CREDENTIAL}')
+  const keys = mimoDeclaredCredentialKeys({ env })
+  assert.deepEqual(keys, ['CUSTOM_CREDENTIAL'])
+  assert.equal(mimoConfiguredProvider({ env }), true)
+  const selected = nativeCredentialEnvironment('mimo', env, keys)
+  const child = childEnvironment({ kind: 'mimo', executable: '/native/mimo' }, '/workspace', {
+    env: selected, nativeCredentialKeys: keys,
+  }, 'darwin')
+  assert.equal(child.CUSTOM_CREDENTIAL, 'abc')
+  assert.equal(child.OTHER_SECRET, undefined)
+  assert.equal(redactChildSecrets('value=abc', child), 'value=[redacted]')
+  assert.equal(nativeCredentialEnvironment('codex', env, keys).CUSTOM_CREDENTIAL, undefined)
+  write('{env:NODE_OPTIONS}')
+  assert.deepEqual(mimoDeclaredCredentialKeys({ env }), [])
+  assert.equal(mimoConfiguredProvider({ env: { ...env, NODE_OPTIONS: 'unsafe' } }), false)
+})

@@ -252,6 +252,30 @@ test('Hermes selected config captures only its declared native credential for ex
   assert.equal(harness.runAgentCalls.at(-1)[3].env.FALLBACK_CREDENTIAL, undefined)
 })
 
+test('MiMo receives its native provider reference from the shell without leaking it to Codex', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-mimo-env-main-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  fs.mkdirSync(path.join(directory, 'mimocode'))
+  fs.writeFileSync(path.join(directory, 'mimocode', 'mimocode.json'), JSON.stringify({
+    model: 'custom/model', provider: { custom: { options: { apiKey: '{env:MIMO_CUSTOM_SECRET}' } } },
+  }))
+  const readiness = require('../../src/agents/local-agent-readiness.cjs')
+  const { harness } = loadMain(directory, {
+    nativeEnvironment: readiness.nativeCredentialEnvironment,
+    nativeShellEnvironment: input => ({ source: 'native-shell', env: {
+      XDG_CONFIG_HOME: directory,
+      ...(input.extraEnvKeys?.includes('MIMO_CUSTOM_SECRET') ? { MIMO_CUSTOM_SECRET: 'abc' } : {}),
+    } }),
+  })
+  await harness.ready()
+  const workspace = harness.workspaceInstances[0]
+  await workspace.input.runAgent({ kind: 'mimo', executable: '/tmp/mimo' }, 'hello', directory, {})
+  assert.equal(harness.runAgentCalls.at(-1)[3].env.MIMO_CUSTOM_SECRET, 'abc')
+  assert.deepEqual(harness.runAgentCalls.at(-1)[3].nativeCredentialKeys, ['MIMO_CUSTOM_SECRET'])
+  await workspace.input.runAgent({ kind: 'codex', executable: '/tmp/codex' }, 'hello', directory, {})
+  assert.equal(harness.runAgentCalls.at(-1)[3].env.MIMO_CUSTOM_SECRET, undefined)
+})
+
 test('Zcode receives only its native provider credential', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-zcode-env-main-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

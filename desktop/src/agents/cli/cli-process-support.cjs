@@ -201,7 +201,7 @@ function childEnvironment(agent, workdir, options, platform) {
   }
   const nativeKeys = agent.kind === 'codex'
     ? nativeSecretEnvKeys(options.nativeCredentialKeys).filter(key => key === 'CODEX_API_KEY')
-    : ['hermes', 'zcode'].includes(agent.kind) ? nativeSecretEnvKeys(options.nativeCredentialKeys) : []
+    : ['hermes', 'zcode', 'mimo'].includes(agent.kind) ? nativeSecretEnvKeys(options.nativeCredentialKeys) : []
   const controlled = Object.fromEntries(Object.entries(options.env || {}).filter(([key, value]) => (
     typeof value === 'string'
       && (CONTROLLED_RUNTIME_ENV.test(key) || nativeKeys.includes(key) || NETWORK_ENV_KEYS.includes(key)

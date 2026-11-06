@@ -30,6 +30,7 @@ const {
 } = require('./agents/cli/cli-adapters.cjs')
 const { AgentInstaller } = require('./agents/installer/agent-installer.cjs')
 const { networkEnvironment } = require('./agents/cli/cli-network-environment.cjs')
+const { mimoDeclaredCredentialKeys } = require('./agents/cli/mimo-native-config.cjs')
 const { AgentConnectorInstanceStore } = require('./agents/connectors/agent-connector-instance-store.cjs')
 const { LocalAgentConnectors } = require('./agents/connectors/agent-connector-local.cjs')
 const { AgentConnectorPackageStore } = require('./agents/connectors/agent-connector-package-store.cjs')
@@ -253,7 +254,8 @@ async function nativeShellEnvironment(options = {}) {
   const hermesEnv = nativeConfigEnvironment('hermes', workspace?.state.agentPreferences, initialEnv)
   const hermesCredentialKeys = hermesDeclaredCredentialKeys({ home, env: hermesEnv })
   const zcodeCredentialKeys = zcodeDeclaredCredentialKeys({ home })
-  const declaredKeys = [...new Set([...hermesCredentialKeys, ...zcodeCredentialKeys])]
+  const mimoCredentialKeys = mimoDeclaredCredentialKeys({ home, env: initialEnv })
+  const declaredKeys = [...new Set([...hermesCredentialKeys, ...zcodeCredentialKeys, ...mimoCredentialKeys])]
   if (declaredKeys.length) {
     const extended = await resolveNativeShellEnvironment({ home, refresh: options.refresh === true, extraEnvKeys: declaredKeys })
     const extra = Object.fromEntries(declaredKeys.filter(key => Object.hasOwn(extended.env, key))
@@ -278,6 +280,7 @@ async function nativeShellEnvironment(options = {}) {
     home,
     hermesCredentialKeys,
     zcodeCredentialKeys,
+    mimoCredentialKeys,
   }
 }
 
@@ -287,10 +290,11 @@ async function detectLocalAgents() {
     env: shellEnvironment.env,
     home: shellEnvironment.home,
     nativeCredentialKeysForKind: kind => kind === 'codex' ? ['CODEX_API_KEY'] : kind === 'hermes' ? shellEnvironment.hermesCredentialKeys
-      : kind === 'zcode' ? shellEnvironment.zcodeCredentialKeys : [],
+      : kind === 'zcode' ? shellEnvironment.zcodeCredentialKeys : kind === 'mimo' ? shellEnvironment.mimoCredentialKeys : [],
     nativeEnvironmentForKind: kind => kind === 'openclaw'
       ? {} : nativeCredentialEnvironment(kind, nativeConfigEnvironment(kind, workspace?.state.agentPreferences, shellEnvironment.env),
-        kind === 'hermes' ? shellEnvironment.hermesCredentialKeys : kind === 'zcode' ? shellEnvironment.zcodeCredentialKeys : []),
+        kind === 'hermes' ? shellEnvironment.hermesCredentialKeys : kind === 'zcode' ? shellEnvironment.zcodeCredentialKeys
+          : kind === 'mimo' ? shellEnvironment.mimoCredentialKeys : []),
   })
 }
 
@@ -430,7 +434,8 @@ async function runCoreAgent(agent, prompt, workdir, options = {}) {
     : {
         ...configDirectoryEnvironment(selectedNativeEnv),
         ...nativeCredentialEnvironment(agent.kind, selectedNativeEnv,
-          agent.kind === 'hermes' ? shellEnvironment.hermesCredentialKeys : agent.kind === 'zcode' ? shellEnvironment.zcodeCredentialKeys : []),
+          agent.kind === 'hermes' ? shellEnvironment.hermesCredentialKeys : agent.kind === 'zcode' ? shellEnvironment.zcodeCredentialKeys
+            : agent.kind === 'mimo' ? shellEnvironment.mimoCredentialKeys : []),
         ...(agent.kind === 'workbuddy' ? workBuddyEnvironment({
           env: selectedNativeEnv, home: shellEnvironment.home,
           modelId: workspace?.state.agentPreferences.workbuddy?.modelId,
@@ -444,9 +449,10 @@ async function runCoreAgent(agent, prompt, workdir, options = {}) {
     ...runOptions,
     ...(shellEnvironment?.unsetKeys ? { nativeUnsetKeys: shellEnvironment.unsetKeys } : {}),
     ...(connectorCredentialIsolation ? { nativeCredentialKeys: ['CODEX_API_KEY'] }
-      : ['codex', 'hermes', 'zcode'].includes(agent.kind)
+      : ['codex', 'hermes', 'zcode', 'mimo'].includes(agent.kind)
         ? { nativeCredentialKeys: agent.kind === 'codex' ? ['CODEX_API_KEY']
-          : agent.kind === 'hermes' ? shellEnvironment.hermesCredentialKeys : shellEnvironment.zcodeCredentialKeys } : {}),
+          : agent.kind === 'hermes' ? shellEnvironment.hermesCredentialKeys : agent.kind === 'zcode' ? shellEnvironment.zcodeCredentialKeys
+            : shellEnvironment.mimoCredentialKeys } : {}),
     ...injected,
     env: {
       ...networkEnvironment(shellEnvironment?.env),
