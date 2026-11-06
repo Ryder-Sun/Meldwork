@@ -163,6 +163,7 @@ function credentialLiteral(value) {
   if (typeof value !== 'string') return false
   const candidate = value.trim()
   if (!candidate) return false
+  if (/^(?:null|none|undefined|true|false|~)$/i.test(candidate)) return false
   if (/^\$(?:[A-Z_][A-Z0-9_]*|\{[A-Z_][A-Z0-9_]*\})$/i.test(candidate)) return false
   if (/^(?:env|secretref-env|__env__):[A-Z_][A-Z0-9_]*$/i.test(candidate)) return false
   return !/^[A-Z_][A-Z0-9_]*(?:API_KEY|TOKEN|CREDENTIAL)$/i.test(candidate)
@@ -182,7 +183,9 @@ function textContainsCredential(filename) {
     return readCredentialFile(filename).split(/\r?\n/).some((line) => {
       const match = line.match(/^\s*([A-Za-z][A-Za-z0-9_-]*)\s*[:=]\s*(.+?)\s*$/)
       if (!match || !CREDENTIAL_FIELD.test(match[1])) return false
-      const value = match[2].replace(/^['"]|['"]$/g, '').trim()
+      const raw = match[2].trim()
+      const value = (/^['"]/.test(raw) ? raw : raw.replace(/\s+#.*$/, ''))
+        .replace(/^['"]|['"]$/g, '').trim()
       return credentialLiteral(value)
     })
   } catch {

@@ -379,6 +379,24 @@ test('custom Provider config is recognized while unresolved Env references remai
   }
 })
 
+test('placeholder scalar values are not treated as native credentials', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-placeholder-credential-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const root = path.join(home, '.hermes')
+  fs.mkdirSync(root)
+  for (const value of ['null', 'None', 'undefined', 'false', 'true', '~']) {
+    fs.writeFileSync(path.join(root, 'config.yaml'), `api_key: ${value}\n`)
+    assert.equal(nativeCredentialState('hermes', { home, env: {} }).state, 'unknown', value)
+    fs.writeFileSync(path.join(root, 'auth.json'), JSON.stringify({ api_key: value }))
+    assert.equal(nativeCredentialState('hermes', { home, env: {} }).state, 'unknown', value)
+    fs.rmSync(path.join(root, 'auth.json'))
+  }
+  fs.writeFileSync(path.join(root, 'config.yaml'), 'api_key: null # not configured\n')
+  assert.equal(nativeCredentialState('hermes', { home, env: {} }).state, 'unknown')
+  fs.writeFileSync(path.join(root, 'config.yaml'), 'api_key: synthetic-secret\n')
+  assert.equal(nativeCredentialState('hermes', { home, env: {} }).state, 'ready')
+})
+
 test('login shell discovery returns only allowlisted Agent Provider values', async () => {
   const calls = []
   const result = await resolveNativeShellEnvironment({
