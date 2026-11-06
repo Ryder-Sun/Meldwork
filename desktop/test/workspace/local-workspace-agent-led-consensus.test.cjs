@@ -250,7 +250,7 @@ test('changing captured deliverable bytes invalidates approval of the old file',
   fs.writeFileSync(filename, 'Version one')
   const contentHash = createHash('sha256').update('Version one').digest('hex')
   const message = { id: 'm', groupId: 'g', threadRootId: 't', role: 'agent', agentKind: 'codex', content: 'Final result',
-    trace: { phase: 'discussion', context: { outcomeRefs: { artifactIds: ['file'] }, taskDecision: { status: 'completed' } } } }
+    trace: { phase: 'discussion', context: { outcomeRefs: { artifactIds: ['file'] }, taskDecision: { status: 'completed', reason: 'Done', deliverables: ['result.txt'] } } } }
   const runner = { ...naturalConsensusMethods, state: () => ({ messages: [message] }),
     v4NaturalMessageMatchesBinding: () => true, v4NaturalMessageContent: () => ({ text: message.content, partial: false }),
     v4ArtifactIdentity: () => ({ contentHash, artifact: { locationRef: { kind: 'workspace-relative', path: 'result.txt' }, contentRef: { size: 11 } } }) }
@@ -262,13 +262,13 @@ test('changing captured deliverable bytes invalidates approval of the old file',
 test('consensus is reconstructed from durable messages and ignores stale bindings', () => {
   const base = { groupId: 'g', threadRootId: 't', role: 'agent', trace: { phase: 'discussion' } }
   const messages = [{ ...base, id: 'candidate', turnSeq: 1, agentKind: 'codex', content: 'Full result',
-    trace: { phase: 'discussion', context: { taskDecision: { status: 'completed' } } } }]
+    trace: { phase: 'discussion', context: { taskDecision: { status: 'completed', reason: 'Done', deliverables: ['Answer'] } } } }]
   const runner = { ...naturalConsensusMethods, state: () => ({ messages }),
     v4NaturalMessageMatchesBinding: message => message.id !== 'stale', v4NaturalMessageContent: message => ({ text: message.content, partial: false }) }
   const candidate = runner.v4NaturalConsensus({ id: 'g' }, {}, 't')
   for (const [index, kind] of ['hermes', 'workbuddy'].entries()) messages.push({ ...base, id: kind, turnSeq: index + 2, agentKind: kind,
     content: 'Reviewed the complete result.',
-    trace: { phase: 'discussion', context: { taskDecision: { status: 'completed', reviewedVersion: candidate.version } } } })
+    trace: { phase: 'discussion', context: { taskDecision: { status: 'completed', reason: 'Reviewed', deliverables: ['Answer'], reviewedVersion: candidate.version } } } })
   messages.push({ ...base, id: 'stale', turnSeq: 4, agentKind: 'codex', trace: { phase: 'discussion', context: { taskDecision: { status: 'continue' } } } })
   assert.deepEqual([...runner.v4NaturalConsensus({ id: 'g' }, {}, 't').approvedKinds], ['codex', 'hermes', 'workbuddy'])
   messages.push({ ...base, id: 'objection', turnSeq: 5, agentKind: 'hermes', content: 'Further review is needed.', trace: { phase: 'discussion', context: { taskDecision: { status: 'continue' } } } })
