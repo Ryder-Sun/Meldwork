@@ -182,3 +182,21 @@ test('MiMo selects project provider references for the current work directory', 
   fs.rmSync(path.join(root, '.git'), { recursive: true })
   assert.deepEqual(mimoDeclaredCredentialKeys({ home, env, workdir }), ['ROOT_DIR_SECRET'])
 })
+
+test('MiMo resolves relative native configuration paths against the chat work directory', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-mimo-relative-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const workdir = path.join(home, 'work')
+  const selected = path.join(workdir, 'selected')
+  fs.mkdirSync(selected, { recursive: true })
+  const config = key => JSON.stringify({ model: 'custom/model', provider: {
+    custom: { options: { apiKey: `{env:${key}}` } },
+  } })
+  fs.writeFileSync(path.join(workdir, 'config.json'), config('FILE_KEY'))
+  fs.writeFileSync(path.join(selected, 'mimocode.json'), config('DIRECTORY_KEY'))
+  const { mimoDeclaredCredentialKeys } = require('../../../src/agents/cli/mimo-native-config.cjs')
+  const env = { MIMOCODE_CONFIG: 'config.json', MIMOCODE_CONFIG_DIR: 'selected' }
+  assert.deepEqual(mimoDeclaredCredentialKeys({ home, env }), [])
+  assert.deepEqual(mimoDeclaredCredentialKeys({ home, env, workdir }), ['DIRECTORY_KEY'])
+  assert.deepEqual(mimoDeclaredCredentialKeys({ home, env: { MIMOCODE_CONFIG: 'config.json' }, workdir }), ['FILE_KEY'])
+})

@@ -23,14 +23,22 @@ function mimoProviderKey(options = {}) {
   const home = options.home || os.homedir()
   const root = env.XDG_CONFIG_HOME || path.join(home, '.config')
   try {
+    const resolveNativePath = value => {
+      if (!value || path.isAbsolute(value)) return value
+      return typeof options.workdir === 'string' && path.isAbsolute(options.workdir)
+        ? path.resolve(options.workdir, value) : null
+    }
+    const explicitFile = resolveNativePath(env.MIMOCODE_CONFIG)
+    const explicitDirectory = resolveNativePath(env.MIMOCODE_CONFIG_DIR)
+    if (explicitFile === null || explicitDirectory === null) return ''
     const projects = /^(?:1|true)$/i.test(env.MIMOCODE_DISABLE_PROJECT_CONFIG || '')
       ? [] : projectDirectories(options.workdir)
     const files = [path.join(root, 'mimocode', 'mimocode.json'), path.join(root, 'mimocode', 'mimocode.jsonc'),
-      env.MIMOCODE_CONFIG, ...projects.flatMap(directory => [path.join(directory, 'mimocode.json'), path.join(directory, 'mimocode.jsonc')]),
+      explicitFile, ...projects.flatMap(directory => [path.join(directory, 'mimocode.json'), path.join(directory, 'mimocode.jsonc')]),
       ...[...projects].reverse().flatMap(directory => [path.join(directory, '.mimocode', 'mimocode.json'), path.join(directory, '.mimocode', 'mimocode.jsonc')]),
       path.join(home, '.mimocode', 'mimocode.json'), path.join(home, '.mimocode', 'mimocode.jsonc'),
-      env.MIMOCODE_CONFIG_DIR && path.join(env.MIMOCODE_CONFIG_DIR, 'mimocode.json'),
-      env.MIMOCODE_CONFIG_DIR && path.join(env.MIMOCODE_CONFIG_DIR, 'mimocode.jsonc')].filter(Boolean)
+      explicitDirectory && path.join(explicitDirectory, 'mimocode.json'),
+      explicitDirectory && path.join(explicitDirectory, 'mimocode.jsonc')].filter(Boolean)
     const configs = []
     for (const file of files) {
       let stat
