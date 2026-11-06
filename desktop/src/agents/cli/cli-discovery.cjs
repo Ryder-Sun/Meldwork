@@ -44,8 +44,10 @@ const SYSTEM_CHILD_ENV_KEYS = Object.freeze([
   'APPDATA', 'LOCALAPPDATA', 'PROGRAMDATA',
   'PROGRAMFILES', 'PROGRAMFILES(X86)', 'PROGRAMW6432',
   'OS', 'PROCESSOR_ARCHITECTURE', 'PROCESSOR_IDENTIFIER', 'NUMBER_OF_PROCESSORS',
-  'CODEX_HOME', 'CLAUDE_CONFIG_DIR', 'PI_CODING_AGENT_DIR',
 ])
+const NATIVE_CONFIG_DIR_KEYS = Object.freeze({
+  codex: 'CODEX_HOME', claude: 'CLAUDE_CONFIG_DIR', pi: 'PI_CODING_AGENT_DIR',
+})
 
 function envValue(env, name) {
   const match = Object.hasOwn(env, name) ? name
@@ -543,8 +545,10 @@ async function detectAgents(options = {}) {
     PATH: searchPath(detectionOptions),
   }
   const detected = await Promise.all(ALLOWED_KINDS.map(kind => {
+    const nativeKey = NATIVE_CONFIG_DIR_KEYS[kind]
+    const value = nativeKey && envValue(env, nativeKey)
     const nativeEnv = typeof options.nativeEnvironmentForKind === 'function'
-      ? options.nativeEnvironmentForKind(kind) : {}
+      ? options.nativeEnvironmentForKind(kind) : (typeof value === 'string' && value ? { [nativeKey]: value } : {})
     return detectAgentKind(kind, detectionOptions, { ...childEnv, ...nativeEnv }).catch(() => null)
   }))
   return detected.filter(Boolean)

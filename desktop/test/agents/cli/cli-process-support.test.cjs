@@ -119,6 +119,24 @@ test('native Agent child environments preserve shell-selected XDG directories', 
   assert.equal(env.XDG_UNRELATED, undefined)
 })
 
+test('Agent processes do not inherit another Agent native configuration directory', (t) => {
+  const keys = ['CODEX_HOME', 'CLAUDE_CONFIG_DIR', 'PI_CODING_AGENT_DIR']
+  const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]))
+  t.after(() => {
+    for (const key of keys) {
+      if (previous[key] === undefined) delete process.env[key]
+      else process.env[key] = previous[key]
+    }
+  })
+  Object.assign(process.env, { CODEX_HOME: '/native/codex', CLAUDE_CONFIG_DIR: '/native/claude', PI_CODING_AGENT_DIR: '/native/pi' })
+  const env = childEnvironment({ kind: 'codex' }, '/tmp/workspace', { env: { CODEX_HOME: '/selected/codex' } }, 'darwin')
+  assert.equal(env.CODEX_HOME, '/selected/codex')
+  assert.equal(env.CLAUDE_CONFIG_DIR, undefined)
+  assert.equal(env.PI_CODING_AGENT_DIR, undefined)
+  const isolated = childEnvironment({ kind: 'codex' }, '/tmp/workspace', { env: {} }, 'darwin')
+  for (const key of keys) assert.equal(isolated[key], undefined)
+})
+
 test('Pi child environment receives native cloud configuration without process injection', () => {
   const source = {
     AWS_PROFILE: 'native-profile', AZURE_OPENAI_API_KEY: 'synthetic-azure',

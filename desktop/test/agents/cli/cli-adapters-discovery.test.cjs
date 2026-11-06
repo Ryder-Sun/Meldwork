@@ -1171,6 +1171,26 @@ test('Agent detection uses capability evidence when the version command fails', 
   assert.equal(found[0].compatibilityState, 'compatible')
 })
 
+test('Agent detection keeps native configuration directories scoped to their owner', async () => {
+  const calls = []
+  await detectAgents({
+    platform: 'darwin',
+    env: { CODEX_HOME: '/native/codex', CLAUDE_CONFIG_DIR: '/native/claude', PI_CODING_AGENT_DIR: '/native/pi' },
+    resolveExecutableFn: async kind => ['codex', 'claude'].includes(kind) ? `/tmp/${kind}` : null,
+    execFileFn: async (command, _args, options) => {
+      calls.push({ command, env: options.env })
+      throw new Error('probe unavailable')
+    },
+  })
+  assert.ok(calls.some(call => call.command === '/tmp/codex'))
+  assert.ok(calls.some(call => call.command === '/tmp/claude'))
+  for (const call of calls) {
+    assert.equal(call.env.CODEX_HOME, call.command === '/tmp/codex' ? '/native/codex' : undefined)
+    assert.equal(call.env.CLAUDE_CONFIG_DIR, call.command === '/tmp/claude' ? '/native/claude' : undefined)
+    assert.equal(call.env.PI_CODING_AGENT_DIR, undefined)
+  }
+})
+
 test('runAgent hides executable paths from spawn failures', async () => {
   const child = new EventEmitter()
   child.stdin = new PassThrough()
