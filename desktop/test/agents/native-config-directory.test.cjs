@@ -3,7 +3,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
-const { nativeConfigEnvironment, nativeIdentityDirectory, validateNativeConfigDirectory } = require('../../src/agents/native-config-directory.cjs')
+const { nativeAuthIdentityFiles, nativeConfigEnvironment, nativeIdentityDirectory, validateNativeConfigDirectory } = require('../../src/agents/native-config-directory.cjs')
 const { nativeCredentialState } = require('../../src/agents/local-agent-readiness.cjs')
 const { loadWorkspaceState, saveWorkspaceState } = require('../../src/workspace/local-workspace-state.cjs')
 
@@ -32,6 +32,15 @@ test('native identity directories follow shell overrides and known defaults', ()
   assert.equal(nativeIdentityDirectory('kimi', { KIMI_CODE_HOME: 'relative' }, home, 'linux'), '')
   assert.equal(nativeIdentityDirectory('hermes', { HERMES_DATA_DIR_SUFFIX: '-test' }, home, 'linux'), path.join(home, '.hermes-test'))
   assert.equal(nativeIdentityDirectory('unknown', {}, home, 'linux'), '')
+})
+
+test('OpenCode authentication identity follows its XDG data directory', () => {
+  const home = path.resolve('test-home')
+  assert.deepEqual(nativeAuthIdentityFiles('opencode', {}, home), [path.join(home, '.local', 'share', 'opencode', 'auth.json')])
+  assert.deepEqual(nativeAuthIdentityFiles('opencode', { XDG_DATA_HOME: path.join(home, 'data') }, home),
+    [path.join(home, 'data', 'opencode', 'auth.json')])
+  assert.deepEqual(nativeAuthIdentityFiles('opencode', { XDG_DATA_HOME: 'relative' }, home), [])
+  assert.deepEqual(nativeAuthIdentityFiles('codex', {}, home), [])
 })
 
 test('a selected native directory survives workspace restart', t => {

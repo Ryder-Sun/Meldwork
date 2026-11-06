@@ -6,7 +6,7 @@ const path = require('node:path')
 
 const catalogApi = require('../../src/workspace/local-workspace-agent-catalog.cjs')
 const { agentVerificationIdentity } = require('../../src/workspace/agent-verification-identity.cjs')
-const { NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_ENVIRONMENT_IDENTITY, nativeEnvironmentIdentity } = require('../../src/agents/native-config-directory.cjs')
+const { NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_ENVIRONMENT_IDENTITY, NATIVE_AUTH_IDENTITY_FILES, nativeEnvironmentIdentity } = require('../../src/agents/native-config-directory.cjs')
 const { LocalWorkspaceAgentCatalog } = catalogApi
 
 test('Agent verification identity changes when the executable is replaced', t => {
@@ -215,6 +215,30 @@ test('Gemini native credential changes invalidate a successful verification', as
   await catalog.refresh()
   assert.equal(agents()[0].recentlyVerified, false)
   catalog.markRuntimeCredential('gemini', 'ready', { verificationIdentity: identity })
+  assert.equal(agents()[0].recentlyVerified, false)
+})
+
+test('OpenCode authentication file changes invalidate successful and late verification', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-opencode-auth-identity-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const filename = path.join(directory, 'auth.json')
+  fs.writeFileSync(filename, '{"provider":{"type":"api","key":"first"}}')
+  const detected = () => {
+    const agent = { kind: 'opencode', executable: '/tmp/opencode', version: '1', compatibilityState: 'compatible' }
+    Object.defineProperty(agent, NATIVE_AUTH_IDENTITY_FILES, { value: [filename] })
+    return agent
+  }
+  const { catalog, agents, state } = fixture({ detectAgents: async () => [detected()],
+    credentialState: async () => ({ state: 'unknown', source: 'unverified' }) })
+  await catalog.refresh()
+  const identity = agentVerificationIdentity(agents()[0], state.agentPreferences)
+  catalog.markRuntimeCredential('opencode', 'ready', { verificationIdentity: identity })
+  assert.equal(agents()[0].recentlyVerified, true)
+  assert.doesNotMatch(JSON.stringify(agents()), /opencode-auth-identity|first/)
+  fs.writeFileSync(filename, '{"provider":{"type":"api","key":"replacement"}}')
+  await catalog.refresh()
+  assert.equal(agents()[0].recentlyVerified, false)
+  catalog.markRuntimeCredential('opencode', 'ready', { verificationIdentity: identity })
   assert.equal(agents()[0].recentlyVerified, false)
 })
 

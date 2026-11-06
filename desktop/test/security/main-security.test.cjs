@@ -173,6 +173,26 @@ test('detected Agent verification directory stays internal to the main process',
   assert.doesNotMatch(JSON.stringify({ ...agent }), /private-hermes/)
 })
 
+test('OpenCode authentication identity remains private and follows the native XDG data directory', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-opencode-auth-main-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const data = path.join(directory, 'private-data')
+  fs.mkdirSync(path.join(data, 'opencode'), { recursive: true })
+  const auth = path.join(data, 'opencode', 'auth.json')
+  fs.writeFileSync(auth, '{"provider":{"type":"api","key":"first"}}')
+  const { harness } = loadMain(directory, {
+    nativeShellEnvironment: () => ({ env: { XDG_DATA_HOME: data }, source: 'native-shell' }),
+    detectAgents: () => [{ kind: 'opencode', version: '1', compatibilityState: 'compatible' }],
+  })
+  await harness.ready()
+  const [agent] = await harness.installerInstances[0].input.detectAgents()
+  const { agentVerificationIdentity } = require('../../src/workspace/agent-verification-identity.cjs')
+  const first = agentVerificationIdentity(agent)
+  fs.writeFileSync(auth, '{"provider":{"type":"api","key":"replacement"}}')
+  assert.notEqual(agentVerificationIdentity(agent), first)
+  assert.doesNotMatch(JSON.stringify({ ...agent }), /private-data|replacement/)
+})
+
 test('native credential changes invalidate the main-process Agent identity without exposing credentials', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-env-identity-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

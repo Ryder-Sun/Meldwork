@@ -188,6 +188,16 @@ function jsonContainsCredential(filename) {
   }
 }
 
+function openCodeAuthContainsCredential(filename) {
+  try {
+    const contents = readCredentialFile(filename)
+    const auth = contents && JSON.parse(contents)
+    return Boolean(auth && typeof auth === 'object' && !Array.isArray(auth)
+      && Object.values(auth).some(entry => entry && typeof entry === 'object'
+        && !Array.isArray(entry) && entry.type === 'api' && credentialLiteral(entry.key)))
+  } catch { return false }
+}
+
 function textContainsCredential(filename) {
   try {
     return readCredentialFile(filename).split(/\r?\n/).some((line) => {
@@ -537,6 +547,7 @@ function nativeCredentialState(kind, options = {}) {
     : (options.platform || process.platform) === 'win32'
       ? path.join(env.LOCALAPPDATA || path.join(home, 'AppData', 'Local'), `hermes${env.HERMES_DATA_DIR_SUFFIX || ''}`)
       : path.join(home, `.hermes${env.HERMES_DATA_DIR_SUFFIX || ''}`)
+  const openCodeAuth = path.join(env.XDG_DATA_HOME || path.join(home, '.local', 'share'), 'opencode', 'auth.json')
   if (Object.keys(nativeCredentialKeyEnvironment(kind, env)).length) {
     return {
       state: 'ready',
@@ -567,10 +578,10 @@ function nativeCredentialState(kind, options = {}) {
     ],
     qwen: [path.join(home, '.qwen', 'oauth_creds.json'), path.join(home, '.qwen', 'settings.json')],
     gemini: geminiHome ? [path.join(geminiHome, 'oauth_creds.json'), path.join(geminiHome, 'settings.json')] : [],
-    opencode: [path.join(env.XDG_DATA_HOME || path.join(home, '.local', 'share'), 'opencode', 'auth.json')],
+    opencode: [openCodeAuth],
     opencodereview: [path.join(home, '.opencodereview', 'config.json')],
   }[kind] || []
-  if (jsonFiles.some(jsonContainsCredential)) {
+  if (jsonFiles.some(jsonContainsCredential) || (kind === 'opencode' && openCodeAuthContainsCredential(openCodeAuth))) {
     return { state: 'ready', source: 'native-credential' }
   }
 

@@ -36,6 +36,25 @@ test('Gemini uses its shell-selected native home for readiness and execution', a
   assert.equal(nativeCredentialState('gemini', { home, env: { GEMINI_CLI_HOME: 'relative' } }).state, 'unknown')
 })
 
+test('OpenCode detects native API credentials in its selected XDG data directory', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-opencode-auth-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const data = path.join(home, 'native-data')
+  const dir = path.join(data, 'opencode'); fs.mkdirSync(dir, { recursive: true })
+  const auth = path.join(dir, 'auth.json')
+  const options = { home, env: { XDG_DATA_HOME: data } }
+  fs.writeFileSync(auth, JSON.stringify({ provider: { type: 'api', key: 'synthetic-secret' } }))
+  const result = nativeCredentialState('opencode', options)
+  assert.deepEqual(result, { state: 'ready', source: 'native-credential' })
+  assert.doesNotMatch(JSON.stringify(result), /synthetic-secret/)
+  fs.writeFileSync(auth, JSON.stringify({ provider: { type: 'api', key: '' } }))
+  assert.equal(nativeCredentialState('opencode', options).state, 'unknown')
+  fs.writeFileSync(auth, JSON.stringify({ provider: { type: 'unrelated', key: 'synthetic-secret' } }))
+  assert.equal(nativeCredentialState('opencode', options).state, 'unknown')
+  fs.writeFileSync(auth, JSON.stringify({ provider: { type: 'oauth', refresh: 'synthetic-refresh' } }))
+  assert.equal(nativeCredentialState('opencode', options).state, 'ready')
+})
+
 test('Pi captures only environment references declared by its selected native models configuration', async t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-pi-declared-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))

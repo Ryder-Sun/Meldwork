@@ -3,12 +3,19 @@ const path = require('node:path')
 const { createHmac, randomBytes } = require('node:crypto')
 const NATIVE_CONFIG_IDENTITY_DIRECTORY = Symbol('nativeConfigIdentityDirectory')
 const NATIVE_ENVIRONMENT_IDENTITY = Symbol('nativeEnvironmentIdentity')
+const NATIVE_AUTH_IDENTITY_FILES = Symbol('nativeAuthIdentityFiles')
 const environmentIdentityKey = randomBytes(32)
 
 function nativeEnvironmentIdentity(env) {
   const entries = Object.entries(env).filter(([, value]) => typeof value === 'string')
     .sort(([left], [right]) => left.localeCompare(right))
   return createHmac('sha256', environmentIdentityKey).update(JSON.stringify(entries)).digest('hex')
+}
+
+function nativeAuthIdentityFiles(kind, env, home) {
+  if (kind !== 'opencode') return []
+  const root = env?.XDG_DATA_HOME || (typeof home === 'string' && path.isAbsolute(home) ? path.join(home, '.local', 'share') : '')
+  return typeof root === 'string' && path.isAbsolute(root) ? [path.join(root, 'opencode', 'auth.json')] : []
 }
 
 const NATIVE_CONFIG_DIRECTORIES = Object.freeze({
@@ -73,6 +80,6 @@ function validateNativeConfigDirectory(kind, directory) {
   return kind === 'gemini' ? path.resolve(directory) : resolved
 }
 
-module.exports = { NATIVE_CONFIG_DIRECTORIES, NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_ENVIRONMENT_IDENTITY,
-  nativeEnvironmentIdentity, nativeConfigEnvironment,
+module.exports = { NATIVE_CONFIG_DIRECTORIES, NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_ENVIRONMENT_IDENTITY, NATIVE_AUTH_IDENTITY_FILES,
+  nativeEnvironmentIdentity, nativeAuthIdentityFiles, nativeConfigEnvironment,
   nativeIdentityDirectory, validateNativeConfigDirectory }
