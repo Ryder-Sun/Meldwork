@@ -406,6 +406,29 @@ test('shell-unset provider credentials are not restored from the desktop process
   assert.deepEqual(harness.runAgentCalls.at(-1)[3].nativeUnsetKeys, ['ANTHROPIC_API_KEY', 'HTTPS_PROXY'])
 })
 
+test('Codex selected config passes its declared credential only to Codex', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-codex-env-main-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const native = path.join(directory, 'native'); fs.mkdirSync(native)
+  fs.writeFileSync(path.join(native, 'config.toml'), "model_provider = 'custom'\n[model_providers.custom]\nenv_key = 'CUSTOM_CREDENTIAL'\n")
+  const readiness = require('../../src/agents/local-agent-readiness.cjs')
+  const { harness } = loadMain(directory, {
+    codexDeclaredCredentialKeys: readiness.codexDeclaredCredentialKeys,
+    nativeEnvironment: readiness.nativeCredentialEnvironment,
+    nativeShellEnvironment: input => ({ source: 'native-shell', env: input.extraEnvKeys?.includes('CUSTOM_CREDENTIAL')
+      ? { CUSTOM_CREDENTIAL: 'synthetic-secret', UNRELATED_SECRET: 'private' } : {} }),
+  })
+  await harness.ready()
+  harness.workspaceInstances[0].state.agentPreferences = { codex: { nativeConfigDirectory: native } }
+  await harness.workspaceInstances[0].input.runAgent({ kind: 'codex', executable: '/tmp/codex' }, 'hello', directory, {})
+  const options = harness.runAgentCalls.at(-1)[3]
+  assert.equal(options.env.CUSTOM_CREDENTIAL, 'synthetic-secret')
+  assert.equal(options.env.UNRELATED_SECRET, undefined)
+  assert.deepEqual(options.nativeCredentialKeys, ['CODEX_API_KEY', 'CUSTOM_CREDENTIAL'])
+  await harness.workspaceInstances[0].input.runAgent({ kind: 'hermes', executable: '/tmp/hermes' }, 'hello', directory, {})
+  assert.equal(harness.runAgentCalls.at(-1)[3].env.CUSTOM_CREDENTIAL, undefined)
+})
+
 test('Hermes selected config captures only its declared native credential for execution', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-env-main-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
@@ -2677,6 +2700,7 @@ test('OpenClaw native auth is routed through the app-owned isolated runtime', as
   const { harness } = loadMain(directory, {
     moduleMocks: {
       './agents/local-agent-readiness.cjs': {
+        codexDeclaredCredentialKeys: () => [],
         hermesDeclaredCredentialKeys: () => [],
         zcodeDeclaredCredentialKeys: () => [],
         piDeclaredCredentialKeys: () => [],

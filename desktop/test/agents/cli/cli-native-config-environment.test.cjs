@@ -48,7 +48,7 @@ test('Zcode declared provider credentials are isolated and redacted', () => {
   const zcode = childEnvironment({ kind: 'zcode', executable: '/native/zcode' }, '/workspace', options, 'darwin')
   assert.equal(zcode.ACME_API_KEY, 'synthetic-secret')
   assert.equal(redactChildSecrets('value=synthetic-secret', zcode), 'value=[redacted]')
-  assert.equal(childEnvironment({ kind: 'codex', executable: '/native/codex' }, '/workspace', options, 'darwin').ACME_API_KEY, undefined)
+  assert.equal(childEnvironment({ kind: 'codex', executable: '/native/codex' }, '/workspace', { env: options.env }, 'darwin').ACME_API_KEY, undefined)
 })
 
 test('Codex Connector credentials are redacted even when short', () => {
@@ -82,8 +82,28 @@ test('declared Hermes credentials reach only Hermes and are redacted even withou
   for (const part of ['a', 'b', 'c']) emitter.emit({ type: 'answer_delta', status: 'running', delta: part })
   emitter.finalize({ status: 'completed' })
   assert.doesNotMatch(JSON.stringify(events), /abc/)
-  const codex = childEnvironment({ kind: 'codex', executable: '/native/codex' }, '/workspace', options, 'darwin')
+  const codex = childEnvironment({ kind: 'codex', executable: '/native/codex' }, '/workspace', { env: options.env }, 'darwin')
   assert.equal(codex.CUSTOM_CREDENTIAL, undefined)
+})
+
+test('Codex uses only the selected native provider env_key and redacts it', t => {
+  const { codexDeclaredCredentialKeys } = require('../../../src/agents/local-agent-readiness.cjs')
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-codex-provider-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  fs.writeFileSync(path.join(directory, 'config.toml'), `profile = 'work'\nmodel_provider = 'other'\n[profiles.work]\nmodel_provider = 'custom'\n[model_providers.custom]\nenv_key = 'CUSTOM_CREDENTIAL'\n[model_providers.other]\nenv_key = 'OTHER_SECRET'\n`)
+  const env = { CODEX_HOME: directory, CUSTOM_CREDENTIAL: 'abc', OTHER_SECRET: 'other', NODE_OPTIONS: 'unsafe' }
+  const keys = codexDeclaredCredentialKeys({ env, home: directory })
+  assert.deepEqual(keys, ['CUSTOM_CREDENTIAL'])
+  const selected = nativeCredentialEnvironment('codex', env, keys)
+  const child = childEnvironment({ kind: 'codex', executable: '/native/codex' }, '/workspace', {
+    env: selected, nativeCredentialKeys: keys,
+  }, 'darwin')
+  assert.equal(child.CUSTOM_CREDENTIAL, 'abc')
+  assert.equal(child.OTHER_SECRET, undefined)
+  assert.equal(child.NODE_OPTIONS, undefined)
+  assert.equal(redactChildSecrets('value=abc', child), 'value=[redacted]')
+  fs.writeFileSync(path.join(directory, 'config.toml'), "model_provider = 'custom'\n[model_providers.custom]\nenv_key = 'NODE_OPTIONS'\n")
+  assert.deepEqual(codexDeclaredCredentialKeys({ env, home: directory }), [])
 })
 
 test('Hermes invocation receives declared credentials and redacts them from its reply', async t => {
@@ -118,7 +138,7 @@ test('MiMo captures only the selected provider environment reference and redacts
   assert.equal(child.CUSTOM_CREDENTIAL, 'abc')
   assert.equal(child.OTHER_SECRET, undefined)
   assert.equal(redactChildSecrets('value=abc', child), 'value=[redacted]')
-  assert.equal(nativeCredentialEnvironment('codex', env, keys).CUSTOM_CREDENTIAL, undefined)
+  assert.equal(nativeCredentialEnvironment('codex', env).CUSTOM_CREDENTIAL, undefined)
   write('{env:NODE_OPTIONS}')
   assert.deepEqual(mimoDeclaredCredentialKeys({ env }), [])
   assert.equal(mimoConfiguredProvider({ env: { ...env, NODE_OPTIONS: 'unsafe' } }), false)

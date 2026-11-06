@@ -756,6 +756,7 @@ function loadMain(userData, options = {}) {
     './agents/custom-agent-store.cjs': { CustomAgentStore: TestCustomAgentStore },
     './attachments/attachment-store.cjs': { AttachmentStore: TestAttachmentStore },
     './agents/local-agent-readiness.cjs': {
+      codexDeclaredCredentialKeys: input => options.codexDeclaredCredentialKeys?.(input) || [],
       hermesDeclaredCredentialKeys: input => options.hermesDeclaredCredentialKeys?.(input) || [],
       zcodeDeclaredCredentialKeys: input => options.zcodeDeclaredCredentialKeys?.(input) || [],
       piDeclaredCredentialKeys: input => options.piDeclaredCredentialKeys?.(input) || [],

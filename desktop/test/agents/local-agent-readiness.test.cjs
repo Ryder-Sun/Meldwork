@@ -144,7 +144,7 @@ test('Zcode captures credentials only for configured native models', async t => 
   const result = await resolveNativeShellEnvironment({ cache: false, platform: 'win32', extraEnvKeys: keys,
     env: { ACME_API_KEY: 'test-private', UNUSED_API_KEY: 'not-shared' } })
   assert.deepEqual(nativeCredentialEnvironment('zcode', result.env, keys), { ACME_API_KEY: 'test-private' })
-  assert.deepEqual(nativeCredentialEnvironment('codex', result.env, keys), {})
+  assert.deepEqual(nativeCredentialEnvironment('codex', result.env), {})
   assert.equal(result.env.UNUSED_API_KEY, undefined)
   fs.writeFileSync(path.join(dir, 'config.json'), '{')
   assert.deepEqual(zcodeDeclaredCredentialKeys({ home }), [])
@@ -171,7 +171,7 @@ test('Hermes captures only safe credential names declared by its selected YAML c
   assert.deepEqual(nativeCredentialEnvironment('hermes', result.env, keys), {
     CUSTOM_CREDENTIAL: 'test-private', SECOND_VALUE: 'other-private', lower_secret: 'lower-private',
   })
-  assert.deepEqual(nativeCredentialEnvironment('codex', result.env, keys), {})
+  assert.deepEqual(nativeCredentialEnvironment('codex', result.env), {})
   assert.equal(result.env.UNRELATED_SECRET, undefined)
 })
 

@@ -6,6 +6,7 @@ const path = require('node:path')
 const { promisify } = require('node:util')
 const yaml = require('js-yaml')
 const JSON5 = require('json5')
+const toml = require('@iarna/toml')
 const { nativeSecretEnvKeys } = require('./cli/native-secret-environment.cjs')
 const { prepareCommand, searchPath } = require('./cli/cli-adapters.cjs')
 const { isOpenClawSecretReference } = require('./cli/openclaw-runtime.cjs')
@@ -395,11 +396,24 @@ function piDeclaredCredentialKeys(options = {}) {
   } catch { return [] }
 }
 
+function codexDeclaredCredentialKeys(options = {}) {
+  const home = options.home || os.homedir()
+  const root = options.env?.CODEX_HOME || path.join(home, '.codex')
+  try {
+    const filename = path.join(root, 'config.toml')
+    if (fs.statSync(filename).size > 1024 * 1024) return []
+    const config = toml.parse(fs.readFileSync(filename, 'utf8'))
+    const profile = typeof config.profile === 'string' ? config.profiles?.[config.profile] : null
+    const provider = profile?.model_provider || config.model_provider
+    return nativeSecretEnvKeys([config.model_providers?.[provider]?.env_key])
+  } catch { return [] }
+}
+
 function nativeCredentialEnvironment(kind, env = process.env, declaredKeys = []) {
   const result = {}
   const keys = [...(RUNTIME_ENV_KEYS[kind] || []), ...(kind === 'claude'
     ? Object.keys(env).filter(key => VERTEX_MODEL_REGION_KEY.test(key)) : []),
-    ...(['hermes', 'zcode', 'mimo', 'pi', 'opencode'].includes(kind) ? nativeSecretEnvKeys(declaredKeys) : [])]
+    ...(['codex', 'hermes', 'zcode', 'mimo', 'pi', 'opencode'].includes(kind) ? nativeSecretEnvKeys(declaredKeys) : [])]
   for (const key of keys) {
     if (typeof env[key] === 'string') result[key] = env[key]
   }
@@ -1061,6 +1075,7 @@ async function resolveNativeCredentialState(kind, options = {}) {
 }
 
 module.exports = {
+  codexDeclaredCredentialKeys,
   hermesDeclaredCredentialKeys,
   zcodeDeclaredCredentialKeys,
   piDeclaredCredentialKeys,

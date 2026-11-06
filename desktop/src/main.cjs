@@ -50,6 +50,7 @@ const { ChannelIngressRuntime } = require('./channels/channel-ingress-runtime.cj
 const { CustomAgentStore } = require('./agents/custom-agent-store.cjs')
 const { configDirectoryEnvironment } = require('./agents/cli/cli-config-directories.cjs')
 const {
+  codexDeclaredCredentialKeys,
   hermesDeclaredCredentialKeys,
   zcodeDeclaredCredentialKeys,
   nativeCredentialEnvironment,
@@ -254,6 +255,8 @@ async function nativeShellEnvironment(options = {}) {
   let resolved = await resolveNativeShellEnvironment({ home, refresh: options.refresh === true })
   const initialEnv = { ...process.env, ...resolved.env }
   for (const key of resolved.unsetKeys || []) delete initialEnv[key]
+  const codexEnv = nativeConfigEnvironment('codex', workspace?.state.agentPreferences, initialEnv)
+  const codexCredentialKeys = codexDeclaredCredentialKeys({ home, env: codexEnv })
   const hermesEnv = nativeConfigEnvironment('hermes', workspace?.state.agentPreferences, initialEnv)
   const hermesCredentialKeys = hermesDeclaredCredentialKeys({ home, env: hermesEnv })
   const zcodeCredentialKeys = zcodeDeclaredCredentialKeys({ home })
@@ -262,7 +265,7 @@ async function nativeShellEnvironment(options = {}) {
   const opencodeEnv = nativeConfigEnvironment('opencode', workspace?.state.agentPreferences, initialEnv)
   const opencodeCredentialKeys = opencodeDeclaredCredentialKeys({ home, env: opencodeEnv, workdir: options.workdir })
   const mimoCredentialKeys = mimoDeclaredCredentialKeys({ home, env: initialEnv, workdir: options.workdir })
-  const declaredKeys = [...new Set([...hermesCredentialKeys, ...zcodeCredentialKeys, ...piCredentialKeys,
+  const declaredKeys = [...new Set([...codexCredentialKeys, ...hermesCredentialKeys, ...zcodeCredentialKeys, ...piCredentialKeys,
     ...opencodeCredentialKeys, ...mimoCredentialKeys])]
   if (declaredKeys.length) {
     const chunks = []
@@ -296,6 +299,7 @@ async function nativeShellEnvironment(options = {}) {
     ...resolved,
     env,
     home,
+    codexCredentialKeys,
     hermesCredentialKeys,
     zcodeCredentialKeys,
     piCredentialKeys,
@@ -309,13 +313,13 @@ async function detectLocalAgents() {
   const agents = await detectAgents({
     env: shellEnvironment.env,
     home: shellEnvironment.home,
-    nativeCredentialKeysForKind: kind => kind === 'codex' ? ['CODEX_API_KEY'] : kind === 'hermes' ? shellEnvironment.hermesCredentialKeys
+    nativeCredentialKeysForKind: kind => kind === 'codex' ? ['CODEX_API_KEY', ...shellEnvironment.codexCredentialKeys] : kind === 'hermes' ? shellEnvironment.hermesCredentialKeys
       : kind === 'zcode' ? shellEnvironment.zcodeCredentialKeys : kind === 'pi' ? shellEnvironment.piCredentialKeys
         : kind === 'opencode' ? shellEnvironment.opencodeCredentialKeys
         : kind === 'mimo' ? shellEnvironment.mimoCredentialKeys : [],
     nativeEnvironmentForKind: kind => kind === 'openclaw'
       ? {} : nativeCredentialEnvironment(kind, nativeConfigEnvironment(kind, workspace?.state.agentPreferences, shellEnvironment.env),
-        kind === 'hermes' ? shellEnvironment.hermesCredentialKeys : kind === 'zcode' ? shellEnvironment.zcodeCredentialKeys
+        kind === 'codex' ? shellEnvironment.codexCredentialKeys : kind === 'hermes' ? shellEnvironment.hermesCredentialKeys : kind === 'zcode' ? shellEnvironment.zcodeCredentialKeys
           : kind === 'pi' ? shellEnvironment.piCredentialKeys : kind === 'opencode' ? shellEnvironment.opencodeCredentialKeys
             : kind === 'mimo' ? shellEnvironment.mimoCredentialKeys : []),
   })
@@ -327,7 +331,7 @@ async function detectLocalAgents() {
     if (authFiles.length) Object.defineProperty(result, NATIVE_AUTH_IDENTITY_FILES, { value: authFiles })
     if (agent.kind !== 'openclaw') {
       const env = nativeConfigEnvironment(agent.kind, workspace?.state.agentPreferences, shellEnvironment.env)
-      const keys = agent.kind === 'hermes' ? shellEnvironment.hermesCredentialKeys
+      const keys = agent.kind === 'codex' ? shellEnvironment.codexCredentialKeys : agent.kind === 'hermes' ? shellEnvironment.hermesCredentialKeys
         : agent.kind === 'zcode' ? shellEnvironment.zcodeCredentialKeys
           : agent.kind === 'pi' ? shellEnvironment.piCredentialKeys : agent.kind === 'opencode' ? shellEnvironment.opencodeCredentialKeys
             : agent.kind === 'mimo' ? shellEnvironment.mimoCredentialKeys : []
@@ -477,7 +481,7 @@ async function runCoreAgent(agent, prompt, workdir, options = {}) {
     : {
         ...configDirectoryEnvironment(selectedNativeEnv),
         ...nativeCredentialEnvironment(agent.kind, selectedNativeEnv,
-          agent.kind === 'hermes' ? shellEnvironment.hermesCredentialKeys : agent.kind === 'zcode' ? shellEnvironment.zcodeCredentialKeys
+          agent.kind === 'codex' ? shellEnvironment.codexCredentialKeys : agent.kind === 'hermes' ? shellEnvironment.hermesCredentialKeys : agent.kind === 'zcode' ? shellEnvironment.zcodeCredentialKeys
             : agent.kind === 'pi' ? shellEnvironment.piCredentialKeys : agent.kind === 'opencode' ? shellEnvironment.opencodeCredentialKeys
               : agent.kind === 'mimo' ? shellEnvironment.mimoCredentialKeys : []),
         ...(agent.kind === 'workbuddy' ? workBuddyEnvironment({
@@ -494,7 +498,7 @@ async function runCoreAgent(agent, prompt, workdir, options = {}) {
     ...(shellEnvironment?.unsetKeys ? { nativeUnsetKeys: shellEnvironment.unsetKeys } : {}),
     ...(connectorCredentialIsolation ? { nativeCredentialKeys: ['CODEX_API_KEY'] }
       : ['codex', 'hermes', 'zcode', 'mimo', 'pi', 'opencode'].includes(agent.kind)
-        ? { nativeCredentialKeys: agent.kind === 'codex' ? ['CODEX_API_KEY']
+        ? { nativeCredentialKeys: agent.kind === 'codex' ? ['CODEX_API_KEY', ...shellEnvironment.codexCredentialKeys]
           : agent.kind === 'hermes' ? shellEnvironment.hermesCredentialKeys : agent.kind === 'zcode' ? shellEnvironment.zcodeCredentialKeys
             : agent.kind === 'pi' ? shellEnvironment.piCredentialKeys : agent.kind === 'opencode' ? shellEnvironment.opencodeCredentialKeys
               : shellEnvironment.mimoCredentialKeys } : {}),
