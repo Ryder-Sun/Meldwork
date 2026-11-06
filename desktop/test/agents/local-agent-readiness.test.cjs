@@ -1230,6 +1230,25 @@ test('real shell extraction preserves explicit empty cloud and credential overri
   assert.equal(fallback.env.ANTHROPIC_API_KEY, '')
 })
 
+test('real shell unsets remove inherited native credentials without exposing unrelated secrets', {
+  skip: process.platform === 'win32',
+}, async () => {
+  const execFile = require('node:util').promisify(require('node:child_process').execFile)
+  const result = await resolveNativeShellEnvironment({
+    cache: false, platform: 'linux', shell: '/bin/sh',
+    env: { AWS_PROFILE: 'stale-profile', ANTHROPIC_API_KEY: 'stale-key',
+      VERTEX_REGION_MODEL: 'stale-region', GITHUB_TOKEN: 'unrelated', PATH: '/usr/bin:/bin' },
+    execFileFn: (command, args, options) => {
+      assert.equal(options.env.GITHUB_TOKEN, undefined)
+      return execFile(command, ['-c', 'unset AWS_PROFILE ANTHROPIC_API_KEY VERTEX_REGION_MODEL\n' + args[1]], options)
+    },
+  })
+  for (const key of ['AWS_PROFILE', 'ANTHROPIC_API_KEY', 'VERTEX_REGION_MODEL']) {
+    assert.equal(Object.hasOwn(result.env, key), false)
+    assert.ok(result.unsetKeys.includes(key))
+  }
+})
+
 test('model-specific Vertex regions participate in cache identity and stay scoped to the native Agent', async () => {
   const key = 'VERTEX_REGION_CLAUDE_FUTURE_MODEL'
   const base = { platform: 'win32', home: 'C:\\vertex-region-test', env: { PATH: 'C:\\bin', [key]: 'us-east5' } }

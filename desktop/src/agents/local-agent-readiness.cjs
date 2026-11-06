@@ -350,6 +350,8 @@ function nativeShellCommand(shellName, extraEnvKeys = []) {
     '  eval "__meldwork_set=\\${$__meldwork_key+x}"',
     '  if [ -n "$__meldwork_set" ]; then',
     "    printf '%s=%s\\0' \"$__meldwork_key\" \"$__meldwork_value\"",
+    '  else',
+    "    printf '!%s\\0' \"$__meldwork_key\"",
     '  fi',
     'done',
   ].join('\n')
@@ -359,10 +361,16 @@ function parseNativeShellEnvironment(output, extraEnvKeys = []) {
   const text = String(output || '')
   const marker = `${SHELL_ENV_MARKER}\u0000`
   const start = text.indexOf(marker)
-  if (start < 0) return {}
+  if (start < 0) return { env: {}, unsetKeys: [] }
   const allowed = new Set([...SHELL_ENV_KEYS, ...nativeSecretEnvKeys(extraEnvKeys)])
   const result = {}
+  const unsetKeys = []
   for (const entry of text.slice(start + marker.length).split('\u0000')) {
+    if (entry.startsWith('!')) {
+      const key = entry.slice(1)
+      if (allowed.has(key) || VERTEX_MODEL_REGION_KEY.test(key)) unsetKeys.push(key)
+      continue
+    }
     const separator = entry.indexOf('=')
     if (separator <= 0) continue
     const key = entry.slice(0, separator)
@@ -371,7 +379,7 @@ function parseNativeShellEnvironment(output, extraEnvKeys = []) {
         || value.length > MAX_SHELL_ENV_BYTES) continue
     result[key] = value
   }
-  return result
+  return { env: result, unsetKeys }
 }
 
 async function queryNativeShellEnvironment(options = {}) {
@@ -387,13 +395,15 @@ async function queryNativeShellEnvironment(options = {}) {
   }
   const execFileFn = options.execFileFn || execFileAsync
   const childEnv = probeEnvironment('', { ...options, env: source, home, platform })
+  Object.assign(childEnv, fallback)
   childEnv.SHELL = shell
   childEnv.TERM = 'dumb'
   childEnv.NO_COLOR = '1'
+  const capturedKeys = [...(options.extraEnvKeys || []), ...Object.keys(fallback).filter(key => VERTEX_MODEL_REGION_KEY.test(key))]
   try {
     const result = await execFileFn(
       shell,
-      [shellName === 'sh' ? '-lc' : '-lic', nativeShellCommand(shellName, options.extraEnvKeys)],
+      [shellName === 'sh' ? '-lc' : '-lic', nativeShellCommand(shellName, capturedKeys)],
       {
         timeout: SHELL_ENV_TIMEOUT_MS,
         maxBuffer: MAX_SHELL_ENV_BYTES,
@@ -401,18 +411,22 @@ async function queryNativeShellEnvironment(options = {}) {
         env: childEnv,
       },
     )
-    const loaded = parseNativeShellEnvironment(result.stdout, options.extraEnvKeys)
+    const loaded = parseNativeShellEnvironment(result.stdout, capturedKeys)
+    const merged = { ...fallback, ...loaded.env }
+    const unsetKeys = loaded.unsetKeys.filter(key => Object.hasOwn(fallback, key))
+    for (const key of unsetKeys) delete merged[key]
     return {
-      env: { ...fallback, ...loaded },
-      source: Object.keys(loaded).some(key => key !== 'PATH') ? 'native-shell' : 'process',
+      env: merged,
+      ...(unsetKeys.length ? { unsetKeys } : {}),
+      source: Object.keys(loaded.env).some(key => key !== 'PATH') || unsetKeys.length ? 'native-shell' : 'process',
     }
   } catch {
     return { env: fallback, source: 'process', failed: true }
   }
 }
 
-function publicShellEnvironment({ env, source }) {
-  return { env, source }
+function publicShellEnvironment({ env, source, unsetKeys }) {
+  return { env, source, ...(unsetKeys?.length ? { unsetKeys } : {}) }
 }
 
 const lastGoodShellEnvironment = new Map()

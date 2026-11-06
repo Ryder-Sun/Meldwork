@@ -204,6 +204,25 @@ test('native Agent configuration selection is validated and used for execution',
   assert.equal((await get(harness.event(), 'hermes')).directory, '')
 })
 
+test('shell-unset provider credentials are not restored from the desktop process', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-shell-unset-main-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const previous = process.env.ANTHROPIC_API_KEY
+  process.env.ANTHROPIC_API_KEY = 'stale-provider-secret'
+  t.after(() => {
+    if (previous === undefined) delete process.env.ANTHROPIC_API_KEY
+    else process.env.ANTHROPIC_API_KEY = previous
+  })
+  const readiness = require('../../src/agents/local-agent-readiness.cjs')
+  const { harness } = loadMain(directory, {
+    nativeEnvironment: readiness.nativeCredentialEnvironment,
+    nativeShellEnvironment: () => ({ source: 'native-shell', env: {}, unsetKeys: ['ANTHROPIC_API_KEY'] }),
+  })
+  await harness.ready()
+  await harness.workspaceInstances[0].input.runAgent({ kind: 'claude', executable: '/tmp/claude' }, 'hello', directory, {})
+  assert.equal(harness.runAgentCalls.at(-1)[3].env.ANTHROPIC_API_KEY, undefined)
+})
+
 test('Hermes selected config captures only its declared native credential for execution', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-env-main-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
