@@ -382,7 +382,7 @@ function zcodeDeclaredCredentialKeys(options = {}) {
   try {
     const files = zcodeConfigFiles(options)
     let model = {}
-    const providers = Object.create(null)
+    let providers = Object.create(null)
     for (const filename of files) {
       let config
       try {
@@ -390,10 +390,11 @@ function zcodeDeclaredCredentialKeys(options = {}) {
         if (!stat.isFile() || stat.size > 1024 * 1024) continue
         config = JSON.parse(fs.readFileSync(filename, 'utf8'))
       } catch { continue }
-      if (config?.model && typeof config.model === 'object' && !Array.isArray(config.model)) model = { ...model, ...config.model }
+      if (config?.model && typeof config.model === 'object' && !Array.isArray(config.model)) model = { ...config.model }
       if (config?.provider && typeof config.provider === 'object' && !Array.isArray(config.provider)) {
+        providers = Object.create(null)
         for (const [id, entry] of Object.entries(config.provider)) {
-          if (entry && typeof entry === 'object' && !Array.isArray(entry)) providers[id] = { ...providers[id], ...entry }
+          if (entry && typeof entry === 'object' && !Array.isArray(entry)) providers[id] = { ...entry }
         }
       }
     }
@@ -436,12 +437,13 @@ function zcodeSelectedCredentialState(options = {}) {
       if (!layer || typeof layer !== 'object' || Array.isArray(layer)) return { state: 'unknown', source: 'unverified' }
       found = true
       if (layer.model && typeof layer.model === 'object' && !Array.isArray(layer.model)) {
-        config.model = { ...config.model, ...layer.model }
+        config.model = { ...layer.model }
       }
       if (layer.provider && typeof layer.provider === 'object' && !Array.isArray(layer.provider)) {
+        config.provider = Object.create(null)
         for (const [id, entry] of Object.entries(layer.provider)) {
           if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
-            config.provider[id] = { ...config.provider[id], ...entry }
+            config.provider[id] = { ...entry }
           }
         }
       }

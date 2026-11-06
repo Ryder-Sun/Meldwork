@@ -302,6 +302,23 @@ test('Zcode readiness follows the selected project provider instead of the globa
   assert.equal(nativeCredentialState('zcode', { home, workdir: project, env }).state, 'unknown')
 })
 
+test('Zcode project provider replacement does not inherit credentials from a global provider', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-zcode-provider-replacement-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const globalDir = path.join(home, '.zcode', 'cli')
+  const project = path.join(home, 'project')
+  fs.mkdirSync(globalDir, { recursive: true }); fs.mkdirSync(project)
+  fs.writeFileSync(path.join(globalDir, 'config.json'), JSON.stringify({
+    model: { main: 'custom/model' }, provider: { custom: { name: 'Old Account', options: { apiKey: 'old-secret' } } },
+  }))
+  fs.writeFileSync(path.join(project, 'zcode.json'), JSON.stringify({ provider: { custom: { name: 'New Account' } } }))
+  assert.deepEqual(zcodeDeclaredCredentialKeys({ home, workdir: project, env: {} }), ['CUSTOM_API_KEY', 'NEW_ACCOUNT_API_KEY'])
+  assert.equal(nativeCredentialState('zcode', { home, workdir: project, env: {} }).state, 'unknown')
+  assert.equal(nativeCredentialState('zcode', { home, workdir: project, env: { NEW_ACCOUNT_API_KEY: 'new-secret' } }).state, 'ready')
+  fs.writeFileSync(path.join(project, 'zcode.json'), JSON.stringify({ model: { lite: 'other/model' } }))
+  assert.equal(nativeCredentialState('zcode', { home, workdir: project, env: {} }).state, 'unknown')
+})
+
 test('Zcode reads the home directory inherited by its native CLI', t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-zcode-home-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))
