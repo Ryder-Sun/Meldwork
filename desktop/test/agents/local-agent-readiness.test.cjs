@@ -150,6 +150,30 @@ test('Zcode captures credentials only for configured native models', async t => 
   assert.deepEqual(zcodeDeclaredCredentialKeys({ home }), [])
 })
 
+test('Zcode readiness checks only the selected native provider', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-zcode-selected-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const dir = path.join(home, '.zcode', 'cli')
+  fs.mkdirSync(dir, { recursive: true })
+  const file = path.join(dir, 'config.json')
+  const config = { model: { main: 'selected/model', lite: 'other/model' }, provider: {
+    selected: { kind: 'openai-compatible', name: 'Selected service' },
+    other: { options: { apiKey: 'other-private' } },
+  } }
+  fs.writeFileSync(file, JSON.stringify(config))
+  assert.deepEqual(nativeCredentialState('zcode', { home, env: { ANTHROPIC_API_KEY: 'other' } }),
+    { state: 'unknown', source: 'unverified' })
+  assert.deepEqual(nativeCredentialState('zcode', { home, env: { SELECTED_SERVICE_API_KEY: 'selected' } }),
+    { state: 'ready', source: 'native-credential' })
+  config.provider.selected.options = { apiKey: 'selected-private' }
+  fs.writeFileSync(file, JSON.stringify(config))
+  assert.deepEqual(nativeCredentialState('zcode', { home, env: {} }), { state: 'ready', source: 'native-credential' })
+  assert.deepEqual(nativeCredentialState('zcode', { home, env: { ZCODE_MODEL: 'alternate/model' } }),
+    { state: 'unknown', source: 'unverified' })
+  assert.deepEqual(nativeCredentialState('zcode', { home, env: { ZCODE_MODEL: 'alternate/model', ALTERNATE_API_KEY: 'selected' } }),
+    { state: 'ready', source: 'native-credential' })
+})
+
 test('Zcode discovers native project model overrides and their credentials', t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-zcode-project-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))

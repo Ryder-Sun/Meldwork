@@ -393,6 +393,47 @@ function zcodeDeclaredCredentialKeys(options = {}) {
   } catch { return [] }
 }
 
+function zcodeSelectedCredentialState(options = {}) {
+  const env = options.env || process.env
+  const platform = options.platform || process.platform
+  const configuredHome = platform === 'win32' ? env.USERPROFILE : env.HOME
+  const home = typeof configuredHome === 'string' && configuredHome.trim()
+    ? configuredHome.trim() : (options.home || os.homedir())
+  const filename = path.join(home, '.zcode', 'cli', 'config.json')
+  let config
+  try {
+    const stat = fs.statSync(filename)
+    if (!stat.isFile() || stat.size > MAX_CREDENTIAL_FILE_BYTES) return { state: 'unknown', source: 'unverified' }
+    config = JSON.parse(fs.readFileSync(filename, 'utf8'))
+  } catch (error) {
+    return error?.code === 'ENOENT' ? null : { state: 'unknown', source: 'unverified' }
+  }
+  const envModel = typeof env.ZCODE_MODEL === 'string' ? env.ZCODE_MODEL.trim() : ''
+  const model = envModel ? { provider: envModel.includes('/') ? envModel.split('/')[0] : 'anthropic' }
+    : typeof config?.model?.main === 'string' ? { provider: config.model.main.includes('/')
+      ? config.model.main.split('/')[0] : 'anthropic' }
+      : config?.model?.main
+  if (!model || typeof model !== 'object' || typeof model.provider !== 'string' || !model.provider.trim()) {
+    return { state: 'unknown', source: 'unverified' }
+  }
+  const provider = model.provider.trim()
+  const entry = config?.provider?.[provider] || {}
+  const kind = model.kind || entry.kind || (['openai', 'anthropic'].includes(provider) ? provider : '')
+  const names = [provider, provider.replace(/^default[-_]/, ''), model.providerName || entry.name]
+  if (kind === 'openai' || kind === 'anthropic') names.push(kind)
+  const keys = nativeSecretEnvKeys(['ZCODE_API_KEY', ...names.filter(name => typeof name === 'string').map(name => {
+    const normalized = name.trim().replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '').toUpperCase()
+    return normalized ? `${normalized}_API_KEY` : ''
+  })])
+  if (keys.some(key => typeof env[key] === 'string' && env[key].trim())) {
+    return { state: 'ready', source: options.credentialSource === 'native-shell' ? 'native-shell' : 'native-credential' }
+  }
+  if (credentialLiteral(model.apiKey) || credentialLiteral(entry.options?.apiKey)) {
+    return { state: 'ready', source: 'native-credential' }
+  }
+  return { state: 'unknown', source: 'unverified' }
+}
+
 function piDeclaredCredentialKeys(options = {}) {
   const env = options.env || process.env
   const home = options.home || os.homedir()
@@ -664,6 +705,10 @@ function resolveNativeShellEnvironment(options = {}) {
 
 function nativeCredentialState(kind, options = {}) {
   if (kind === 'workbuddy') return workBuddyCredentialState(options)
+  if (kind === 'zcode') {
+    const selected = zcodeSelectedCredentialState(options)
+    if (selected) return selected
+  }
   const home = options.home || os.homedir()
   const env = options.env || process.env
   const codexHome = env.CODEX_HOME || path.join(home, '.codex')
