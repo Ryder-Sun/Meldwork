@@ -6,6 +6,7 @@ const {
   publicCollaborationText,
 } = require('../collaboration/collaboration-records.cjs')
 const { unlimitedReviewContract } = require('./local-workspace-context.cjs')
+const { explicitTaskFailure } = require('./local-workspace-auto-runner-natural-decisions.cjs')
 const {
   parseTaskGraphCursor,
   readyTaskGraphNodes,
@@ -121,6 +122,7 @@ const taskGraphMethods = {
     const conclusion = publicCollaborationText(result?.message?.content || '')
     const refs = verifiedRefs || this.taskGraphVerifiedOutcomeRefs(node, result, controller)
     return result?.message?.trace?.status === 'completed'
+      && !explicitTaskFailure(result?.message?.content)
       && (!node.acceptance.requireConclusion
         || (Boolean(conclusion) && result.message.trace.truncated !== true))
       && refs.artifactIds.length >= node.acceptance.minArtifactRefs

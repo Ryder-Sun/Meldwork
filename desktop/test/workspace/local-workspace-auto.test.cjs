@@ -69,6 +69,12 @@ test('task graph does not accept a truncated required conclusion', () => {
   assert.equal(taskGraphMethods.taskGraphResultAccepted(node, result), true)
 })
 
+test('task graph rejects explicit failure even when no conclusion is required', () => {
+  const node = graphNode({ acceptance: { requireConclusion: false, minArtifactRefs: 0, minEvidenceRefs: 0 } })
+  const result = { message: { content: '权限不足，无法读取所需文件。', trace: { status: 'completed' } } }
+  assert.equal(taskGraphMethods.taskGraphResultAccepted(node, result), false)
+})
+
 function challengeBindingInput(workspace, targetKinds, round, bodyHash = 'a'.repeat(64), runId = 'run-binding') {
   const controller = workspace.createRunController('auto', targetKinds, 'root-binding', 8, false)
   controller.runId = runId
@@ -326,6 +332,25 @@ test('task graph does not accept a partial Agent result as a completed node', as
   assert.notEqual(durable.status, 'completed')
   assert.equal(durable.orchestration.taskGraph.nodeStates[0].status, 'failed')
   assert.deepEqual(calls, ['codex'])
+})
+
+test('task graph does not complete when a terminal reply explicitly reports failure', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const ledger = new RunLedger({ storagePath: path.join(directory, 'run-ledger.json') })
+  options.runLedger = ledger
+  options.runAgent = async () => ({ text: 'I checked the workspace.\nI cannot complete the task.', outcome: 'completed' })
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Failed graph response', agentKinds: ['codex', 'hermes'], workdir: directory, allowWrite: false })
+  await workspace.sendMessage({ groupId: group.id, text: 'Complete this task.', mode: 'auto', maxRounds: 2,
+    targetKinds: ['codex', 'hermes'], workflow: { template: 'task-graph', nodes: [graphNode({ terminal: true,
+      acceptance: { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 },
+    })] } })
+  await workspace.activeRuns.get(group.id).promise
+  const durable = ledger.list(group.id)[0]
+  assert.notEqual(durable.status, 'completed')
+  assert.equal(durable.orchestration.taskGraph.nodeStates[0].status, 'failed')
 })
 
 test('task graph does not count fabricated outcome references as evidence', async t => {
