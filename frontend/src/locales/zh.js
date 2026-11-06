@@ -961,6 +961,7 @@ export default {
     'error.agentUnavailable': '该本地 Agent 当前不可用。',
     'error.agentCapabilityMismatch': '所选 Agent 无法满足当前任务要求。',
     'error.agentRoutingNoMatch': '当前群组中没有满足任务要求的可用 Agent。',
+    'error.agentRoutingUnverified': '请先手动选择并运行所需 Agent，验证成功后再使用自动路由。',
     'error.agentRoutingContextConflict': '自动组队不能与显式 Agent、技能或知识库选择同时使用。',
     'error.agentRoutingInvalid': '自动组队请求无效。',
     'error.allAgentsFailed': '所选 Agent 均调用失败，请查看系统消息了解详情。',

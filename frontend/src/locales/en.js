@@ -961,6 +961,7 @@ export default {
     'error.agentUnavailable': 'This local Agent is unavailable.',
     'error.agentCapabilityMismatch': 'The selected Agent cannot satisfy this task requirement.',
     'error.agentRoutingNoMatch': 'No approved ready Agent can satisfy this task.',
+    'error.agentRoutingUnverified': 'Select and run the needed Agents explicitly once before using automatic routing.',
     'error.agentRoutingContextConflict': 'Automatic team formation cannot be combined with explicit Agent, Skill, or knowledge selections.',
     'error.agentRoutingInvalid': 'The automatic team formation request is invalid.',
     'error.allAgentsFailed': 'Every selected Agent failed. Review the system messages for details.',

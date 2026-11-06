@@ -23,7 +23,7 @@ const LIMIT_BANDS = new Set(['low', 'medium', 'high', 'any'])
 const BAND_ORDER = new Map([['low', 0], ['medium', 1], ['high', 2]])
 const EXCLUSION_REASONS = new Set([
   'unavailable', 'domain', 'input-type', 'output-type', 'tool-class',
-  'permission', 'latency', 'cost', 'context', 'resumability',
+  'permission', 'latency', 'cost', 'context', 'resumability', 'unverified',
 ])
 const RATIONALES = new Set([
   'explicit-user-selection', 'smallest-suitable-team', 'evidence-ranked-team',
@@ -185,6 +185,7 @@ function evaluateCandidate(agent, requirements, options = {}) {
   })
   const exclusions = []
   if (!(agent.invocable ?? agent.available)) exclusions.push('unavailable')
+  if (options.requireVerified && !options.isRecentlyVerified(agent)) exclusions.push('unverified')
   if (requirements.domains.some(domain => !capabilities.domains.includes(domain))) {
     exclusions.push('domain')
   }
@@ -316,6 +317,7 @@ class AgentRouter {
   constructor(options = {}) {
     this.attachmentSupport = options.attachmentSupport || (() => ({}))
     this.fitMatrix = normalizeFitMatrix(options.fitMatrix)
+    this.isRecentlyVerified = options.isRecentlyVerified || (agent => agent.recentlyVerified === true)
   }
 
   route({ agents, group, input, mode, inputTypes, minContextChars }) {
@@ -368,7 +370,8 @@ class AgentRouter {
     const candidates = approvedKinds.map((kind) => evaluateCandidate(
       detected.get(kind) || { kind, available: false },
       requirements,
-      { attachmentSupport: this.attachmentSupport, fitMatrix: this.fitMatrix },
+      { attachmentSupport: this.attachmentSupport, fitMatrix: this.fitMatrix,
+        requireVerified: effectiveMode === 'automatic', isRecentlyVerified: this.isRecentlyVerified },
     ))
     let selectedKinds
     if (effectiveMode === 'explicit') {
@@ -385,6 +388,11 @@ class AgentRouter {
           || approvedKinds.indexOf(left.kind) - approvedKinds.indexOf(right.kind))
       const requiredCount = requirements.collaboration === 'required' ? 2 : 1
       if (eligible.length < requiredCount) {
+        const unverified = candidates.filter(candidate => candidate.exclusions.length === 1
+          && candidate.exclusions[0] === 'unverified').length
+        if (eligible.length + unverified >= requiredCount) {
+          throw routingError('LOCAL_AGENT_ROUTING_UNVERIFIED', { eligibleCount: eligible.length, requiredCount })
+        }
         throw routingError(
           requiredCount > 1 ? 'LOCAL_AUTO_AGENT_COUNT' : 'LOCAL_AGENT_ROUTING_NO_MATCH',
           { eligibleCount: eligible.length, requiredCount },

@@ -512,6 +512,8 @@ test('opt-in automatic routing persists the smallest evidence-ranked team', asyn
     ],
   }
   const workspace = new LocalWorkspace(options)
+  workspace.state.agentRuntime.codex = { credentialState: 'ready', checkedAt: options.now() }
+  workspace.state.agentRuntime.hermes = { credentialState: 'ready', checkedAt: options.now() }
   await workspace.refreshAgents()
   const group = workspace.createGroup({
     name: 'Automatic routing', agentKinds: ['codex', 'hermes'], workdir: directory,
@@ -537,6 +539,24 @@ test('opt-in automatic routing persists the smallest evidence-ranked team', asyn
     restored.snapshot().messages.find(message => message.role === 'user').routingDecision,
     root.routingDecision,
   )
+})
+
+test('automatic routing waits for an explicit successful first run', async t => {
+  const { directory, calls, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  let now = options.now()
+  options.now = () => now
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Verify before routing', agentKinds: ['codex'], workdir: directory })
+  await assert.rejects(workspace.sendMessage({ groupId: group.id, text: 'Choose an Agent',
+    targetKinds: [], routingMode: 'automatic' }), { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
+  await workspace.sendMessage({ groupId: group.id, text: 'Verify this Agent', targetKinds: ['codex'] })
+  await workspace.sendMessage({ groupId: group.id, text: 'Choose an Agent', targetKinds: [], routingMode: 'automatic' })
+  assert.deepEqual(calls.map(call => call.agent.kind), ['codex', 'codex'])
+  now = new Date(Date.parse(now) + 25 * 60 * 60 * 1000).toISOString()
+  await assert.rejects(workspace.sendMessage({ groupId: group.id, text: 'Choose an Agent',
+    targetKinds: [], routingMode: 'automatic' }), { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
 })
 
 test('all supported workspace versions preserve stored or omitted read-only permission', (t) => {

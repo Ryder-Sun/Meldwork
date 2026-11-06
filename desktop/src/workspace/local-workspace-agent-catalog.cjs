@@ -70,6 +70,10 @@ class LocalWorkspaceAgentCatalog {
     this.indeterminateSince = new Map()
   }
 
+  isRecentlyVerified(kind) {
+    return recentlyVerified(this.state().agentRuntime[kind], this.now())
+  }
+
   async refresh() {
     if (this.refreshTask) {
       this.refreshAgain = true

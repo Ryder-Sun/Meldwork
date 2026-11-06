@@ -9,7 +9,7 @@ const {
 const frozenMatrix = require('../../src/evaluations/data/agent-fit-matrix.v1.json')
 
 function agent(kind, overrides = {}) {
-  return { kind, available: true, invocable: true, ...overrides }
+  return { kind, available: true, invocable: true, recentlyVerified: true, ...overrides }
 }
 
 function request(overrides = {}) {
@@ -65,6 +65,21 @@ test('an explicit target bypasses automatic formation and remains authoritative'
   assert.equal(decision.mode, 'explicit')
   assert.deepEqual(decision.selectedKinds, ['hermes'])
   assert.equal(decision.rationale, 'explicit-user-selection')
+})
+
+test('automatic routing excludes unverified Agents while explicit selection can start a first run', () => {
+  const router = new AgentRouter()
+  const agents = [agent('codex', { recentlyVerified: false, credentialState: 'ready' }), agent('hermes')]
+  const automatic = router.route(request({ agents, input: { routingMode: 'automatic', targetKinds: [] } }))
+  assert.deepEqual(automatic.selectedKinds, ['hermes'])
+  assert.deepEqual(automatic.candidates.find(candidate => candidate.kind === 'codex').exclusions, ['unverified'])
+  const explicit = router.route(request({ agents, input: { targetKinds: ['codex'] } }))
+  assert.deepEqual(explicit.selectedKinds, ['codex'])
+  assert.throws(() => router.route(request({ agents: [agents[0]],
+    group: { id: 'group-routing', agentKinds: ['codex'], allowWrite: false },
+    input: { routingMode: 'automatic', targetKinds: [] } })), { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
+  assert.throws(() => router.route(request({ agents, mode: 'auto',
+    input: { routingMode: 'automatic', targetKinds: [] } })), { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
 })
 
 test('explicit specialized Agents are not assigned an invented general-domain requirement', () => {

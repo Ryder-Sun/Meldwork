@@ -87,6 +87,7 @@ export const DESKTOP_ERROR_MESSAGE_KEYS = Object.freeze({
   LOCAL_AGENT_UNAVAILABLE: 'error.agentUnavailable',
   LOCAL_AGENT_CAPABILITY_MISMATCH: 'error.agentCapabilityMismatch',
   LOCAL_AGENT_ROUTING_NO_MATCH: 'error.agentRoutingNoMatch',
+  LOCAL_AGENT_ROUTING_UNVERIFIED: 'error.agentRoutingUnverified',
   LOCAL_AGENT_ROUTING_CONTEXT_CONFLICT: 'error.agentRoutingContextConflict',
   LOCAL_AGENT_ROUTING_MODE_INVALID: 'error.agentRoutingInvalid',
   LOCAL_AGENT_ROUTING_REQUIREMENTS_INVALID: 'error.agentRoutingInvalid',
