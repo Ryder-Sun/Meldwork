@@ -1,7 +1,8 @@
 const crypto = require('node:crypto')
 const path = require('node:path')
 
-const STORE_VERSION = 1
+const STORE_VERSION = 2
+const ATTACHMENT_CHUNK_BYTES = 256 * 1024
 const MAX_ATTACHMENT_BYTES = 128 * 1024 * 1024
 const MAX_ATTACHMENTS = 4
 const MAX_METADATA_BYTES = 64 * 1024
@@ -346,6 +347,18 @@ function validateAttachment(bytes, name, mimeType, requireMimeType) {
   return actual
 }
 
+function chunkHashes(bytes) {
+  return Array.from({ length: Math.ceil(bytes.length / ATTACHMENT_CHUNK_BYTES) }, (_, index) => (
+    crypto.createHash('sha256').update(bytes.subarray(
+      index * ATTACHMENT_CHUNK_BYTES, (index + 1) * ATTACHMENT_CHUNK_BYTES,
+    )).digest('hex')
+  ))
+}
+
+function chunkChecksum(chunks) {
+  return crypto.createHash('sha256').update(chunks.join('')).digest('hex')
+}
+
 function createAttachmentRecord(id, name, bytes, type) {
   const metadata = {
     id,
@@ -353,12 +366,14 @@ function createAttachmentRecord(id, name, bytes, type) {
     mimeType: type.mimeType,
     size: bytes.length,
   }
+  const chunks = /^(?:image|audio|video)\//.test(type.mimeType) ? chunkHashes(bytes) : null
   return {
     metadata,
     document: {
-      version: STORE_VERSION,
+      version: chunks ? STORE_VERSION : 1,
       ...metadata,
-      checksum: crypto.createHash('sha256').update(bytes).digest('hex'),
+      checksum: chunks ? chunkChecksum(chunks) : crypto.createHash('sha256').update(bytes).digest('hex'),
+      ...(chunks ? { chunks } : {}),
     },
   }
 }
@@ -366,12 +381,20 @@ function createAttachmentRecord(id, name, bytes, type) {
 function parseAttachmentRecord(metadataBytes, id) {
   let document
   try { document = JSON.parse(metadataBytes.toString('utf8')) } catch { fail('LOCAL_ATTACHMENT_TAMPERED') }
-  if (sortedKeys(document) !== 'checksum,id,mimeType,name,size,version'
-      || document.version !== STORE_VERSION || document.id !== id
+  const legacy = document?.version === 1
+  if (sortedKeys(document) !== (legacy
+    ? 'checksum,id,mimeType,name,size,version' : 'checksum,chunks,id,mimeType,name,size,version')
+      || (!legacy && document.version !== STORE_VERSION) || document.id !== id
       || typeof document.name !== 'string' || typeof document.mimeType !== 'string'
       || !Number.isSafeInteger(document.size) || document.size <= 0
       || document.size > MAX_ATTACHMENT_BYTES
       || typeof document.checksum !== 'string' || !/^[a-f0-9]{64}$/.test(document.checksum)) {
+    fail('LOCAL_ATTACHMENT_TAMPERED')
+  }
+  if (!legacy && (!Array.isArray(document.chunks)
+      || document.chunks.length !== Math.ceil(document.size / ATTACHMENT_CHUNK_BYTES)
+      || document.chunks.some(hash => typeof hash !== 'string' || !/^[a-f0-9]{64}$/.test(hash))
+      || chunkChecksum(document.chunks) !== document.checksum)) {
     fail('LOCAL_ATTACHMENT_TAMPERED')
   }
   const type = TYPE_BY_MIME.get(document.mimeType)
@@ -395,13 +418,16 @@ function validateStoredAttachment(bytes, document) {
       || detectAttachmentType(
         bytes, declaredNameType(document.name), declaredMimeType(document.mimeType),
       )?.mimeType !== document.mimeType
-      || crypto.createHash('sha256').update(bytes).digest('hex') !== document.checksum) {
+      || (document.version === 1
+        ? crypto.createHash('sha256').update(bytes).digest('hex') !== document.checksum
+        : chunkChecksum(chunkHashes(bytes)) !== document.checksum)) {
     fail('LOCAL_ATTACHMENT_TAMPERED')
   }
 }
 
 module.exports = {
   ATTACHMENT_FILE_EXTENSIONS,
+  ATTACHMENT_CHUNK_BYTES,
   MAX_ATTACHMENT_BYTES,
   MAX_METADATA_BYTES,
   attachmentError,

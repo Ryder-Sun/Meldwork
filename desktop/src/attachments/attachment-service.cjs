@@ -1,4 +1,5 @@
 const fs = require('node:fs')
+const { Readable } = require('node:stream')
 
 const {
   assertImagePixelLimit,
@@ -155,27 +156,34 @@ function createAttachmentService({ getStore, getSnapshot, nativeImage, openPath 
     const id = mediaRequestId(request?.url)
     if (!id) return new Response(null, { status: 404 })
     let entry
-    try { entry = availableStore().readWithMetadata(id) } catch { return new Response(null, { status: 404 }) }
+    try {
+      const store = availableStore()
+      entry = typeof store.openMedia === 'function' ? store.openMedia(id) : store.readWithMetadata(id)
+    } catch { return new Response(null, { status: 404 }) }
     const { metadata, bytes } = entry
-    if (!/^(?:image|audio|video)\//.test(metadata.mimeType) || bytes.length !== metadata.size) {
+    if (!/^(?:image|audio|video)\//.test(metadata.mimeType)
+        || (bytes && bytes.length !== metadata.size)) {
       return new Response(null, { status: 415 })
     }
-    const range = mediaByteRange(request?.headers?.get?.('range'), bytes.length)
+    const range = mediaByteRange(request?.headers?.get?.('range'), metadata.size)
     if (range === false) {
       return new Response(null, {
         status: 416,
-        headers: { 'Content-Range': `bytes */${bytes.length}` },
+        headers: { 'Content-Range': `bytes */${metadata.size}` },
       })
     }
-    const body = range ? bytes.subarray(range.start, range.end + 1) : bytes
+    const start = range?.start ?? 0
+    const end = range?.end ?? metadata.size - 1
+    const body = bytes ? bytes.subarray(start, end + 1)
+      : Readable.toWeb(Readable.from(entry.readRange(start, end)))
     const headers = {
       'Accept-Ranges': 'bytes',
       'Cache-Control': 'private, max-age=31536000, immutable',
-      'Content-Length': String(body.length),
+      'Content-Length': String(end - start + 1),
       'Content-Type': metadata.mimeType,
       'X-Content-Type-Options': 'nosniff',
     }
-    if (range) headers['Content-Range'] = `bytes ${range.start}-${range.end}/${bytes.length}`
+    if (range) headers['Content-Range'] = `bytes ${range.start}-${range.end}/${metadata.size}`
     return new Response(body, { status: range ? 206 : 200, headers })
   }
 

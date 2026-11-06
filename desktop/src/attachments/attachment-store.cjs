@@ -3,6 +3,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 
 const {
+  ATTACHMENT_CHUNK_BYTES,
   MAX_ATTACHMENT_BYTES,
   MAX_METADATA_BYTES,
   attachmentError,
@@ -137,6 +138,67 @@ class AttachmentStore {
     return {
       metadata: { ...entry.metadata },
       bytes: Buffer.from(entry.bytes),
+    }
+  }
+
+  openMedia(id) {
+    const entry = this.loadEntryMetadata(normalizeId(id))
+    if (!entry.document.chunks) {
+      const legacy = this.loadEntry(id)
+      return { metadata: legacy.metadata, bytes: legacy.bytes }
+    }
+    try {
+      const stat = fs.lstatSync(entry.path)
+      if (stat.isSymbolicLink() || !stat.isFile() || stat.size !== entry.document.size
+          || (process.platform !== 'win32' && (stat.mode & 0o777) !== FILE_MODE)
+          || !isInside(this.rootRealPath, fs.realpathSync(entry.path))) {
+        fail('LOCAL_ATTACHMENT_TAMPERED')
+      }
+    } catch (error) {
+      if (isAttachmentError(error)) throw error
+      throw attachmentError('LOCAL_ATTACHMENT_TAMPERED')
+    }
+    const store = this
+    return {
+      metadata: entry.metadata,
+      async *readRange(start, end) {
+        let descriptor
+        try {
+          store.assertRoot()
+          const stat = fs.lstatSync(entry.path)
+          if (stat.isSymbolicLink() || !stat.isFile() || stat.size !== entry.document.size
+              || (process.platform !== 'win32' && (stat.mode & 0o777) !== FILE_MODE)
+              || !isInside(store.rootRealPath, fs.realpathSync(entry.path))) {
+            fail('LOCAL_ATTACHMENT_TAMPERED')
+          }
+          const noFollow = process.platform === 'win32' ? 0 : (fs.constants.O_NOFOLLOW || 0)
+          descriptor = fs.openSync(entry.path, fs.constants.O_RDONLY | noFollow)
+          const opened = fs.fstatSync(descriptor)
+          if (!opened.isFile() || opened.size !== stat.size
+              || opened.dev !== stat.dev || opened.ino !== stat.ino
+              || (process.platform !== 'win32' && (opened.mode & 0o777) !== FILE_MODE)) {
+            fail('LOCAL_ATTACHMENT_TAMPERED')
+          }
+          const first = Math.floor(start / ATTACHMENT_CHUNK_BYTES)
+          const last = Math.floor(end / ATTACHMENT_CHUNK_BYTES)
+          for (let index = first; index <= last; index += 1) {
+            const chunkStart = index * ATTACHMENT_CHUNK_BYTES
+            const chunkEnd = Math.min(entry.document.size, chunkStart + ATTACHMENT_CHUNK_BYTES) - 1
+            const parts = []
+            for await (const part of fs.createReadStream(entry.path, {
+              fd: descriptor, autoClose: false, start: chunkStart, end: chunkEnd,
+            })) parts.push(part)
+            const chunk = Buffer.concat(parts)
+            if (chunk.length !== chunkEnd - chunkStart + 1
+                || crypto.createHash('sha256').update(chunk).digest('hex') !== entry.document.chunks[index]) {
+              fail('LOCAL_ATTACHMENT_TAMPERED')
+            }
+            yield chunk.subarray(Math.max(0, start - chunkStart), Math.min(chunk.length, end - chunkStart + 1))
+          }
+        } finally {
+          if (descriptor !== undefined) fs.closeSync(descriptor)
+        }
+      },
     }
   }
 
@@ -286,7 +348,7 @@ class AttachmentStore {
     }
   }
 
-  loadEntry(id) {
+  loadEntryMetadata(id) {
     this.assertRoot()
     const directory = path.join(this.rootPath, id)
     let directoryStat
@@ -311,17 +373,22 @@ class AttachmentStore {
     )
     const { document, type, metadata } = parseAttachmentRecord(metadataBytes, id)
     const contentPath = path.join(directory, `${type.storageBase}.${type.extension}`)
+    return { directory, path: contentPath, document, metadata }
+  }
+
+  loadEntry(id) {
+    const entry = this.loadEntryMetadata(id)
     const bytes = this.readStoredFile(
-      contentPath,
+      entry.path,
       'LOCAL_ATTACHMENT_FILE_MISSING',
       MAX_ATTACHMENT_BYTES,
     )
-    validateStoredAttachment(bytes, document)
+    validateStoredAttachment(bytes, entry.document)
     return {
-      directory,
-      path: contentPath,
+      directory: entry.directory,
+      path: entry.path,
       bytes,
-      metadata,
+      metadata: entry.metadata,
     }
   }
 
