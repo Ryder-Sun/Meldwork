@@ -465,7 +465,7 @@ for (const [category, retryable] of [['unknown', false], ['execution', false], [
   })
 }
 
-test('automatic group execution does not retry a Connector network failure marked non-retryable', async t => {
+for (const protocol of ['legacy', 'v4']) test(`${protocol} automatic group execution does not retry a Connector network failure marked non-retryable`, async t => {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
   let calls = 0
@@ -478,13 +478,19 @@ test('automatic group execution does not retry a Connector network failure marke
   options.detectAgents = async () => runtime.detectAgents()
   options.connectorRuntime = runtime
   options.retryBaseDelayMs = 1
+  const ledger = new RunLedger({ storagePath: path.join(directory, 'run-ledger.json') })
+  options.runLedger = ledger
   const workspace = new LocalWorkspace(options)
   await workspace.refreshAgents()
   const kind = 'custom-bbbbbbbbbbbbbbbb'
   const group = workspace.createGroup({ name: 'Connector retry', agentKinds: [kind], workdir: directory })
-  await workspace.sendMessage({ groupId: group.id, text: 'Run once', mode: 'auto', maxRounds: 1, targetKinds: [kind] })
+  await workspace.sendMessage({ groupId: group.id, text: 'Run once', mode: 'auto', maxRounds: 1, targetKinds: [kind], protocol })
   await workspace.activeRuns.get(group.id)?.promise
   assert.equal(calls, 1)
+  const durable = ledger.list(group.id)[0]
+  assert.equal(durable.orchestration.version, protocol === 'v4' ? 4 : 2)
+  assert.equal(durable.attemptHistory[0].policyAction, 'fail')
+  assert.equal(durable.attemptHistory[0].outcomeCertainty, 'unknown_outcome')
 })
 
 test('Connector input Gates release scheduler capacity and resume the exact Session response', async (t) => {
