@@ -87,6 +87,16 @@ test('selected native directories control Skill discovery and Codex plugin looku
   assert.throws(() => catalog.resolveSelections('hermes', [skill]), { message: 'LOCAL_SKILL_SELECTION_INVALID' })
 })
 
+test('DeepSeek shared Skills follow its independent native shared directory', t => {
+  const home = fixture(t)
+  const shared = path.join(home, 'shared-agents')
+  writeSkill(path.join(home, '.agents', 'skills'), 'default-shared')
+  writeSkill(path.join(shared, 'skills'), 'selected-shared')
+  const catalog = new LocalSkillCatalog({ home, sharedDirectoryForKind: kind => kind === 'deepseek' ? shared : '' })
+  assert.deepEqual(catalog.list('deepseek').skills.map(skill => skill.slug), ['selected-shared'])
+  assert.deepEqual(catalog.list('codex').skills.map(skill => skill.slug), ['default-shared'])
+})
+
 test('frontmatter names are optional, sanitized, bounded, and deduplicated by coordinate', (t) => {
   const home = fixture(t)
   writeSkill(path.join(home, '.codex', 'skills'), 'My Skill', [

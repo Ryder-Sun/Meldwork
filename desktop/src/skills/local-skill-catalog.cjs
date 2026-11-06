@@ -164,8 +164,12 @@ function directoryEntryKind(entry, filename) {
   return ''
 }
 
-function globalRoots(kind, home, configDirectory = '') {
+function globalRoots(kind, home, configDirectory = '', sharedDirectory = '') {
   return (AGENT_SKILL_ROOTS[kind] || []).map(parts => {
+    if (kind === 'deepseek' && parts[0] === '.agents' && sharedDirectory) {
+      const directory = path.join(sharedDirectory, ...parts.slice(1))
+      return { directory, boundary: directory, namespace: 'global' }
+    }
     const nativeParts = kind === 'pi' && parts[0] === '.pi' && parts[1] === 'agent'
       ? parts.slice(2)
       : (['codex', 'hermes', 'claude'].includes(kind) && parts[0] === `.${kind}`)
@@ -265,8 +269,8 @@ function codexPluginRoots(home, configDirectory = '') {
   ))
 }
 
-function skillRoots(kind, home, configDirectory = '') {
-  const roots = globalRoots(kind, home, configDirectory)
+function skillRoots(kind, home, configDirectory = '', sharedDirectory = '') {
+  const roots = globalRoots(kind, home, configDirectory, sharedDirectory)
   if (kind === 'codex') roots.push(...codexPluginRoots(home, configDirectory))
   if (kind === 'workbuddy') roots.push(...workBuddyPluginRoots(home))
   return roots
@@ -357,11 +361,12 @@ function copyResult(result) {
 }
 
 class LocalSkillCatalog {
-  constructor({ home = os.homedir(), now = Date.now, cacheTtlMs = DEFAULT_CACHE_TTL_MS, configDirectoryForKind = () => '' } = {}) {
+  constructor({ home = os.homedir(), now = Date.now, cacheTtlMs = DEFAULT_CACHE_TTL_MS, configDirectoryForKind = () => '', sharedDirectoryForKind = () => '' } = {}) {
     this.home = path.resolve(String(home || os.homedir()))
     this.now = now
     this.cacheTtlMs = cacheTtlMs
     this.configDirectoryForKind = configDirectoryForKind
+    this.sharedDirectoryForKind = sharedDirectoryForKind
     this.cache = new Map()
   }
 
@@ -375,7 +380,8 @@ class LocalSkillCatalog {
     if (cached && now < cached.expiresAt) return cached.result
 
     const configDirectory = this.configDirectoryForKind(targetKind)
-    const skills = collectSkills(targetKind, skillRoots(targetKind, this.home, configDirectory)).sort(compareSkills)
+    const skills = collectSkills(targetKind, skillRoots(targetKind, this.home, configDirectory,
+      this.sharedDirectoryForKind(targetKind))).sort(compareSkills)
     const result = {
       supported: true,
       total: skills.length,

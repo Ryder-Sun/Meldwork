@@ -251,6 +251,25 @@ test('DeepSeek native directory selection reaches detection, execution, and Skil
   assert.equal(harness.skillCatalogInstances[0].input.configDirectoryForKind('deepseek'), chosen.directory)
 })
 
+test('DeepSeek shared Skill directory follows the native shell and invalidates its cache', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-dsh-shared-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  let shared = '~/shared-agents'
+  const { harness } = loadMain(directory, {
+    nativeShellEnvironment: () => ({ env: { DSH_AGENTS_HOME: shared }, source: 'native-shell' }),
+  })
+  await harness.ready()
+  await harness.installerInstances[0].input.listSkills('deepseek')
+  const catalog = harness.skillCatalogInstances[0]
+  assert.equal(catalog.input.sharedDirectoryForKind('deepseek'), path.join(directory, 'Home', 'shared-agents'))
+  assert.equal(catalog.input.sharedDirectoryForKind('codex'), '')
+  const invalidations = catalog.invalidateCalls
+  shared = path.join(directory, 'other-agents')
+  await harness.installerInstances[0].input.listSkills('deepseek')
+  assert.equal(catalog.invalidateCalls, invalidations + 1)
+  assert.equal(catalog.input.sharedDirectoryForKind('deepseek'), shared)
+})
+
 test('native configuration cannot change if a run starts while the picker is open', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-config-race-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

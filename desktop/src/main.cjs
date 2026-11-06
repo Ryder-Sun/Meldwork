@@ -252,6 +252,9 @@ async function nativeShellEnvironment(options = {}) {
     if ((nativeSkillDirectories[key] || '') !== directory) skillCatalog?.invalidate(kind)
     nativeSkillDirectories[key] = directory
   }
+  const sharedDirectory = typeof env.DSH_AGENTS_HOME === 'string' ? env.DSH_AGENTS_HOME : ''
+  if ((nativeSkillDirectories.DSH_AGENTS_HOME || '') !== sharedDirectory) skillCatalog?.invalidate('deepseek')
+  nativeSkillDirectories.DSH_AGENTS_HOME = sharedDirectory
   return {
     ...resolved,
     env,
@@ -856,6 +859,16 @@ if (!hasSingleInstanceLock) {
           directory = path.join(app.getPath('home'), directory.slice(2))
         }
         if (directory && !path.isAbsolute(directory)) throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
+        return directory
+      },
+      sharedDirectoryForKind: kind => {
+        if (kind !== 'deepseek') return ''
+        let directory = nativeSkillDirectories.DSH_AGENTS_HOME || ''
+        if (!directory.trim()) return ''
+        if (directory === '~' || directory.startsWith('~/') || directory.startsWith('~\\')) {
+          directory = path.join(app.getPath('home'), directory.slice(2))
+        }
+        if (!path.isAbsolute(directory)) throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
         return directory
       },
     })
