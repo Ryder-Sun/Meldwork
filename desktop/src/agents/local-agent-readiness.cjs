@@ -340,7 +340,7 @@ function nativeCredentialEnvironment(kind, env = process.env, declaredKeys = [])
   const result = {}
   const keys = [...(RUNTIME_ENV_KEYS[kind] || []), ...(kind === 'claude'
     ? Object.keys(env).filter(key => VERTEX_MODEL_REGION_KEY.test(key)) : []),
-    ...(['hermes', 'zcode', 'mimo', 'pi'].includes(kind) ? nativeSecretEnvKeys(declaredKeys) : [])]
+    ...(['hermes', 'zcode', 'mimo', 'pi', 'opencode'].includes(kind) ? nativeSecretEnvKeys(declaredKeys) : [])]
   for (const key of keys) {
     if (typeof env[key] === 'string') result[key] = env[key]
   }

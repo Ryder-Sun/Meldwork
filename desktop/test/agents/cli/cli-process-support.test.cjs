@@ -129,6 +129,16 @@ test('a single Agent retains and redacts more than 32 declared credentials', () 
   assert.doesNotMatch(redactChildSecrets('synthetic-value-DECLARED_39', env), /synthetic-value-DECLARED_39/)
 })
 
+test('OpenCode receives and redacts credentials declared by native provider configuration', () => {
+  const env = childEnvironment({ kind: 'opencode' }, '/tmp/workspace', {
+    env: { CUSTOM_PROVIDER_TOKEN: 'synthetic-private-value', UNRELATED_TOKEN: 'not-shared' },
+    nativeCredentialKeys: ['CUSTOM_PROVIDER_TOKEN'],
+  }, 'darwin')
+  assert.equal(env.CUSTOM_PROVIDER_TOKEN, 'synthetic-private-value')
+  assert.equal(env.UNRELATED_TOKEN, undefined)
+  assert.doesNotMatch(redactChildSecrets('synthetic-private-value', env), /synthetic-private-value/)
+})
+
 test('native Agent child environments preserve shell-selected XDG directories', () => {
   const env = childEnvironment({ kind: 'opencode' }, '/tmp/workspace', {
     env: { XDG_CONFIG_HOME: '/native/config', XDG_DATA_HOME: '/native/data',

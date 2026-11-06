@@ -215,6 +215,28 @@ test('Pi native configuration declarations reach discovery and execution', async
   assert.deepEqual(options.nativeCredentialKeys, ['CUSTOM_TOKEN'])
 })
 
+test('OpenCode project provider references reach its execution without leaking to other Agents', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-opencode-env-main-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  fs.writeFileSync(path.join(directory, 'opencode.json'), JSON.stringify({ provider: {
+    custom: { options: { apiKey: '{env:PROJECT_PROVIDER_KEY}' } },
+  } }))
+  const readiness = require('../../src/agents/local-agent-readiness.cjs')
+  const { harness } = loadMain(directory, {
+    nativeShellEnvironment: input => ({ env: input.extraEnvKeys?.includes('PROJECT_PROVIDER_KEY')
+      ? { PROJECT_PROVIDER_KEY: 'synthetic-project-secret' } : {}, source: 'native-shell' }),
+    nativeEnvironment: readiness.nativeCredentialEnvironment,
+  })
+  await harness.ready()
+  const workspace = harness.workspaceInstances[0]
+  await workspace.input.runAgent({ kind: 'opencode', executable: '/tmp/opencode' }, 'hello', directory, {})
+  const options = harness.runAgentCalls.at(-1)[3]
+  assert.equal(options.env.PROJECT_PROVIDER_KEY, 'synthetic-project-secret')
+  assert.ok(options.nativeCredentialKeys.includes('PROJECT_PROVIDER_KEY'))
+  await workspace.input.runAgent({ kind: 'codex', executable: '/tmp/codex' }, 'hello', directory, {})
+  assert.equal(harness.runAgentCalls.at(-1)[3].env.PROJECT_PROVIDER_KEY, undefined)
+})
+
 test('native credentials from multiple Agents are captured in bounded batches without restoring unset values', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-env-batches-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
