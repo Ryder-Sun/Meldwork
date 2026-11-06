@@ -146,9 +146,9 @@ function normalizeAgent(input) {
     inputTypes: [...new Set(inputTypes)].slice(0, 16),
     permissionModes: [...new Set(permissionModes)],
     session: {
-      supported: input.session?.supported !== false,
-      resume: input.session?.resume !== false,
-      cancel: input.session?.cancel !== false,
+      supported: input.session?.supported === true,
+      resume: input.session?.supported === true && input.session?.resume === true,
+      cancel: input.session?.cancel === true,
       checkpoint: false,
     },
   }

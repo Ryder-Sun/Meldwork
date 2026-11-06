@@ -257,6 +257,21 @@ test('generates a valid manifest from a persisted bridge record', () => {
   assert.deepEqual(manifestRecord.outboundDestinations, ['https://203.0.113.10:8443'])
 })
 
+test('cloud Agents must explicitly declare session, resume, and cancel capabilities', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-cloud-session-'))
+  const remote = manifest()
+  remote.agents[0].session = { supported: false, resume: true }
+  const store = new CloudAgentBridgeStore({
+    storagePath: path.join(directory, 'bridges.json'), fetch: async () => response(remote),
+  })
+  try {
+    await store.connect({ address: 'https://203.0.113.10:8443' })
+    assert.deepEqual(store.connectorEntries()[0].manifest.session, {
+      supported: false, resume: false, cancel: false, checkpoint: false,
+    })
+  } finally { fs.rmSync(directory, { recursive: true, force: true }) }
+})
+
 test('discovers and runs a remote Codex CLI through existing SSH configuration', async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-cloud-ssh-'))
   const storagePath = path.join(directory, 'bridges.json')
