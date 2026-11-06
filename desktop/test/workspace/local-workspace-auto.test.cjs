@@ -46,6 +46,21 @@ function graphNode(overrides = {}) {
   }
 }
 
+test('task graph and V4 cannot be combined silently in either start path', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const kinds = ['codex', 'hermes', 'workbuddy', 'kimi']
+  const group = workspace.createGroup({ name: 'Graph protocol', agentKinds: kinds, workdir: directory, allowWrite: false })
+  const input = { groupId: group.id, mode: 'auto', targetKinds: kinds, workflow: evidenceTaskGraph(), protocol: 'v4' }
+  await assert.rejects(workspace.sendMessage({ ...input, text: 'Run the graph' }), { message: 'LOCAL_WORKFLOW_PROTOCOL_UNSUPPORTED' })
+  assert.equal(workspace.snapshot().messages.filter(message => message.groupId === group.id).length, 0)
+  const root = workspace.addMessage(group.id, 'user', 'Run the graph')
+  assert.throws(() => workspace.startAuto({ ...input, threadRootId: root.id }), { message: 'LOCAL_WORKFLOW_PROTOCOL_UNSUPPORTED' })
+  assert.equal(workspace.activeRuns.has(group.id), false)
+})
+
 test('task graph does not accept a truncated required conclusion', () => {
   const node = graphNode({ acceptance: { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 } })
   const result = { message: { content: 'Partial conclusion', trace: { status: 'completed', truncated: true } } }

@@ -1,4 +1,5 @@
 export default {
+    'error.workflowProtocolUnsupported': 'Task graphs do not yet support the V4 discussion protocol. Choose a compatible workflow.',
     'connectorPackages.title': 'Manage Connectors',
     'connectorPackages.import': 'Import Connector',
     'connectorPackages.empty': 'No Connectors imported.',

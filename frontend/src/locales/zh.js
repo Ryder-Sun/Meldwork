@@ -1,4 +1,5 @@
 export default {
+    'error.workflowProtocolUnsupported': '当前任务图暂不支持 V4 讨论协议，请选择兼容的工作流。',
     'connectorPackages.title': 'Connector 管理',
     'connectorPackages.import': '导入 Connector',
     'connectorPackages.empty': '尚未导入 Connector。',

@@ -334,6 +334,7 @@ class LocalWorkspaceMessageSubmission {
       } catch {
         throw new Error('LOCAL_WORKFLOW_INVALID')
       }
+      if (this.v4Requested(input)) throw new Error('LOCAL_WORKFLOW_PROTOCOL_UNSUPPORTED')
     }
     const requestedThreadRootId = mode === 'manual' ? cleanText(input.threadRootId, 100) : ''
     const regenerateMessageId = cleanText(input.regenerateMessageId, 100)
@@ -1812,6 +1813,7 @@ class LocalWorkspaceMessageSubmission {
       } catch {
         throw new Error('LOCAL_WORKFLOW_INVALID')
       }
+      if (this.v4Requested(input)) throw new Error('LOCAL_WORKFLOW_PROTOCOL_UNSUPPORTED')
     }
     const state = this.state()
     const latestRoot = state.messages.findLast(message => (
