@@ -414,7 +414,7 @@ function codexDeclaredCredentialKeys(options = {}) {
   return nativeSecretEnvKeys([codexProviderCredentialKey(options)])
 }
 
-function hermesSelectedEnvironmentKeys(root, env) {
+function hermesSelectedProvider(root, env) {
   try {
     const content = readCredentialFile(path.join(root, 'config.yaml'))
     const config = content ? yaml.load(content) : {}
@@ -425,9 +425,23 @@ function hermesSelectedEnvironmentKeys(root, env) {
     const provider = String(model.provider || env.HERMES_INFERENCE_PROVIDER || '').trim().toLowerCase()
     const canonical = { openai: 'OPENAI_API_KEY', openrouter: 'OPENROUTER_API_KEY', anthropic: 'ANTHROPIC_API_KEY' }
     if (!Object.hasOwn(canonical, provider)) return null
-    return nativeSecretEnvKeys([canonical[provider], model.key_env, model.api_key_env,
-      config.providers?.[provider]?.key_env, config.providers?.[provider]?.api_key_env])
+    return { provider, config, keys: nativeSecretEnvKeys([canonical[provider], model.key_env, model.api_key_env,
+      config.providers?.[provider]?.key_env, config.providers?.[provider]?.api_key_env]) }
   } catch { return null }
+}
+
+function hermesAuthContainsCredential(filename, provider) {
+  try {
+    const contents = readCredentialFile(filename)
+    const auth = contents && JSON.parse(contents)
+    return Boolean(auth && (containsCredential(auth.providers?.[provider])
+      || containsCredential(auth.credential_pool?.[provider])))
+  } catch { return false }
+}
+
+function hermesConfigContainsCredential(selection) {
+  const { config, provider } = selection
+  return containsCredential(config.model) || containsCredential(config.providers?.[provider])
 }
 
 function nativeCredentialEnvironment(kind, env = process.env, declaredKeys = []) {
@@ -642,7 +656,8 @@ function nativeCredentialState(kind, options = {}) {
     }
   }
   const piProvider = kind === 'pi' ? piDefaultProvider(piHome) : ''
-  const hermesKeys = kind === 'hermes' ? hermesSelectedEnvironmentKeys(hermesHome, env) : null
+  const hermesSelection = kind === 'hermes' ? hermesSelectedProvider(hermesHome, env) : null
+  const hermesKeys = hermesSelection?.keys || null
   let credentialEnv = nativeCredentialKeyEnvironment(kind, env)
   if (hermesKeys) {
     credentialEnv = Object.fromEntries(hermesKeys.filter(key => typeof env[key] === 'string' && env[key].trim())
@@ -684,7 +699,9 @@ function nativeCredentialState(kind, options = {}) {
     opencode: [openCodeAuth],
     opencodereview: [path.join(home, '.opencodereview', 'config.json')],
   }[kind] || []
-  if (jsonFiles.some(filename => kind === 'pi' ? piAuthContainsCredential(filename, piProvider) : jsonContainsCredential(filename))
+  if (jsonFiles.some(filename => kind === 'pi' ? piAuthContainsCredential(filename, piProvider)
+    : hermesSelection ? path.basename(filename) === 'auth.json' && hermesAuthContainsCredential(filename, hermesSelection.provider)
+      : jsonContainsCredential(filename))
       || (kind === 'pi' && piModelsContainCredential(piHome, env, piProvider))
       || (kind === 'opencode' && openCodeAuthContainsCredential(openCodeAuth))) {
     return { state: 'ready', source: 'native-credential' }
@@ -717,8 +734,10 @@ function nativeCredentialState(kind, options = {}) {
     ],
     opencodereview: [path.join(home, '.opencodereview', '.env')],
   }[kind] || []
-  if (textFiles.some(filename => textContainsCredential(filename,
-    kind === 'hermes' && filename === path.join(hermesHome, '.env') ? hermesKeys : null))) {
+  if (textFiles.some(filename => hermesSelection && filename === path.join(hermesHome, 'config.yaml')
+    ? hermesConfigContainsCredential(hermesSelection)
+    : textContainsCredential(filename,
+      kind === 'hermes' && filename === path.join(hermesHome, '.env') ? hermesKeys : null))) {
     return { state: 'ready', source: 'native-credential' }
   }
 
