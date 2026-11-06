@@ -15,6 +15,8 @@ HTTP 响应为 JSON 对象，必须包含字符串 `text`，可包含字符串 `
 
 第三方可以为这些 Provider 制作包，无需重建 Meldwork；**当前尚不能通过包注册任意第三方可执行代码或新的传输实现**。清单本身支持的能力不代表每个 Provider 都实现了该能力，包校验会拒绝超出 Provider 范围的声明。参见 [包校验实现](src/agents/connectors/agent-connector-package-store.cjs) 和 [端到端示例测试](test/agents/connectors/agent-connector-sdk.test.cjs)。
 
+这两个 Provider 当前不支持检查点，也不产生权限、来源、产物、证据、用量或等待输入事件；包含这些能力声明的包会被拒绝导入。
+
 ## 生成本地示例包
 
 在仓库根目录安装桌面依赖后，执行以下命令生成示例，不需要提供凭据：

@@ -3,6 +3,8 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
+const crypto = require('node:crypto')
+const { canonicalJson } = require('../../../src/collaboration/outcome-records.cjs')
 
 const {
   AgentConnectorPackageStore,
@@ -136,6 +138,35 @@ test('replacing an approved package with another valid package never transfers t
   assert.deepEqual(reopened.installedPackages(), [])
   assert.equal(reopened.diagnostic(), 'AGENT_CONNECTOR_PACKAGE_ID_MISMATCH')
   assert.throws(() => reopened.list(), { code: 'AGENT_CONNECTOR_PACKAGE_ID_MISMATCH' })
+})
+
+test('legacy packages with unsupported capabilities are disabled without blocking other packages', t => {
+  const { create, rootPath, store } = fixture(t)
+  const good = SAMPLE_LOCAL_ECHO_AGENT_CONNECTOR_PACKAGE
+  store.import(serializeAgentConnectorPackage(good))
+  store.approve(good.packageId)
+  store.install(good.packageId)
+  const { manifestId, schemaVersion, recordType, ...input } = good.manifest
+  const { createAgentConnectorManifest } = require('../../../src/agents/connectors/agent-connector-manifest.cjs')
+  const manifest = createAgentConnectorManifest({ ...input, connectorId: 'external.legacy-sdk',
+    session: { ...input.session, checkpoint: true } })
+  const body = { schemaVersion: 1, recordType: 'agent-connector-package', publisher: good.publisher,
+    provider: good.provider, manifest }
+  const packageId = `connector-package-${crypto.createHash('sha256').update(canonicalJson(body)).digest('hex')}`
+  const serialized = canonicalJson({ packageId, ...body })
+  fs.writeFileSync(path.join(rootPath, 'packages', `${packageId}.json`), serialized)
+  store.append('imported', packageId, { originFilename: 'legacy.json',
+    originSha256: crypto.createHash('sha256').update(serialized).digest('hex') })
+  store.append('approved', packageId)
+  store.append('installed', packageId)
+  const reopened = create()
+  assert.deepEqual(reopened.installedPackages().map(item => item.packageId), [good.packageId])
+  assert.equal(reopened.inspect(packageId).state, 'installed')
+  assert.equal(reopened.list().find(item => item.packageId === packageId).supported, false)
+  assert.equal(reopened.disable(packageId).state, 'disabled')
+  assert.throws(() => reopened.install(packageId), { code: 'AGENT_CONNECTOR_PACKAGE_SCHEMA_INVALID' })
+  assert.equal(reopened.remove(packageId).state, 'removed')
+  assert.deepEqual(reopened.installedPackages().map(item => item.packageId), [good.packageId])
 })
 
 test('reimporting a removed package requires fresh approval and preserves its audit history', (t) => {

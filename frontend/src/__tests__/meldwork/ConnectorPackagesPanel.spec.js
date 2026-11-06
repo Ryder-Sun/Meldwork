@@ -6,6 +6,17 @@ import { t } from '../../i18n.js'
 afterEach(() => { delete window.meldworkDesktop })
 
 describe('Connector package settings', () => {
+  it('explains unsupported legacy packages and retains a disable action', async () => {
+    const item = { packageId: 'old', connectorId: 'legacy', state: 'installed', supported: false,
+      label: 'Legacy', connectorVersion: '1.0.0', publisher: { name: 'Publisher' } }
+    window.meldworkDesktop = { localAgentConnector: { packages: vi.fn().mockResolvedValue([item]), list: vi.fn().mockResolvedValue([]) } }
+    const wrapper = mount(ConnectorPackagesPanel)
+    await flushPromises()
+    expect(wrapper.text()).toContain(t('connectorPackages.unsupportedCapabilities'))
+    expect(wrapper.text()).toContain(t('connectorPackages.disable'))
+    expect(wrapper.text()).not.toContain(t('connectorPackages.configure'))
+    wrapper.unmount()
+  })
   it('offers upgrade instead of a conflicting install when another version is installed', async () => {
     const publisher = { name: 'Publisher' }
     const items = [

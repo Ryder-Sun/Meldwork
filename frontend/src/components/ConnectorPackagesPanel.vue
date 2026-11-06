@@ -8,13 +8,13 @@
     <p v-if="error" role="alert">{{ error }} <button type="button" :disabled="busy" @click="run(async () => {})">{{ t('connectorPackages.retry') }}</button></p>
     <p v-if="!packages.length && !busy && !error">{{ t('connectorPackages.empty') }}</p>
     <article v-for="item in packages" :key="item.packageId" class="connector-row">
-      <div><strong>{{ item.label }}</strong> <span>{{ item.connectorVersion }}</span><p>{{ item.publisher.name }} · {{ t(`connectorPackages.state.${item.state}`) }}</p></div>
+      <div><strong>{{ item.label }}</strong> <span>{{ item.connectorVersion }}</span><p>{{ item.publisher.name }} · {{ t(`connectorPackages.state.${item.state}`) }}</p><p v-if="item.supported === false" role="status">{{ t('connectorPackages.unsupportedCapabilities') }}</p></div>
       <div class="connector-actions">
         <button type="button" :disabled="busy" @click="inspect(item)">{{ t('connectorPackages.inspect') }}</button>
         <button v-if="item.state === 'imported'" type="button" :disabled="busy" @click="perform('approve', item)">{{ t('connectorPackages.approve') }}</button>
-        <button v-if="['approved', 'disabled'].includes(item.state) && !hasInstalledVersion(item)" type="button" :disabled="busy" @click="perform('install', item)">{{ t('connectorPackages.install') }}</button>
-        <button v-if="item.state === 'approved' && hasInstalledVersion(item)" type="button" :disabled="busy" @click="perform('upgrade', item)">{{ t('connectorPackages.upgrade') }}</button>
-        <button v-if="item.state === 'installed'" type="button" :disabled="busy" @click="configure(item)">{{ t('connectorPackages.configure') }}</button>
+        <button v-if="item.supported !== false && ['approved', 'disabled'].includes(item.state) && !hasInstalledVersion(item)" type="button" :disabled="busy" @click="perform('install', item)">{{ t('connectorPackages.install') }}</button>
+        <button v-if="item.supported !== false && item.state === 'approved' && hasInstalledVersion(item)" type="button" :disabled="busy" @click="perform('upgrade', item)">{{ t('connectorPackages.upgrade') }}</button>
+        <button v-if="item.supported !== false && item.state === 'installed'" type="button" :disabled="busy" @click="configure(item)">{{ t('connectorPackages.configure') }}</button>
         <button v-if="item.state === 'installed'" type="button" :disabled="busy" @click="perform('disable', item)">{{ t('connectorPackages.disable') }}</button>
         <button v-if="!['revoked', 'removed'].includes(item.state)" type="button" :disabled="busy" @click="perform('revoke', item)">{{ t('connectorPackages.revoke') }}</button>
         <button v-if="['imported', 'approved', 'disabled', 'revoked'].includes(item.state)" type="button" :disabled="busy" @click="perform('remove', item)">{{ t('connectorPackages.remove') }}</button>

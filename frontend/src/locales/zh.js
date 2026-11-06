@@ -38,6 +38,7 @@ export default {
     'connectorPackages.remove': '移除',
     'connectorPackages.configured': '实例已创建。',
     'connectorPackages.credentialsUnavailable': '此 Connector 需要凭据，安全配置入口尚不可用。',
+    'connectorPackages.unsupportedCapabilities': '此包声明了 Provider 不支持的能力，请停用或移除。',
     'connectorPackages.instances': '已配置实例',
     'connectorPackages.available': '可用',
     'connectorPackages.unavailable': '不可用',

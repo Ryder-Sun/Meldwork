@@ -98,6 +98,22 @@ function httpPackage() {
   })
 }
 
+test('SDK packages reject capabilities their providers cannot emit or resume', () => {
+  for (const pkg of [SAMPLE_LOCAL_ECHO_AGENT_CONNECTOR_PACKAGE, httpPackage()]) {
+    const { manifestId, schemaVersion, recordType, ...input } = pkg.manifest
+    for (const change of [
+      { session: { ...input.session, checkpoint: true } },
+      { eventTypes: [...input.eventTypes, 'Permission'] },
+      { eventTypes: [...input.eventTypes, 'Usage'], usage: { ...input.usage, inputTokens: true } },
+    ]) {
+      const manifest = createAgentConnectorManifest({ ...input, ...change })
+      assert.throws(() => createAgentConnectorPackage({
+        publisher: pkg.publisher, provider: pkg.provider, manifest,
+      }), { message: 'AGENT_CONNECTOR_PACKAGE_SCHEMA_INVALID' })
+    }
+  }
+})
+
 test('installs and runs the non-delegate local echo sample end to end', async (t) => {
   const { connectors, delegatedCalls, directory, packageStore } = fixture(t)
   install(packageStore, SAMPLE_LOCAL_ECHO_AGENT_CONNECTOR_PACKAGE, 'local-echo.connector.json')

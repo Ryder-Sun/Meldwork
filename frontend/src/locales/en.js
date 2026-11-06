@@ -38,6 +38,7 @@ export default {
     'connectorPackages.remove': 'Remove',
     'connectorPackages.configured': 'Instance created.',
     'connectorPackages.credentialsUnavailable': 'This Connector needs credentials; secure configuration is not yet available here.',
+    'connectorPackages.unsupportedCapabilities': 'This package declares capabilities its provider does not support. Disable or remove it.',
     'connectorPackages.instances': 'Configured instances',
     'connectorPackages.available': 'Available',
     'connectorPackages.unavailable': 'Unavailable',

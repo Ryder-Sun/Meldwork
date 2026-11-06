@@ -128,6 +128,12 @@ const packageContentSchema = z.strictObject({
   }
 })
 
+function supportsSdkCapabilities(manifest) {
+  return !manifest.session.checkpoint
+    && manifest.eventTypes.every(type => ['Completed', 'Failed', 'Cancelled'].includes(type))
+    && Object.values(manifest.usage).every(value => value === false)
+}
+
 const packageRecordSchema = z.strictObject({
   packageId: z.string().regex(PACKAGE_ID),
   schemaVersion: z.literal(AGENT_CONNECTOR_PACKAGE_VERSION),
@@ -152,6 +158,9 @@ function canonicalPackage(record) {
 function createAgentConnectorPackage(input) {
   const result = packageContentSchema.safeParse(input)
   if (!result.success) fail('AGENT_CONNECTOR_PACKAGE_SCHEMA_INVALID')
+  if (!supportsSdkCapabilities(parseAgentConnectorManifest(result.data.manifest))) {
+    fail('AGENT_CONNECTOR_PACKAGE_SCHEMA_INVALID')
+  }
   const content = {
     ...result.data,
     manifest: parseAgentConnectorManifest(result.data.manifest),
@@ -464,6 +473,7 @@ class AgentConnectorPackageStore {
   import(input, originFilename = 'connector-package.json') {
     this.requireAvailable()
     const packageRecord = parseAgentConnectorPackage(input)
+    if (!supportsSdkCapabilities(packageRecord.manifest)) fail('AGENT_CONNECTOR_PACKAGE_SCHEMA_INVALID')
     const existing = this.states.get(packageRecord.packageId)
     if (existing && existing.state !== 'removed') return this.inspect(packageRecord.packageId)
     if (!existing && this.states.size >= MAX_PACKAGES) fail('AGENT_CONNECTOR_PACKAGE_LIMIT')
@@ -504,6 +514,9 @@ class AgentConnectorPackageStore {
       fail('AGENT_CONNECTOR_PACKAGE_TRANSITION_INVALID')
     }
     const target = this.readPackage(normalizedId)
+    if (action === 'installed' && !supportsSdkCapabilities(target.manifest)) {
+      fail('AGENT_CONNECTOR_PACKAGE_SCHEMA_INVALID')
+    }
     if (action === 'installed' && this.list().some(item => item.state === 'installed'
         && item.packageId !== normalizedId && item.connectorId === target.manifest.connectorId)) {
       fail('AGENT_CONNECTOR_PACKAGE_UPGRADE_INVALID')
@@ -527,6 +540,7 @@ class AgentConnectorPackageStore {
     const current = this.stateFor(normalizedId)
     if (current.state !== 'approved') fail('AGENT_CONNECTOR_PACKAGE_TRANSITION_INVALID')
     const target = this.readPackage(normalizedId)
+    if (!supportsSdkCapabilities(target.manifest)) fail('AGENT_CONNECTOR_PACKAGE_SCHEMA_INVALID')
     const installed = this.list().filter(item => (
       item.state === 'installed'
       && item.connectorId === target.manifest.connectorId
@@ -570,6 +584,7 @@ class AgentConnectorPackageStore {
       connectorVersion: item.manifest.connectorVersion,
       manifestId: item.manifest.manifestId,
       label: item.manifest.label,
+      supported: supportsSdkCapabilities(item.manifest),
       origin: item.origin,
       updatedAt: item.updatedAt,
     })).sort((left, right) => (
@@ -584,6 +599,7 @@ class AgentConnectorPackageStore {
       const installed = [...this.states.entries()]
         .filter(([, state]) => state.state === 'installed')
         .map(([packageId]) => this.inspect(packageId))
+        .filter(item => supportsSdkCapabilities(item.manifest))
       const counts = new Map()
       for (const item of installed) counts.set(item.manifest.connectorId, (counts.get(item.manifest.connectorId) || 0) + 1)
       return installed.filter(item => counts.get(item.manifest.connectorId) === 1)
