@@ -1204,13 +1204,21 @@ class LocalWorkspaceAgentInvocation {
         throw new Error('LOCAL_AGENT_PERMISSION_TERMINAL_RACE')
       }
       terminalFailureKnown = result?.outcome === 'cancelled'
-        || (result?.outcome === 'failed' && result?.failure?.category !== 'unknown')
+        || (result?.outcome === 'failed'
+          && !['unknown', 'network', 'timeout'].includes(result?.failure?.category))
       if (agentController.signal.aborted) throw agentStoppedError()
       if (resumedPermissionError) throw resumedPermissionError
       if (resumedPermission && !resumedPermissionUsed) {
         throw new Error('LOCAL_RUN_PERMISSION_REQUEST_NOT_REISSUED')
       }
-      result = requireTerminalAgentResult(result)
+      try {
+        result = requireTerminalAgentResult(result)
+      } catch (error) {
+        if (agent.connectorInstanceId && result?.outcome === 'failed' && result.failure?.retryable === false) {
+          Object.defineProperty(error, Symbol.for('meldwork.connector-nonretryable'), { value: true })
+        }
+        throw error
+      }
 
       const collaborationReply = parseV4CollaborationReceipt(
       result,

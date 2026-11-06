@@ -186,6 +186,7 @@ function classifiedCategory(error, code, status) {
 }
 
 function retryability(category, error) {
+  if (error?.[Symbol.for('meldwork.connector-nonretryable')] === true) return 'never'
   if (failureCode(error) === 'LOCAL_AGENT_PROVIDER_QUOTA_EXHAUSTED') return 'never'
   if (category === 'session') return 'refresh_session'
   if (category === 'authentication') return 'never'

@@ -435,14 +435,14 @@ test('external Connectors bypass the legacy runner and persist trusted provenanc
   assert.deepEqual(restarted.get(message.trace.runId).agentRuns[0].context, storedContext)
 })
 
-for (const category of ['unknown', 'execution']) {
-  test(`Connector ${category} failure preserves outcome certainty at the workspace boundary`, async t => {
+for (const [category, retryable] of [['unknown', false], ['execution', false], ['timeout', false], ['network', false], ['timeout', true]]) {
+  test(`Connector ${category} failure preserves outcome certainty and retry=${retryable} at the workspace boundary`, async t => {
     const { directory, options } = fixture()
     t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
     const runtime = inputConnectorRuntime(async input => {
       input.emit({ eventId: 'failed', cursor: 'failed', sequence: 1, type: 'Failed',
-        code: 'CLOUD_TRANSPORT_TEST', category, retryable: false })
-      return { outcome: 'failed', failure: { code: 'CLOUD_TRANSPORT_TEST', category, retryable: false } }
+        code: 'CLOUD_TRANSPORT_TEST', category, retryable })
+      return { outcome: 'failed', failure: { code: 'CLOUD_TRANSPORT_TEST', category, retryable } }
     })
     options.detectAgents = async () => runtime.detectAgents()
     options.connectorRuntime = runtime
@@ -456,12 +456,36 @@ for (const category of ['unknown', 'execution']) {
     workspace.bindRunTask(group.id, reservation, task.id, task.id, pack.contextPackId)
     const controller = workspace.beginRun(group.id, 'manual', [kind], task.id, reservation)
     await assert.rejects(workspace.invokeAgent(group, kind, 'manual', controller.signal, task.id, { taskId: task.id }), error => {
-      assert.equal(error.invocationFailure.outcomeCertainty, category === 'unknown' ? 'unknown_outcome' : 'known_failed')
+      assert.equal(error.invocationFailure.outcomeCertainty, category === 'execution' ? 'known_failed' : 'unknown_outcome')
+      const { normalizeFailure } = require('../../src/runs/failure-policy.cjs')
+      assert.equal(normalizeFailure(error).retryability, retryable ? 'retry' : 'never')
       return true
     })
     await workspace.finishRun(group.id, controller, 'failed')
   })
 }
+
+test('automatic group execution does not retry a Connector network failure marked non-retryable', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  let calls = 0
+  const runtime = inputConnectorRuntime(async input => {
+    calls += 1
+    input.emit({ eventId: 'failed', cursor: 'failed', sequence: 1, type: 'Failed',
+      code: 'CONNECTOR_NETWORK_TEST', category: 'network', retryable: false })
+    return { outcome: 'failed', failure: { code: 'CONNECTOR_NETWORK_TEST', category: 'network', retryable: false } }
+  })
+  options.detectAgents = async () => runtime.detectAgents()
+  options.connectorRuntime = runtime
+  options.retryBaseDelayMs = 1
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const kind = 'custom-bbbbbbbbbbbbbbbb'
+  const group = workspace.createGroup({ name: 'Connector retry', agentKinds: [kind], workdir: directory })
+  await workspace.sendMessage({ groupId: group.id, text: 'Run once', mode: 'auto', maxRounds: 1, targetKinds: [kind] })
+  await workspace.activeRuns.get(group.id)?.promise
+  assert.equal(calls, 1)
+})
 
 test('Connector input Gates release scheduler capacity and resume the exact Session response', async (t) => {
   const { directory, options } = fixture()
