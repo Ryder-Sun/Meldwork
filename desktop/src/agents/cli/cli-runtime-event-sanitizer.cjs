@@ -1,5 +1,39 @@
 const { stripAnsi } = require('./cli-output-parsers.cjs')
 const { SECRET_ENV_KEYS } = require('./native-secret-environment.cjs')
+const JSON5 = require('json5')
+
+const inlineSecretCache = new WeakMap()
+const INLINE_SECRET_FIELD = /(?:api[_-]?key|access[_-]?key|token|secret|password|authorization|private[_-]?key)$/i
+
+function inlineConfigSecrets(env) {
+  if (!env || typeof env !== 'object') return []
+  const values = [env.MIMOCODE_CONFIG_CONTENT, env.OPENCODE_CONFIG_CONTENT]
+  const cached = inlineSecretCache.get(env)
+  if (cached && values.every((value, index) => value === cached.values[index])) return cached.secrets
+  const secrets = new Set()
+  function collect(value) {
+    const pending = [value]
+    while (pending.length) {
+      const current = pending.pop()
+      if (!current || typeof current !== 'object') continue
+      for (const [key, item] of Object.entries(current)) {
+        if (INLINE_SECRET_FIELD.test(key) && typeof item === 'string' && item
+            && item.length <= 8192 && !/^\{(?:env|file):[^}]+\}$/.test(item)) {
+          secrets.add(item)
+          const bearer = item.match(/^Bearer\s+(\S+)$/i)
+          if (bearer) secrets.add(bearer[1])
+        } else if (item && typeof item === 'object') pending.push(item)
+      }
+    }
+  }
+  for (const value of values) {
+    if (typeof value !== 'string' || !value || Buffer.byteLength(value) > 256 * 1024) continue
+    try { collect(JSON5.parse(value)) } catch { /* native CLI reports invalid configuration */ }
+  }
+  const result = [...secrets]
+  inlineSecretCache.set(env, { values, secrets: result })
+  return result
+}
 
 const RUNTIME_EVENT_TYPES = new Set([
   'status',
@@ -36,7 +70,7 @@ function redactChildSecrets(value, env) {
 }
 
 function childSecrets(env) {
-  const secrets = new Set()
+  const secrets = new Set(inlineConfigSecrets(env))
   for (const [name, value] of Object.entries(env || {})) {
     if (typeof value !== 'string' || !value) continue
     if (env?.[SECRET_ENV_KEYS]?.includes(name)

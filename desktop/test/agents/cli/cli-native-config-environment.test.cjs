@@ -124,6 +124,22 @@ test('MiMo captures only the selected provider environment reference and redacts
   assert.equal(mimoConfiguredProvider({ env: { ...env, NODE_OPTIONS: 'unsafe' } }), false)
 })
 
+test('inline native provider credentials are redacted in complete and streamed output', () => {
+  for (const kind of ['mimo', 'opencode']) {
+    const key = kind === 'mimo' ? 'MIMOCODE_CONFIG_CONTENT' : 'OPENCODE_CONFIG_CONTENT'
+    const content = `{ // native JSONC\n provider: { custom: { options: { apiKey: 'abc', headers: { Authorization: 'Bearer secret-token' } } } } }`
+    const child = childEnvironment({ kind, executable: '/native/cli' }, '/workspace', { env: { [key]: content } }, 'darwin')
+    assert.equal(redactChildSecrets('key abc and secret-token', child), 'key [redacted] and [redacted]')
+    const events = []
+    const emitter = createRuntimeEventEmitter({ onEvent: event => events.push(event) }, child)
+    for (const part of ['a', 'b', 'c']) emitter.emit({ type: 'answer_delta', status: 'running', delta: part })
+    emitter.finalize({ status: 'completed' })
+    assert.doesNotMatch(JSON.stringify(events), /abc/)
+    child[key] = '{provider:{custom:{options:{apiKey:"new-secret"}}}}'
+    assert.equal(redactChildSecrets('new-secret', child), '[redacted]')
+  }
+})
+
 test('MiMo resolves provider references across native configuration overrides', t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-mimo-overrides-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
