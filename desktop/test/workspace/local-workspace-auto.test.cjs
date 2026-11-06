@@ -232,6 +232,54 @@ function evidenceTaskGraph() {
   }
 }
 
+for (const failed of [true, false]) test(`task graph waits for independent branch ${failed ? 'failure' : 'success'} before finalization`, async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const ledger = new RunLedger({ storagePath: path.join(directory, 'run-ledger.json') })
+  options.runLedger = ledger
+  const calls = []
+  options.runAgent = async agent => {
+    calls.push(agent.kind)
+    return { text: `${agent.kind} response`, outcome: failed && agent.kind === 'hermes' ? 'partial' : 'completed' }
+  }
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Independent branches', agentKinds: ['codex', 'hermes'], workdir: directory, allowWrite: false })
+  const acceptance = { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 }
+  await workspace.sendMessage({ groupId: group.id, text: 'Run both branches.', mode: 'auto', maxRounds: 4,
+    targetKinds: ['codex', 'hermes'], workflow: { template: 'task-graph', nodes: [
+      graphNode({ terminal: true, parallel: true, acceptance }),
+      graphNode({ nodeId: 'primary-hermes', agentKind: 'hermes', parallel: true, acceptance }),
+    ] } })
+  await workspace.activeRuns.get(group.id).promise
+  const durable = ledger.list(group.id)[0]
+  assert.equal(durable.status, failed ? 'failed' : 'completed')
+  assert.equal(durable.orchestration.taskGraph.terminalState, failed ? 'failed' : 'accepted')
+  assert.deepEqual(calls, failed ? ['hermes'] : ['hermes', 'codex'])
+})
+
+test('task graph fails closed if a nonterminal node depends on a terminal node', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const ledger = new RunLedger({ storagePath: path.join(directory, 'run-ledger.json') })
+  options.runLedger = ledger
+  let calls = 0
+  options.runAgent = async () => { calls += 1; return { text: 'done', outcome: 'completed' } }
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Invalid ordering', agentKinds: ['codex', 'hermes'], workdir: directory, allowWrite: false })
+  const acceptance = { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 }
+  await workspace.sendMessage({ groupId: group.id, text: 'Run both branches.', mode: 'auto', maxRounds: 4,
+    targetKinds: ['codex', 'hermes'], workflow: { template: 'task-graph', nodes: [
+      graphNode({ terminal: true, acceptance }),
+      graphNode({ nodeId: 'primary-hermes', agentKind: 'hermes', dependsOn: ['primary-codex'],
+        inputNodeIds: ['primary-codex'], acceptance }),
+    ] } })
+  await workspace.activeRuns.get(group.id)?.promise
+  assert.equal(ledger.list(group.id)[0].status, 'failed')
+  assert.equal(calls, 0)
+})
+
 test('task graph does not accept a partial Agent result as a completed node', async t => {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

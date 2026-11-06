@@ -315,16 +315,20 @@ const taskGraphMethods = {
   },
 
   taskGraphBatch(group, readyNodes) {
+    // A terminal node must not finish the graph while other ready work can
+    // still fail; independent nonterminal nodes may continue in parallel.
+    const nonterminal = readyNodes.filter(node => !node.terminal)
+    const candidates = nonterminal.length ? nonterminal : readyNodes
     const parallel = []
     const kinds = new Set()
     if (group.allowWrite !== true) {
-      for (const node of readyNodes) {
+      for (const node of candidates) {
         if (!node.parallel || node.role === 'human' || kinds.has(node.agentKind)) continue
         parallel.push(node)
         kinds.add(node.agentKind)
       }
     }
-    return parallel.length > 1 ? parallel : readyNodes.slice(0, 1)
+    return parallel.length > 1 ? parallel : candidates.slice(0, 1)
   },
 
   async runTaskGraph(group, controller, threadRootId, context) {
@@ -341,6 +345,11 @@ const taskGraphMethods = {
         cursor = parseTaskGraphCursor({ ...cursor, terminalState: 'failed' })
         this.checkpointTaskGraph(group, controller, cursor)
         break
+      }
+      if (readyNodes.every(node => node.terminal)
+          && cursor.graph.nodes.some(node => !node.terminal
+            && cursor.nodeStates.find(state => state.nodeId === node.nodeId)?.status !== 'accepted')) {
+        throw new Error('LOCAL_WORKFLOW_INVALID')
       }
       const batch = this.taskGraphBatch(group, readyNodes)
       controller.currentRound += 1
