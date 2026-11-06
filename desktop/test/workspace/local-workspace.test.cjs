@@ -623,6 +623,35 @@ test('V4 automatic collaboration preserves per-Agent permissions for a mixed tea
   assert.ok(calls.filter(call => call.agent.kind === 'hermes').every(call => call.runOptions.sandbox === 'read-only'))
 })
 
+test('V4 automatic collaboration falls back to a read-only team when the writer cannot perform the task', async t => {
+  const { directory, calls, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const readerCapabilities = { domains: ['general'], inputTypes: ['text'], outputTypes: ['text'],
+    toolClasses: ['agent-native'], permissionModes: ['read-only'], latencyBand: 'low', costBand: 'low',
+    contextLimitChars: 20000, resumable: false }
+  options.naturalAgentResponses = true
+  options.detectAgents = async () => [
+    { kind: 'codex', name: 'Codex', executable: '/tmp/codex', version: '1', routingCapabilities: {
+      ...readerCapabilities, domains: ['software-review'], permissionModes: ['read-only', 'workspace-write'],
+    } },
+    ...['hermes', 'kimi'].map(kind => ({ kind, name: kind, executable: `/tmp/${kind}`, version: '1',
+      routingCapabilities: readerCapabilities })),
+  ]
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  for (const kind of ['codex', 'hermes', 'kimi']) workspace.markRuntimeCredential(kind, 'ready')
+  const group = workspace.createGroup({ name: 'Read-only team', agentKinds: ['codex', 'hermes', 'kimi'],
+    workdir: directory, allowWrite: true })
+  await workspace.sendMessage({ groupId: group.id, text: 'Collaborate', targetKinds: [], routingMode: 'automatic',
+    mode: 'auto', maxRounds: 1, protocol: 'v4' })
+  await workspace.activeRuns.get(group.id)?.promise
+  const root = workspace.snapshot().messages.find(message => message.role === 'user')
+  assert.deepEqual(new Set(root.targetKinds), new Set(['hermes', 'kimi']))
+  assert.equal(root.routingDecision.requirements.permissionMode, 'read-only')
+  assert.ok(calls.length >= 2)
+  assert.ok(calls.every(call => call.runOptions.sandbox === 'read-only'))
+})
+
 test('a successful authentication probe does not count as a successful Agent run', async t => {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

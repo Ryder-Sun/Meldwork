@@ -360,29 +360,41 @@ class AgentRouter {
     const permissionMode = explicitReadOnlyTargets || !writePermissionCompatible
       ? 'read-only'
       : group.allowWrite === true ? 'workspace-write' : 'read-only'
-    const requirements = normalizeRoutingRequirements(input.routingRequirements, {
+    const defaults = {
       domains: effectiveMode === 'automatic' ? ['general'] : [],
       inputTypes,
       outputTypes: ['text'],
       permissionMode,
       minContextChars,
       collaboration: mode === 'auto' ? 'required' : 'none',
-    })
+    }
+    let requirements = normalizeRoutingRequirements(input.routingRequirements, defaults)
     if (explicitTargets.some(kind => !approvedKinds.includes(kind))) {
       const kind = explicitTargets.find(target => !approvedKinds.includes(target))
       throw routingError('LOCAL_MESSAGE_TARGET_OUT_OF_GROUP', { kind })
     }
-    const allowReadOnlyPeer = effectiveMode === 'automatic'
+    let allowReadOnlyPeer = effectiveMode === 'automatic'
       && requirements.collaboration === 'required'
       && requirements.permissionMode === 'workspace-write'
       && input.routingRequirements?.permissionMode == null
-    const candidates = approvedKinds.map((kind) => evaluateCandidate(
+    const canWrite = kind => agentRuntimeCapabilities(kind, {
+      agent: detected.get(kind), attachmentSupport: this.attachmentSupport(kind),
+    }).permissionModes.includes('workspace-write')
+    const evaluateCandidates = () => approvedKinds.map((kind) => evaluateCandidate(
       detected.get(kind) || { kind, available: false },
       requirements,
       { attachmentSupport: this.attachmentSupport, fitMatrix: this.fitMatrix,
         requireVerified: effectiveMode === 'automatic', isRecentlyVerified: this.isRecentlyVerified,
         allowReadOnlyPeer },
     ))
+    let candidates = evaluateCandidates()
+    if (effectiveMode === 'automatic' && requirements.permissionMode === 'workspace-write'
+        && input.routingRequirements?.permissionMode == null
+        && !candidates.some(candidate => candidate.eligible && canWrite(candidate.kind))) {
+      requirements = normalizeRoutingRequirements(input.routingRequirements, { ...defaults, permissionMode: 'read-only' })
+      allowReadOnlyPeer = false
+      candidates = evaluateCandidates()
+    }
     let selectedKinds
     if (effectiveMode === 'explicit') {
       selectedKinds = explicitTargets
@@ -410,9 +422,6 @@ class AgentRouter {
       }
       selectedKinds = eligible.slice(0, requiredCount).map(candidate => candidate.kind)
       if (allowReadOnlyPeer) {
-        const canWrite = kind => agentRuntimeCapabilities(kind, {
-          agent: detected.get(kind), attachmentSupport: this.attachmentSupport(kind),
-        }).permissionModes.includes('workspace-write')
         if (!selectedKinds.some(canWrite)) {
           const writer = eligible.find(candidate => canWrite(candidate.kind))
           if (!writer) throw routingError('LOCAL_AGENT_ROUTING_NO_MATCH', { eligibleCount: eligible.length, requiredCount })

@@ -241,6 +241,26 @@ test('automatic collaboration includes a writer and permits read-only peers when
     routingRequirements: { permissionMode: 'workspace-write' } } }), { code: 'LOCAL_AUTO_AGENT_COUNT' })
 })
 
+for (const mode of ['manual', 'auto']) test(`automatic ${mode} routing falls back to readers when the writer cannot perform the task`, () => {
+  const capabilities = { domains: ['general'], inputTypes: ['text'], outputTypes: ['text'],
+    toolClasses: ['agent-native'], permissionModes: ['read-only'], latencyBand: 'low', costBand: 'low',
+    contextLimitChars: 20000, resumable: false }
+  const readers = ['custom-aaaaaaaaaaaaaaaa', 'custom-bbbbbbbbbbbbbbbb'].map(kind => agent(kind, { routingCapabilities: capabilities }))
+  const writer = agent('codex', { routingCapabilities: { ...capabilities, domains: ['software-review'],
+    permissionModes: ['read-only', 'workspace-write'] } })
+  const router = new AgentRouter()
+  const args = request({ agents: [...readers, writer],
+    group: { id: 'group-routing', agentKinds: [...readers.map(item => item.kind), writer.kind], allowWrite: true },
+    input: { routingMode: 'automatic', targetKinds: [] }, mode })
+  const result = router.route(args)
+  assert.equal(result.requirements.permissionMode, 'read-only')
+  assert.equal(result.selectedKinds.length, mode === 'auto' ? 2 : 1)
+  assert.ok(result.selectedKinds.every(kind => kind.startsWith('custom-')))
+  assert.throws(() => router.route({ ...args, input: { ...args.input,
+    routingRequirements: { permissionMode: 'workspace-write' } } }),
+  { code: mode === 'auto' ? 'LOCAL_AUTO_AGENT_COUNT' : 'LOCAL_AGENT_ROUTING_NO_MATCH' })
+})
+
 for (const writer of [
   agent('codex', { recentlyVerified: false }),
   agent('codex', { available: false, invocable: false }),
