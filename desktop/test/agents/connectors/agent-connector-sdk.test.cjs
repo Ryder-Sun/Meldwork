@@ -177,6 +177,16 @@ test('HTTP JSON provider enforces destinations, credentials, cancellation, and f
   assert.doesNotMatch(JSON.stringify(result), /private-token|credential-ref/i)
   assert.equal(JSON.parse(calls[0].options.body).prompt, 'remote prompt')
 
+  const rejected = await connectors.run(agent, 'blocked', directory, {
+    runId: 'run-blocked', agentRunId: 'agent-run-blocked', sandbox: 'read-only',
+    onOutboundPayload: async () => {
+      await new Promise(resolve => setImmediate(resolve))
+      throw new Error('OUTBOUND_RECORD_FAILED')
+    },
+  })
+  assert.equal(rejected.outcome, 'failed')
+  assert.equal(calls.length, 1)
+
   connectors.fetch = async () => ({ ok: false, status: 503, text: async () => '' })
   const failed = await connectors.run(agent, 'fail', directory, {
     runId: 'run-fail', agentRunId: 'agent-run-fail', sandbox: 'read-only',

@@ -174,6 +174,16 @@ test('discovers and runs an Agent exposed by a Cloud Agent Bridge', async (t) =>
   assert.equal(result.outcome, 'completed')
   assert.equal(cloudRunInput.permissionMode, 'read-only')
   assert.deepEqual(result.connectorEventState.events.map(event => event.type), ['Completed'])
+  cloudRunInput = null
+  const rejected = await connectors.run(detected, 'blocked', '/tmp/workspace', {
+    runId: 'run-cloud-blocked', agentRunId: 'agent-cloud-blocked', operationId: 'operation-cloud-blocked', sandbox: 'read-only',
+    onOutboundPayload: async () => {
+      await new Promise(resolve => setImmediate(resolve))
+      throw new Error('OUTBOUND_RECORD_FAILED')
+    },
+  })
+  assert.equal(rejected.outcome, 'failed')
+  assert.equal(cloudRunInput, null)
 })
 
 test('runs a Codex Agent discovered through SSH without declaring an HTTP outbound destination', async (t) => {

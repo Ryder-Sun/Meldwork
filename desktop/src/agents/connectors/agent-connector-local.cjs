@@ -753,7 +753,7 @@ class LocalAgentConnectors {
       sequence: 1,
     }
     try {
-      input.onOutboundPayload({ destination: endpoint, transport: 'http' })
+      await input.onOutboundPayload({ destination: endpoint, transport: 'http' })
       const headers = { 'content-type': 'application/json' }
       const authSlotId = packageRecord.provider.config.authSlotId
       if (authSlotId) {
@@ -812,7 +812,7 @@ class LocalAgentConnectors {
     }
     try {
       if (!['ssh', 'ssh-tunnel'].includes(entry.record.transport)) {
-        input.onOutboundPayload({ destination: entry.record.address, transport: 'http' })
+        await input.onOutboundPayload({ destination: entry.record.address, transport: 'http' })
       }
       const result = await this.cloudBridges.run({
         bridgeId: entry.record.bridgeId,
