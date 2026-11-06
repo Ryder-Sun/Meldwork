@@ -742,7 +742,12 @@ async function queryOpenClawStatus(options = {}) {
     })
     return parseOpenClawStatus(result.stdout, options)
   } catch (error) {
-    return parseOpenClawStatus(error?.stdout, options)
+    const status = parseOpenClawStatus(error?.stdout, options)
+    if (status) return status
+    if (error?.killed === true || error?.code === 'ETIMEDOUT') {
+      return { credentialState: { state: 'unknown', source: 'native-probe-failed' } }
+    }
+    return null
   }
 }
 
@@ -790,7 +795,7 @@ async function resolveNativeCredentialState(kind, options = {}) {
         return { state: 'ready', source: 'native-auth-status' }
       }
     } catch { /* fail closed below */ }
-    return status?.credentialState?.source === 'native-runtime-unavailable'
+    return ['native-runtime-unavailable', 'native-probe-failed'].includes(status?.credentialState?.source)
       ? status.credentialState
       : { state: 'unknown', source: 'native-runtime-unavailable' }
   }

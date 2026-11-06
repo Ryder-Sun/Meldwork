@@ -756,6 +756,11 @@ test('OpenClaw native runtime rejects unsafe status and Provider descriptors', a
     }],
   ]
 
+  assert.deepEqual(await resolveNativeCredentialState('openclaw', {
+    home, env: {}, executable: '/tmp/openclaw',
+    execFileFn: async () => { throw Object.assign(new Error('timeout'), { code: 'ETIMEDOUT' }) },
+  }), { state: 'unknown', source: 'native-probe-failed' })
+
   for (const [status, provider] of invalid) {
     fs.writeFileSync(path.join(agentDir, 'models.json'), JSON.stringify({
       providers: { provider },

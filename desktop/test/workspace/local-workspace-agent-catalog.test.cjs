@@ -581,7 +581,7 @@ test('an Agent that was usable stays usable while its readiness probe is inconcl
   assert.equal(agents()[0].availabilitySource, 'native-auth-status')
 
   // The 7 second status check times out: no answer, not "signed out".
-  probe = { state: 'unknown', source: 'native-runtime-unavailable' }
+  probe = { state: 'unknown', source: 'native-probe-failed' }
   time.advance(60 * 1000)
   await catalog.refresh()
   assert.equal(agents()[0].available, true)
@@ -601,7 +601,7 @@ test('an Agent that was usable stays usable while its readiness probe is inconcl
   probe = { state: 'ready', source: 'native-auth-status' }
   await catalog.refresh()
   assert.equal(agents()[0].available, true)
-  probe = { state: 'unknown', source: 'native-runtime-unavailable' }
+  probe = { state: 'unknown', source: 'native-probe-failed' }
   time.advance(60 * 1000)
   await catalog.refresh()
   assert.equal(agents()[0].available, true)
@@ -615,6 +615,20 @@ test('an Agent that was never usable is not made available by an inconclusive pr
   await catalog.refresh()
   await catalog.refresh()
   assert.equal(agents()[0].available, false)
+})
+
+test('OpenClaw immediately becomes unavailable when its guarded runtime is unavailable', async () => {
+  let probe = { state: 'ready', source: 'native-auth-status' }
+  const { agents, catalog } = fixture({
+    detectAgents: async () => [OPENCLAW], credentialState: async () => probe,
+  })
+  await catalog.refresh()
+  assert.equal(agents()[0].available, true)
+  probe = { state: 'unknown', source: 'native-runtime-unavailable' }
+  await catalog.refresh()
+  assert.equal(agents()[0].runtimePrerequisitesReady, false)
+  assert.equal(agents()[0].available, false)
+  assert.equal(agents()[0].availabilitySource, 'native-runtime-unavailable')
 })
 
 test('a definitive signed-out answer, a recorded auth failure or an incompatible version is never softened', async () => {

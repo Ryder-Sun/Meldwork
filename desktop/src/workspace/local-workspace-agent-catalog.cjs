@@ -9,7 +9,7 @@ const AUTH_FAILURE_RETRY_MS = 30 * 1000
 // stays usable through such results for this long; a definitive answer
 // (signed out, incompatible, a recorded auth failure) applies immediately.
 const INDETERMINATE_PROBE_GRACE_MS = 10 * 60 * 1000
-const INDETERMINATE_PROBE_SOURCES = new Set(['native-runtime-unavailable', 'native-probe-failed'])
+const INDETERMINATE_PROBE_SOURCES = new Set(['native-probe-failed'])
 
 function expiredAuthFailure(runtime, now) {
   if (runtime?.credentialState !== 'missing') return false
