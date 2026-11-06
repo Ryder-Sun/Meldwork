@@ -75,6 +75,15 @@ test('Gemini authentication identity includes explicitly selected system and clo
   ])
 })
 
+test('Qwen authentication identity tracks its native user and system settings', () => {
+  const home = path.resolve('test-home')
+  const settings = path.join(home, 'system', 'qwen.json')
+  assert.deepEqual(nativeAuthIdentityFiles('qwen', { QWEN_CODE_SYSTEM_SETTINGS_PATH: settings }, home, 'darwin'), [
+    settings, path.join(home, 'system', 'system-defaults.json'),
+    path.join(home, '.qwen', 'settings.json'), path.join(home, '.qwen', 'oauth_creds.json'),
+  ])
+})
+
 test('a selected native directory survives workspace restart', t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-config-restart-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

@@ -36,6 +36,17 @@ test('Gemini uses its shell-selected native home for readiness and execution', a
   assert.equal(nativeCredentialState('gemini', { home, env: { GEMINI_CLI_HOME: 'relative' } }).state, 'unknown')
 })
 
+test('Qwen retains its native system settings and authentication selection', async () => {
+  const env = { QWEN_CODE_SYSTEM_SETTINGS_PATH: '/tmp/qwen-settings.json',
+    QWEN_CODE_SYSTEM_DEFAULTS_PATH: '/tmp/qwen-defaults.json', QWEN_DEFAULT_AUTH_TYPE: 'qwen-oauth' }
+  const captured = await resolveNativeShellEnvironment({ cache: false, platform: 'win32', env })
+  const native = nativeCredentialEnvironment('qwen', captured.env)
+  assert.deepEqual(native, env)
+  const child = childEnvironment({ kind: 'qwen' }, '/tmp/workspace', { env: native }, 'darwin')
+  for (const [key, value] of Object.entries(env)) assert.equal(child[key], value)
+  assert.deepEqual(nativeCredentialEnvironment('codex', captured.env), {})
+})
+
 test('OpenCode detects native API credentials in its selected XDG data directory', t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-opencode-auth-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))

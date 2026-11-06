@@ -13,6 +13,17 @@ function nativeEnvironmentIdentity(env) {
 }
 
 function nativeAuthIdentityFiles(kind, env, home, platform = process.platform) {
+  if (kind === 'qwen') {
+    const paths = platform === 'win32' ? path.win32 : path.posix
+    const settings = env?.QWEN_CODE_SYSTEM_SETTINGS_PATH || (platform === 'darwin'
+      ? '/Library/Application Support/QwenCode/settings.json' : platform === 'win32'
+        ? 'C:\\ProgramData\\qwen-code\\settings.json' : '/etc/qwen-code/settings.json')
+    const defaults = env?.QWEN_CODE_SYSTEM_DEFAULTS_PATH
+      || (typeof settings === 'string' && paths.isAbsolute(settings) ? paths.join(paths.dirname(settings), 'system-defaults.json') : '')
+    const userRoot = typeof home === 'string' && paths.isAbsolute(home) ? paths.join(home, '.qwen') : ''
+    return [settings, defaults, ...(userRoot ? ['settings.json', 'oauth_creds.json'].map(name => paths.join(userRoot, name)) : [])]
+      .filter(filename => typeof filename === 'string' && paths.isAbsolute(filename))
+  }
   if (kind === 'gemini') {
     const paths = platform === 'win32' ? path.win32 : path.posix
     const settings = env?.GEMINI_CLI_SYSTEM_SETTINGS_PATH || (platform === 'darwin'
