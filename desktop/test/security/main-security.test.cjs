@@ -535,8 +535,7 @@ test('Zcode execution captures the provider for its current project only', async
   const projects = ['alpha', 'beta'].map(name => {
     const project = path.join(directory, name)
     fs.mkdirSync(project)
-    fs.writeFileSync(path.join(project, 'zcode.json'), JSON.stringify({ model: { main: `${name}/model` },
-      provider: { [name]: { apiKeyEnv: `${name.toUpperCase()}_TOKEN` } } }))
+    fs.writeFileSync(path.join(project, 'zcode.json'), JSON.stringify({ model: { main: `${name}/model` } }))
     return project
   })
   const readiness = require('../../src/agents/local-agent-readiness.cjs')
@@ -556,10 +555,6 @@ test('Zcode execution captures the provider for its current project only', async
     const other = index === 0 ? 'BETA_API_KEY' : 'ALPHA_API_KEY'
     assert.equal(env[selected], `value-${selected}`)
     assert.equal(env[other], undefined)
-    const token = index === 0 ? 'ALPHA_TOKEN' : 'BETA_TOKEN'
-    const otherToken = index === 0 ? 'BETA_TOKEN' : 'ALPHA_TOKEN'
-    assert.equal(env[token], `value-${token}`)
-    assert.equal(env[otherToken], undefined)
   }
 })
 
