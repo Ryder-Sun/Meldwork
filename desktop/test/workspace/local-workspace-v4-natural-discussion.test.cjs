@@ -454,6 +454,26 @@ test('Natural discussion forwards a peer failure without a structured decision t
   assert.equal(notice[3], 'system.autoPeerBlockerForwarded')
 })
 
+for (const discussionStyle of ['agent-led', 'sequential']) {
+  test(`Natural ${discussionStyle} never completes a peer failure without a structured decision`, async t => {
+    const { directory, options } = fixture()
+    t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+    const ledger = new RunLedger({ storagePath: path.join(directory, 'run-ledger.json') })
+    const workspace = new LocalWorkspace({
+      ...options, runLedger: ledger, naturalAgentResponses: true,
+      runAgent: async (agent, prompt) => ({ outcome: 'completed', text: naturalPhase(prompt) === 'proposal'
+        ? `${agent.kind} proposal.`
+        : agent.kind === 'hermes' ? '权限不足，无法访问所需文件。' : acceptedReply(prompt, 'The answer is ready.') }),
+    })
+    await workspace.refreshAgents()
+    const group = workspace.createGroup({ name: 'Unstructured peer failure', agentKinds: ['codex', 'hermes'], workdir: directory, allowWrite: false })
+    const controller = await runDiscussion(workspace, group, { discussionStyle, maxRounds: 4 })
+    const restored = new RunLedger({ storagePath: ledger.storagePath }).get(controller.runId)
+    assert.notEqual(restored.status, 'completed')
+    assert.ok(workspace.snapshot().messages.some(message => message.agentKind === 'hermes' && message.content.includes('权限不足')))
+  })
+}
+
 test('Natural automatic discussion does not override a peer blocker with owner completion', async t => {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
