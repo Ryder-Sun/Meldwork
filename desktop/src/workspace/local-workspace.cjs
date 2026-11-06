@@ -277,6 +277,7 @@ class LocalWorkspace extends EventEmitter {
     this.agentInvocation = new LocalWorkspaceAgentInvocation({
       reserveTurnSeq: (groupId, threadRootId) => this.reserveTurnSeqs(groupId, threadRootId, 1)[0],
       state: () => this.state,
+      getContextPack: id => this.contextPackStore.get(id),
       agentLabel: kind => this.agentLabel(kind),
       detectedAgents: () => this.detectedAgents,
       activeRuns: this.activeRuns,
@@ -324,6 +325,7 @@ class LocalWorkspace extends EventEmitter {
     this.autoRunner = new LocalWorkspaceAutoRunner({
       reserveTurnSeqs: (...args) => this.reserveTurnSeqs(...args),
       state: () => this.state,
+      getContextPack: id => this.contextPackStore.get(id),
       canWriteWorkspace: kind => agentRuntimeCapabilities(kind, {
         agent: this.detectedAgents.find(agent => agent.kind === kind),
       }).permissionModes.includes('workspace-write'),
@@ -367,6 +369,7 @@ class LocalWorkspace extends EventEmitter {
     this.messageSubmission = new LocalWorkspaceMessageSubmission({
       reserveTurnSeqs: (...args) => this.reserveTurnSeqs(...args),
       state: () => this.state,
+      getContextPack: id => this.contextPackStore.get(id),
       detectedAgents: () => this.detectedAgents,
       isShuttingDown: () => this.shuttingDown,
       resolveAttachments: (...args) => this.resolveAttachmentsFn(...args),

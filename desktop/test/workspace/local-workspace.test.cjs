@@ -684,16 +684,22 @@ test('automatic run recovery reapplies a persisted read-only task cap', async t 
   await workspace.sendMessage({ groupId: group.id, text: 'Read only', targetKinds: ['codex'],
     routingRequirements: { permissionMode: 'read-only' } })
   const taskId = workspace.snapshot().messages.find(message => message.role === 'user').id
+  const contextPackId = workspace.snapshot().messages.find(message => message.role === 'agent').trace.context.contextPackId
   const restored = new LocalWorkspace(options)
   const restoredGroup = restored.state.groups.find(item => item.id === group.id)
+  // Simulate damaged message metadata; the immutable context pack remains authoritative.
+  delete restored.state.messages.find(message => message.id === taskId).routingDecision
   restored.autoRunner.runV4Discussion = async (runGroup) => {
     assert.equal(runGroup.allowWrite, false)
     return 'completed'
   }
-  const result = await restored.autoRunner.resume(restoredGroup, { taskId, threadRootId: taskId },
+  const result = await restored.autoRunner.resume(restoredGroup, { taskId, threadRootId: taskId, contextPackId },
     { orchestration: { version: 4 }, targetKinds: ['codex'] })
   assert.equal(result, 'completed')
   assert.equal(restoredGroup.allowWrite, true)
+  await assert.rejects(restored.autoRunner.resume({ ...restoredGroup, id: 'different-group' },
+    { taskId, threadRootId: taskId, contextPackId }, { orchestration: { version: 4 }, targetKinds: ['codex'] }),
+  { message: 'LOCAL_RUN_CONTEXT_INVALID' })
 })
 
 test('a direct conversation respects an explicit read-only task cap', async t => {

@@ -100,6 +100,7 @@ function stalePermissionResumeFailure(error, resumedGate) {
 class LocalWorkspaceMessageSubmission {
   constructor(options) {
     this.state = options.state
+    this.getContextPack = options.getContextPack
     this.detectedAgents = options.detectedAgents
     this.isShuttingDown = options.isShuttingDown
     this.resolveAttachmentsFn = options.resolveAttachments
@@ -1166,7 +1167,7 @@ class LocalWorkspaceMessageSubmission {
   }
 
   async runV4Manual({ group, targetKinds, userMessage, prepared, controller, threadRootId }) {
-    group = taskPermissionGroup(group, this.state(), userMessage.id)
+    group = taskPermissionGroup(group, this.state(), userMessage.id, controller.contextPackId, this.getContextPack)
     const writableKinds = group.allowWrite === true ? targetKinds.filter(kind => (
       agentRuntimeCapabilities(kind, {
         agent: this.detectedAgents().find(agent => agent.kind === kind),
@@ -1251,7 +1252,8 @@ class LocalWorkspaceMessageSubmission {
   }
 
   async resumeV4Manual({ group, durable, controller, onlyKind = '', resumedGate = null }) {
-    group = taskPermissionGroup(group, this.state(), durable.taskId || durable.threadRootId)
+    group = taskPermissionGroup(group, this.state(), durable.taskId || durable.threadRootId,
+      durable.contextPackId, this.getContextPack)
     let orchestration
     try {
       orchestration = parseOrchestrationV4(controller.orchestration, {

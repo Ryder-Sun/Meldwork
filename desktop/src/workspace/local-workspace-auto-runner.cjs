@@ -24,6 +24,7 @@ const { roundsMethods } = require('./local-workspace-auto-runner-rounds.cjs')
 class LocalWorkspaceAutoRunner {
   constructor(options) {
     this.state = options.state
+    this.getContextPack = options.getContextPack
     this.canWriteWorkspace = options.canWriteWorkspace || (() => false)
     this.beginRun = options.beginRun
     this.resolveAttachments = options.resolveAttachments
@@ -183,7 +184,7 @@ class LocalWorkspaceAutoRunner {
     group, targetKinds, threadRootId, maxRounds, reservation = null, preparedContext = null,
     unlimitedRounds = false, taskGraph = null,
   ) {
-    group = taskPermissionGroup(group, this.state(), threadRootId)
+    group = taskPermissionGroup(group, this.state(), threadRootId, reservation?.contextPackId, this.getContextPack)
     const v4 = reservation?.v4 === true
     if (!v4) reservation.orchestration = this.orchestrationCursor(targetKinds, taskGraph)
     const controller = this.beginRun(
@@ -237,7 +238,8 @@ class LocalWorkspaceAutoRunner {
   }
 
   async resume(group, durable, controller, replayedResult = null, resumedGate = null) {
-    group = taskPermissionGroup(group, this.state(), durable.taskId || durable.threadRootId)
+    group = taskPermissionGroup(group, this.state(), durable.taskId || durable.threadRootId,
+      durable.contextPackId, this.getContextPack)
     if (controller.orchestration?.version === 4 || controller.v4 === true) {
       controller.v4 = true
       const context = {

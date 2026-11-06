@@ -163,6 +163,7 @@ function assertRequiredContextFits(packedContext) {
 class LocalWorkspaceAgentInvocation {
   constructor(options) {
     this.state = options.state
+    this.getContextPack = options.getContextPack
     this.detectedAgents = options.detectedAgents
     this.activeRuns = options.activeRuns
     this.runAgentTimeoutMs = options.runAgentTimeoutMs
@@ -243,7 +244,8 @@ class LocalWorkspaceAgentInvocation {
     const activeRun = this.activeRuns.get(group.id)
     const taskId = cleanText(activeRun?.taskId || context.taskId || threadRootId, 120)
     if (!taskId) throw new Error('LOCAL_RUN_TASK_INVALID')
-    group = taskPermissionGroup(group, this.state(), taskId)
+    group = taskPermissionGroup(group, this.state(), taskId,
+      activeRun?.contextPackId || context.contextPackId, this.getContextPack)
     // Every conversation, group or direct, is its own execution surface. The
     // writer lease is scoped to the conversation, so a writable chat never
     // makes an Agent in another conversation wait, including when both use the
