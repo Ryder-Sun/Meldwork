@@ -15,7 +15,7 @@ async function boundedHttpResponseText(response, limit, errorCode) {
       const chunk = Buffer.from(value)
       total += chunk.length
       if (total > limit) {
-        try { await reader.cancel() } catch { /* response may already be closed */ }
+        try { Promise.resolve(reader.cancel()).catch(() => {}) } catch { /* response may already be closed */ }
         invalid()
       }
       chunks.push(chunk)
