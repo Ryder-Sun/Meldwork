@@ -330,6 +330,7 @@ class LocalWorkspace extends EventEmitter {
       resolveAttachments: (...args) => this.resolveAttachments(...args),
       validateSkillSelections: (...args) => this.validateSkillSelectionsFn(...args),
       validateKnowledgeBaseSelections: (...args) => this.validateKnowledgeBaseSelectionsFn(...args),
+      selectedConnectorKnowledge: (...args) => this.contextPacks.selectedConnectorKnowledge(...args),
       invokeAgent: (...args) => this.invokeAgent(...args),
       defaultYolo: options.defaultYolo,
       naturalAgentResponses: options.naturalAgentResponses,

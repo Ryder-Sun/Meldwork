@@ -195,8 +195,17 @@ test('explicit Connector selections persist immutable knowledge and citation sou
   assert.equal(Object.hasOwn(task, 'knowledgeBaseHints'), false)
   assert.equal(Object.hasOwn(preview.knowledgeBaseHints[0], 'location'), false)
   assert.equal(preview.knowledgeBaseHints[0].selectedSource.sourceId, selected.sourceId)
+  const controller = { targetKinds: ['codex'], contextPackId: run.contextPackId }
+  const recovered = await workspace.autoRunner.automaticContext(group, controller, task.id)
+  assert.equal(recovered.rootKnowledgeBasesByKind.get('codex')[0].connectorSource.sourceId, selected.sourceId)
+  await assert.rejects(workspace.autoRunner.automaticContext({ ...group, id: 'another-group' }, controller, task.id), {
+    message: 'LOCAL_RUN_SNAPSHOT_INVALID',
+  })
 
   fs.writeFileSync(notePath, 'Mutated live Vault content')
+  await assert.rejects(workspace.autoRunner.automaticContext(group, controller, task.id), {
+    message: 'LOCAL_KNOWLEDGE_BASE_SELECTION_INVALID',
+  })
   assert.equal(
     workspace.contentBlobStore.read(snapshotSource.contentRef).toString('utf8'),
     'Approved immutable Connector evidence',
@@ -232,11 +241,29 @@ test('explicit Connector selections persist immutable knowledge and citation sou
   assert.notEqual(livePackSource.contentHash, liveSelection.contentHash)
   assert.equal(liveMetadata.captureMode, 'live-reference')
   assert.equal(liveMetadata.citation.verification, 'live')
+  fs.writeFileSync(notePath, 'Updated live-reference Vault content')
+  const liveContext = await workspace.autoRunner.automaticContext(group, {
+    targetKinds: ['codex'], contextPackId: liveRun.contextPackId,
+  }, liveTask.id)
+  assert.notEqual(liveContext.rootKnowledgeBasesByKind.get('codex')[0].connectorSource.snapshot.contentHash, livePackSource.contentHash)
   const restarted = new LocalWorkspace(options)
   assert.equal(
     restarted.contentBlobStore.read(snapshotSource.contentRef).toString('utf8'),
     'Approved immutable Connector evidence',
   )
+  connectors = new LocalKnowledgeConnectors({
+    contentBlobStore: restarted.contentBlobStore,
+    getObsidianVaultPath: () => vaultPath,
+  })
+  await assert.rejects(restarted.autoRunner.automaticContext(group, controller, task.id), {
+    message: 'LOCAL_KNOWLEDGE_BASE_SELECTION_INVALID',
+  })
+  let continued = false
+  restarted.autoRunner.runRounds = async () => { continued = true }
+  await assert.rejects(restarted.autoRunner.resume(group, { threadRootId: task.id, maxRounds: 2 }, {
+    ...controller, orchestration: { version: 2 },
+  }), { message: 'LOCAL_KNOWLEDGE_BASE_SELECTION_INVALID' })
+  assert.equal(continued, false)
 })
 
 test('Run inputs and exact outbound payloads remain immutable across mutation and restart', async (t) => {

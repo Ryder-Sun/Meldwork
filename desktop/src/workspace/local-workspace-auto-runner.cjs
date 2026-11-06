@@ -27,6 +27,7 @@ class LocalWorkspaceAutoRunner {
     this.beginRun = options.beginRun
     this.resolveAttachments = options.resolveAttachments
     this.validateSkillSelections = options.validateSkillSelections
+    this.selectedConnectorKnowledge = options.selectedConnectorKnowledge || (() => [])
     this.validateKnowledgeBaseSelections = options.validateKnowledgeBaseSelections
     this.invokeAgent = options.invokeAgent
     this.defaultYolo = options.defaultYolo !== false
@@ -122,6 +123,34 @@ class LocalWorkspaceAutoRunner {
           const expected = normalizeKnowledgeBaseHint(requestedKnowledge[index])
           return !source || !expected || canonicalJson(source) !== canonicalJson(expected)
         })) throw new Error('LOCAL_KNOWLEDGE_BASE_SELECTION_INVALID')
+      }
+      if (!this.v4Enabled(controller) && /^context-pack-[a-f0-9]{64}$/.test(String(controller.contextPackId || ''))) {
+        const selected = this.selectedConnectorKnowledge(controller.contextPackId, group.id, threadRootId)
+        for (const source of selected) {
+          const saved = source.selectedSource
+          if (!saved || typeof saved.selectionId !== 'string' || !saved.selectionId
+              || typeof saved.sourceId !== 'string' || !saved.sourceId
+              || !['snapshot', 'live-reference'].includes(saved.captureMode)
+              || !Array.isArray(source.targetKinds)) {
+            throw new Error('LOCAL_KNOWLEDGE_BASE_SELECTION_INVALID')
+          }
+          let validated
+          try {
+            validated = await this.validateKnowledgeBaseSelections(controller.targetKinds, [{
+              kind: source.kind, selectionId: saved.selectionId, targetKinds: source.targetKinds,
+            }])
+          } catch { throw new Error('LOCAL_KNOWLEDGE_BASE_SELECTION_INVALID') }
+          const hint = Array.isArray(validated) && validated.length === 1 ? validated[0] : null
+          const actual = hint?.connectorSource
+          if (!hint || hint.kind !== source.kind || hint.accessMode !== source.accessMode
+              || canonicalJson(hint.targetKinds) !== canonicalJson(source.targetKinds)
+              || actual?.selectionId !== saved.selectionId || actual?.sourceId !== saved.sourceId
+              || actual?.captureMode !== saved.captureMode
+              || (saved.captureMode === 'snapshot' && actual?.snapshot?.contentHash !== saved.contentHash)) {
+            throw new Error('LOCAL_KNOWLEDGE_BASE_SELECTION_INVALID')
+          }
+          storedKnowledgeBaseHints.push(hint)
+        }
       }
       rootKnowledgeBasesByKind = new Map(controller.targetKinds.map(kind => [
         kind,

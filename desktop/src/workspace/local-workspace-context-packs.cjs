@@ -205,6 +205,19 @@ class LocalWorkspaceContextPacks {
     return parseJson(this.contentBlobStore.read(ref), code, true)
   }
 
+  selectedConnectorKnowledge(contextPackId, groupId, taskId) {
+    const pack = this.contextPackStore.get(contextPackId)
+    if (pack.parentPackId || pack.groupId !== publicId(groupId, 'group')
+        || pack.taskId !== publicId(taskId, 'task')) {
+      throw new Error('LOCAL_RUN_SNAPSHOT_INVALID')
+    }
+    const preview = this.readJson(pack.approvedPreviewRef, 'LOCAL_RUN_SNAPSHOT_INVALID')
+    if (!isPlainObject(preview) || !Array.isArray(preview.knowledgeBaseHints)) {
+      throw new Error('LOCAL_RUN_SNAPSHOT_INVALID')
+    }
+    return preview.knowledgeBaseHints.filter(source => source?.selectedSource)
+  }
+
   compareAttemptOutbound(contextPackId, outbound, wirePayload) {
     const pack = this.contextPackStore.get(contextPackId)
     if (!pack.parentPackId) throw new Error('LOCAL_CONTEXT_DELIVERY_PARSE_FAILED')
