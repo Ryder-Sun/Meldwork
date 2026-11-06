@@ -200,7 +200,9 @@ function legacyTerminalStateFor(graph, nodeStates) {
 
 function terminalStateFor(graph, nodeStates) {
   if (nodeStates.some(state => state.status === 'rejected')) return 'rejected'
-  return legacyTerminalStateFor(graph, nodeStates)
+  if (nodeStates.some(state => state.status === 'failed')) return 'failed'
+  if (nodeStates.every(state => state.status === 'accepted')) return 'accepted'
+  return 'running'
 }
 
 function parseTaskGraphCursor(input, targetKinds = null) {

@@ -1,5 +1,6 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
+const { taskGraphMethods } = require('../../src/workspace/local-workspace-auto-runner-task-graph.cjs')
 
 const {
   createTaskGraph,
@@ -97,6 +98,44 @@ test('nonterminal human rejection ends the graph and legacy cursors remain recov
   const legacy = { ...cursor, terminalState: 'running' }
   assert.equal(parseTaskGraphCursor(legacy).terminalState, 'running')
   assert.equal(terminalTaskGraphState(legacy), 'rejected')
+})
+
+test('terminal acceptance cannot hide unfinished or failed graph nodes, including legacy cursors', () => {
+  const graph = createTaskGraph({ template: 'task-graph', nodes: [
+    node({ nodeId: 'independent' }),
+    node({ nodeId: 'terminal', agentKind: 'hermes', terminal: true }),
+  ] })
+  let cursor = createTaskGraphCursor(graph)
+  cursor = updateTaskGraphCursor(cursor, 'terminal', { status: 'accepted' })
+  assert.equal(terminalTaskGraphState(cursor), 'running')
+  const legacy = { ...cursor, terminalState: 'accepted' }
+  assert.equal(parseTaskGraphCursor(legacy).terminalState, 'accepted')
+  assert.equal(terminalTaskGraphState(legacy), 'running')
+  assert.deepEqual(readyTaskGraphNodes(legacy).map(candidate => candidate.nodeId), ['independent'])
+  const failed = updateTaskGraphCursor(legacy, 'independent', { status: 'failed' })
+  assert.equal(terminalTaskGraphState(failed), 'failed')
+  const completed = updateTaskGraphCursor(legacy, 'independent', { status: 'accepted' })
+  assert.equal(terminalTaskGraphState(completed), 'accepted')
+})
+
+test('runner normalizes legacy success before applying the round limit', async () => {
+  const graph = createTaskGraph({ template: 'task-graph', nodes: [
+    node({ nodeId: 'independent' }),
+    node({ nodeId: 'terminal', agentKind: 'hermes', terminal: true }),
+  ] })
+  const cursor = updateTaskGraphCursor(createTaskGraphCursor(graph), 'terminal', { status: 'accepted' })
+  const controller = { signal: { aborted: false }, unlimitedRounds: false, currentRound: 1, maxRounds: 1,
+    orchestration: { taskGraph: { ...cursor, terminalState: 'accepted' } } }
+  const runner = {
+    checkpointTaskGraph(_group, current, value) {
+      const normalized = { ...value, terminalState: terminalTaskGraphState(value) }
+      current.orchestration.taskGraph = normalized
+      return normalized
+    },
+  }
+  const status = await taskGraphMethods.runTaskGraph.call(runner, {}, controller, '', {})
+  assert.equal(status, 'round-limit')
+  assert.equal(controller.orchestration.taskGraph.terminalState, 'running')
 })
 
 test('only primary nodes can declare a safe claim key and it survives graph serialization', () => {

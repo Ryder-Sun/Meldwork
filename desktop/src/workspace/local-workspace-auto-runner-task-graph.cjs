@@ -406,6 +406,9 @@ const taskGraphMethods = {
     while (!controller.signal.aborted) {
       let cursor = parseTaskGraphCursor(controller.orchestration.taskGraph)
       const terminalState = terminalTaskGraphState(cursor)
+      if (cursor.terminalState !== terminalState) {
+        cursor = this.checkpointTaskGraph(group, controller, cursor)
+      }
       if (terminalState !== 'running') {
         cursor = this.checkpointTaskGraph(group, controller, cursor)
         break
