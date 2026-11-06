@@ -88,6 +88,15 @@ class LocalWorkspaceAgentCatalog {
     return projectIdentity === '' || (projectIdentity !== null && runtime.projectVerificationIdentity === projectIdentity)
   }
 
+  isProjectAuthBlocked(kind, workdir) {
+    const runtime = this.state().agentRuntime[kind]
+    const agent = this.detectedAgents().find(item => item.kind === kind)
+    const identity = projectVerificationIdentity(kind, workdir)
+    return Boolean(identity && runtime?.projectFailureIdentity === identity
+      && runtime.failureIdentity === agentVerificationIdentity(agent, this.state().agentPreferences)
+      && !expiredAuthFailure(runtime, this.now()))
+  }
+
   async refresh() {
     if (this.refreshTask) {
       this.refreshAgain = true

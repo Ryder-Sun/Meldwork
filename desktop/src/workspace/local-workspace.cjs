@@ -312,6 +312,7 @@ class LocalWorkspace extends EventEmitter {
       createAttemptContextPack: (...args) => this.createAttemptContextPack(...args),
       recordContextDelivery: (...args) => this.recordContextDelivery(...args),
       markRuntimeCredential: (...args) => this.markRuntimeCredential(...args),
+      isProjectAuthBlocked: (...args) => this.agentCatalog.isProjectAuthBlocked(...args),
       addMessage: (...args) => this.addMessage(...args),
       runScheduler: options.runScheduler,
       registerAgentController: (...args) => this.runCoordinator.registerAgentController(...args),

@@ -202,6 +202,7 @@ class LocalWorkspaceAgentInvocation {
     this.createAttemptContextPack = options.createAttemptContextPack
     this.recordContextDelivery = options.recordContextDelivery
     this.markRuntimeCredential = options.markRuntimeCredential
+    this.isProjectAuthBlocked = options.isProjectAuthBlocked || (() => false)
     this.addMessage = options.addMessage
     this.runScheduler = options.runScheduler || processRunScheduler
     this.registerAgentController = options.registerAgentController
@@ -316,7 +317,7 @@ class LocalWorkspaceAgentInvocation {
     const runtime = this.state()?.agentRuntime?.[kind]
     const projectIdentity = projectVerificationIdentity(kind, group.workdir)
     const runtimeBlocked = runtime?.credentialState === 'missing'
-      || Boolean(projectIdentity && runtime?.projectFailureIdentity === projectIdentity)
+      || this.isProjectAuthBlocked(kind, group.workdir)
     const usable = item => item.installed !== false && item.invocable !== false
       && item.runtimePrerequisitesReady !== false && !item.runtimeBlockSource
       && item.compatibilityState !== 'incompatible' && item.credentialState !== 'missing'

@@ -623,6 +623,32 @@ test('a Zcode project authentication failure does not block another project', as
   assert.equal(workspace.agentCatalog.isRecentlyVerified('zcode', second), true)
 })
 
+test('a project authentication failure permits retry after cooldown without refresh, including after restart', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  let now = options.now()
+  options.now = () => now
+  options.detectAgents = async () => [{ kind: 'zcode', name: 'Zcode', executable: '/tmp/zcode', version: '1' }]
+  let calls = 0
+  options.runAgent = async () => {
+    calls += 1
+    if (calls === 1) throw new Error('Please log in first')
+    return { text: 'Recovered', outcome: 'completed' }
+  }
+  let workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Project', agentKinds: ['zcode'], workdir: directory })
+  await workspace.sendMessage({ groupId: group.id, text: 'Run', targetKinds: ['zcode'] })
+  workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  await workspace.sendMessage({ groupId: group.id, text: 'Too soon', targetKinds: ['zcode'] })
+  assert.equal(calls, 1)
+  now = new Date(Date.parse(now) + 31_000).toISOString()
+  await workspace.sendMessage({ groupId: group.id, text: 'Retry', targetKinds: ['zcode'] })
+  assert.equal(calls, 2)
+  assert.equal(workspace.agentCatalog.isRecentlyVerified('zcode', directory), true)
+})
+
 test('automatic routing starts the verified read-only Agent when the only writer is unverified', async t => {
   const { directory, calls, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
