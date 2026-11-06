@@ -49,10 +49,11 @@
         @refresh-cloud-agents="cloudAgentBridges.refresh"
         @request-install="requestInstall"
       >
-        <template #toolbar><span class="catalog-cloud-toolbar"><button type="button" class="cloud-edit-button" :title="t('systemSettings.editCloudServers')" :aria-label="t('systemSettings.editCloudServers')" :aria-expanded="cloudExpanded" @click="openCloudDialog"><CreateOutline />{{ t('systemSettings.configureServers') }}</button></span></template>
+        <template #toolbar><span class="catalog-cloud-toolbar"><button v-if="connectorAvailable" ref="connectorButton" type="button" class="cloud-edit-button" :aria-expanded="connectorExpanded" @click="connectorExpanded = !connectorExpanded">{{ t('connectorPackages.title') }}</button><button type="button" class="cloud-edit-button" :title="t('systemSettings.editCloudServers')" :aria-label="t('systemSettings.editCloudServers')" :aria-expanded="cloudExpanded" @click="openCloudDialog"><CreateOutline />{{ t('systemSettings.configureServers') }}</button></span></template>
       </AgentSettingsPanel>
 
       <section v-if="cloudExpanded" ref="cloudInline" class="cloud-inline" @keydown.esc="closeCloud"><button type="button" class="cloud-back" @click="closeCloud"><CloseOutline />{{ t('common.close') }}</button><CloudAgentBridgePanel :controller="cloudAgentBridges" /></section>
+      <ConnectorPackagesPanel v-if="connectorExpanded && connectorAvailable" @close="closeConnectors" />
       <KnowledgeBaseSettingsPanel
         v-if="systemSettingsSection !== 'general'"
         :icon="knowledgeBaseIcon"
@@ -88,6 +89,8 @@ import AgentSettingsPanel from './AgentSettingsPanel.vue'
 import CloudAgentBridgePanel from './CloudAgentBridgePanel.vue'
 import GeneralSettingsPanel from './GeneralSettingsPanel.vue'
 import KnowledgeBaseSettingsPanel from './KnowledgeBaseSettingsPanel.vue'
+import ConnectorPackagesPanel from './ConnectorPackagesPanel.vue'
+import { desktopApi } from '../desktop.js'
 
 const props = defineProps({
   controller: { type: Object, required: true },
@@ -135,6 +138,13 @@ const {
   themePreference,
 } = props.controller
 const cloudExpanded = ref(systemSettingsSection.value === 'cloud-agents')
+const connectorAvailable = Boolean(desktopApi()?.localAgentConnector)
+const connectorExpanded = ref(false)
+const connectorButton = ref(null)
+function closeConnectors() {
+  connectorExpanded.value = false
+  nextTick(() => connectorButton.value?.focus())
+}
 const cloudInline = ref(null)
 async function openCloudDialog() {
   cloudExpanded.value = !cloudExpanded.value
