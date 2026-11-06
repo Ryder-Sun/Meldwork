@@ -466,7 +466,7 @@ async function inspectAgentCandidate(kind, executable, options, childEnv) {
     return { succeeded: false, version: '', versionIdentified: false }
   })()
 
-  const { version } = await versionTask
+  const { version, versionIdentified } = await versionTask
   const versionCompatibility = assessAgentVersion(kind, version)
   const capabilityTask = Promise.resolve().then(async () => {
     const result = await (options.probeAgentCapabilitiesFn || probeAgentCapabilities)(
@@ -507,6 +507,7 @@ async function inspectAgentCandidate(kind, executable, options, childEnv) {
     name: `${AGENT_PROFILES[kind].label} CLI`,
     executable,
     version,
+    ...(!versionIdentified ? { versionIdentified: false } : {}),
     ...compatibility,
     ...(kind === 'hermes' ? {
       acpAvailable,

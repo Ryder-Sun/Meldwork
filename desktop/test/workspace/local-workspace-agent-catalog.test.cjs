@@ -390,6 +390,24 @@ test('unidentified product versions remain unavailable after credential validati
   assert.equal(agents()[0].available, false)
 })
 
+test('catalog does not route an ambiguous product version even when capability and auth probes succeed', async () => {
+  const { detectAgents } = require('../../src/agents/cli/cli-discovery.cjs')
+  const { agents, catalog } = fixture({
+    detectAgents: () => detectAgents({
+      platform: 'darwin', env: {},
+      resolveExecutableFn: async kind => kind === 'kimi' ? '/tmp/kimi' : null,
+      execFileFn: async () => ({ stdout: 'Kimi Code 0.19.2\nKimi Code 0.20.0\n', stderr: '' }),
+      probeAgentCapabilitiesFn: async () => ({ compatibilityState: 'compatible' }),
+    }),
+    credentialState: async () => ({ state: 'ready', source: 'native-auth-status' }),
+  })
+  await catalog.refresh()
+  assert.equal(agents()[0].compatible, true)
+  assert.equal(agents()[0].versionIdentified, false)
+  assert.equal(agents()[0].invocable, false)
+  assert.equal(agents()[0].available, false)
+})
+
 test('authoritative native validation persists recovery from a runtime auth failure', async () => {
   const { agents, catalog, events, state } = fixture({
     detectAgents: async () => [{
