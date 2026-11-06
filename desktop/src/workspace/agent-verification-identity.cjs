@@ -61,6 +61,8 @@ function agentVerificationIdentity(agent, preferences = {}) {
 
 function projectVerificationIdentity(kind, workdir) {
   const files = {
+    codex: ['.codex/config.toml'],
+    claude: ['.claude/settings.json', '.claude/settings.local.json'],
     zcode: ['zcode.json', '.zcode/config.json'],
     opencode: ['opencode.json', 'opencode.jsonc', '.opencode/opencode.json', '.opencode/opencode.jsonc'],
     mimo: ['mimocode.json', 'mimocode.jsonc', '.mimocode/mimocode.json', '.mimocode/mimocode.jsonc'],

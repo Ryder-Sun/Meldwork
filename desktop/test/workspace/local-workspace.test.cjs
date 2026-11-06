@@ -5,6 +5,7 @@ const path = require('node:path')
 const { ContentBlobStore } = require('../../src/attachments/content-blob-store.cjs')
 const { HumanGateStore } = require('../../src/gates/human-gate-store.cjs')
 const { LocalWorkspace } = require('../../src/workspace/local-workspace.cjs')
+const { projectVerificationIdentity } = require('../../src/workspace/agent-verification-identity.cjs')
 const { deferred, fixture } = require('../support/local-workspace-test-helpers.cjs')
 
 test('installed Agents distinguish ready, local CLI, and missing credential states', async (t) => {
@@ -529,7 +530,7 @@ test('opt-in automatic routing persists the smallest evidence-ranked team', asyn
   }
   const workspace = new LocalWorkspace(options)
   await workspace.refreshAgents()
-  workspace.markRuntimeCredential('codex', 'ready')
+  workspace.markRuntimeCredential('codex', 'ready', { workdir: directory, projectIdentity: projectVerificationIdentity('codex', directory) })
   workspace.markRuntimeCredential('hermes', 'ready')
   const group = workspace.createGroup({
     name: 'Automatic routing', agentKinds: ['codex', 'hermes'], workdir: directory,
@@ -617,6 +618,31 @@ test('Qwen automatic routing is bound to its project settings', async t => {
     targetKinds: [], routingMode: 'automatic' }), { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
   assert.equal(calls.length, 2)
 })
+
+for (const [kind, config] of [['codex', '.codex/config.toml'], ['claude', '.claude/settings.local.json']]) {
+  test(`${kind} automatic routing is bound to its project settings`, async t => {
+    const { directory, calls, options } = fixture()
+    t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+    const first = path.join(directory, 'first')
+    const second = path.join(directory, 'second')
+    fs.mkdirSync(first); fs.mkdirSync(second)
+    options.detectAgents = async () => [{ kind, name: kind, executable: `/tmp/${kind}`, version: '1' }]
+    const workspace = new LocalWorkspace(options)
+    await workspace.refreshAgents()
+    const groupA = workspace.createGroup({ name: 'Project A', agentKinds: [kind], workdir: first })
+    const groupB = workspace.createGroup({ name: 'Project B', agentKinds: [kind], workdir: second })
+    await workspace.sendMessage({ groupId: groupA.id, text: 'Verify', targetKinds: [kind] })
+    await workspace.sendMessage({ groupId: groupA.id, text: 'Route', targetKinds: [], routingMode: 'automatic' })
+    await assert.rejects(workspace.sendMessage({ groupId: groupB.id, text: 'Route',
+      targetKinds: [], routingMode: 'automatic' }), { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
+    const filename = path.join(first, config)
+    fs.mkdirSync(path.dirname(filename), { recursive: true })
+    fs.writeFileSync(filename, 'changed')
+    await assert.rejects(workspace.sendMessage({ groupId: groupA.id, text: 'Route again',
+      targetKinds: [], routingMode: 'automatic' }), { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
+    assert.equal(calls.length, 2)
+  })
+}
 
 test('a Zcode project authentication failure does not block another project', async t => {
   const { directory, options } = fixture()
@@ -767,7 +793,7 @@ test('V4 automatic collaboration preserves per-Agent permissions for a mixed tea
   ]
   const workspace = new LocalWorkspace(options)
   await workspace.refreshAgents()
-  workspace.markRuntimeCredential('codex', 'ready')
+  workspace.markRuntimeCredential('codex', 'ready', { workdir: directory, projectIdentity: projectVerificationIdentity('codex', directory) })
   workspace.markRuntimeCredential('hermes', 'ready')
   const group = workspace.createGroup({ name: 'Mixed permissions', agentKinds: ['codex', 'hermes'],
     workdir: directory, allowWrite: true })
@@ -797,7 +823,9 @@ test('V4 automatic collaboration falls back to a read-only team when the writer 
   ]
   const workspace = new LocalWorkspace(options)
   await workspace.refreshAgents()
-  for (const kind of ['codex', 'hermes', 'kimi']) workspace.markRuntimeCredential(kind, 'ready')
+  for (const kind of ['codex', 'hermes', 'kimi']) workspace.markRuntimeCredential(kind, 'ready', {
+    workdir: directory, projectIdentity: projectVerificationIdentity(kind, directory),
+  })
   const group = workspace.createGroup({ name: 'Read-only team', agentKinds: ['codex', 'hermes', 'kimi'],
     workdir: directory, allowWrite: true })
   await workspace.sendMessage({ groupId: group.id, text: 'Collaborate', targetKinds: [], routingMode: 'automatic',
