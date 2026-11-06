@@ -8,6 +8,27 @@ permissions:
   contents: read
 
 jobs:
+  windows-process-tree:
+    name: Windows process tree termination
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22.12"
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install runtime dependencies
+        run: npm ci --omit=dev
+        working-directory: desktop
+
+      - name: Test actual process tree termination
+        run: node --test desktop/test/agents/cli/windows-process-tree.test.cjs
+
   private-file-portability:
     name: Private file portability (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
