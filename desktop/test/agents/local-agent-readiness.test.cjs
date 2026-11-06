@@ -1480,6 +1480,27 @@ test('real shell unsets remove inherited native credentials without exposing unr
   }
 })
 
+test('declared credentials absent from a later shell capture explicitly clear earlier values', {
+  skip: process.platform === 'win32',
+}, async () => {
+  const execFile = require('node:util').promisify(require('node:child_process').execFile)
+  const capture = (setup, extraEnvKeys = []) => resolveNativeShellEnvironment({
+    cache: false, shell: '/bin/sh', env: { PATH: '/usr/bin:/bin' },
+    extraEnvKeys,
+    execFileFn: (command, args, options) => execFile(command, ['-c', `${setup}\n${args[1]}`], options),
+  })
+  const first = await capture('export ANTHROPIC_API_KEY=previous')
+  const second = await capture('unset ANTHROPIC_API_KEY CUSTOM_CREDENTIAL', ['ANTHROPIC_API_KEY', 'CUSTOM_CREDENTIAL'])
+  assert.equal(first.env.ANTHROPIC_API_KEY, 'previous')
+  assert.equal(Object.hasOwn(second.env, 'ANTHROPIC_API_KEY'), false)
+  assert.ok(second.unsetKeys.includes('ANTHROPIC_API_KEY'))
+  assert.ok(second.unsetKeys.includes('CUSTOM_CREDENTIAL'))
+  assert.equal(second.unsetKeys.includes('OPENAI_API_KEY'), false)
+  const merged = { ...first.env, ...second.env }
+  for (const key of second.unsetKeys) delete merged[key]
+  assert.equal(Object.hasOwn(merged, 'ANTHROPIC_API_KEY'), false)
+})
+
 test('model-specific Vertex regions participate in cache identity and stay scoped to the native Agent', async () => {
   const key = 'VERTEX_REGION_CLAUDE_FUTURE_MODEL'
   const base = { platform: 'win32', home: 'C:\\vertex-region-test', env: { PATH: 'C:\\bin', [key]: 'us-east5' } }

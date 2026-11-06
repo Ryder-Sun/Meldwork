@@ -647,7 +647,8 @@ async function queryNativeShellEnvironment(options = {}) {
     )
     const loaded = parseNativeShellEnvironment(result.stdout, capturedKeys)
     const merged = { ...fallback, ...loaded.env }
-    const unsetKeys = loaded.unsetKeys.filter(key => Object.hasOwn(fallback, key))
+    const declaredKeys = new Set(nativeSecretEnvKeys(options.extraEnvKeys))
+    const unsetKeys = loaded.unsetKeys.filter(key => Object.hasOwn(fallback, key) || declaredKeys.has(key))
     for (const key of unsetKeys) delete merged[key]
     return {
       env: merged,
