@@ -592,6 +592,41 @@ test('task graph Human node uses a typed decision instead of Agent consensus', a
   assert.equal(durable.orchestration.taskGraph.nodeStates[1].decisionOptionId, 'approve-release')
   assert.equal(calls.length, 1)
 })
+
+for (const approved of [true, false]) test(`task graph human ${approved ? 'approval resolves' : 'rejection preserves'} conflicts`, async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const ledger = new RunLedger({ storagePath: path.join(directory, 'run-ledger.json') })
+  options.runLedger = ledger
+  options.runAgent = async agent => ({ text: agent.kind === 'codex' ? 'The release is ready.' : 'The release is blocked.', outcome: 'completed' })
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Human conflict decision', agentKinds: ['codex', 'hermes'], workdir: directory, allowWrite: false })
+  const acceptance = { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 }
+  const graph = { template: 'task-graph', nodes: [
+    graphNode({ acceptance }),
+    graphNode({ nodeId: 'primary-hermes', agentKind: 'hermes', acceptance }),
+    graphNode({ nodeId: 'human', role: 'human', agentKind: null, terminal: true, parallel: false,
+      dependsOn: ['primary-codex', 'primary-hermes'], inputNodeIds: ['primary-codex', 'primary-hermes'],
+      acceptance: { requireConclusion: false, minArtifactRefs: 0, minEvidenceRefs: 0 },
+      decisionOptions: [{ optionId: 'approve', name: 'Approve', kind: 'allow_once' },
+        { optionId: 'reject', name: 'Reject', kind: 'reject_once' }] }),
+  ] }
+  await workspace.sendMessage({ groupId: group.id, text: 'Assess release.', mode: 'auto', maxRounds: 4,
+    targetKinds: group.agentKinds, workflow: graph })
+  const gate = await pendingHumanGate(workspace)
+  workspace.decideHumanGate(gate.gateId, { status: approved ? 'approved' : 'rejected',
+    optionId: approved ? 'approve' : 'reject', actorId: 'local-user' })
+  await workspace.activeRuns.get(group.id).promise
+  const durable = new RunLedger({ storagePath: ledger.storagePath }).get(gate.runId)
+  const entries = durable.orchestration.collaboration.entries
+  const conflicts = entries.filter(entry => entry.entryType === 'conflict')
+  const decision = entries.find(entry => entry.entryType === 'decision' && entry.subject.endsWith(':node:human'))
+  assert.ok(conflicts.length)
+  assert.ok(decision)
+  assert.equal(decision.refs.some(id => conflicts.some(conflict => conflict.entryId === id)), approved)
+  assert.equal(durable.status === 'completed', approved)
+})
 test('auto send preflights atomically, persists one root, and starts at round one', async (t) => {
   const { directory, calls, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

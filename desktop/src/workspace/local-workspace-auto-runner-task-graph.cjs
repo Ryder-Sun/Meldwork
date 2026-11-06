@@ -233,7 +233,7 @@ const taskGraphMethods = {
         artifactIds: [],
         evidenceIds: [],
       },
-      refs: conflicts.map(entry => entry.entryId),
+      refs: accepted ? conflicts.map(entry => entry.entryId) : [],
     })
     const decisionEntryId = collaboration.entries.at(-1).entryId
     this.checkpointOrchestration(group, controller, { collaboration })
