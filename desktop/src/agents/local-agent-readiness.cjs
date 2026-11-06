@@ -220,7 +220,15 @@ function hermesDeclaredCredentialKeys(options = {}) {
       .filter(entry => entry && typeof entry === 'object' && !Array.isArray(entry)).slice(0, 32)
     const nestedModel = model.default && typeof model.default === 'object' ? model.default : {}
     const currentProvider = String(model.provider || nestedModel.provider || env.HERMES_INFERENCE_PROVIDER || 'auto').trim().toLowerCase()
-    const references = [currentProvider, ...fallbacks.map(entry => String(entry.provider || '').trim().toLowerCase())].filter(Boolean)
+    const configuredProviders = config.providers && typeof config.providers === 'object' && !Array.isArray(config.providers)
+      ? config.providers : {}
+    const modelName = typeof model.default === 'string' ? model.default.trim() : ''
+    const [modelPrefix, ...modelSuffix] = modelName.split('/')
+    const qualifiedProvider = currentProvider === 'auto' && modelSuffix.join('/').trim()
+      && Object.keys(configuredProviders).some(name => name.toLowerCase() === modelPrefix.trim().toLowerCase())
+      ? modelPrefix.trim().toLowerCase() : ''
+    const references = [qualifiedProvider || currentProvider,
+      ...fallbacks.map(entry => String(entry.provider || '').trim().toLowerCase())].filter(Boolean)
     const providerKeys = references.filter(name => /^[a-z][a-z0-9_-]*$/.test(name)
       && !['auto', 'custom'].includes(name))
       .map(name => `${name.replace(/[-]+/g, '_').toUpperCase()}_API_KEY`)
@@ -243,8 +251,8 @@ function hermesDeclaredCredentialKeys(options = {}) {
       const base = String(entry.base_url || entry.api || entry.url || '').trim().replace(/\/+$/, '')
       return references.includes('custom') && Boolean(base) && endpoints.includes(base)
     }
-    const providers = config.providers && typeof config.providers === 'object' && !Array.isArray(config.providers)
-      ? Object.entries(config.providers).slice(0, 256).filter(([key, value]) => matches(value, key)).map(([, value]) => value) : []
+    const providers = Object.entries(configuredProviders).slice(0, 256)
+      .filter(([key, value]) => matches(value, key)).map(([, value]) => value)
     const custom = Array.isArray(config.custom_providers) ? config.custom_providers.slice(0, 256).filter(entry => matches(entry)) : []
     const entries = [model, ...fallbacks, ...providers, ...custom]
     return nativeSecretEnvKeys([...entries.flatMap(entry => (

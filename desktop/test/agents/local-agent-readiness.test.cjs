@@ -140,6 +140,22 @@ test('Hermes honors environment-selected native provider when config.yaml is abs
   assert.deepEqual(hermesDeclaredCredentialKeys({ home, env }), [])
 })
 
+test('Hermes selects configured provider credentials for an auto-routed qualified model', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-qualified-model-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const root = path.join(home, '.hermes'); fs.mkdirSync(root)
+  const file = path.join(root, 'config.yaml')
+  const config = [
+    'model:', '  provider: auto', '  default: backup/model-name',
+    'providers:', '  backup:', '    key_env: BACKUP_CREDENTIAL',
+    '  other:', '    key_env: UNRELATED_CREDENTIAL',
+  ].join('\n')
+  fs.writeFileSync(file, config)
+  assert.deepEqual(hermesDeclaredCredentialKeys({ home, env: {} }), ['BACKUP_API_KEY', 'BACKUP_CREDENTIAL'])
+  fs.writeFileSync(file, config.replace('provider: auto', 'provider: openrouter'))
+  assert.deepEqual(hermesDeclaredCredentialKeys({ home, env: {} }), ['OPENROUTER_API_KEY'])
+})
+
 test('native environment cache observes credential and proxy changes without a PATH change', async () => {
   const base = { platform: 'win32', home: 'C:\\meldwork-cache-test', env: { PATH: 'C:\\bin',
     ANTHROPIC_API_KEY: 'synthetic-before', HTTPS_PROXY: 'http://before.example:8080' } }
