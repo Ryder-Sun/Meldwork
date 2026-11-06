@@ -15,10 +15,16 @@ const INDETERMINATE_PROBE_SOURCES = new Set(['native-probe-failed'])
 
 function expiredAuthFailure(runtime, now) {
   if (runtime?.credentialState !== 'missing' && !runtime?.projectFailureIdentity) return false
-  const checkedAt = Date.parse(String(runtime.checkedAt || ''))
+  const checkedAt = Date.parse(String(runtime.projectFailureCheckedAt || runtime.checkedAt || ''))
   const current = Date.parse(String(now || ''))
   return !Number.isFinite(checkedAt) || (Number.isFinite(current)
     && (current < checkedAt || current - checkedAt >= AUTH_FAILURE_RETRY_MS))
+}
+
+function clearProjectFailure(runtime) {
+  if (runtime?.verificationSource !== 'successful-run' || runtime.credentialState !== 'ready') return undefined
+  const { projectFailureIdentity, projectFailureCheckedAt, failureIdentity, ...retained } = runtime
+  return retained
 }
 
 function agentVersionIdentified(agent) {
@@ -84,6 +90,7 @@ class LocalWorkspaceAgentCatalog {
     const agent = this.detectedAgents().find(item => item.kind === kind)
     if (!matchesRecentVerification(runtime, agent, this.now(), this.state().agentPreferences)) return false
     if (workdir === undefined) return true
+    if (this.isProjectAuthBlocked(kind, workdir)) return false
     const projectIdentity = projectVerificationIdentity(kind, workdir)
     return projectIdentity === '' || (projectIdentity !== null && runtime.projectVerificationIdentity === projectIdentity)
   }
@@ -147,8 +154,10 @@ class LocalWorkspaceAgentCatalog {
       if (expiredAuthFailure(runtime, this.now())
           && (runtime?.projectFailureIdentity || !(authoritativeNativeState && nativeState === 'ready'))
           && runtime === runtimeAtRefreshStart.get(agent.kind)) {
-        delete state.agentRuntime[agent.kind]
-        runtime = undefined
+        const retained = clearProjectFailure(runtime)
+        if (retained) state.agentRuntime[agent.kind] = retained
+        else delete state.agentRuntime[agent.kind]
+        runtime = retained
         recoveredRuntimeCredential = true
       }
       // A probe that started before a newer runtime failure cannot clear that failure.
@@ -297,11 +306,22 @@ class LocalWorkspaceAgentCatalog {
     if (projectIdentity !== undefined && projectIdentity !== projectVerificationIdentity(kind, workdir)) return
     const identity = verificationIdentity || agentVerificationIdentity(agent, state.agentPreferences)
     const projectFailure = credentialState === 'missing' && typeof projectIdentity === 'string' && Boolean(projectIdentity)
-    const effectiveState = projectFailure ? 'unknown' : credentialState
+    const previous = state.agentRuntime[kind]
+    const preserveSuccess = projectFailure && previous?.credentialState === 'ready'
+      && previous.verificationSource === 'successful-run' && previous.verificationIdentity === identity
+      && previous.projectVerificationIdentity !== projectIdentity
+    const preserveFailure = credentialState === 'ready' && previous?.projectFailureIdentity
+      && previous.projectFailureIdentity !== projectIdentity && previous.failureIdentity === identity
+      && !expiredAuthFailure(previous, this.now())
+    const effectiveState = projectFailure ? (preserveSuccess ? 'ready' : 'unknown') : credentialState
     state.agentRuntime[kind] = {
+      ...(preserveSuccess ? previous : {}),
       credentialState: effectiveState,
-      checkedAt: this.now(),
-      ...(projectFailure ? { projectFailureIdentity: projectIdentity } : {}),
+      checkedAt: preserveSuccess ? previous.checkedAt : this.now(),
+      ...(projectFailure ? { projectFailureIdentity: projectIdentity, projectFailureCheckedAt: this.now() } : {}),
+      ...(preserveFailure ? { projectFailureIdentity: previous.projectFailureIdentity,
+        projectFailureCheckedAt: previous.projectFailureCheckedAt || previous.checkedAt,
+        failureIdentity: previous.failureIdentity } : {}),
       ...(credentialState === 'missing' && verificationIdentity ? { failureIdentity: verificationIdentity } : {}),
       ...(credentialState === 'ready' && verifiedRun && identity
         ? { verificationSource: 'successful-run', verificationIdentity: identity,
@@ -339,7 +359,9 @@ class LocalWorkspaceAgentCatalog {
     let changed = false
     for (const [kind, runtime] of Object.entries(state.agentRuntime)) {
       if (runtime?.credentialState !== 'missing' && !runtime?.projectFailureIdentity) continue
-      delete state.agentRuntime[kind]
+      const retained = clearProjectFailure(runtime)
+      if (retained) state.agentRuntime[kind] = retained
+      else delete state.agentRuntime[kind]
       changed = true
     }
     if (changed) this.save()

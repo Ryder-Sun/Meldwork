@@ -649,6 +649,37 @@ test('a project authentication failure permits retry after cooldown without refr
   assert.equal(workspace.agentCatalog.isRecentlyVerified('zcode', directory), true)
 })
 
+test('a project authentication failure preserves another project\'s verified automatic routing', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const first = path.join(directory, 'first')
+  const second = path.join(directory, 'second')
+  fs.mkdirSync(first); fs.mkdirSync(second)
+  let now = options.now()
+  options.now = () => now
+  options.detectAgents = async () => [{ kind: 'zcode', name: 'Zcode', executable: '/tmp/zcode', version: '1' }]
+  const calls = []
+  options.runAgent = async (_agent, _prompt, workdir) => {
+    calls.push(workdir)
+    if (workdir === second) throw new Error('Please log in first')
+    return { text: 'Project A works', outcome: 'completed' }
+  }
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const groupA = workspace.createGroup({ name: 'Project A', agentKinds: ['zcode'], workdir: first })
+  const groupB = workspace.createGroup({ name: 'Project B', agentKinds: ['zcode'], workdir: second })
+  await workspace.sendMessage({ groupId: groupA.id, text: 'Verify', targetKinds: ['zcode'] })
+  await workspace.sendMessage({ groupId: groupB.id, text: 'Fail', targetKinds: ['zcode'] })
+  assert.equal(workspace.agentCatalog.isRecentlyVerified('zcode', first), true)
+  await workspace.sendMessage({ groupId: groupA.id, text: 'Auto', targetKinds: [], routingMode: 'automatic' })
+  await workspace.sendMessage({ groupId: groupB.id, text: 'Too soon', targetKinds: ['zcode'] })
+  assert.deepEqual(calls, [first, second, first])
+  now = new Date(Date.parse(now) + 31_000).toISOString()
+  await workspace.refreshAgents()
+  assert.equal(workspace.agentCatalog.isRecentlyVerified('zcode', first), true)
+  assert.equal(workspace.agentCatalog.isProjectAuthBlocked('zcode', second), false)
+})
+
 test('automatic routing starts the verified read-only Agent when the only writer is unverified', async t => {
   const { directory, calls, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
