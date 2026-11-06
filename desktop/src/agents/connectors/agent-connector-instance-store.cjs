@@ -4,7 +4,7 @@ const path = require('node:path')
 
 const { isSemanticVersion } = require('./agent-connector-manifest.cjs')
 const { canonicalJson } = require('../../collaboration/outcome-records.cjs')
-const { atomicWritePrivateFile } = require('../../security/private-file.cjs')
+const { atomicWritePrivateFile, ensurePrivateDirectory } = require('../../security/private-file.cjs')
 const { redactSecrets } = require('../../security/secret-redaction.cjs')
 
 const STORE_VERSION = 1
@@ -150,6 +150,59 @@ class AgentConnectorInstanceStore {
       return Boolean(this.safeStorage?.isEncryptionAvailable?.())
     } catch {
       return false
+    }
+  }
+
+  recordExecution(input) {
+    const fields = ['runId', 'agentRunId', 'connectorId', 'connectorVersion', 'manifestId',
+      'manifestSchemaVersion', 'instanceId', 'recipeId', 'upstreamId', 'upstreamVersion', 'credentialRefId']
+    if (!exactKeys(input, fields)
+        || ['runId', 'agentRunId', 'connectorId', 'instanceId', 'recipeId', 'upstreamId']
+          .some(key => typeof input[key] !== 'string' || !PUBLIC_ID.test(input[key]))
+        || !MANIFEST_ID.test(input.manifestId)
+        || !isSemanticVersion(input.connectorVersion) || !isSemanticVersion(input.upstreamVersion)
+        || !Number.isSafeInteger(input.manifestSchemaVersion) || input.manifestSchemaVersion < 1
+        || (input.credentialRefId !== null && !CREDENTIAL_REF.test(input.credentialRefId))) {
+      fail('AGENT_CONNECTOR_EXECUTION_RECORD_INVALID')
+    }
+    const directory = path.join(path.dirname(this.credentialStoragePath), 'agent-connector-executions')
+    const id = crypto.createHash('sha256').update(canonicalJson([input.runId, input.agentRunId])).digest('hex')
+    const filename = path.join(directory, `${id}.json`)
+    const content = canonicalJson({ version: 1, ...input })
+    let descriptor
+    try {
+      ensurePrivateDirectory(path.dirname(this.credentialStoragePath))
+      ensurePrivateDirectory(directory)
+      try {
+        descriptor = fs.openSync(filename, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL
+          | (fs.constants.O_NOFOLLOW || 0), 0o600)
+      } catch (error) {
+        if (error.code !== 'EEXIST') throw error
+        descriptor = fs.openSync(filename, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0))
+        const stat = fs.fstatSync(descriptor)
+        if (!stat.isFile() || stat.size > 8192 || fs.readFileSync(descriptor, 'utf8') !== content) {
+          fail('AGENT_CONNECTOR_EXECUTION_RECORD_CONFLICT')
+        }
+        return
+      }
+      fs.writeFileSync(descriptor, content, 'utf8')
+      fs.fsyncSync(descriptor)
+      let directoryDescriptor
+      try {
+        directoryDescriptor = fs.openSync(directory, 'r')
+        fs.fsyncSync(directoryDescriptor)
+      } catch (error) {
+        const unsupported = ['EINVAL', 'ENOTSUP', 'EOPNOTSUPP'].includes(error.code)
+          || (process.platform === 'win32' && ['EPERM', 'EISDIR'].includes(error.code))
+        if (!unsupported) throw error
+      } finally {
+        if (directoryDescriptor !== undefined) fs.closeSync(directoryDescriptor)
+      }
+    } catch (error) {
+      if (error?.code === 'AGENT_CONNECTOR_EXECUTION_RECORD_CONFLICT') throw error
+      fail('AGENT_CONNECTOR_EXECUTION_RECORD_UNAVAILABLE')
+    } finally {
+      if (descriptor !== undefined) fs.closeSync(descriptor)
     }
   }
 

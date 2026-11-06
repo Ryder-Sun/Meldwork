@@ -228,6 +228,7 @@ class LocalAgentConnectors {
         || typeof options.instanceStore.list !== 'function'
         || typeof options.instanceStore.listRecords !== 'function'
         || typeof options.instanceStore.resolveCredential !== 'function'
+        || typeof options.instanceStore.recordExecution !== 'function'
         || typeof options.runAgent !== 'function'
         || (options.packageStore !== undefined
           && (typeof options.packageStore.installedPackages !== 'function'
@@ -268,6 +269,7 @@ class LocalAgentConnectors {
   createRuntime(registry) {
     return new AgentConnectorRuntime({
       registry,
+      recordExecution: record => this.instanceStore.recordExecution(record),
       trustedLegacyEventRecipes: [LOCAL_DELEGATE_RECIPE_ID],
       recipes: {
         [LOCAL_DELEGATE_RECIPE_ID]: input => this.runDelegated(input),

@@ -118,6 +118,13 @@ test('HTTP transport timeout starts after outbound recording', async t => {
   assert.equal(requestSignal.aborted, false)
   assert.equal(result.outcome, 'completed')
   assert.equal(result.text, 'completed')
+  const auditDirectory = path.join(directory, 'private', 'agent-connector-executions')
+  const [auditName] = fs.readdirSync(auditDirectory)
+  const audit = JSON.parse(fs.readFileSync(path.join(auditDirectory, auditName), 'utf8'))
+  assert.equal(audit.runId, 'run-slow-record')
+  assert.equal(audit.recipeId, SDK_HTTP_JSON_RECIPE_ID)
+  assert.match(audit.credentialRefId, /^credential-ref:/)
+  assert.doesNotMatch(JSON.stringify(result), /credential-ref|private-token/)
 })
 
 test('HTTP transport does not send when stopped during outbound recording', async t => {

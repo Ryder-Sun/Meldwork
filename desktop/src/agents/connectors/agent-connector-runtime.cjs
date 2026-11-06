@@ -301,6 +301,7 @@ class AgentConnectorRuntime {
       fail('AGENT_CONNECTOR_RUNTIME_REGISTRY_REQUIRED')
     }
     this.registry = options.registry
+    this.recordExecution = options.recordExecution || (() => {})
     this.recipes = new Map()
     this.trustedLegacyEventRecipes = new Set(options.trustedLegacyEventRecipes || [])
     for (const [recipeId, handler] of recipeEntries(options.recipes)) {
@@ -425,6 +426,7 @@ class AgentConnectorRuntime {
       fail('AGENT_CONNECTOR_CANCEL_UNSUPPORTED')
     }
     const attachments = validatedAttachments(options.attachments, connector.capabilities)
+    this.recordExecution({ ...execution.runtimeProvenance, runId, agentRunId })
     const emit = (input) => {
       assertEventCapabilities(connector, input, permissionMode)
       if (input?.type === 'Permission' && input.decision !== 'requested'

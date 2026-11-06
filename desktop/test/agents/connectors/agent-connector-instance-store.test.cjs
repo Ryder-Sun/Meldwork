@@ -41,6 +41,33 @@ function instanceInput(label, credentials) {
   }
 }
 
+test('execution provenance is private, durable, idempotent and bound to its credential reference', t => {
+  const { createStore, credentialStoragePath } = fixture(t)
+  const store = createStore()
+  const account = store.create(instanceInput('Review account', { account: 'private-value' }))
+  const instance = store.listRecords().find(item => item.instanceId === account.instanceId)
+  const record = { runId: 'run-1', agentRunId: 'agent-run-1', connectorId: instance.connectorId,
+    connectorVersion: instance.connectorVersion, manifestId: instance.manifestId, manifestSchemaVersion: 1,
+    instanceId: instance.instanceId, recipeId: 'external.review-agent.run', upstreamId: 'review-agent',
+    upstreamVersion: '1.0.0', credentialRefId: instance.credentialRef }
+  store.recordExecution(record)
+  createStore().recordExecution(record)
+  const directory = path.join(path.dirname(credentialStoragePath), 'agent-connector-executions')
+  const [name] = fs.readdirSync(directory)
+  const content = fs.readFileSync(path.join(directory, name), 'utf8')
+  assert.deepEqual(JSON.parse(content), { version: 1, ...record })
+  assert.doesNotMatch(content, /private-value/)
+  assert.throws(() => store.recordExecution({ ...record, credentialRefId: null }), {
+    message: 'AGENT_CONNECTOR_EXECUTION_RECORD_CONFLICT',
+  })
+  if (process.platform !== 'win32') {
+    assert.equal(fs.statSync(path.join(directory, name)).mode & 0o777, 0o600)
+    fs.unlinkSync(path.join(directory, name))
+    fs.symlinkSync(credentialStoragePath, path.join(directory, name))
+    assert.throws(() => store.recordExecution(record), { message: 'AGENT_CONNECTOR_EXECUTION_RECORD_UNAVAILABLE' })
+  }
+})
+
 test('persists multiple Connector accounts with separate encrypted CredentialRefs', (t) => {
   const {
     createStore, credentialStoragePath, instanceStoragePath,
