@@ -1,5 +1,6 @@
 const fs = require('node:fs')
 const path = require('node:path')
+const NATIVE_CONFIG_IDENTITY_DIRECTORY = Symbol('nativeConfigIdentityDirectory')
 
 const NATIVE_CONFIG_DIRECTORIES = Object.freeze({
   hermes: { key: 'HERMES_HOME', files: ['config.yaml', 'auth.json', '.env'] },
@@ -10,6 +11,24 @@ const NATIVE_CONFIG_DIRECTORIES = Object.freeze({
   deepseek: { key: 'DSH_HOME', files: ['cordis.patch.yml', '.credentials.yaml'], directories: ['profiles'] },
   workbuddy: { key: 'CODEBUDDY_CONFIG_DIR', files: ['models.json', 'settings.json', '.credentials.json'] },
 })
+
+function nativeIdentityDirectory(kind, env, home, platform = process.platform) {
+  const spec = Object.hasOwn(NATIVE_CONFIG_DIRECTORIES, kind) ? NATIVE_CONFIG_DIRECTORIES[kind] : null
+  if (!spec || !path.isAbsolute(home)) return ''
+  const configured = env?.[spec.key]
+  if (typeof configured === 'string' && configured) {
+    return path.isAbsolute(configured) ? configured : ''
+  }
+  const defaults = {
+    hermes: platform === 'win32'
+      ? path.join(env?.LOCALAPPDATA || path.join(home, 'AppData', 'Local'), `hermes${env?.HERMES_DATA_DIR_SUFFIX || ''}`)
+      : path.join(home, `.hermes${env?.HERMES_DATA_DIR_SUFFIX || ''}`),
+    codex: path.join(home, '.codex'), claude: path.join(home, '.claude'),
+    pi: path.join(home, '.pi', 'agent'), kimi: path.join(home, '.kimi-code'),
+    deepseek: path.join(home, '.dsh'), workbuddy: path.join(home, '.workbuddy'),
+  }
+  return defaults[kind] || ''
+}
 
 function nativeConfigEnvironment(kind, preferences, env = {}) {
   const spec = Object.hasOwn(NATIVE_CONFIG_DIRECTORIES, kind) ? NATIVE_CONFIG_DIRECTORIES[kind] : null
@@ -37,4 +56,5 @@ function validateNativeConfigDirectory(kind, directory) {
   return resolved
 }
 
-module.exports = { NATIVE_CONFIG_DIRECTORIES, nativeConfigEnvironment, validateNativeConfigDirectory }
+module.exports = { NATIVE_CONFIG_DIRECTORIES, NATIVE_CONFIG_IDENTITY_DIRECTORY, nativeConfigEnvironment,
+  nativeIdentityDirectory, validateNativeConfigDirectory }

@@ -4,7 +4,8 @@ const fs = require('node:fs')
 const path = require('node:path')
 const { redactSecrets } = require('./security/secret-redaction.cjs')
 const { ensurePrivateDirectory } = require('./security/private-file.cjs')
-const { NATIVE_CONFIG_DIRECTORIES, nativeConfigEnvironment } = require('./agents/native-config-directory.cjs')
+const { NATIVE_CONFIG_DIRECTORIES, NATIVE_CONFIG_IDENTITY_DIRECTORY, nativeConfigEnvironment,
+  nativeIdentityDirectory } = require('./agents/native-config-directory.cjs')
 const { AttachmentStore } = require('./attachments/attachment-store.cjs')
 const { ContentBlobStore } = require('./attachments/content-blob-store.cjs')
 const { ContextPackStore } = require('./collaboration/context-pack-store.cjs')
@@ -286,7 +287,7 @@ async function nativeShellEnvironment(options = {}) {
 
 async function detectLocalAgents() {
   const shellEnvironment = await nativeShellEnvironment()
-  return detectAgents({
+  const agents = await detectAgents({
     env: shellEnvironment.env,
     home: shellEnvironment.home,
     nativeCredentialKeysForKind: kind => kind === 'codex' ? ['CODEX_API_KEY'] : kind === 'hermes' ? shellEnvironment.hermesCredentialKeys
@@ -295,6 +296,12 @@ async function detectLocalAgents() {
       ? {} : nativeCredentialEnvironment(kind, nativeConfigEnvironment(kind, workspace?.state.agentPreferences, shellEnvironment.env),
         kind === 'hermes' ? shellEnvironment.hermesCredentialKeys : kind === 'zcode' ? shellEnvironment.zcodeCredentialKeys
           : kind === 'mimo' ? shellEnvironment.mimoCredentialKeys : []),
+  })
+  return agents.map(agent => {
+    const directory = nativeIdentityDirectory(agent.kind, shellEnvironment.env, shellEnvironment.home)
+    const result = { ...agent }
+    if (directory) Object.defineProperty(result, NATIVE_CONFIG_IDENTITY_DIRECTORY, { value: directory })
+    return result
   })
 }
 

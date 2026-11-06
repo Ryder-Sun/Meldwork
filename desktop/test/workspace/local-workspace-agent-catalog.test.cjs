@@ -198,6 +198,25 @@ test('DeepSeek profile edits immediately invalidate routing verification without
   assert.throws(() => router.route(request), { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
 })
 
+test('automatically discovered native directories invalidate verification without exposing the path', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-agent-auto-identity-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const config = path.join(directory, 'config.toml')
+  fs.writeFileSync(config, 'model = "first"\n')
+  const { NATIVE_CONFIG_IDENTITY_DIRECTORY } = require('../../src/agents/native-config-directory.cjs')
+  const agent = { kind: 'codex', executable: '/tmp/codex', version: '1', compatibilityState: 'compatible' }
+  Object.defineProperty(agent, NATIVE_CONFIG_IDENTITY_DIRECTORY, { value: directory })
+  const { catalog, agents } = fixture({ detectAgents: async () => [agent],
+    credentialState: async () => ({ state: 'unknown', source: 'unverified' }) })
+  await catalog.refresh()
+  catalog.markRuntimeCredential('codex', 'ready')
+  assert.equal(catalog.isRecentlyVerified('codex'), true)
+  assert.equal(Object.keys(agents()[0]).includes('nativeConfigIdentityDirectory'), false)
+  assert.doesNotMatch(JSON.stringify(agents()), /meldwork-agent-auto-identity/)
+  fs.writeFileSync(config, 'model = "different"\n')
+  assert.equal(catalog.isRecentlyVerified('codex'), false)
+})
+
 test('Agent catalog module exposes only its coordinator', () => {
   assert.deepEqual(Object.keys(catalogApi), ['LocalWorkspaceAgentCatalog'])
 })

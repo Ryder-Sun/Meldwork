@@ -1,7 +1,7 @@
 const { createHash, randomBytes } = require('node:crypto')
 const fs = require('node:fs')
 const path = require('node:path')
-const { NATIVE_CONFIG_DIRECTORIES } = require('../agents/native-config-directory.cjs')
+const { NATIVE_CONFIG_DIRECTORIES, NATIVE_CONFIG_IDENTITY_DIRECTORY } = require('../agents/native-config-directory.cjs')
 
 function fileIdentity(filename) {
   try {
@@ -11,10 +11,10 @@ function fileIdentity(filename) {
 }
 
 function selectedConfigurationIdentity(agent, preferences) {
-  const directory = preferences?.[agent.kind]?.nativeConfigDirectory
+  const directory = preferences?.[agent.kind]?.nativeConfigDirectory || agent[NATIVE_CONFIG_IDENTITY_DIRECTORY]
   const spec = Object.hasOwn(NATIVE_CONFIG_DIRECTORIES, agent.kind) ? NATIVE_CONFIG_DIRECTORIES[agent.kind] : null
   if (typeof directory !== 'string' || !path.isAbsolute(directory) || !spec) return null
-  const entries = spec.files.map(name => [name, fileIdentity(path.join(directory, name))])
+  const entries = [['directory', directory], ...spec.files.map(name => [name, fileIdentity(path.join(directory, name))])]
   for (const name of spec.directories || []) {
     const root = path.join(directory, name)
     let children = []

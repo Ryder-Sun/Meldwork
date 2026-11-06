@@ -1,4 +1,5 @@
 const { agentVerificationIdentity } = require('./agent-verification-identity.cjs')
+const { NATIVE_CONFIG_IDENTITY_DIRECTORY } = require('../agents/native-config-directory.cjs')
 const {
   agentRuntimeCapabilities,
 } = require('../agents/agent-runtime-contract.cjs')
@@ -199,7 +200,7 @@ class LocalWorkspaceAgentCatalog {
       else if (nativeConfigurationUnknown) availabilitySource = 'local-cli'
       if (retained) availabilitySource = retained.availabilitySource
       if (workBuddyUnavailable) availabilitySource = native.source
-      return {
+      const result = {
         ...agent,
         installed,
         versionIdentified,
@@ -219,6 +220,10 @@ class LocalWorkspaceAgentCatalog {
         capabilities,
         showInSidebar: sidebarVisible({ ...agent, task: capabilities.task }, preferred),
       }
+      if (agent[NATIVE_CONFIG_IDENTITY_DIRECTORY]) {
+        Object.defineProperty(result, NATIVE_CONFIG_IDENTITY_DIRECTORY, { value: agent[NATIVE_CONFIG_IDENTITY_DIRECTORY] })
+      }
+      return result
     })
     this.setDetectedAgents(agents)
     this.detectedIdentities = new Map(agents.map(agent => [agent.kind, agentVerificationIdentity(agent, state.agentPreferences)]))

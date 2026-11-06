@@ -158,6 +158,21 @@ test('every local IPC handler rejects an untrusted renderer before dispatch', as
   }
 })
 
+test('detected Agent verification directory stays internal to the main process', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-identity-main-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const nativeHome = path.join(directory, 'private-hermes')
+  const { harness } = loadMain(directory, {
+    nativeShellEnvironment: () => ({ env: { HERMES_HOME: nativeHome }, source: 'native-shell' }),
+    detectAgents: () => [{ kind: 'hermes', version: '1', compatibilityState: 'compatible' }],
+  })
+  await harness.ready()
+  const [agent] = await harness.installerInstances[0].input.detectAgents()
+  const { NATIVE_CONFIG_IDENTITY_DIRECTORY } = require('../../src/agents/native-config-directory.cjs')
+  assert.equal(agent[NATIVE_CONFIG_IDENTITY_DIRECTORY], nativeHome)
+  assert.doesNotMatch(JSON.stringify({ ...agent }), /private-hermes/)
+})
+
 test('native Agent configuration selection is validated and used for execution', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-config-ipc-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

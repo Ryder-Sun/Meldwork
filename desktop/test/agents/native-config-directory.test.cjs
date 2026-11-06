@@ -3,7 +3,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
-const { nativeConfigEnvironment, validateNativeConfigDirectory } = require('../../src/agents/native-config-directory.cjs')
+const { nativeConfigEnvironment, nativeIdentityDirectory, validateNativeConfigDirectory } = require('../../src/agents/native-config-directory.cjs')
 const { nativeCredentialState } = require('../../src/agents/local-agent-readiness.cjs')
 const { loadWorkspaceState, saveWorkspaceState } = require('../../src/workspace/local-workspace-state.cjs')
 
@@ -19,6 +19,16 @@ test('validates a selected native directory and scopes it to the owning Agent', 
   assert.throws(() => validateNativeConfigDirectory('unknown', directory), { message: 'LOCAL_NATIVE_CONFIG_INVALID' })
   assert.throws(() => validateNativeConfigDirectory('hermes', 'relative'), { message: 'LOCAL_NATIVE_CONFIG_INVALID' })
   assert.throws(() => nativeConfigEnvironment('hermes', { hermes: { nativeConfigDirectory: 'relative' } }), { message: 'LOCAL_NATIVE_CONFIG_INVALID' })
+})
+
+test('native identity directories follow shell overrides and known defaults', () => {
+  const home = path.resolve('test-home')
+  const selected = path.join(home, 'native-kimi')
+  assert.equal(nativeIdentityDirectory('codex', {}, home, 'linux'), path.join(home, '.codex'))
+  assert.equal(nativeIdentityDirectory('kimi', { KIMI_CODE_HOME: selected }, home, 'linux'), selected)
+  assert.equal(nativeIdentityDirectory('kimi', { KIMI_CODE_HOME: 'relative' }, home, 'linux'), '')
+  assert.equal(nativeIdentityDirectory('hermes', { HERMES_DATA_DIR_SUFFIX: '-test' }, home, 'linux'), path.join(home, '.hermes-test'))
+  assert.equal(nativeIdentityDirectory('unknown', {}, home, 'linux'), '')
 })
 
 test('a selected native directory survives workspace restart', t => {
