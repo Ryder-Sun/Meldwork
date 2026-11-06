@@ -256,6 +256,7 @@ class AgentConnectorRuntime {
     }
     this.registry = options.registry
     this.recipes = new Map()
+    this.trustedLegacyEventRecipes = new Set(options.trustedLegacyEventRecipes || [])
     for (const [recipeId, handler] of recipeEntries(options.recipes)) {
       this.registerRecipe(recipeId, handler)
     }
@@ -414,13 +415,14 @@ class AgentConnectorRuntime {
       signal: connector.capabilities.session.cancel ? options.signal : undefined,
       onActivity: options.onActivity,
       emit,
-      onProgress: options.onProgress,
-      onRuntimeEvent: options.onEvent,
+      onProgress: this.trustedLegacyEventRecipes.has(execution.recipeId) ? options.onProgress : undefined,
+      onRuntimeEvent: this.trustedLegacyEventRecipes.has(execution.recipeId) ? options.onEvent : undefined,
       onOutboundPayload,
       assertOutboundDestination: destination => assertOutboundDestination(
         connector, destination,
       ),
-      onPermissionRequest: options.onPermissionRequest,
+      onPermissionRequest: connector.capabilities.eventTypes.includes('Permission')
+        ? options.onPermissionRequest : undefined,
       resume,
     }))
 

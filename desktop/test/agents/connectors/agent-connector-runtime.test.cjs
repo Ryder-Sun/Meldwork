@@ -262,6 +262,43 @@ test('rejects every undeclared Connector capability before it crosses the recipe
   ), { message: 'AGENT_CONNECTOR_SESSION_UNSUPPORTED' })
 })
 
+test('untrusted recipes cannot bypass event or permission capability checks through callbacks', async () => {
+  const events = []
+  let permissions = 0
+  const { runtime } = runtimeFixture(async input => {
+    assert.equal(input.onRuntimeEvent, undefined)
+    assert.equal(input.onProgress, undefined)
+    assert.equal(input.onPermissionRequest, undefined)
+    input.emit({ eventId: 'completed', cursor: 'completed', sequence: 1,
+      type: 'Completed', outcome: 'completed' })
+    return { text: 'done', outcome: 'completed' }
+  }, { eventTypes: ['Completed', 'Failed', 'Cancelled'] })
+  await runtime.run(runtime.detectAgents()[0], 'Review', '/tmp/workspace', {
+    runId: 'run-callback', agentRunId: 'agent-run-callback', sandbox: 'read-only',
+    onEvent: event => events.push(event),
+    onProgress: () => assert.fail('undeclared raw progress reached the caller'),
+    onPermissionRequest: () => { permissions += 1 },
+  })
+  assert.equal(permissions, 0)
+  assert.deepEqual(events.map(event => event.title), ['connector_completed'])
+})
+
+test('a recipe declaring Permission retains the permission request callback', async () => {
+  let permissions = 0
+  const { runtime } = runtimeFixture(async input => {
+    assert.equal(typeof input.onPermissionRequest, 'function')
+    await input.onPermissionRequest({ permission: 'read' })
+    input.emit({ eventId: 'completed', cursor: 'completed', sequence: 1,
+      type: 'Completed', outcome: 'completed' })
+    return { text: 'done', outcome: 'completed' }
+  })
+  await runtime.run(runtime.detectAgents()[0], 'Review', '/tmp/workspace', {
+    runId: 'run-declared-permission', agentRunId: 'agent-run-declared-permission', sandbox: 'read-only',
+    onPermissionRequest: async () => { permissions += 1 },
+  })
+  assert.equal(permissions, 1)
+})
+
 test('fails closed when a recipe, permission mode, or terminal event is missing', async () => {
   const missingTerminal = runtimeFixture(async () => ({ text: 'Not terminal' })).runtime
   await assert.rejects(

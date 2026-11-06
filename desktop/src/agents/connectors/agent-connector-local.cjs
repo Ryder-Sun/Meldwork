@@ -260,6 +260,7 @@ class LocalAgentConnectors {
   createRuntime(registry) {
     return new AgentConnectorRuntime({
       registry,
+      trustedLegacyEventRecipes: [LOCAL_DELEGATE_RECIPE_ID],
       recipes: {
         [LOCAL_DELEGATE_RECIPE_ID]: input => this.runDelegated(input),
         [SDK_LOCAL_ECHO_RECIPE_ID]: input => this.runLocalEcho(input),
