@@ -227,6 +227,27 @@ test('Hermes selected config captures only its declared native credential for ex
   assert.equal(harness.runAgentCalls.at(-1)[3].env.CUSTOM_CREDENTIAL, undefined)
 })
 
+test('Zcode receives only its native provider credential', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-zcode-env-main-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const readiness = require('../../src/agents/local-agent-readiness.cjs')
+  const { harness } = loadMain(directory, {
+    zcodeDeclaredCredentialKeys: () => ['ACME_API_KEY'],
+    nativeEnvironment: readiness.nativeCredentialEnvironment,
+    nativeShellEnvironment: input => ({ source: 'native-shell', env: input.extraEnvKeys?.includes('ACME_API_KEY')
+      ? { ACME_API_KEY: 'synthetic-secret', UNRELATED_SECRET: 'private' } : {} }),
+  })
+  await harness.ready()
+  const workspace = harness.workspaceInstances[0]
+  await workspace.input.runAgent({ kind: 'zcode', executable: '/tmp/zcode' }, 'hello', directory, {})
+  const options = harness.runAgentCalls.at(-1)[3]
+  assert.equal(options.env.ACME_API_KEY, 'synthetic-secret')
+  assert.equal(options.env.UNRELATED_SECRET, undefined)
+  assert.deepEqual(options.nativeCredentialKeys, ['ACME_API_KEY'])
+  await workspace.input.runAgent({ kind: 'codex', executable: '/tmp/codex' }, 'hello', directory, {})
+  assert.equal(harness.runAgentCalls.at(-1)[3].env.ACME_API_KEY, undefined)
+})
+
 test('Skill discovery follows native shell directories and explicit selections take precedence', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-skill-env-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
@@ -2225,6 +2246,7 @@ test('OpenClaw native auth is routed through the app-owned isolated runtime', as
     moduleMocks: {
       './agents/local-agent-readiness.cjs': {
         hermesDeclaredCredentialKeys: () => [],
+        zcodeDeclaredCredentialKeys: () => [],
         nativeCredentialEnvironment: kind => kind === 'openclaw'
           ? {
             OPENCLAW_NATIVE_CONFIG: 'available',

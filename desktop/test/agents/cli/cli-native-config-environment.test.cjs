@@ -43,6 +43,14 @@ test('Zcode native provider environment reaches its child without leaking to oth
   assert.equal(nativeCredentialEnvironment('codex', env).ZCODE_API_KEY, undefined)
 })
 
+test('Zcode declared provider credentials are isolated and redacted', () => {
+  const options = { env: { ACME_API_KEY: 'synthetic-secret' }, nativeCredentialKeys: ['ACME_API_KEY'] }
+  const zcode = childEnvironment({ kind: 'zcode', executable: '/native/zcode' }, '/workspace', options, 'darwin')
+  assert.equal(zcode.ACME_API_KEY, 'synthetic-secret')
+  assert.equal(redactChildSecrets('value=synthetic-secret', zcode), 'value=[redacted]')
+  assert.equal(childEnvironment({ kind: 'codex', executable: '/native/codex' }, '/workspace', options, 'darwin').ACME_API_KEY, undefined)
+})
+
 test('Hermes native endpoint variables reach its child without leaking to other Agents', () => {
   const env = { CUSTOM_BASE_URL: 'https://custom.example', OPENROUTER_BASE_URL: 'https://router.example',
     OLLAMA_HOST: 'http://localhost:11434', OLLAMA_API_KEY: 'test-secret', NODE_OPTIONS: '--require /untrusted.js' }

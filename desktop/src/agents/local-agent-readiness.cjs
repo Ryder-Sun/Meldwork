@@ -241,11 +241,38 @@ function hermesDeclaredCredentialKeys(options = {}) {
   } catch { return [] }
 }
 
+function zcodeDeclaredCredentialKeys(options = {}) {
+  const home = options.home || os.homedir()
+  try {
+    const filename = path.join(home, '.zcode', 'cli', 'config.json')
+    const stat = fs.statSync(filename)
+    if (!stat.isFile() || stat.size > 1024 * 1024) return []
+    const config = JSON.parse(fs.readFileSync(filename, 'utf8'))
+    const model = config?.model && typeof config.model === 'object' && !Array.isArray(config.model) ? config.model : {}
+    const models = [model.main, model.lite, ...(Array.isArray(model.available) ? model.available.slice(0, 32) : [])]
+    const providers = config?.provider && typeof config.provider === 'object' && !Array.isArray(config.provider) ? config.provider : {}
+    const names = []
+    for (const item of models) {
+      const provider = typeof item === 'string' ? item.split('/')[0]
+        : item && typeof item === 'object' ? item.provider : ''
+      if (typeof provider !== 'string' || !provider.trim()) continue
+      const id = provider.trim()
+      const entry = providers[id] && typeof providers[id] === 'object' ? providers[id] : {}
+      names.push(id, id.replace(/^default[-_]/, ''), entry.name)
+      if (entry.kind === 'openai' || id === 'openai') names.push('openai')
+    }
+    return nativeSecretEnvKeys(names.filter(value => typeof value === 'string').map(value => {
+      const name = value.trim().replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '').toUpperCase()
+      return name ? `${name}_API_KEY` : ''
+    }))
+  } catch { return [] }
+}
+
 function nativeCredentialEnvironment(kind, env = process.env, declaredKeys = []) {
   const result = {}
   const keys = [...(RUNTIME_ENV_KEYS[kind] || []), ...(kind === 'claude'
     ? Object.keys(env).filter(key => VERTEX_MODEL_REGION_KEY.test(key)) : []),
-    ...(kind === 'hermes' ? nativeSecretEnvKeys(declaredKeys) : [])]
+    ...(['hermes', 'zcode'].includes(kind) ? nativeSecretEnvKeys(declaredKeys) : [])]
   for (const key of keys) {
     if (typeof env[key] === 'string') result[key] = env[key]
   }
@@ -885,6 +912,7 @@ async function resolveNativeCredentialState(kind, options = {}) {
 
 module.exports = {
   hermesDeclaredCredentialKeys,
+  zcodeDeclaredCredentialKeys,
   nativeCredentialEnvironment,
   nativeCredentialState,
   resolveNativeOpenClawRuntime,

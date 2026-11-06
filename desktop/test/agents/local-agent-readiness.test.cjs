@@ -6,12 +6,32 @@ const test = require('node:test')
 
 const {
   hermesDeclaredCredentialKeys,
+  zcodeDeclaredCredentialKeys,
   nativeCredentialEnvironment,
   nativeCredentialState,
   resolveNativeOpenClawRuntime,
   resolveNativeCredentialState,
   resolveNativeShellEnvironment,
 } = require('../../src/agents/local-agent-readiness.cjs')
+
+test('Zcode captures credentials only for configured native models', async t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-zcode-declared-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const dir = path.join(home, '.zcode', 'cli'); fs.mkdirSync(dir, { recursive: true })
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+    provider: { acme: { name: 'Acme Service', kind: 'openai' }, 'default-beta': {}, unused: {} },
+    model: { main: 'acme/model', lite: 'default-beta/model' },
+  }))
+  const keys = zcodeDeclaredCredentialKeys({ home })
+  assert.deepEqual(keys, ['ACME_API_KEY', 'ACME_SERVICE_API_KEY', 'BETA_API_KEY', 'DEFAULT_BETA_API_KEY', 'OPENAI_API_KEY'])
+  const result = await resolveNativeShellEnvironment({ cache: false, platform: 'win32', extraEnvKeys: keys,
+    env: { ACME_API_KEY: 'test-private', UNUSED_API_KEY: 'not-shared' } })
+  assert.deepEqual(nativeCredentialEnvironment('zcode', result.env, keys), { ACME_API_KEY: 'test-private' })
+  assert.deepEqual(nativeCredentialEnvironment('codex', result.env, keys), {})
+  assert.equal(result.env.UNUSED_API_KEY, undefined)
+  fs.writeFileSync(path.join(dir, 'config.json'), '{')
+  assert.deepEqual(zcodeDeclaredCredentialKeys({ home }), [])
+})
 
 test('Hermes captures only safe credential names declared by its selected YAML config', async t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-declared-'))
