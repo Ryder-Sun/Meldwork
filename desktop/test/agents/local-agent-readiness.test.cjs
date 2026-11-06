@@ -59,6 +59,18 @@ test('Zcode native provider settings survive shell capture and readiness detecti
   assert.equal(result.env.UNRELATED_SECRET, undefined)
 })
 
+test('Hermes endpoint settings survive native shell environment capture', async () => {
+  const result = await resolveNativeShellEnvironment({ cache: false, platform: 'win32', env: {
+    Custom_Base_Url: 'https://custom.example', Openrouter_Base_Url: 'https://router.example',
+    Ollama_Host: 'http://localhost:11434', Ollama_Api_Key: 'test-secret', UNRELATED_SECRET: 'private',
+  } })
+  assert.deepEqual(nativeCredentialEnvironment('hermes', result.env), {
+    CUSTOM_BASE_URL: 'https://custom.example', OPENROUTER_BASE_URL: 'https://router.example',
+    OLLAMA_HOST: 'http://localhost:11434', OLLAMA_API_KEY: 'test-secret',
+  })
+  assert.equal(result.env.UNRELATED_SECRET, undefined)
+})
+
 test('native shell capture preserves XDG configuration directories without unrelated variables', { skip: process.platform === 'win32' }, async () => {
   const execFile = require('node:util').promisify(require('node:child_process').execFile)
   const result = await resolveNativeShellEnvironment({

@@ -36,3 +36,15 @@ test('Zcode native provider environment reaches its child without leaking to oth
   assert.equal(child.NODE_OPTIONS, undefined)
   assert.equal(nativeCredentialEnvironment('codex', env).ZCODE_API_KEY, undefined)
 })
+
+test('Hermes native endpoint variables reach its child without leaking to other Agents', () => {
+  const env = { CUSTOM_BASE_URL: 'https://custom.example', OPENROUTER_BASE_URL: 'https://router.example',
+    OLLAMA_HOST: 'http://localhost:11434', OLLAMA_API_KEY: 'test-secret', NODE_OPTIONS: '--require /untrusted.js' }
+  const selected = nativeCredentialEnvironment('hermes', env)
+  assert.deepEqual(selected, { CUSTOM_BASE_URL: env.CUSTOM_BASE_URL, OPENROUTER_BASE_URL: env.OPENROUTER_BASE_URL,
+    OLLAMA_HOST: env.OLLAMA_HOST, OLLAMA_API_KEY: env.OLLAMA_API_KEY })
+  const child = childEnvironment({ kind: 'hermes', executable: '/native/hermes' }, '/workspace', { env: selected }, 'darwin')
+  for (const [key, value] of Object.entries(selected)) assert.equal(child[key], value)
+  assert.equal(child.NODE_OPTIONS, undefined)
+  assert.deepEqual(nativeCredentialEnvironment('codex', env), {})
+})
