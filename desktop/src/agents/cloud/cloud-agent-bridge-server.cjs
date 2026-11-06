@@ -191,16 +191,19 @@ function parseAgentOutput(agentId, stdout) {
   if (agentId === 'codex') {
     const messages = []
     let sessionRef = ''
+    let completed = false
     for (const line of String(stdout || '').split(/\r?\n/)) {
       try {
         const event = JSON.parse(line)
+        if (event.type === 'turn.failed' || event.type === 'error') return null
+        if (event.type === 'turn.completed') completed = true
         if (event.type === 'thread.started' && typeof event.thread_id === 'string') sessionRef = event.thread_id
         if (event.type === 'item.completed' && event.item?.type === 'agent_message'
             && typeof event.item.text === 'string') messages.push(event.item.text)
       } catch { /* ignore non-JSON diagnostics */ }
     }
     const text = messages.join('\n').trim()
-    return text ? { text, sessionRef, outcome: 'completed' } : null
+    return completed && text ? { text, sessionRef, outcome: 'completed' } : null
   }
   if (agentId === 'hermes') {
     const lines = String(stdout || '').split(/\r?\n/)
@@ -222,6 +225,12 @@ function parseAgentOutput(agentId, stdout) {
     return { text: result.result.trim(), sessionRef: String(result.session_id || ''), outcome: 'completed' }
   }
   return null
+}
+
+function hasOpenCodeError(stdout) {
+  return String(stdout || '').split(/\r?\n/).some(line => {
+    try { return JSON.parse(line)?.type === 'error' } catch { return false }
+  })
 }
 
 function readBody(req) {
@@ -268,6 +277,8 @@ function runAgent(agentId, prompt, sessionRef = '', signal = null) {
     let terminalTimer = null
     let forceTimer = null
     let cancelled = false
+    let invalidOutput = false
+    let pendingOutputLine = ''
     const sendSignal = value => {
       if (process.platform !== 'win32' && child.pid) {
         try { process.kill(-child.pid, value); return } catch { /* use direct child */ }
@@ -282,8 +293,19 @@ function runAgent(agentId, prompt, sessionRef = '', signal = null) {
     signal?.addEventListener('abort', cancel, { once: true })
     if (signal?.aborted) cancel()
     child.stdout.on('data', chunk => {
-      stdout += chunk.toString('utf8')
-      if (Buffer.byteLength(stdout) > MAX_RESPONSE_BYTES) child.kill('SIGTERM')
+      if (invalidOutput) return
+      const text = chunk.toString('utf8')
+      stdout += text
+      const lines = `${pendingOutputLine}${text}`.split(/\r?\n/)
+      pendingOutputLine = lines.pop()
+      if (Buffer.byteLength(stdout) > MAX_RESPONSE_BYTES || (agentId === 'opencode' && hasOpenCodeError(lines.join('\n')))) {
+        invalidOutput = true
+        terminalResult = null
+        if (terminalTimer) clearTimeout(terminalTimer)
+        sendSignal('SIGTERM')
+        if (!forceTimer) forceTimer = setTimeout(() => sendSignal('SIGKILL'), 1500)
+        return
+      }
       if (agentId === 'opencode' && !terminalResult && !cancelled) {
         terminalResult = parseAgentOutput(agentId, stdout)
         if (terminalResult) terminalTimer = setTimeout(() => {
@@ -304,6 +326,9 @@ function runAgent(agentId, prompt, sessionRef = '', signal = null) {
       if (forceTimer) clearTimeout(forceTimer)
       signal?.removeEventListener('abort', cancel)
       if (cancelled) return resolve({ outcome: 'cancelled' })
+      if (invalidOutput || (agentId === 'opencode' && hasOpenCodeError(pendingOutputLine))) {
+        return resolve({ outcome: 'failed', failure: { code: 'REMOTE_AGENT_RESPONSE_INVALID' } })
+      }
       if (terminalResult) return resolve(terminalResult)
       if (code !== 0) return resolve({ outcome: 'failed', failure: { code: 'REMOTE_AGENT_FAILED' } })
       resolve(parseAgentOutput(agentId, stdout)

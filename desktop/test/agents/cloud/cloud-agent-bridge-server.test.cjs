@@ -161,6 +161,36 @@ test('OpenCode returns a completed response even if the native process keeps run
   }
 })
 
+test('OpenCode does not report success when an error follows its terminal event', async t => {
+  if (process.platform === 'win32') return t.skip('uses a POSIX executable fixture')
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-cloud-opencode-error-'))
+  const originalPath = process.env.PATH
+  const executable = path.join(directory, 'opencode')
+  fs.writeFileSync(executable, `#!/usr/bin/env node\nprocess.stdout.write(JSON.stringify({type:'text',sessionID:'ses_test',part:{type:'text',text:'Done'}})+'\\n')\nprocess.stdout.write(JSON.stringify({type:'step_finish',part:{reason:'stop'}})+'\\n')\nsetTimeout(()=>process.stdout.write(JSON.stringify({type:'error'})+'\\n'), 30)\nsetInterval(()=>{}, 1000)\n`, { mode: 0o755 })
+  process.env.PATH = `${directory}${path.delimiter}${originalPath}`
+  try {
+    const result = await runAgent('opencode', 'hello')
+    assert.deepEqual(result, { outcome: 'failed', failure: { code: 'REMOTE_AGENT_RESPONSE_INVALID' } })
+  } finally {
+    process.env.PATH = originalPath
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test('OpenCode does not report success when output exceeds the response limit', async t => {
+  if (process.platform === 'win32') return t.skip('uses a POSIX executable fixture')
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-cloud-opencode-limit-'))
+  const originalPath = process.env.PATH
+  fs.writeFileSync(path.join(directory, 'opencode'), `#!/usr/bin/env node\nprocess.stdout.write(JSON.stringify({type:'text',part:{type:'text',text:'Done'}})+'\\n')\nprocess.stdout.write(JSON.stringify({type:'step_finish',part:{reason:'stop'}})+'\\n')\nprocess.stdout.write('x'.repeat(300000))\nsetInterval(()=>{}, 1000)\n`, { mode: 0o755 })
+  process.env.PATH = `${directory}${path.delimiter}${originalPath}`
+  try {
+    assert.deepEqual(await runAgent('opencode', 'hello'), { outcome: 'failed', failure: { code: 'REMOTE_AGENT_RESPONSE_INVALID' } })
+  } finally {
+    process.env.PATH = originalPath
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
+})
+
 test('cancelling a remote Agent run terminates its native process', async t => {
   if (process.platform === 'win32') return t.skip('uses a POSIX executable fixture')
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-cloud-cancel-'))
@@ -239,9 +269,16 @@ test('builds read-only invocations and parses Hermes and Claude output', () => {
   assert.deepEqual(parseAgentOutput('codex', [
     JSON.stringify({ type: 'thread.started', thread_id: 'thread-1' }),
     JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text: 'codex answer' } }),
+    JSON.stringify({ type: 'turn.completed' }),
   ].join('\n')), {
     text: 'codex answer', sessionRef: 'thread-1', outcome: 'completed',
   })
+  assert.equal(parseAgentOutput('codex', JSON.stringify({ type: 'item.completed',
+    item: { type: 'agent_message', text: 'incomplete answer' } })), null)
+  assert.equal(parseAgentOutput('codex', [
+    JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text: 'partial answer' } }),
+    JSON.stringify({ type: 'turn.failed', error: { message: 'failed' } }),
+  ].join('\n')), null)
   assert.deepEqual(parseAgentOutput('claude', JSON.stringify({
     type: 'result', subtype: 'success', is_error: false,
     result: 'claude answer', session_id: 'claude-1',
