@@ -75,3 +75,15 @@ test('lenient task decisions accept common hand-written slips', () => {
   assert.equal(parseLenientTaskDecision({ status: 'continue' }, { fallbackReason: 'Summary text' }).reason, 'Summary text')
   assert.throws(() => parseLenientTaskDecision({ status: 'maybe', reason: 'x' }), /LOCAL_RUN_TASK_DECISION_INVALID/)
 })
+
+test('explicit blockers prevent a contradictory completion receipt', () => {
+  const { parseLenientTaskDecision } = require('../../src/collaboration/task-decision.cjs')
+  const completed = { status: 'completed', reason: 'Done', deliverables: ['answer'] }
+  for (const blockers of [['No access to required files'], 'Missing permission', [{ reason: 'Missing input' }]]) {
+    assert.equal(parseLenientTaskDecision({ ...completed, blockers }).status, 'blocked')
+  }
+  assert.equal(parseLenientTaskDecision({ ...completed, blocked: true }).status, 'blocked')
+  assert.equal(parseLenientTaskDecision({ ...completed, blocker: { reason: 'Missing input' } }).status, 'blocked')
+  assert.equal(parseLenientTaskDecision({ ...completed, blockers: [] }).status, 'completed')
+  assert.equal(parseLenientTaskDecision({ ...completed, blockers: '' }).status, 'completed')
+})

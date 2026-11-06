@@ -57,13 +57,23 @@ function agentKindToken(value) {
 // still validates the result.
 function normalizeTaskDecision(input, options = {}) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return input
-  const status = STATUS_SYNONYMS.get(String(input.status || '').trim().toLowerCase())
+  let status = STATUS_SYNONYMS.get(String(input.status || '').trim().toLowerCase())
     || String(input.status || '')
   const textList = value => (Array.isArray(value) ? value : (value == null ? [] : [value]))
     .filter(item => typeof item === 'string' && item.trim())
     .map(item => item.trim().slice(0, 800))
     .slice(0, 16)
-  const reason = typeof input.reason === 'string' && input.reason.trim()
+  const hasBlocker = value => Array.isArray(value) ? value.length > 0
+    : typeof value === 'string' ? Boolean(value.trim())
+      : value && typeof value === 'object' ? Object.keys(value).length > 0 : value === true
+  const explicitBlocker = input.blocked === true || hasBlocker(input.blockers) || hasBlocker(input.blocker)
+  if (status === 'completed' && explicitBlocker) status = 'blocked'
+  const blockerReason = Array.isArray(input.blockers) ? input.blockers.find(item => (
+    typeof item === 'string' && item.trim()
+  )) : (input.blockers || input.blocker)
+  const reason = explicitBlocker && typeof blockerReason === 'string' && blockerReason.trim()
+    ? blockerReason.trim().slice(0, 1600)
+    : typeof input.reason === 'string' && input.reason.trim()
     ? input.reason.trim().slice(0, 1600)
     : String(options.fallbackReason || '').trim().slice(0, 1600) || 'No reason given.'
   const deliverables = textList(input.deliverables)

@@ -239,6 +239,25 @@ test('Natural discussion never completes a failure that claims completion withou
   assert.equal(ledger.get(controller.runId).status, 'round-limit')
 })
 
+for (const discussionStyle of ['agent-led', 'sequential']) {
+  test(`Natural ${discussionStyle} does not complete a receipt with explicit blockers`, async t => {
+    const { directory, options } = fixture()
+    t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+    const ledger = new RunLedger({ storagePath: path.join(directory, 'run-ledger.json') })
+    const workspace = new LocalWorkspace({
+      ...options, runLedger: ledger, naturalAgentResponses: true,
+      runAgent: async (_agent, prompt) => ({ outcome: 'completed', text: naturalPhase(prompt) === 'proposal'
+        ? 'The required file is unavailable.'
+        : 'The required file is unavailable.\n[[MELDWORK_COLLABORATION:{"summary":"No access","taskDecision":{"status":"completed","reason":"Done","deliverables":["answer"],"blockers":["No permission to access the file"]}}]]' }),
+    })
+    await workspace.refreshAgents()
+    const group = workspace.createGroup({ name: 'Contradictory receipt', agentKinds: ['codex'], workdir: directory, allowWrite: false })
+    const controller = await runDiscussion(workspace, group, { discussionStyle, maxRounds: 4 })
+    assert.notEqual(ledger.get(controller.runId).status, 'completed')
+    assert.equal(ledger.get(controller.runId).status, 'partial')
+  })
+}
+
 test('Natural discussion shows peers workspace files as relative paths', async t => {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
