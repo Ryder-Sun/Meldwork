@@ -280,6 +280,14 @@ describe('Agent compatibility state', () => {
     expect(state.label).toBe('Detection timed out; retry')
   })
 
+  it('shows a failed spawn as a detection problem rather than an incompatible CLI', () => {
+    setLocale('en')
+    const state = catalogFor({ kind: 'codex', installed: true, available: false,
+      compatibilityState: 'unknown', incompatibilityReason: 'LOCAL_AGENT_CAPABILITY_PROBE_FAILED' })
+    expect(state.label).toBe('Could not start detection; retry')
+    expect(state.tone).toBe('warning')
+  })
+
   it('shows sign-in guidance when a capability probe requires authentication', () => {
     setLocale('en')
     const state = catalogFor({ kind: 'workbuddy', installed: true, available: false, credentialState: 'unknown',
@@ -326,6 +334,10 @@ describe('Agent compatibility state', () => {
         kind: 'codex', installed: true, available: false,
         incompatibilityReason: 'LOCAL_AGENT_CAPABILITY_PROBE_TIMEOUT',
       })).toContain('Detection timed out')
+      expect(noteFor({
+        kind: 'codex', installed: true, available: false,
+        incompatibilityReason: 'LOCAL_AGENT_CAPABILITY_PROBE_FAILED',
+      })).toContain('Check that the CLI exists and can be executed')
     })
 
     it('sends a cloud Agent to its server to sign in, not to a local terminal', () => {

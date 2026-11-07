@@ -156,6 +156,9 @@ export function useAgentCatalog({
     if (agent.incompatibilityReason === 'LOCAL_AGENT_CAPABILITY_PROBE_TIMEOUT') {
       return { label: t('agent.detectionTimedOut'), tone: 'warning', icon: WarningOutline }
     }
+    if (agent.incompatibilityReason === 'LOCAL_AGENT_CAPABILITY_PROBE_FAILED') {
+      return { label: t('agent.detectionFailed'), tone: 'warning', icon: WarningOutline }
+    }
     if (agent.compatibilityState === 'incompatible') {
       const reasonKey = ({
         LOCAL_AGENT_VERSION_UNSUPPORTED: 'agent.incompatibleVersion',
@@ -186,6 +189,9 @@ export function useAgentCatalog({
       : ''
     if (agent.incompatibilityReason === 'LOCAL_AGENT_CAPABILITY_PROBE_TIMEOUT') {
       return t('agent.note.probeTimeout')
+    }
+    if (agent.incompatibilityReason === 'LOCAL_AGENT_CAPABILITY_PROBE_FAILED') {
+      return t('agent.note.probeFailed')
     }
     if (agent.compatibilityState === 'incompatible') {
       const key = ({
