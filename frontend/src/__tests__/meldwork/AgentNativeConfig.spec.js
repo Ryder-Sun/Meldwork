@@ -115,6 +115,31 @@ it('identifies Codex provider information as user configuration', async () => {
   wrapper.unmount()
 })
 
+it('shows the Qwen authentication type without calling it a provider', async () => {
+  window.meldworkDesktop = { localAgentNativeConfig: { get: vi.fn().mockResolvedValue({ directory: '', authType: 'openai' }) } }
+  const wrapper = mount(AgentNativeConfig, { props: { kind: 'qwen' } })
+  await flushPromises()
+  expect(wrapper.text()).toContain(t('nativeConfig.userAuthType'))
+  expect(wrapper.text()).toContain('openai')
+  expect(wrapper.text()).not.toContain(t('nativeConfig.userConfiguredProvider'))
+  wrapper.unmount()
+})
+
+it('refreshes the Zcode user provider after changing its directory', async () => {
+  const api = { get: vi.fn().mockResolvedValueOnce({ directory: '', provider: 'first' })
+    .mockResolvedValueOnce({ directory: '/native/zcode', provider: 'second' }),
+  choose: vi.fn().mockResolvedValue({ canceled: false, directory: '/native/zcode' }) }
+  window.meldworkDesktop = { localAgentNativeConfig: api }
+  const wrapper = mount(AgentNativeConfig, { props: { kind: 'zcode' } })
+  await flushPromises()
+  expect(wrapper.text()).toContain('first')
+  await wrapper.findAll('button').find(button => button.text() === t('nativeConfig.choose')).trigger('click')
+  await flushPromises()
+  expect(wrapper.text()).toContain(t('nativeConfig.userConfiguredProvider'))
+  expect(wrapper.text()).toContain('second')
+  wrapper.unmount()
+})
+
 it('shows expected configuration files when the selected directory is invalid', async () => {
   const api = { get: vi.fn().mockResolvedValue({ directory: '/previous' }),
     choose: vi.fn().mockRejectedValue(new Error('LOCAL_NATIVE_CONFIG_INVALID')) }

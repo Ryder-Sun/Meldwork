@@ -1,7 +1,8 @@
 export default {
     'nativeConfig.title': 'Native configuration directory',
     'nativeConfig.configuredProvider': 'Configured provider',
-    'nativeConfig.userConfiguredProvider': 'Provider in user configuration (projects may override)',
+    'nativeConfig.userConfiguredProvider': 'Provider in user configuration (environment or projects may override)',
+    'nativeConfig.userAuthType': 'Authentication type in user configuration (system or projects may override)',
     'nativeConfig.providerUnknown': 'Not specified or unavailable',
     'nativeConfig.automatic': 'No directory selected; the CLI native configuration will be discovered automatically.',
     'nativeConfig.directoryMissing': 'The selected directory is unavailable or no longer contains a recognized configuration.',

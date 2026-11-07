@@ -443,7 +443,8 @@ function registerDesktopIpc(options) {
       try { validateNativeConfigDirectory(args[0], directory) } catch { directoryMissing = true }
     }
     return { directory, ...(directoryMissing ? { directoryMissing: true } : {}),
-      ...(summary ? { provider: summary.provider || '' } : {}) }
+      ...(summary && Object.hasOwn(summary, 'provider') ? { provider: summary.provider || '' } : {}),
+      ...(summary && Object.hasOwn(summary, 'authType') ? { authType: summary.authType || '' } : {}) }
   })
   for (const action of ['choose', 'clear']) {
     registerTrustedHandle(`local-agent-native-config:${action}`, async (...args) => {

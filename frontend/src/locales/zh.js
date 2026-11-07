@@ -1,7 +1,8 @@
 export default {
     'nativeConfig.title': '原生配置目录',
     'nativeConfig.configuredProvider': '配置中的 Provider',
-    'nativeConfig.userConfiguredProvider': '用户配置中的 Provider（项目可覆盖）',
+    'nativeConfig.userConfiguredProvider': '用户配置中的 Provider（环境或项目可覆盖）',
+    'nativeConfig.userAuthType': '用户配置中的认证类型（系统或项目可覆盖）',
     'nativeConfig.providerUnknown': '未指定或无法读取',
     'nativeConfig.automatic': '未手动指定目录；将自动发现 CLI 的原生配置。',
     'nativeConfig.directoryMissing': '所选目录不可用，或其中已没有可识别的配置文件。',

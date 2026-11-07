@@ -50,6 +50,7 @@ const { ChannelInboxStore } = require('./channels/channel-inbox-store.cjs')
 const { ChannelIngressRuntime } = require('./channels/channel-ingress-runtime.cjs')
 const { CustomAgentStore } = require('./agents/custom-agent-store.cjs')
 const { configDirectoryEnvironment } = require('./agents/cli/cli-config-directories.cjs')
+const { nativeUserConfigSummary } = require('./agents/native-config-summary.cjs')
 const { deepseekNativeConfig } = require('./agents/cli/deepseek-native-config.cjs')
 const { hermesConfiguredProvider } = require('./agents/hermes-config-summary.cjs')
 const { codexConfiguredProvider } = require('./agents/codex-config-summary.cjs')
@@ -369,13 +370,13 @@ async function detectLocalAgents() {
         nativeDeclaredCredentialKeys(kind, shellEnvironment)),
   })
   return agents.map(agent => {
-    const directory = nativeIdentityDirectory(agent.kind, shellEnvironment.env, shellEnvironment.home)
+    const env = nativeConfigEnvironment(agent.kind, workspace?.state.agentPreferences, shellEnvironment.env)
+    const directory = nativeIdentityDirectory(agent.kind, env, shellEnvironment.home)
     const result = { ...agent }
     if (directory) Object.defineProperty(result, NATIVE_CONFIG_IDENTITY_DIRECTORY, { value: directory })
-    const authFiles = [...new Set([...nativeAuthIdentityFiles(agent.kind, shellEnvironment.env, shellEnvironment.home),
-      ...nativeNetworkIdentityFiles(shellEnvironment.env)])]
+    const authFiles = [...new Set([...nativeAuthIdentityFiles(agent.kind, env, shellEnvironment.home),
+      ...nativeNetworkIdentityFiles(env)])]
     if (authFiles.length) Object.defineProperty(result, NATIVE_AUTH_IDENTITY_FILES, { value: authFiles })
-    const env = nativeConfigEnvironment(agent.kind, workspace?.state.agentPreferences, shellEnvironment.env)
     const projectPaths = nativeProjectConfigPaths(agent.kind, env)
     if (projectPaths.length) Object.defineProperty(result, NATIVE_PROJECT_CONFIG_PATHS, { value: projectPaths })
     if (agent.kind !== 'openclaw') {
@@ -965,9 +966,10 @@ function registerIpc() {
     getMainWindow: () => mainWindow,
     getWorkspace: () => workspace,
     getNativeConfigSummary: async (kind, currentWorkspace) => {
-      if (!['hermes', 'codex'].includes(kind)) return null
+      if (!['hermes', 'codex', 'qwen', 'zcode'].includes(kind)) return null
       const shell = await nativeShellEnvironment()
       const env = nativeConfigEnvironment(kind, currentWorkspace.state.agentPreferences, shell.env)
+      if (kind === 'qwen' || kind === 'zcode') return nativeUserConfigSummary(kind, { home: shell.home, env })
       return { provider: kind === 'hermes'
         ? hermesConfiguredProvider({ home: shell.home, env })
         : codexConfiguredProvider({ home: shell.home, env }) }

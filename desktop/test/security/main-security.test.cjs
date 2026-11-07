@@ -629,6 +629,9 @@ test('Zcode selected native configuration controls detection, credentials and ex
   workspace.save = () => {}
   const choice = await harness.ipcHandlers.get('local-agent-native-config:choose')(harness.event(), 'zcode')
   assert.equal(choice.directory, path.resolve(selected))
+  const summary = await harness.ipcHandlers.get('local-agent-native-config:get')(harness.event(), 'zcode')
+  assert.equal(summary.provider, 'selected')
+  assert.doesNotMatch(JSON.stringify(summary), /synthetic-selected|SELECTED_API_KEY/)
   await harness.installerInstances[0].input.detectAgents()
   assert.equal(detected.HOME, path.resolve(home))
   assert.equal(detected.SELECTED_API_KEY, 'synthetic-selected')
@@ -664,6 +667,9 @@ test('Qwen selected native configuration controls credentials, execution and Ski
   workspace.save = () => {}
   const choice = await harness.ipcHandlers.get('local-agent-native-config:choose')(harness.event(), 'qwen')
   assert.equal(choice.directory, path.resolve(selected))
+  const summary = await harness.ipcHandlers.get('local-agent-native-config:get')(harness.event(), 'qwen')
+  assert.equal(summary.authType, 'openai')
+  assert.doesNotMatch(JSON.stringify(summary), /synthetic-selected|CHOSEN_TOKEN/)
   await harness.installerInstances[0].input.detectAgents()
   assert.equal(detected.HOME, path.resolve(home))
   assert.equal(detected.CHOSEN_TOKEN, 'synthetic-selected')
@@ -672,6 +678,29 @@ test('Qwen selected native configuration controls credentials, execution and Ski
   assert.equal(env.HOME, path.resolve(home))
   assert.equal(env.CHOSEN_TOKEN, 'synthetic-selected')
   assert.equal(harness.skillCatalogInstances[0].input.configDirectoryForKind('qwen'), path.resolve(home))
+})
+
+test('Qwen verification follows the selected native home environment file', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-qwen-selected-identity-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const home = path.join(directory, 'selected-home')
+  const selected = path.join(home, '.qwen')
+  fs.mkdirSync(selected, { recursive: true })
+  fs.writeFileSync(path.join(selected, 'settings.json'), '{}')
+  const dotenv = path.join(home, '.env')
+  fs.writeFileSync(dotenv, 'CHOSEN_TOKEN=synthetic-one\n')
+  const { harness } = loadMain(directory, {
+    nativeShellEnvironment: () => ({ source: 'native-shell', env: { HOME: directory } }),
+    detectAgents: () => [{ kind: 'qwen', name: 'Qwen', executable: '/tmp/qwen', version: '0.10.0' }],
+  })
+  await harness.ready()
+  const workspace = harness.workspaceInstances[0]
+  workspace.state.agentPreferences = { qwen: { nativeConfigDirectory: selected } }
+  const [agent] = await harness.installerInstances[0].input.detectAgents()
+  const { agentVerificationIdentity } = require('../../src/workspace/agent-verification-identity.cjs')
+  const before = agentVerificationIdentity(agent, workspace.state.agentPreferences)
+  fs.appendFileSync(dotenv, 'CHANGED=true\n')
+  assert.notEqual(agentVerificationIdentity(agent, workspace.state.agentPreferences), before)
 })
 
 test('Hermes selected config captures only its declared native credential for execution', async t => {

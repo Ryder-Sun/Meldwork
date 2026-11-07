@@ -5,7 +5,8 @@
     <p v-if="['zcode', 'qwen'].includes(kind)">{{ t(`nativeConfig.expected.${kind}`) }}</p>
     <p v-if="directoryMissing" class="form-error" role="alert">{{ t('nativeConfig.directoryMissing') }} {{ t(`nativeConfig.expected.${kind}`) }}</p>
     <p v-if="kind === 'hermes' && directory !== null">{{ t('nativeConfig.configuredProvider') }}: {{ provider || t('nativeConfig.providerUnknown') }}</p>
-    <p v-if="kind === 'codex' && directory !== null">{{ t('nativeConfig.userConfiguredProvider') }}: {{ provider || t('nativeConfig.providerUnknown') }}</p>
+    <p v-if="['codex', 'zcode'].includes(kind) && directory !== null">{{ t('nativeConfig.userConfiguredProvider') }}: {{ provider || t('nativeConfig.providerUnknown') }}</p>
+    <p v-if="kind === 'qwen' && directory !== null">{{ t('nativeConfig.userAuthType') }}: {{ authType || t('nativeConfig.providerUnknown') }}</p>
     <p v-if="error" class="form-error" role="alert">{{ error }} <template v-if="invalid">{{ t(`nativeConfig.expected.${kind}`) }}</template></p>
     <button type="button" class="secondary-button" :disabled="busy" @click="update('choose')">{{ t('nativeConfig.choose') }}</button>
     <button v-if="directory" type="button" class="secondary-button" :disabled="busy" @click="update('clear')">{{ t('nativeConfig.clear') }}</button>
@@ -22,6 +23,7 @@ const api = desktopApi().localAgentNativeConfig
 const directory = ref(null)
 const directoryMissing = ref(false)
 const provider = ref('')
+const authType = ref('')
 const busy = ref(true)
 const error = ref('')
 const invalid = ref(false)
@@ -31,6 +33,7 @@ async function load() {
     directory.value = result.directory
     directoryMissing.value = result.directoryMissing === true
     provider.value = result.provider || ''
+    authType.value = result.authType || ''
   }
   catch (caught) { error.value = translateError(caught) }
 }
@@ -44,10 +47,12 @@ async function update(action) {
       directory.value = result.directory
       directoryMissing.value = false
       provider.value = ''
-      if (['hermes', 'codex'].includes(props.kind)) {
+      authType.value = ''
+      if (['hermes', 'codex', 'qwen', 'zcode'].includes(props.kind)) {
         const details = await api.get(props.kind)
         if (details.directory === result.directory) {
           provider.value = details.provider || ''
+          authType.value = details.authType || ''
           directoryMissing.value = details.directoryMissing === true
         }
       }
