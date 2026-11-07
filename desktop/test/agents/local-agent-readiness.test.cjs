@@ -932,6 +932,14 @@ test('Hermes named custom provider readiness ignores unrelated account credentia
     { state: 'unknown', source: 'unverified' })
   assert.deepEqual(nativeCredentialState('hermes', { home, env: { WORK_TOKEN: 'selected' } }),
     { state: 'ready', source: 'native-credential' })
+  const config = path.join(root, 'config.yaml')
+  const original = fs.readFileSync(config, 'utf8')
+  for (const invalid of [original.replace('  work:', '  work:\n    enabled: false'),
+    original.replace('    base_url: https://example.invalid/v1\n', '')]) {
+    fs.writeFileSync(config, invalid)
+    assert.deepEqual(nativeCredentialState('hermes', { home, env: { WORK_TOKEN: 'selected' } }),
+      { state: 'unknown', source: 'unverified' })
+  }
 })
 
 test('WorkBuddy readiness requires a selected model and never exposes configured keys', () => {

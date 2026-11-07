@@ -442,6 +442,10 @@ function hermesSelectedProvider(root, env) {
       const providerKey = Object.keys(config.providers).find(key => key.toLowerCase() === provider.slice(7))
       const selected = providerKey && config.providers[providerKey]
       if (selected && typeof selected === 'object' && !Array.isArray(selected)) {
+        const enabled = selected.enabled === undefined || (Boolean(selected.enabled)
+          && !(typeof selected.enabled === 'string' && ['false', '0', 'no', 'off'].includes(selected.enabled.trim().toLowerCase())))
+        const endpoint = selected.api || selected.url || selected.base_url
+        if (!enabled || typeof endpoint !== 'string' || !endpoint.trim()) return { unavailable: true }
         return { provider: providerKey, config, keys: nativeSecretEnvKeys([
           model.key_env, model.api_key_env, selected.key_env, selected.api_key_env,
         ]) }
@@ -679,6 +683,7 @@ function nativeCredentialState(kind, options = {}) {
   }
   const piProvider = kind === 'pi' ? piDefaultProvider(piHome) : ''
   const hermesSelection = kind === 'hermes' ? hermesSelectedProvider(hermesHome, env) : null
+  if (hermesSelection?.unavailable) return { state: 'unknown', source: 'unverified' }
   const hermesKeys = hermesSelection?.keys || null
   let credentialEnv = nativeCredentialKeyEnvironment(kind, env)
   if (hermesKeys) {
