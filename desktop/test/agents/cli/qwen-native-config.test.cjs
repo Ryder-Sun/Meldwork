@@ -123,3 +123,15 @@ test('Qwen readiness follows the selected standard provider credential', t => {
       { state: 'ready', source: 'native-credential' })
   }
 })
+
+test('Qwen OAuth readiness ignores unrelated provider keys', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-qwen-oauth-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const root = path.join(home, '.qwen')
+  fs.mkdirSync(root)
+  fs.writeFileSync(path.join(root, 'settings.json'), JSON.stringify({ security: { auth: { selectedType: 'qwen-oauth' } } }))
+  const env = { HOME: home, QWEN_CODE_SYSTEM_SETTINGS_PATH: path.join(home, 'missing.json'), OPENAI_API_KEY: 'unrelated' }
+  assert.deepEqual(nativeCredentialState('qwen', { home, env }), { state: 'unknown', source: 'unverified' })
+  fs.writeFileSync(path.join(root, 'oauth_creds.json'), JSON.stringify({ access_token: 'oauth-token' }))
+  assert.deepEqual(nativeCredentialState('qwen', { home, env }), { state: 'ready', source: 'native-credential' })
+})

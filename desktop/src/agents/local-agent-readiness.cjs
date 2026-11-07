@@ -11,7 +11,7 @@ const { nativeSecretEnvKeys } = require('./cli/native-secret-environment.cjs')
 const { OCR_PROVIDER_KEYS } = require('./cli/ocr-provider-environment.cjs')
 const { deepseekNativeConfig } = require('./cli/deepseek-native-config.cjs')
 const { hermesProviderFromConfig, hermesProviderEnvironment } = require('./hermes-config-summary.cjs')
-const { qwenCredentialSelection } = require('./cli/qwen-native-config.cjs')
+const { qwenCredentialSelection, qwenConfiguredAuth } = require('./cli/qwen-native-config.cjs')
 const { prepareCommand, searchPath } = require('./cli/cli-discovery.cjs')
 const { isOpenClawSecretReference } = require('./cli/openclaw-runtime.cjs')
 const { NETWORK_ENV_KEYS, networkEnvironment } = require('./cli/cli-network-environment.cjs')
@@ -812,6 +812,11 @@ function nativeCredentialState(kind, options = {}) {
   }
   if (kind === 'qwen' && qwenCredentialSelection({ home, env, workdir: options.workdir, platform: options.platform }).unsupported) {
     return { state: 'unknown', source: 'unverified' }
+  }
+  if (kind === 'qwen' && qwenConfiguredAuth({ home, env, workdir: options.workdir, platform: options.platform }) === 'qwen-oauth') {
+    return jsonContainsCredential(path.join(effectiveUserHome, '.qwen', 'oauth_creds.json'))
+      ? { state: 'ready', source: 'native-credential' }
+      : { state: 'unknown', source: 'unverified' }
   }
   if (kind === 'qwen' && options.nativeCredentialKeys?.length) {
     const [key] = nativeSecretEnvKeys(options.nativeCredentialKeys)
