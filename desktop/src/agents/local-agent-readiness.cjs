@@ -97,6 +97,18 @@ function jsonContainsCredential(filename) {
   }
 }
 
+function qwenOAuthCredentialsPresent(filename) {
+  try {
+    const contents = readCredentialFile(filename)
+    if (!contents) return false
+    const credentials = JSON.parse(contents)
+    return Boolean(credentials && typeof credentials === 'object' && !Array.isArray(credentials)
+      && ['access_token', 'refresh_token', 'token_type'].every(key => credentialLiteral(credentials[key]))
+      && typeof credentials.expiry_date === 'number' && Number.isFinite(credentials.expiry_date)
+      && credentials.expiry_date > 0)
+  } catch { return false }
+}
+
 function openCodeReviewSelectedCredential(home, env, credentialSource, presetProviders) {
   let config
   try {
@@ -814,7 +826,7 @@ function nativeCredentialState(kind, options = {}) {
     return { state: 'unknown', source: 'unverified' }
   }
   if (kind === 'qwen' && qwenConfiguredAuth({ home, env, workdir: options.workdir, platform: options.platform }) === 'qwen-oauth') {
-    return jsonContainsCredential(path.join(effectiveUserHome, '.qwen', 'oauth_creds.json'))
+    return qwenOAuthCredentialsPresent(path.join(effectiveUserHome, '.qwen', 'oauth_creds.json'))
       ? { state: 'ready', source: 'native-credential' }
       : { state: 'unknown', source: 'unverified' }
   }

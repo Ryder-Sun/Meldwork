@@ -133,6 +133,9 @@ test('Qwen OAuth readiness ignores unrelated provider keys', t => {
   const env = { HOME: home, QWEN_CODE_SYSTEM_SETTINGS_PATH: path.join(home, 'missing.json'), OPENAI_API_KEY: 'unrelated' }
   assert.deepEqual(nativeCredentialState('qwen', { home, env }), { state: 'unknown', source: 'unverified' })
   fs.writeFileSync(path.join(root, 'oauth_creds.json'), JSON.stringify({ access_token: 'oauth-token' }))
+  assert.deepEqual(nativeCredentialState('qwen', { home, env }), { state: 'unknown', source: 'unverified' })
+  fs.writeFileSync(path.join(root, 'oauth_creds.json'), JSON.stringify({ access_token: 'oauth-token',
+    refresh_token: 'refresh-token', token_type: 'Bearer', expiry_date: 123456789 }))
   assert.deepEqual(nativeCredentialState('qwen', { home, env }), { state: 'ready', source: 'native-credential' })
 })
 
