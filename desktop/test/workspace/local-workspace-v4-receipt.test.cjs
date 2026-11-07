@@ -66,6 +66,32 @@ test('V4 work acceptance requires the declared evidence kind to support an outpu
   assert.equal(runner.v4WorkAcceptanceSatisfied(assignment, { artifactIds: ['foreign'], evidenceIds: ['observed'] }), false)
 })
 
+test('V4 test-result and file-hash requirements reject Agent-authored claims', () => {
+  let recordedBy = { kind: 'agent', agentKind: 'codex' }
+  let evidenceKind = 'test-result'
+  let level = 'observed'
+  const runner = { ...v4OutcomeMethods,
+    v4EvidenceRecord: () => ({ kind: evidenceKind, recordedBy, level }),
+    v4ArtifactIdentity: () => ({ contentHash: 'hash' }),
+    v4EvidenceSupportsArtifact: () => true,
+  }
+  const receipt = { artifactIds: ['artifact'], evidenceIds: ['evidence'] }
+  const assignment = { acceptance: { minArtifactRefs: 1, minEvidenceRefs: 1, requiredEvidenceKinds: [evidenceKind] } }
+  assert.equal(runner.v4WorkAcceptanceSatisfied(assignment, receipt), false)
+  recordedBy = { kind: 'system', actorId: 'untrusted-system' }
+  assert.equal(runner.v4WorkAcceptanceSatisfied(assignment, receipt), false)
+  recordedBy = { kind: 'system', actorId: 'meldwork-main' }
+  level = 'declared'
+  assert.equal(runner.v4WorkAcceptanceSatisfied(assignment, receipt), false)
+  level = 'observed'
+  assert.equal(runner.v4WorkAcceptanceSatisfied(assignment, receipt), true)
+  evidenceKind = 'file-hash'
+  assignment.acceptance.requiredEvidenceKinds = [evidenceKind]
+  assert.equal(runner.v4WorkAcceptanceSatisfied(assignment, receipt), true)
+  recordedBy = { kind: 'agent', agentKind: 'codex' }
+  assert.equal(runner.v4WorkAcceptanceSatisfied(assignment, receipt), false)
+})
+
 test('V4 work settlement rejects dependencies changed after dispatch', () => {
   const runner = { ...v4OutcomeMethods }
   const assignment = { taskId: 'downstream', ownerKind: 'hermes', dependsOn: ['upstream'] }

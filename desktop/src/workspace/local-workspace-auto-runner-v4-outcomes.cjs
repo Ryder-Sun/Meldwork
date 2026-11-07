@@ -15,6 +15,9 @@ const v4OutcomeMethods = {
     try {
       return (acceptance.requiredEvidenceKinds || []).every(kind => receipt.evidenceIds.some(evidenceId => {
         const evidence = this.v4EvidenceRecord(evidenceId)
+        if (['test-result', 'file-hash'].includes(kind)
+            && (evidence.recordedBy?.kind !== 'system' || evidence.recordedBy.actorId !== 'meldwork-main'
+              || !['observed', 'reproduced'].includes(evidence.level))) return false
         return evidence.kind === kind && receipt.artifactIds.some(artifactId => {
           const { contentHash } = this.v4ArtifactIdentity(artifactId)
           return this.v4EvidenceSupportsArtifact(evidenceId, artifactId, contentHash)
