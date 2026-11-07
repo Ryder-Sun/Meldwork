@@ -5,10 +5,10 @@ const { childEnvironment } = require('../../../src/agents/cli/cli-process-suppor
 const { createRuntimeEventEmitter, redactChildSecrets } = require('../../../src/agents/cli/cli-runtime-event-sanitizer.cjs')
 
 test('short native credentials are redacted without hiding unrelated configuration', () => {
-  const env = { OPENAI_API_KEY: 'abc', AWS_SECRET_ACCESS_KEY: 'xy', AWS_SESSION_TOKEN: 'def',
+  const env = { OPENAI_API_KEY: 'abc', AWS_SECRET_ACCESS_KEY: 'xy', AWS_SESSION_TOKEN: 'def', AWS_BEARER_TOKEN_BEDROCK: 'zz',
     AZURE_CLIENT_SECRET: 'gh', OPENAI_MODEL: 'model-name' }
-  assert.equal(redactChildSecrets('abc xy def gh model-name', env),
-    '[redacted] [redacted] [redacted] [redacted] model-name')
+  assert.equal(redactChildSecrets('abc xy def zz gh model-name', env),
+    '[redacted] [redacted] [redacted] [redacted] [redacted] model-name')
 })
 const fs = require('node:fs')
 const os = require('node:os')
@@ -23,7 +23,7 @@ test('native configuration controls reach only the CLI that owns them', () => {
     deepseek: { DSH_HOME: '/native/dsh', DSH_AGENTS_HOME: '/native/shared' },
     kimi: { KIMI_CODE_HOME: '/native/kimi', KIMI_MODEL_PROVIDER_TYPE: 'openai' },
     mimo: { MIMOCODE_CONFIG_DIR: '/native/mimo', MIMOCODE_CONFIG_CONTENT: '{"model":"local/model"}' },
-    opencode: { OPENCODE_CONFIG: '/native/opencode.json', OPENCODE_CONFIG_DIR: '/native/opencode', OPENCODE_CONFIG_CONTENT: '{"model":"local/model"}' },
+    opencode: { OPENCODE_CONFIG: '/native/opencode.json', OPENCODE_CONFIG_DIR: '/native/opencode', OPENCODE_CONFIG_CONTENT: '{"model":"local/model"}', GCLOUD_PROJECT: 'native-project' },
     qwen: { QWEN_HOME: '/native/qwen' },
     gemini: { GOOGLE_GEMINI_BASE_URL: 'http://127.0.0.1:3425', GCLOUD_PROJECT: 'native-project' },
   }
@@ -36,6 +36,20 @@ test('native configuration controls reach only the CLI that owns them', () => {
     assert.equal(child.NODE_OPTIONS, undefined)
     assert.equal(child.UNRELATED_SECRET, undefined)
   }
+})
+
+test('OpenCode receives its native Bedrock, Azure and Google provider settings', async () => {
+  const { resolveNativeShellEnvironment } = require('../../../src/agents/local-agent-readiness.cjs')
+  const input = { AWS_PROFILE: 'native-profile', AWS_BEARER_TOKEN_BEDROCK: 'aws-secret',
+    AZURE_OPENAI_API_KEY: 'azure-secret', AZURE_RESOURCE_NAME: 'azure-resource',
+    GOOGLE_APPLICATION_CREDENTIALS: 'google.json', GOOGLE_CLOUD_PROJECT: 'native-project' }
+  const captured = await resolveNativeShellEnvironment({ cache: false, platform: 'win32', env: input })
+  const selected = nativeCredentialEnvironment('opencode', captured.env)
+  assert.deepEqual(selected, input)
+  const child = childEnvironment({ kind: 'opencode' }, '/workspace', { env: selected }, 'darwin')
+  for (const [key, value] of Object.entries(input)) assert.equal(child[key], value)
+  assert.equal(nativeCredentialEnvironment('codex', captured.env).AWS_PROFILE, undefined)
+  assert.equal(nativeCredentialEnvironment('hermes', captured.env).AZURE_OPENAI_API_KEY, undefined)
 })
 
 test('Zcode native provider environment reaches its child without leaking to other Agents', () => {

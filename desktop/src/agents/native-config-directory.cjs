@@ -13,6 +13,17 @@ function cloudIdentityPathKeys(kind) {
     ...(kind === 'claude' ? ['AZURE_CLIENT_CERTIFICATE_PATH', 'AZURE_FEDERATED_TOKEN_FILE'] : [])]
 }
 
+function cloudIdentityFiles(kind, env, home, platform) {
+  const paths = platform === 'win32' ? path.win32 : path.posix
+  const configuredHome = platform === 'win32' ? env?.USERPROFILE : env?.HOME
+  const root = typeof configuredHome === 'string' && paths.isAbsolute(configuredHome) ? configuredHome : home
+  const defaults = typeof root === 'string' && paths.isAbsolute(root)
+    ? { AWS_CONFIG_FILE: paths.join(root, '.aws', 'config'),
+      AWS_SHARED_CREDENTIALS_FILE: paths.join(root, '.aws', 'credentials') } : {}
+  return cloudIdentityPathKeys(kind).map(key => env?.[key] || defaults[key])
+    .filter(filename => typeof filename === 'string' && paths.isAbsolute(filename))
+}
+
 function nativeProjectConfigPaths(kind, env = {}) {
   let entries = kind === 'opencode' ? [[env.OPENCODE_CONFIG, false], [env.OPENCODE_CONFIG_DIR, true]]
     : kind === 'mimo' ? [[env.MIMOCODE_CONFIG, false], [env.MIMOCODE_CONFIG_DIR, true]] : []
@@ -25,6 +36,7 @@ function nativeProjectConfigPaths(kind, env = {}) {
   if (kind === 'pi' || kind === 'claude') {
     entries = cloudIdentityPathKeys(kind).map(key => [env[key], false])
   }
+  if (kind === 'opencode') entries.push(...cloudIdentityPathKeys(kind).map(key => [env[key], false]))
   return entries.flatMap(([value, directory]) => {
     return typeof value === 'string' && value && !path.isAbsolute(value)
       && !(kind === 'opencode' && /^~(?=$|[\\/])/.test(value))
@@ -40,14 +52,7 @@ function nativeEnvironmentIdentity(env) {
 
 function nativeAuthIdentityFiles(kind, env, home, platform = process.platform) {
   if (kind === 'pi' || kind === 'claude') {
-    const paths = platform === 'win32' ? path.win32 : path.posix
-    const configuredHome = platform === 'win32' ? env?.USERPROFILE : env?.HOME
-    const root = typeof configuredHome === 'string' && paths.isAbsolute(configuredHome) ? configuredHome : home
-    const defaults = typeof root === 'string' && paths.isAbsolute(root)
-      ? { AWS_CONFIG_FILE: paths.join(root, '.aws', 'config'),
-        AWS_SHARED_CREDENTIALS_FILE: paths.join(root, '.aws', 'credentials') } : {}
-    return cloudIdentityPathKeys(kind).map(key => env?.[key] || defaults[key])
-      .filter(filename => typeof filename === 'string' && paths.isAbsolute(filename))
+    return cloudIdentityFiles(kind, env, home, platform)
   }
   if (kind === 'qwen') {
     const paths = platform === 'win32' ? path.win32 : path.posix
@@ -95,7 +100,8 @@ function nativeAuthIdentityFiles(kind, env, home, platform = process.platform) {
   const explicit = typeof env?.OPENCODE_CONFIG === 'string' && typeof home === 'string' && path.isAbsolute(home)
     ? env.OPENCODE_CONFIG.replace(/^~(?=$|[\\/])/, home) : env?.OPENCODE_CONFIG
   return [typeof root === 'string' && path.isAbsolute(root) ? path.join(root, 'opencode', 'auth.json') : '', explicit,
-    ...(sharedRoot ? ['opencode.json', 'opencode.jsonc'].map(name => path.join(sharedRoot, name)) : [])]
+    ...(sharedRoot ? ['opencode.json', 'opencode.jsonc'].map(name => path.join(sharedRoot, name)) : []),
+    ...cloudIdentityFiles(kind, env, home, platform)]
     .filter(filename => typeof filename === 'string' && path.isAbsolute(filename))
 }
 

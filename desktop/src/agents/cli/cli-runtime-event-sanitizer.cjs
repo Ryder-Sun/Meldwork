@@ -75,6 +75,7 @@ function childSecrets(env) {
     if (typeof value !== 'string' || !value) continue
     if (env?.[SECRET_ENV_KEYS]?.includes(name)
         || /(?:^|_)(?:API_KEY|ACCESS_KEY_ID|SECRET_ACCESS_KEY|TOKEN|SECRET|PASSWORD|AUTHORIZATION)$/i.test(name)
+        || /^AWS_BEARER_TOKEN_BEDROCK$/i.test(name)
         || (/(?:API[_-]?KEY|ACCESS[_-]?KEY|TOKEN|SECRET|PASSWORD|AUTHORIZATION)/i.test(name)
           && utf8ByteLength(value) >= 8)) secrets.add(value)
     if (!/^(?:https?|all)_proxy$/i.test(name)) continue

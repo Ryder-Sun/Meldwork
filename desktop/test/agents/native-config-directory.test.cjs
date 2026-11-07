@@ -48,14 +48,15 @@ test('MiMo validates its selected native configuration directory', t => {
 test('OpenCode authentication identity follows its XDG data directory', () => {
   const home = path.resolve('test-home')
   const shared = ['opencode.json', 'opencode.jsonc'].map(name => path.join(home, '.config', 'opencode', name))
-  assert.deepEqual(nativeAuthIdentityFiles('opencode', {}, home), [path.join(home, '.local', 'share', 'opencode', 'auth.json'), ...shared])
+  const cloud = [path.join(home, '.aws', 'config'), path.join(home, '.aws', 'credentials')]
+  assert.deepEqual(nativeAuthIdentityFiles('opencode', {}, home), [path.join(home, '.local', 'share', 'opencode', 'auth.json'), ...shared, ...cloud])
   assert.deepEqual(nativeAuthIdentityFiles('opencode', { XDG_DATA_HOME: path.join(home, 'data') }, home),
-    [path.join(home, 'data', 'opencode', 'auth.json'), ...shared])
-  assert.deepEqual(nativeAuthIdentityFiles('opencode', { XDG_DATA_HOME: 'relative' }, home), shared)
+    [path.join(home, 'data', 'opencode', 'auth.json'), ...shared, ...cloud])
+  assert.deepEqual(nativeAuthIdentityFiles('opencode', { XDG_DATA_HOME: 'relative' }, home), [...shared, ...cloud])
   assert.deepEqual(nativeAuthIdentityFiles('opencode', { OPENCODE_CONFIG: path.join(home, 'custom.json') }, home),
-    [path.join(home, '.local', 'share', 'opencode', 'auth.json'), path.join(home, 'custom.json'), ...shared])
+    [path.join(home, '.local', 'share', 'opencode', 'auth.json'), path.join(home, 'custom.json'), ...shared, ...cloud])
   assert.deepEqual(nativeAuthIdentityFiles('opencode', { OPENCODE_CONFIG: '~/custom.json' }, home),
-    [path.join(home, '.local', 'share', 'opencode', 'auth.json'), path.join(home, 'custom.json'), ...shared])
+    [path.join(home, '.local', 'share', 'opencode', 'auth.json'), path.join(home, 'custom.json'), ...shared, ...cloud])
   assert.deepEqual(nativeAuthIdentityFiles('codex', {}, home), [])
 })
 
@@ -71,6 +72,10 @@ test('MiMo identity tracks its explicit and user configuration files', () => {
 test('project config identities retain only relative CLI paths', () => {
   assert.deepEqual(nativeProjectConfigPaths('opencode', { OPENCODE_CONFIG: 'custom.json', OPENCODE_CONFIG_DIR: 'config' }), [
     { value: 'custom.json', directory: false }, { value: 'config', directory: true },
+  ])
+  assert.deepEqual(nativeProjectConfigPaths('opencode', { AWS_CONFIG_FILE: 'aws/config',
+    GOOGLE_APPLICATION_CREDENTIALS: 'google.json' }), [
+    { value: 'aws/config', directory: false }, { value: 'google.json', directory: false },
   ])
   assert.deepEqual(nativeProjectConfigPaths('mimo', { MIMOCODE_CONFIG: '/absolute.json', MIMOCODE_CONFIG_DIR: 'config' }), [
     { value: 'config', directory: true },
@@ -117,7 +122,7 @@ test('default AWS credential updates change Pi and Claude verification identity'
   fs.writeFileSync(filename, 'first')
   const { NATIVE_AUTH_IDENTITY_FILES } = require('../../src/agents/native-config-directory.cjs')
   const { agentVerificationIdentity } = require('../../src/workspace/agent-verification-identity.cjs')
-  const agents = ['pi', 'claude'].map(kind => {
+  const agents = ['pi', 'claude', 'opencode'].map(kind => {
     const agent = { kind }
     Object.defineProperty(agent, NATIVE_AUTH_IDENTITY_FILES, { value: nativeAuthIdentityFiles(kind, {}, home) })
     return agent
