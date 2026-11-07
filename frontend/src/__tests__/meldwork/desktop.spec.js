@@ -771,6 +771,12 @@ describe('run event normalization', () => {
       runs: [{ runId: 'run-gated', groupId: 'group-gated', targetKinds: ['codex'], waitingGateIds: [gateId],
         agentRuns: [{ agentRunId: 'agent-gated', kind: 'codex', status: 'waiting' }] }], humanGates: [gate] })
     expect(outside.humanGates).toEqual([])
+    delete gate.decisionContext
+    gate.decisionContextUnavailable = true
+    const unavailable = normalizeSnapshot({ agents: [], groups: [], messages: [], runningGroupIds: [],
+      runs: [{ runId: 'run-gated', groupId: 'group-gated', targetKinds: ['codex'], waitingGateIds: [gateId],
+        agentRuns: [{ agentRunId: 'agent-gated', kind: 'codex', status: 'waiting' }] }], humanGates: [gate] })
+    expect(unavailable.humanGates[0].decisionContextUnavailable).toBe(true)
   })
 
   it('drops budget snapshots with extra or missing fields', () => {

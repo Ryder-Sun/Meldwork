@@ -1,5 +1,6 @@
 <template>
-  <section v-if="claims?.length" class="decision-context" :aria-label="t('humanGate.selectedConclusions')">
+  <p v-if="unavailable" class="decision-context-warning" role="alert">{{ t('humanGate.contextUnavailable') }}</p>
+  <section v-else-if="claims?.length" class="decision-context" :aria-label="t('humanGate.selectedConclusions')">
     <strong>{{ t('humanGate.selectedConclusions') }}</strong>
     <ul>
       <li v-for="(claim, index) in claims" :key="`${claim.agentKind}-${index}`">
@@ -15,7 +16,7 @@
 import { agentLabel } from '../catalog.js'
 import { t } from '../i18n.js'
 
-defineProps({ claims: { type: Array, default: () => [] } })
+defineProps({ claims: { type: Array, default: () => [] }, unavailable: { type: Boolean, default: false } })
 </script>
 
 <style scoped>
@@ -25,4 +26,5 @@ defineProps({ claims: { type: Array, default: () => [] } })
 .decision-context li { min-width: 0; padding-left: 10px; border-left: 2px solid var(--border); }
 .decision-context li > strong { color: var(--text); }
 .decision-context p { margin: 3px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.decision-context-warning { color: var(--warning); }
 </style>

@@ -529,6 +529,7 @@ export default {
     'humanGate.pendingTitle': '需要你的决定',
     'humanGate.selectedConclusions': '本次决策参考的结论',
     'humanGate.conclusionTruncated': '以上为节选，完整结论请查看会话。',
+    'humanGate.contextUnavailable': '决策依据不可用，无法批准。可尝试拒绝，或停止并重试任务。',
     'humanGate.waiting': '等待你的决定',
     'humanGate.type.permission': '权限',
     'humanGate.type.budget': '预算',

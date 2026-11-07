@@ -3,6 +3,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
+const { createHash } = require('node:crypto')
 
 const { ContentBlobStore } = require('../../src/attachments/content-blob-store.cjs')
 const { HumanGateCoordinator } = require('../../src/gates/human-gate-coordinator.cjs')
@@ -40,6 +41,21 @@ function request({ rejectOption = true } = {}) {
     request: { toolCall: { toolCallId: 'tool-1', title: 'Edit file' } },
   }
 }
+
+test('a task graph decision with unavailable context can be rejected but not approved', t => {
+  const { coordinator, store } = fixture(t)
+  const graphId = `task-graph-${'a'.repeat(64)}`
+  const nodeId = 'human'
+  const agentRunId = `graph-decision-${createHash('sha256').update(JSON.stringify([graphId, nodeId])).digest('hex')}`
+  const record = store.create({ type: 'decision', runId: 'run-unavailable', agentRunId, agentKind: 'codex',
+    summary: 'Choose an outcome.', options: [{ optionId: 'approve', name: 'Approve', kind: 'allow_once' },
+      { optionId: 'reject', name: 'Reject', kind: 'reject_once' }], createdAt: '2026-08-04T00:00:00.000Z',
+    request: { graphId, nodeId, decisionContext: [{ agentKind: 'codex', text: '/private/work/file', truncated: false }] } })
+  assert.equal(coordinator.list({ pendingOnly: true })[0].decisionContextUnavailable, true)
+  assert.throws(() => coordinator.decide(record.gateId, { optionId: 'approve' }), { message: 'HUMAN_GATE_CONTEXT_UNAVAILABLE' })
+  assert.equal(store.get(record.gateId).status, 'pending')
+  assert.equal(coordinator.decide(record.gateId, { optionId: 'reject' }).status, 'rejected')
+})
 
 test('persists a pending gate and resumes its live waiter after one decision', async (t) => {
   const events = []

@@ -194,6 +194,9 @@ class HumanGateCoordinator {
     const option = current.options.find(candidate => candidate.optionId === input.optionId)
     if (!option) throw gateError('HUMAN_GATE_DECISION_INVALID')
     const status = statusForHumanGateOption(option)
+    if (status === 'approved' && this.store.publicRecord(current).decisionContextUnavailable) {
+      throw gateError('HUMAN_GATE_CONTEXT_UNAVAILABLE')
+    }
     if (Object.hasOwn(input, 'status') && input.status !== status) {
       throw gateError('HUMAN_GATE_DECISION_INVALID')
     }

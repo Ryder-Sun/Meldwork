@@ -58,6 +58,7 @@ export const DESKTOP_ERROR_MESSAGE_KEYS = Object.freeze({
   LOCAL_WORKFLOW_PROTOCOL_UNSUPPORTED: 'error.workflowProtocolUnsupported',
   LOCAL_WORKFLOW_INVALID: 'error.workflowInvalid',
   LOCAL_WORKFLOW_INPUT_UNAVAILABLE: 'error.workflowInputUnavailable',
+  HUMAN_GATE_CONTEXT_UNAVAILABLE: 'humanGate.contextUnavailable',
   AGENT_CONNECTOR_INSTANCE_IN_USE: 'connectorPackages.instanceInUse',
   LOCAL_DELIVERY_INVALID: 'delivery.error.invalid',
   LOCAL_DELIVERY_NOT_FOUND: 'delivery.error.notFound',

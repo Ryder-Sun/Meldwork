@@ -21,6 +21,7 @@ const HUMAN_GATE_BASE_FIELDS = new Set([
   'gateId', 'type', 'runId', 'agentRunId', 'agentKind', 'summary', 'options', 'status', 'createdAt',
 ])
 const HUMAN_GATE_FIELDS = new Set([...HUMAN_GATE_BASE_FIELDS, 'decisionContext'])
+const HUMAN_GATE_UNAVAILABLE_FIELDS = new Set([...HUMAN_GATE_BASE_FIELDS, 'decisionContextUnavailable'])
 const HUMAN_GATE_OPTION_FIELDS = new Set(['optionId', 'name', 'kind'])
 const BUDGET_DIMENSIONS = [
   'inputTokens', 'outputTokens', 'costMicros', 'toolCalls', 'outboundBytes', 'elapsedMs',
@@ -138,7 +139,9 @@ function normalizeBudget(value) {
 }
 
 function normalizeHumanGate(value) {
-  const input = exactRecord(value, value && Object.hasOwn(value, 'decisionContext') ? HUMAN_GATE_FIELDS : HUMAN_GATE_BASE_FIELDS)
+  const fields = value && Object.hasOwn(value, 'decisionContext') ? HUMAN_GATE_FIELDS
+    : value && Object.hasOwn(value, 'decisionContextUnavailable') ? HUMAN_GATE_UNAVAILABLE_FIELDS : HUMAN_GATE_BASE_FIELDS
+  const input = exactRecord(value, fields)
   const gateId = String(input?.gateId || '')
   const runId = identifier(input?.runId)
   const agentRunId = identifier(input?.agentRunId)
@@ -177,6 +180,7 @@ function normalizeHumanGate(value) {
   if (!options.length || options.length !== input.options.length
       || new Set(options.map(option => option.optionId)).size !== options.length) return null
   let decisionContext
+  if (input.decisionContextUnavailable !== undefined && (type !== 'decision' || input.decisionContextUnavailable !== true)) return null
   if (input.decisionContext !== undefined) {
     if (type !== 'decision' || !Array.isArray(input.decisionContext) || !input.decisionContext.length || input.decisionContext.length > 32) return null
     decisionContext = input.decisionContext.map(item => {
@@ -192,6 +196,7 @@ function normalizeHumanGate(value) {
   return {
     gateId, runId, agentRunId, agentKind: kind, type, summary, options, status,
     createdAt, ...(decisionContext ? { decisionContext } : {}),
+    ...(input.decisionContextUnavailable ? { decisionContextUnavailable: true } : {}),
   }
 }
 

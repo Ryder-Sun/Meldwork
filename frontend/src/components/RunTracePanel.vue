@@ -300,7 +300,7 @@
               <small>{{ t(`humanGate.type.${gate.type}`) }}</small>
             </header>
             <p>{{ humanGateSummary(gate) }}</p>
-            <HumanGateDecisionContext :claims="gate.decisionContext" />
+            <HumanGateDecisionContext :claims="gate.decisionContext" :unavailable="gate.decisionContextUnavailable" />
             <form
               v-if="gate.type === 'input'"
               class="trace-human-gate-input"
@@ -341,7 +341,7 @@
                 class="compact"
                 :class="optionApprovesHumanGate(option) ? 'primary-button' : 'secondary-button'"
                 type="button"
-                :disabled="humanGateDecisionPending(gate.gateId)"
+                :disabled="humanGateDecisionPending(gate.gateId) || (gate.decisionContextUnavailable && optionApprovesHumanGate(option))"
                 @click="emit('decide-human-gate', { gateId: gate.gateId, optionId: option.optionId })"
               >
                 <CheckmarkCircleOutline v-if="optionApprovesHumanGate(option)" />

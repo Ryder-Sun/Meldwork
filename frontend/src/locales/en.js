@@ -529,6 +529,7 @@ export default {
     'humanGate.pendingTitle': 'Action required',
     'humanGate.selectedConclusions': 'Conclusions for this decision',
     'humanGate.conclusionTruncated': 'Excerpt; see the conversation for the full conclusion.',
+    'humanGate.contextUnavailable': 'The decision context is unavailable, so approval is disabled. Reject if possible, or stop and retry the task.',
     'humanGate.waiting': 'Waiting for your decision',
     'humanGate.type.permission': 'Permission',
     'humanGate.type.budget': 'Budget',

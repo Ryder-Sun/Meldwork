@@ -75,7 +75,9 @@ test('projects only bounded public task graph decision context', t => {
   assert.doesNotMatch(JSON.stringify(gate), /must-not-cross|requestHash|requestRef/)
   store.create({ ...base, runId: 'run-2', request: { graphId, nodeId,
     decisionContext: [{ agentKind: 'codex', text: '/private/work/secrets.txt', truncated: false }] } })
-  assert.deepEqual(store.list({ pendingOnly: true }).map(item => item.runId), ['run-1'])
+  const unavailable = store.list({ pendingOnly: true }).find(item => item.runId === 'run-2')
+  assert.equal(unavailable.decisionContextUnavailable, true)
+  assert.doesNotMatch(JSON.stringify(unavailable), /private\/work|secrets\.txt/)
 })
 
 test('accepts one idempotent decision and rejects conflicting decisions', (t) => {
