@@ -280,12 +280,17 @@ function normalizeAssignment(input, targetKinds, index) {
 }
 
 function normalizeWorkAcceptance(input, errorCode) {
-  if (!isRecord(input) || !exactFields(input, ['minArtifactRefs', 'minEvidenceRefs'])
+  if (!isRecord(input) || !exactFields(input, ['minArtifactRefs', 'minEvidenceRefs', 'requiredEvidenceKinds'])
       || !Number.isInteger(input.minArtifactRefs) || input.minArtifactRefs < 1 || input.minArtifactRefs > MAX_V4_REFS
       || !Number.isInteger(input.minEvidenceRefs) || input.minEvidenceRefs < 1 || input.minEvidenceRefs > MAX_V4_REFS) {
     fail(errorCode)
   }
-  return { minArtifactRefs: input.minArtifactRefs, minEvidenceRefs: input.minEvidenceRefs }
+  const allowedKinds = ['declaration', 'source-snapshot', 'observation', 'test-result', 'file-hash', 'review', 'other']
+  if (hasOwn(input, 'requiredEvidenceKinds') && (!Array.isArray(input.requiredEvidenceKinds)
+      || input.requiredEvidenceKinds.some(kind => !allowedKinds.includes(kind))
+      || new Set(input.requiredEvidenceKinds).size !== input.requiredEvidenceKinds.length)) fail(errorCode)
+  return { minArtifactRefs: input.minArtifactRefs, minEvidenceRefs: input.minEvidenceRefs,
+    ...(hasOwn(input, 'requiredEvidenceKinds') ? { requiredEvidenceKinds: [...input.requiredEvidenceKinds].sort() } : {}) }
 }
 
 function normalizeCoordinationAssignment(input, targetKinds, index) {

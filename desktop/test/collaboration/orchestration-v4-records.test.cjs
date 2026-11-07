@@ -44,6 +44,13 @@ test('coordination plans preserve bounded typed work acceptance requirements', (
   assert.throws(() => createCoordinationPlan({ ...input, assignments: [
     { ...input.assignments[0], acceptance: { minArtifactRefs: 0, minEvidenceRefs: 1 } }, input.assignments[1],
   ] }), { code: 'ORCHESTRATION_V4_COORDINATION_PLAN_INVALID' })
+  const typedPlan = createCoordinationPlan({ ...input, assignments: [
+    { ...input.assignments[0], acceptance: { minArtifactRefs: 2, minEvidenceRefs: 3, requiredEvidenceKinds: ['test-result', 'observation'] } }, input.assignments[1],
+  ] })
+  assert.deepEqual(typedPlan.assignments.find(item => item.taskId === 'first').acceptance.requiredEvidenceKinds, ['observation', 'test-result'])
+  assert.throws(() => createCoordinationPlan({ ...input, assignments: [
+    { ...input.assignments[0], acceptance: { minArtifactRefs: 1, minEvidenceRefs: 1, requiredEvidenceKinds: ['unknown'] } }, input.assignments[1],
+  ] }), { code: 'ORCHESTRATION_V4_COORDINATION_PLAN_INVALID' })
 })
 
 test('V4 rejects task graph cursors that ran ahead of their dependencies', () => {

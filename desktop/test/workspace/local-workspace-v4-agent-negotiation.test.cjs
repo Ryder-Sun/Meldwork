@@ -1021,7 +1021,7 @@ test('V4 lets Agents negotiate responsibilities, execute every work package, and
   const referencedAssignments = () => {
     const assignments = proposedAssignments()
     const inspector = assignments.find(item => item.taskId === 'inspect-current-behavior')
-    inspector.acceptance = { minArtifactRefs: 2, minEvidenceRefs: 2 }
+    inspector.acceptance = { minArtifactRefs: 2, minEvidenceRefs: 2, requiredEvidenceKinds: ['observation'] }
     const integrator = assignments.find(item => item.taskId === 'assemble-team-delivery')
     Object.assign(integrator, {
       objective: `OBJECTIVE_START_${'o'.repeat(500)}_OBJECTIVE_TAIL`,
@@ -1145,6 +1145,7 @@ test('V4 lets Agents negotiate responsibilities, execute every work package, and
       if (['inspect-current-behavior', 'implement-bounded-change'].includes(workItemId)) {
         if (workItemId === 'inspect-current-behavior') {
           assert.match(prompt, /Required Artifact refs: 2; Evidence refs: 2/)
+          assert.match(prompt, /Required Evidence kinds: observation/)
         }
         firstWaveStarted.add(agent.kind)
         if (firstWaveStarted.size === 2) releaseFirstWave.resolve()

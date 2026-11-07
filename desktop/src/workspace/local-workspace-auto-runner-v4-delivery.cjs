@@ -109,6 +109,7 @@ const v4DeliveryMethods = {
         `Artifact refs: ${assignment.artifactIds.length ? assignment.artifactIds.join(', ') : '(none)'}`,
         `Dependencies: ${assignment.dependsOn.length ? assignment.dependsOn.join(', ') : '(none)'}`,
         ...(assignment.acceptance ? [`Required Artifact refs: ${assignment.acceptance.minArtifactRefs}; Evidence refs: ${assignment.acceptance.minEvidenceRefs}`] : []),
+        ...(assignment.acceptance?.requiredEvidenceKinds?.length ? [`Required Evidence kinds: ${assignment.acceptance.requiredEvidenceKinds.join(', ')}`] : []),
       ]
       if (inputReferences.length) {
         lines.push('MELDWORK_V4_FROZEN_INPUT_REFS_V1')

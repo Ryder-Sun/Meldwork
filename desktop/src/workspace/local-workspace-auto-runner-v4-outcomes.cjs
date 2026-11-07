@@ -10,8 +10,17 @@ const { canonicalJson } = require('../collaboration/context-pack-records.cjs')
 const v4OutcomeMethods = {
   v4WorkAcceptanceSatisfied(assignment, receipt) {
     const acceptance = assignment?.acceptance || { minArtifactRefs: 1, minEvidenceRefs: 1 }
-    return Array.isArray(receipt?.artifactIds) && receipt.artifactIds.length >= acceptance.minArtifactRefs
-      && Array.isArray(receipt?.evidenceIds) && receipt.evidenceIds.length >= acceptance.minEvidenceRefs
+    if (!Array.isArray(receipt?.artifactIds) || receipt.artifactIds.length < acceptance.minArtifactRefs
+        || !Array.isArray(receipt?.evidenceIds) || receipt.evidenceIds.length < acceptance.minEvidenceRefs) return false
+    try {
+      return (acceptance.requiredEvidenceKinds || []).every(kind => receipt.evidenceIds.some(evidenceId => {
+        const evidence = this.v4EvidenceRecord(evidenceId)
+        return evidence.kind === kind && receipt.artifactIds.some(artifactId => {
+          const { contentHash } = this.v4ArtifactIdentity(artifactId)
+          return this.v4EvidenceSupportsArtifact(evidenceId, artifactId, contentHash)
+        })
+      }))
+    } catch { return false }
   },
 
   v4LatestReceipt(receiptRecords, phase, agentKind = '') {

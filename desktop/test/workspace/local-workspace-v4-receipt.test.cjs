@@ -54,6 +54,18 @@ test('V4 work acceptance applies explicit Artifact and Evidence minimums', () =>
     { message: 'LOCAL_RUN_V4_WORK_RECEIPT_INVALID' })
 })
 
+test('V4 work acceptance requires the declared evidence kind to support an output Artifact', () => {
+  const runner = { ...v4OutcomeMethods,
+    v4EvidenceRecord: id => ({ kind: id === 'observed' ? 'observation' : 'test-result' }),
+    v4ArtifactIdentity: () => ({ contentHash: 'hash' }),
+    v4EvidenceSupportsArtifact: (evidence, artifact) => evidence === 'observed' && artifact === 'output',
+  }
+  const assignment = { acceptance: { minArtifactRefs: 1, minEvidenceRefs: 1, requiredEvidenceKinds: ['observation'] } }
+  assert.equal(runner.v4WorkAcceptanceSatisfied(assignment, { artifactIds: ['output'], evidenceIds: ['observed'] }), true)
+  assert.equal(runner.v4WorkAcceptanceSatisfied(assignment, { artifactIds: ['output'], evidenceIds: ['other'] }), false)
+  assert.equal(runner.v4WorkAcceptanceSatisfied(assignment, { artifactIds: ['foreign'], evidenceIds: ['observed'] }), false)
+})
+
 test('V4 work settlement rejects dependencies changed after dispatch', () => {
   const runner = { ...v4OutcomeMethods }
   const assignment = { taskId: 'downstream', ownerKind: 'hermes', dependsOn: ['upstream'] }
