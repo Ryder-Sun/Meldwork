@@ -918,6 +918,22 @@ test('Hermes environment readiness follows its selected native provider', t => {
     { state: 'unknown', source: 'unverified' })
 })
 
+test('Hermes named custom provider readiness ignores unrelated account credentials', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-named-provider-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const root = path.join(home, '.hermes')
+  fs.mkdirSync(root)
+  fs.writeFileSync(path.join(root, 'config.yaml'), [
+    'model:', '  provider: "custom:work"', 'providers:',
+    '  work:', '    base_url: https://example.invalid/v1', '    key_env: WORK_TOKEN',
+    '  other:', '    api_key: unrelated-secret',
+  ].join('\n'))
+  assert.deepEqual(nativeCredentialState('hermes', { home, env: { OPENAI_API_KEY: 'unrelated' } }),
+    { state: 'unknown', source: 'unverified' })
+  assert.deepEqual(nativeCredentialState('hermes', { home, env: { WORK_TOKEN: 'selected' } }),
+    { state: 'ready', source: 'native-credential' })
+})
+
 test('WorkBuddy readiness requires a selected model and never exposes configured keys', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-workbuddy-readiness-'))
   const secret = 'workbuddy-secret-value'
