@@ -215,6 +215,14 @@ function identifiedVersionCandidate(kind, lines) {
         .filter(candidate => candidate.distance === closestDistance)
         .map(candidate => candidate.resolvedVersion))]
       if (closestVersions.length > 1) return null
+      const closest = weighted.filter(candidate => candidate.distance === closestDistance)
+      for (let index = 1; index < versions.length; index += 1) {
+        const left = versions[index - 1]
+        const right = versions[index]
+        if (closest.some(candidate => candidate.index === left.index || candidate.index === right.index)
+            && /^\s*(?:or|\/)\s*$/i.test(line.slice(left.end, right.index))
+            && left.resolvedVersion !== right.resolvedVersion) return null
+      }
       if (closestVersions.length === 1) {
         candidates.push({ line, resolvedVersion: closestVersions[0] })
       }
