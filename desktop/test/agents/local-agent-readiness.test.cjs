@@ -1887,6 +1887,21 @@ test('Pi retains its native Bedrock, Azure and Vertex environment without unrela
   assert.equal(result.env.GITHUB_TOKEN, undefined)
 })
 
+test('Bedrock agents retain the AWS default profile and CA bundle across shell capture and execution', async () => {
+  const cloud = { AWS_DEFAULT_PROFILE: 'native-profile', AWS_CA_BUNDLE: '/native/ca.pem' }
+  const result = await resolveNativeShellEnvironment({
+    cache: false, platform: 'win32', env: { ...cloud, GITHUB_TOKEN: 'unrelated' },
+  })
+  for (const kind of ['claude', 'pi', 'opencode']) {
+    const native = nativeCredentialEnvironment(kind, result.env)
+    assert.deepEqual(native, cloud)
+    const execution = childEnvironment({ kind }, '/tmp/workspace', { env: native }, 'win32')
+    for (const [key, value] of Object.entries(cloud)) assert.equal(execution[key], value)
+    assert.equal(execution.GITHUB_TOKEN, undefined)
+  }
+  assert.deepEqual(nativeCredentialEnvironment('codex', result.env), {})
+})
+
 test('Claude retains native Bedrock container credentials through shell discovery and execution', async () => {
   const cloud = {
     CLAUDE_CODE_USE_BEDROCK: '1',

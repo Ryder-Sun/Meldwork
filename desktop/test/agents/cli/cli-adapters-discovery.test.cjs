@@ -1243,7 +1243,8 @@ test('Agent detection uses each Agent native environment without exposing its va
   const { nativeCredentialEnvironment } = require('../../../src/agents/local-agent-readiness.cjs')
   const shell = {
     OPENAI_API_KEY: 'codex-private-token', ANTHROPIC_API_KEY: 'claude-private-token',
-    AWS_PROFILE: 'native-profile', AWS_REGION: 'us-east-1',
+    AWS_PROFILE: 'native-profile', AWS_DEFAULT_PROFILE: 'fallback-profile',
+    AWS_CA_BUNDLE: '/native/ca.pem', AWS_REGION: 'us-east-1',
     AWS_CONTAINER_AUTHORIZATION_TOKEN: 'container-private-token',
     UNRELATED_SECRET: 'unrelated-private-token',
   }
@@ -1266,6 +1267,9 @@ test('Agent detection uses each Agent native environment without exposing its va
   assert.equal(seen.get('/tmp/codex').ANTHROPIC_API_KEY, undefined)
   assert.equal(seen.get('/tmp/claude').ANTHROPIC_API_KEY, shell.ANTHROPIC_API_KEY)
   assert.equal(seen.get('/tmp/claude').AWS_PROFILE, shell.AWS_PROFILE)
+  assert.equal(seen.get('/tmp/claude').AWS_DEFAULT_PROFILE, shell.AWS_DEFAULT_PROFILE)
+  assert.equal(seen.get('/tmp/claude').AWS_CA_BUNDLE, shell.AWS_CA_BUNDLE)
+  assert.equal(seen.get('/tmp/codex').AWS_DEFAULT_PROFILE, undefined)
   assert.equal(seen.get('/tmp/claude').AWS_REGION, shell.AWS_REGION)
   assert.equal(seen.get('/tmp/claude').AWS_CONTAINER_AUTHORIZATION_TOKEN, shell.AWS_CONTAINER_AUTHORIZATION_TOKEN)
   assert.equal(seen.get('/tmp/claude').OPENAI_API_KEY, undefined)
