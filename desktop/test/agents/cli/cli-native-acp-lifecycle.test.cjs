@@ -439,7 +439,7 @@ input.on('line', (line) => {
     type: 'tool_result_summary',
     id: 'start-only-tool',
     status: 'partial',
-    title: 'tool',
+    title: 'read_file',
   })
 })
 

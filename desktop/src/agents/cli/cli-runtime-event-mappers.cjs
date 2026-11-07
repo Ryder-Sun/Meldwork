@@ -425,13 +425,16 @@ function acpPlanSummary(update) {
 }
 
 function createAcpRuntimeState() {
-  return { tools: new Map(), reasoning: new Map() }
+  return { tools: new Map(), toolKinds: new Map(), reasoning: new Map() }
 }
 
 const ACP_TOOL_KINDS = new Set([
   'read', 'edit', 'delete', 'move', 'search',
   'execute', 'think', 'fetch', 'switch_mode', 'other',
 ])
+const ACP_TOOL_TITLES = Object.freeze({ read: 'read_file', edit: 'write_file', delete: 'delete',
+  move: 'move', search: 'search', execute: 'Bash', think: 'reasoning', fetch: 'fetch',
+  switch_mode: 'switch_mode', other: 'tool' })
 
 function acpToolOperation(update) {
   const name = ACP_TOOL_KINDS.has(update.kind) ? update.kind : 'tool'
@@ -468,6 +471,8 @@ function acpRuntimeEvents(update, state) {
     const status = runtimeEventStatus(update.status)
     const completed = ['completed', 'failed', 'stopped', 'timeout'].includes(status)
     const id = String(update.toolCallId || '')
+    if (id && ACP_TOOL_KINDS.has(update.kind)) state?.toolKinds?.set(id, update.kind)
+    const kind = ACP_TOOL_KINDS.has(update.kind) ? update.kind : state?.toolKinds?.get(id)
     const operation = acpToolOperation(update)
     if (id && operation && update.sessionUpdate === 'tool_call') state?.tools.set(id, operation)
     const summary = state?.tools.get(id) || operation
@@ -477,7 +482,7 @@ function acpRuntimeEvents(update, state) {
       type: completed
         ? 'tool_result_summary'
         : update.sessionUpdate === 'tool_call' ? 'tool_start' : 'tool_update',
-      title: runtimeToolTitle(update),
+      title: ACP_TOOL_TITLES[kind] || 'tool',
       status: status || (update.sessionUpdate === 'tool_call' ? 'running' : 'waiting'),
       ...(summary ? { summary } : {}),
       ...(detail ? { detail } : {}),

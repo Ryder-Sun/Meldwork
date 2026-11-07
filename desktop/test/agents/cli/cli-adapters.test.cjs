@@ -1380,7 +1380,7 @@ input.on('line', (line) => {
         && error.failure.code === 'LOCAL_AGENT_REFUSED',
     )
     assert.deepEqual(events.find(event => event.type === 'tool_result_summary'), {
-      type: 'tool_result_summary', id: 'tool-refusal', status: 'failed', title: 'tool',
+      type: 'tool_result_summary', id: 'tool-refusal', status: 'failed', title: 'read_file',
     })
   })
   await t.test('unknown stop reason', async () => {
@@ -1405,7 +1405,7 @@ input.on('line', (line) => {
         && error.failure.category === 'cancellation',
     )
     assert.deepEqual(events.find(event => event.type === 'tool_result_summary'), {
-      type: 'tool_result_summary', id: 'tool-cancelled', status: 'stopped', title: 'tool',
+      type: 'tool_result_summary', id: 'tool-cancelled', status: 'stopped', title: 'read_file',
     })
   })
 })

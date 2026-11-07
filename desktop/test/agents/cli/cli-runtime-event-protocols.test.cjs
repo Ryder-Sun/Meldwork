@@ -599,6 +599,21 @@ test('ACP tool summaries exclude arbitrary upstream titles', () => {
   assert.doesNotMatch(JSON.stringify(events), /confidential|acquisition|Project Atlas/i)
 })
 
+test('ACP tool events preserve safe kinds when updates omit the kind', () => {
+  const profile = resolveConnectorEventProfile('hermes')
+  const state = profile.createState()
+  const start = profile.mapEvent({ sessionUpdate: 'tool_call', toolCallId: 'one',
+    title: 'Execute confidential command with secret', kind: 'execute', status: 'in_progress' }, state)
+  const finish = profile.mapEvent({ sessionUpdate: 'tool_call_update', toolCallId: 'one',
+    title: 'confidential result', status: 'completed' }, state)
+  assert.equal(start[0].title, 'Bash')
+  assert.equal(finish[0].title, 'Bash')
+  assert.doesNotMatch(JSON.stringify([start, finish]), /confidential|secret/i)
+  const unknown = profile.mapEvent({ sessionUpdate: 'tool_call', toolCallId: 'two',
+    title: 'private input', kind: 'untrusted', status: 'in_progress' }, state)
+  assert.equal(unknown[0].title, 'tool')
+})
+
 test('protocol profiles publish collision-resistant lifecycle IDs for opaque upstream tool IDs', () => {
   const profile = resolveConnectorEventProfile('gemini')
   const state = profile.createState()
