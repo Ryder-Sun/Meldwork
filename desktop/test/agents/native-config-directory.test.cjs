@@ -57,6 +57,7 @@ test('native identity directories follow shell overrides and known defaults', ()
   assert.equal(nativeIdentityDirectory('kimi', { KIMI_CODE_HOME: selected }, home, 'linux'), selected)
   assert.equal(nativeIdentityDirectory('kimi', { KIMI_CODE_HOME: 'relative' }, home, 'linux'), '')
   assert.equal(nativeIdentityDirectory('hermes', { HERMES_DATA_DIR_SUFFIX: '-test' }, home, 'linux'), path.join(home, '.hermes-test'))
+  assert.equal(nativeIdentityDirectory('hermes', { HERMES_HOME: '~/profiles/work' }, home, 'linux'), path.join(home, 'profiles', 'work'))
   assert.equal(nativeIdentityDirectory('unknown', {}, home, 'linux'), '')
 })
 

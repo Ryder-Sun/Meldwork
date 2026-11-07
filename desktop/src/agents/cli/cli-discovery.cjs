@@ -214,7 +214,7 @@ function agentCommands(kind, options = {}) {
   const { platform, home, pathApi, env } = runtimeOptions(options)
   const commands = [...AGENT_PROFILES[kind].commands]
   if (kind === 'hermes' && platform !== 'win32') {
-    const configuredHome = envValue(env, 'HERMES_HOME', platform)
+    const configuredHome = String(envValue(env, 'HERMES_HOME', platform) || '').replace(/^~(?=$|[\\/])/, home)
     const installDir = envValue(env, 'HERMES_INSTALL_DIR', platform)
     const suffix = envValue(env, 'HERMES_DATA_DIR_SUFFIX', platform) || ''
     const homes = [configuredHome, pathApi.join(home, `.hermes${suffix}`)]
@@ -227,7 +227,7 @@ function agentCommands(kind, options = {}) {
     }
   }
   if (kind === 'hermes' && platform === 'win32') {
-    const configuredHome = envValue(env, 'HERMES_HOME', platform)
+    const configuredHome = String(envValue(env, 'HERMES_HOME', platform) || '').replace(/^~(?=$|[\\/])/, home)
     const localAppData = envValue(env, 'LOCALAPPDATA', platform) || pathApi.join(home, 'AppData', 'Local')
     const suffix = envValue(env, 'HERMES_DATA_DIR_SUFFIX', platform) || ''
     const homes = [configuredHome, pathApi.join(localAppData, `hermes${suffix}`)]

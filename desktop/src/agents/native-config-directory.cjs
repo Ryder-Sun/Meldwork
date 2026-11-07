@@ -164,7 +164,8 @@ function nativeIdentityDirectory(kind, env, home, platform = process.platform) {
   if (!spec || !path.isAbsolute(home)) return ''
   const configured = env?.[spec.key]
   if (typeof configured === 'string' && configured) {
-    return path.isAbsolute(configured) ? configured : ''
+    const directory = kind === 'hermes' ? configured.replace(/^~(?=$|[\\/])/, home) : configured
+    return path.isAbsolute(directory) ? directory : ''
   }
   const defaults = {
     hermes: platform === 'win32'

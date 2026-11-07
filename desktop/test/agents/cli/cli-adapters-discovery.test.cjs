@@ -545,6 +545,16 @@ test('Hermes detection uses the selected native home when locating its installat
   assert.equal(agents.find(agent => agent.kind === 'hermes')?.executable, expected)
 })
 
+test('Hermes discovery expands the native home shorthand', async () => {
+  const expected = '/test/home/profiles/work/hermes-agent/.hermes/bin/hermes'
+  const executable = await resolveExecutable('hermes', {
+    platform: 'linux', home: '/test/home', env: { PATH: '/missing', HERMES_HOME: '~/profiles/work' },
+    accessFn: async candidate => { if (candidate !== expected) throw new Error('missing') },
+    execFileFn: async () => { throw new Error('missing') },
+  })
+  assert.equal(executable, expected)
+})
+
 test('Windows Hermes discovery falls back to its native launcher and legacy virtual environment', async () => {
   const home = 'C:\\Users\\Ryder'
   const root = 'C:\\Native Hermes'
