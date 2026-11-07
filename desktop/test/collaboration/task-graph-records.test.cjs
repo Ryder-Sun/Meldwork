@@ -211,6 +211,29 @@ test('rejects cycles, unknown Agents, malformed Human decisions, and tampering',
       decisionOptions: [{ optionId: 'accept', name: 'Accept', kind: 'allow_once' }],
     })],
   }), { message: 'TASK_GRAPH_SCHEMA_INVALID' })
+
+  for (const kind of ['allow_once', 'reject_once']) {
+    assert.throws(() => createTaskGraph({
+      template: 'task-graph',
+      nodes: [node({
+        nodeId: 'human', role: 'human', agentKind: null, terminal: true, parallel: false,
+        acceptance: { requireConclusion: false, minArtifactRefs: 0, minEvidenceRefs: 0 },
+        decisionOptions: [{ optionId: 'first', name: 'First', kind },
+          { optionId: 'second', name: 'Second', kind }],
+      })],
+    }), { message: 'TASK_GRAPH_SCHEMA_INVALID' })
+  }
+
+  const legacyBody = {
+    version: 1, recordType: 'task-graph', template: 'task-graph',
+    nodes: [node({ nodeId: 'human', role: 'human', agentKind: null, terminal: true, parallel: false,
+      acceptance: { requireConclusion: false, minArtifactRefs: 0, minEvidenceRefs: 0 },
+      decisionOptions: [{ optionId: 'one', name: 'One', kind: 'allow_once' },
+        { optionId: 'two', name: 'Two', kind: 'allow_once' }] })],
+  }
+  const legacyGraph = { ...legacyBody,
+    graphId: `task-graph-${createHash('sha256').update(canonicalJson(legacyBody)).digest('hex')}` }
+  assert.equal(parseTaskGraph(legacyGraph).graphId, legacyGraph.graphId)
   assert.throws(() => createTaskGraph({
     template: 'task-graph',
     nodes: [node({
