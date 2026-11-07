@@ -738,6 +738,46 @@ test('post-run project verification does not count as Agent inactivity', async t
   assert.equal(workspace.agentCatalog.isRecentlyVerified('mimo', directory), true)
 })
 
+test('stopping during an authentication failure refresh preserves invocation metadata', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const refreshing = deferred()
+  const release = deferred()
+  let captures = 0
+  options.detectAgents = async () => [{ kind: 'mimo', name: 'MiMo', executable: '/tmp/mimo', version: '1' }]
+  options.resolveProjectEnvironmentIdentities = async () => {
+    if (++captures === 2) { refreshing.resolve(); await release.promise }
+    return { mimo: 'a'.repeat(64) }
+  }
+  options.runAgent = async () => {
+    throw require('../../src/agents/agent-runtime-contract.cjs').agentRuntimeError('LOCAL_AGENT_AUTH_REQUIRED', 'HTTP 401: expired test token')
+  }
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const invokeLeased = workspace.agentInvocation.invokeLeased.bind(workspace.agentInvocation)
+  let failure
+  workspace.agentInvocation.invokeLeased = async (...args) => {
+    args[5] = { ...args[5], deferCredentialFailure: false }
+    try { return await invokeLeased(...args) } catch (error) { failure = error; throw error }
+  }
+  const group = workspace.createGroup({ name: 'Project', agentKinds: ['mimo'], workdir: directory })
+  const run = workspace.sendMessage({ groupId: group.id, text: 'Verify', targetKinds: ['mimo'] })
+  await Promise.race([refreshing.promise, run.then(() => { throw new Error('Agent ended before refresh') })])
+  const controller = workspace.activeRuns.get(group.id)
+  assert.equal(workspace.stop(group.id, controller.runId), true)
+  let timer
+  try {
+    await Promise.race([run, new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('TEST_STOP_WAITED_FOR_PROJECT_REFRESH')), 1000)
+    })])
+  } finally { clearTimeout(timer); release.resolve() }
+  await controller.done
+  assert.equal(failure?.message, 'LOCAL_AGENT_EXECUTION_STOPPED')
+  assert.equal(failure?.runTrace?.status, 'stopped')
+  assert.ok(failure?.invocationFailure)
+  assert.notEqual(workspace.state.agentRuntime.mimo?.credentialState, 'missing')
+})
+
 test('stopping during a project verification refresh does not commit the completed reply', async t => {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

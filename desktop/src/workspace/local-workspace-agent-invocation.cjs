@@ -1423,7 +1423,7 @@ class LocalWorkspaceAgentInvocation {
           })
         }
       }
-      const { error } = stop
+      let { error } = stop
       if (activeRun && error?.message === 'LOCAL_AGENT_TERMINATION_FAILED') {
         activeRun.stopReason = 'termination_failed'
       }
@@ -1432,8 +1432,15 @@ class LocalWorkspaceAgentInvocation {
       if (error?.code === 'LOCAL_AGENT_AUTH_REQUIRED'
           && context.deferCredentialFailure !== true) {
         watchdog.pause()
-        await awaitProjectEnvironment(this.refreshProjectEnvironment, group.workdir, kind, [signal, agentController.signal])
-        this.markRuntimeCredential(kind, 'missing', { verificationIdentity, workdir: group.workdir, projectIdentity })
+        try {
+          await awaitProjectEnvironment(this.refreshProjectEnvironment, group.workdir, kind, [signal, agentController.signal])
+          this.markRuntimeCredential(kind, 'missing', { verificationIdentity, workdir: group.workdir, projectIdentity })
+        } catch (refreshError) {
+          stop = resolveInvocationStop({
+            caughtError: refreshError, signal, parentAbortObserved, activeRun, agentController, watchdog,
+          })
+          error = stop.error
+        }
       }
       // Failure and stop notices take the turn's slot in the timeline.
       attachErrorMetadata(error, {
