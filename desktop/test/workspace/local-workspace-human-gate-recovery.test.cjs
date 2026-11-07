@@ -323,6 +323,63 @@ test('task graph resumes a persisted node boundary after restart without repeati
   assert.equal(calls.filter(kind => kind === 'workbuddy').length, 2)
 })
 
+test('task graph recovery does not dispatch dependent work after an accepted artifact disappears', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const ledgerPath = path.join(directory, 'run-ledger.json')
+  const ledger = new RunLedger({ storagePath: ledgerPath })
+  options.runLedger = ledger
+  const calls = []
+  const finalStarted = deferred()
+  options.runAgent = async (agent, _prompt, _workdir, runOptions) => {
+    calls.push(agent.kind)
+    if (agent.kind === 'workbuddy') {
+      finalStarted.resolve()
+      await new Promise((_, reject) => {
+        if (runOptions.signal.aborted) return reject(new Error('stopped'))
+        runOptions.signal.addEventListener('abort', () => reject(new Error('stopped')), { once: true })
+      })
+    }
+    return { text: 'Durable graph outcome.', outcome: 'completed' }
+  }
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Missing graph artifact', agentKinds: ['codex', 'workbuddy'],
+    workdir: directory, allowWrite: false })
+  let boundary
+  const capture = () => {
+    const record = ledger.list(group.id)[0]
+    const states = record?.orchestration?.taskGraph?.nodeStates
+    if (!boundary && states?.[0]?.status === 'accepted' && states?.[1]?.status === 'pending') {
+      boundary = { ledger: fs.readFileSync(ledgerPath, 'utf8'), journal: fs.readFileSync(`${ledgerPath}.journal`, 'utf8'),
+        artifactId: states[0].artifactIds[0], runId: record.runId }
+    }
+  }
+  workspace.on('changed', capture)
+  const node = (nodeId, agentKind, rest = {}) => ({ nodeId, role: 'primary', agentKind,
+    dependsOn: [], inputNodeIds: [], expectedOutput: 'Produce a conclusion.',
+    acceptance: { requireConclusion: true, minArtifactRefs: 1, minEvidenceRefs: 1 },
+    terminal: false, parallel: false, decisionOptions: [], ...rest })
+  await workspace.sendMessage({ groupId: group.id, text: 'Review together', mode: 'auto', maxRounds: 3,
+    targetKinds: ['codex', 'workbuddy'], workflow: { template: 'task-graph', nodes: [
+      node('first', 'codex'), node('final', 'workbuddy', { dependsOn: ['first'], inputNodeIds: ['first'], terminal: true }),
+    ] } })
+  await finalStarted.promise
+  assert.ok(boundary?.artifactId)
+  const ref = workspace.outcomeStore.getArtifact(boundary.artifactId).contentRef
+  await workspace.stopAll()
+  workspace.off('changed', capture)
+  fs.writeFileSync(ledgerPath, boundary.ledger)
+  fs.writeFileSync(`${ledgerPath}.journal`, boundary.journal)
+  fs.rmSync(path.join(workspace.contentBlobStore.ensureBlobDirectory(ref.hash, false), ref.hash))
+  const restartedLedger = new RunLedger({ storagePath: ledgerPath })
+  const restarted = new LocalWorkspace({ ...options, runLedger: restartedLedger })
+  await restarted.refreshAgents()
+  assert.equal(calls.filter(kind => kind === 'workbuddy').length, 1)
+  assert.equal(restarted.activeRuns.has(group.id), false)
+  assert.notEqual(restartedLedger.get(boundary.runId).status, 'completed')
+})
+
 test('task graph restores a durable completed result before its node checkpoint', async t => {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
