@@ -137,9 +137,9 @@ const taskGraphMethods = {
     const states = new Map(cursor.nodeStates.map(state => [state.nodeId, state]))
     const selected = node.inputNodeIds.flatMap(nodeId => states.get(nodeId)?.entryIds || [])
     if (['reviewer', 'arbiter'].includes(node.role)) {
-      selected.push(...this.unresolvedTaskGraphConflicts(
-        controller.orchestration.collaboration,
-      ).map(entry => entry.entryId))
+      for (const conflict of this.unresolvedTaskGraphConflicts(controller.orchestration.collaboration)) {
+        selected.push(conflict.entryId, ...conflict.refs)
+      }
     }
     return [...new Set(selected)]
   },

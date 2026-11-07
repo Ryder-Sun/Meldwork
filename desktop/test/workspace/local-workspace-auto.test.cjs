@@ -283,6 +283,37 @@ test('task graph replays a checkpointed claim together with its conflict', () =>
   assert.throws(() => runner.applyTaskGraphAgentResult({}, tampered, second, secondResult), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
 })
 
+test('task graph sends both conflicting claims to an arbiter even when only one is an explicit input', () => {
+  const first = graphNode({ nodeId: 'first', claimKey: 'shared',
+    acceptance: { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 } })
+  const second = graphNode({ nodeId: 'second', agentKind: 'hermes', claimKey: 'shared',
+    acceptance: { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 } })
+  const arbiter = graphNode({ nodeId: 'decision', role: 'arbiter', agentKind: 'codex', terminal: true,
+    dependsOn: ['first', 'second'], inputNodeIds: ['first'] })
+  const graph = createTaskGraph({ template: 'task-graph', nodes: [first, second, arbiter] })
+  const controller = { runId: 'run', taskId: 'task', currentRound: 1, completedKinds: [], failedKinds: [],
+    orchestration: { taskGraph: createTaskGraphCursor(graph), collaboration: emptyCollaborationState(), activeKinds: ['codex', 'hermes'] } }
+  const runner = { ...collaborationMethods, ...taskGraphMethods,
+    state: () => ({ messages: [] }),
+    taskGraphVerifiedOutcomeRefs: () => ({ artifactIds: [], evidenceIds: [] }),
+    checkpointOrchestration: (_group, target, updates) => Object.assign(target.orchestration, updates),
+    checkpointTaskGraph: (_group, target, next) => { target.orchestration.taskGraph = next; return next },
+  }
+  for (const [node, text] of [[first, 'First position'], [second, 'Different position']]) {
+    assert.equal(runner.applyTaskGraphAgentResult({}, controller, node,
+      { message: { content: text, trace: { status: 'completed', agentRunId: `${node.nodeId}-run` } } }), true)
+  }
+  const conflict = runner.unresolvedTaskGraphConflicts(controller.orchestration.collaboration)[0]
+  const selected = runner.taskGraphSelectedEntryIds(controller, arbiter)
+  assert.ok(selected.includes(conflict.entryId))
+  for (const claimId of conflict.refs) assert.ok(selected.includes(claimId))
+  const handoff = runner.prepareCollaborationPackage({ id: 'group' }, controller, ['codex', 'hermes'],
+    'codex', '', { role: 'arbiter', selectedEntryIds: selected })
+  assert.equal(handoff.entries.length, selected.length)
+  assert.match(handoff.text, /First position/)
+  assert.match(handoff.text, /Different position/)
+})
+
 test('task graph cannot accept an empty arbitration while conflicts remain', () => {
   const node = graphNode({ role: 'arbiter', agentKind: 'codex', terminal: true,
     acceptance: { requireConclusion: false, minArtifactRefs: 0, minEvidenceRefs: 0 } })
