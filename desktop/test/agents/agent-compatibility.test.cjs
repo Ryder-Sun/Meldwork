@@ -37,6 +37,12 @@ test('identifies product versions without selecting unrelated warnings', () => {
     'Kimi Code 0.19.2',
     'Kimi Code 0.20.0',
   ], { executable: '/tmp/kimi' }), null)
+  assert.equal(identifyAgentVersion('kimi', 'Kimi Code 0.19.2 or Kimi Code 0.20.0', {
+    executable: '/tmp/kimi',
+  }), null)
+  assert.equal(identifyAgentVersion('kimi', ['Kimi Code 0.19.2 or Kimi Code 0.20.0', 'Kimi Code 0.19.2'], {
+    executable: '/tmp/kimi',
+  }), null)
   assert.equal(identifyAgentVersion('kimi', [
     'Kimi Code 0.19.2',
     'Kimi Code 0.20.0',

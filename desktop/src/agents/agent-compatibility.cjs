@@ -190,10 +190,12 @@ function identifiedVersionCandidate(kind, lines) {
   const identities = AGENT_VERSION_IDENTITIES[kind] || []
   const candidates = []
   for (const line of lines) {
-    const identityMatches = identities.map(identity => identity.exec(line)).filter(Boolean)
+    const identityMatches = identities.flatMap(identity => (
+      [...line.matchAll(new RegExp(identity.source, `${identity.flags.replace(/g/g, '')}g`))]
+    ))
     const versions = versionMatches(line)
-    const weighted = []
     for (const identity of identityMatches) {
+      const weighted = []
       const identityEnd = identity.index + identity[0].length
       for (const version of versions) {
         const beforeIdentity = version.end <= identity.index
@@ -208,13 +210,14 @@ function identifiedVersionCandidate(kind, lines) {
             : 0
         weighted.push({ ...version, distance })
       }
-    }
-    const closestDistance = Math.min(...weighted.map(candidate => candidate.distance))
-    const closestVersions = [...new Set(weighted
-      .filter(candidate => candidate.distance === closestDistance)
-      .map(candidate => candidate.resolvedVersion))]
-    if (closestVersions.length === 1) {
-      candidates.push({ line, resolvedVersion: closestVersions[0] })
+      const closestDistance = Math.min(...weighted.map(candidate => candidate.distance))
+      const closestVersions = [...new Set(weighted
+        .filter(candidate => candidate.distance === closestDistance)
+        .map(candidate => candidate.resolvedVersion))]
+      if (closestVersions.length > 1) return null
+      if (closestVersions.length === 1) {
+        candidates.push({ line, resolvedVersion: closestVersions[0] })
+      }
     }
   }
   const versions = [...new Set(candidates.map(candidate => candidate.resolvedVersion))]
