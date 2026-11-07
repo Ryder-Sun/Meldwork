@@ -72,7 +72,7 @@ function projectVerificationIdentity(kind, workdir, agent = null, environmentIde
     qwen: ['.qwen/settings.json'],
     pi: [],
   }[kind]
-  if (!files) return ''
+  if (!files && !environmentIdentity) return ''
   if (kind === 'pi' && !agent?.[NATIVE_PROJECT_CONFIG_PATHS]?.length) return ''
   if (typeof workdir !== 'string' || !path.isAbsolute(workdir)) return null
   const root = path.resolve(workdir)
@@ -86,7 +86,7 @@ function projectVerificationIdentity(kind, workdir, agent = null, environmentIde
   }
   let current = root
   for (let depth = 0; depth < 64; depth += 1) {
-    entries.push([current, ...files.map(file => [file, fileIdentity(path.join(current, file))])])
+    entries.push([current, ...(files || []).map(file => [file, fileIdentity(path.join(current, file))])])
     if (fs.existsSync(path.join(current, '.git'))) break
     const parent = path.dirname(current)
     if (parent === current) break

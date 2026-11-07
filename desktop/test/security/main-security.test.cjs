@@ -648,6 +648,35 @@ test('project environment identities follow the selected native credential witho
   assert.doesNotMatch(JSON.stringify([first, second]), /synthetic-secret|CUSTOM_KEY/)
 })
 
+test('Codex and Hermes project identities track only their own native credentials', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-project-identities-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const readiness = require('../../src/agents/local-agent-readiness.cjs')
+  const values = { CODEX_CUSTOM_KEY: 'codex-first', HERMES_CUSTOM_KEY: 'hermes-first' }
+  const { harness } = loadMain(directory, {
+    codexDeclaredCredentialKeys: () => ['CODEX_CUSTOM_KEY'],
+    hermesDeclaredCredentialKeys: () => ['HERMES_CUSTOM_KEY'],
+    nativeEnvironment: readiness.nativeCredentialEnvironment,
+    nativeShellEnvironment: input => ({ source: 'native-shell', env: Object.fromEntries(
+      (input.extraEnvKeys || []).filter(key => Object.hasOwn(values, key)).map(key => [key, values[key]]),
+    ) }),
+  })
+  await harness.ready()
+  const resolve = harness.workspaceInstances[0].input.resolveProjectEnvironmentIdentities
+  const first = await resolve(directory, ['codex', 'hermes'])
+  values.CODEX_CUSTOM_KEY = 'codex-second'
+  const second = await resolve(directory, ['codex', 'hermes'])
+  assert.match(first.codex, /^[a-f0-9]{64}$/)
+  assert.match(first.hermes, /^[a-f0-9]{64}$/)
+  assert.notEqual(first.codex, second.codex)
+  assert.equal(first.hermes, second.hermes)
+  values.HERMES_CUSTOM_KEY = 'hermes-second'
+  const third = await resolve(directory, ['codex', 'hermes'])
+  assert.equal(second.codex, third.codex)
+  assert.notEqual(second.hermes, third.hermes)
+  assert.doesNotMatch(JSON.stringify([first, second, third]), /codex-first|hermes-first|CUSTOM_KEY/)
+})
+
 test('MiMo captures the recent model provider credential for a project', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-mimo-recent-main-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

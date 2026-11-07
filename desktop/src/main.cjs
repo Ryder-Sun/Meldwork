@@ -372,7 +372,9 @@ async function resolveProjectEnvironmentIdentities(workdir, kinds) {
   const captured = await nativeShellEnvironment({ workdir, refresh: true })
   const result = {}
   for (const kind of kinds) {
-    const keys = kind === 'zcode' ? captured.zcodeCredentialKeys
+    const keys = kind === 'codex' ? captured.codexCredentialKeys
+      : kind === 'hermes' ? captured.hermesCredentialKeys
+      : kind === 'zcode' ? captured.zcodeCredentialKeys
       : kind === 'mimo' ? captured.mimoCredentialKeys
         : kind === 'opencode' ? captured.opencodeCredentialKeys : null
     if (!keys) continue
