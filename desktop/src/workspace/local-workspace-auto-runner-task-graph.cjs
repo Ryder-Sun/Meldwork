@@ -177,6 +177,12 @@ const taskGraphMethods = {
       verifiedResult,
       {
         role: node.role,
+        audience: {
+          ...this.collaborationAudience(node.role),
+          agentKinds: [...new Set(controller.orchestration.taskGraph.graph.nodes
+            .filter(candidate => candidate.inputNodeIds.includes(node.nodeId) && candidate.agentKind)
+            .map(candidate => candidate.agentKind))],
+        },
         deduplicateByAgentRun: true,
         entryType: acceptedDecision ? 'decision' : 'claim',
         subject,
@@ -300,6 +306,9 @@ const taskGraphMethods = {
         acceptanceCriteria: this.taskGraphAcceptanceCriteria(node),
       },
     )
+    if (collaborationPackage.entries.length !== selectedEntryIds.length) {
+      throw new Error('LOCAL_WORKFLOW_INPUT_UNAVAILABLE')
+    }
     const isolated = ['reviewer', 'arbiter'].includes(node.role)
     const attachments = node.role === 'primary'
       && !controller.orchestration.attachmentRecipients.includes(node.agentKind)

@@ -9,7 +9,7 @@ const { LocalWorkspace } = require('../../src/workspace/local-workspace.cjs')
 const { taskGraphMethods } = require('../../src/workspace/local-workspace-auto-runner-task-graph.cjs')
 const { collaborationMethods } = require('../../src/workspace/local-workspace-auto-runner-collaboration.cjs')
 const { createTaskGraph, createTaskGraphCursor, updateTaskGraphCursor } = require('../../src/collaboration/task-graph-records.cjs')
-const { emptyCollaborationState } = require('../../src/collaboration/collaboration-records.cjs')
+const { appendBlackboardEntry, emptyCollaborationState } = require('../../src/collaboration/collaboration-records.cjs')
 const {
   createCollaborationReceipt,
   createOrchestrationV4,
@@ -48,6 +48,42 @@ function graphNode(overrides = {}) {
     ...overrides,
   }
 }
+
+test('task graph handoffs cannot select entries outside the recipient audience', () => {
+  let collaboration = emptyCollaborationState()
+  for (const [index, audience] of [
+    { roles: ['primary'], agentKinds: [] },
+    { roles: ['reviewer'], agentKinds: [] },
+    { roles: [], agentKinds: ['hermes'] },
+  ].entries()) {
+    collaboration = appendBlackboardEntry(collaboration, {
+      entryType: 'claim', subject: `subject-${index}`, statement: `Result ${index}`, value: `value-${index}`,
+      owner: { type: 'agent', agentKind: 'codex', role: 'primary' }, audience,
+      lifecycle: { state: 'active', sequence: index + 1, recordedAt: index + 1, supersedesEntryId: null },
+      provenance: { runId: 'run-test', taskId: 'task-test', round: 1,
+        agentRunId: `agent-run-${index}`, artifactIds: [], evidenceIds: [] }, refs: [],
+    })
+  }
+  const controller = { runId: 'run-test', taskId: 'task-test', currentRound: 1, orchestration: { collaboration } }
+  const runner = { ...collaborationMethods,
+    state: () => ({ messages: [] }),
+    checkpointOrchestration: (_group, target, update) => Object.assign(target.orchestration, update),
+  }
+  const result = runner.prepareCollaborationPackage({ id: 'group-test' }, controller, ['codex', 'hermes'],
+    'hermes', 'task-test', { role: 'reviewer', selectedEntryIds: collaboration.entries.map(entry => entry.entryId) })
+  assert.deepEqual(result.entries.map(entry => entry.statement), ['Result 1', 'Result 2'])
+  assert.equal(result.text.includes('Result 0'), false)
+  assert.deepEqual(result.handoff.selectedEntryIds, result.entries.map(entry => entry.entryId))
+})
+
+test('task graph fails closed when a required input is not visible', async () => {
+  const runner = { ...taskGraphMethods,
+    taskGraphSelectedEntryIds: () => ['restricted-entry'],
+    prepareCollaborationPackage: () => ({ entries: [] }),
+  }
+  await assert.rejects(runner.executeTaskGraphAgentNode({}, { orchestration: { activeKinds: ['codex'] } },
+    'task', {}, graphNode()), { message: 'LOCAL_WORKFLOW_INPUT_UNAVAILABLE' })
+})
 
 test('task graph and V4 cannot be combined silently in either start path', async t => {
   const { directory, options } = fixture()
@@ -176,6 +212,7 @@ test('identical conclusions from separate task graph runs keep separate provenan
   }
   const result = agentRunId => ({ message: { content: 'Same answer.', trace: { status: 'completed', agentRunId } } })
   runner.applyTaskGraphAgentResult({}, controller, first, result('first-run'))
+  assert.deepEqual(controller.orchestration.collaboration.entries[0].audience.agentKinds, ['codex'])
   controller.currentRound = 2
   runner.applyTaskGraphAgentResult({}, controller, second, result('second-run'))
   const claims = controller.orchestration.collaboration.entries.filter(entry => entry.entryType === 'claim')

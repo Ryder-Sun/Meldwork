@@ -103,7 +103,10 @@ const collaborationMethods = {
       ? new Set(options.selectedEntryIds)
       : null
     const selectedEntries = selectedEntryIds
-      ? collaboration.entries.filter(entry => selectedEntryIds.has(entry.entryId))
+      ? collaboration.entries.filter(entry => selectedEntryIds.has(entry.entryId)
+        && entry.lifecycle.state === 'active'
+        && (entry.audience.roles.includes(destination.role)
+          || entry.audience.agentKinds.includes(destination.agentKind)))
       : visibleBlackboardEntries(collaboration, destination)
     const objective = this.collaborationObjective(group, controller, threadRootId)
     const expectedOutput = options.expectedOutput
@@ -181,6 +184,7 @@ const collaborationMethods = {
     const entryType = options.entryType || 'claim'
     const subject = options.subject || `task:${controller.taskId}:conclusion`
     const entryRefs = Array.isArray(options.refs) ? options.refs : []
+    const audience = options.audience || this.collaborationAudience(role)
     const duplicateConclusion = conclusion && collaboration.entries.some(entry => (
       entry.entryType === entryType
       && entry.lifecycle.state === 'active'
@@ -198,7 +202,7 @@ const collaborationMethods = {
         statement: conclusion,
         value: entryType === 'claim' ? conclusionValue : '',
         owner: { type: 'agent', agentKind: kind, role },
-        audience: this.collaborationAudience(role),
+        audience,
         lifecycle: {
           state: 'active', sequence, recordedAt, supersedesEntryId: null,
         },
@@ -214,7 +218,7 @@ const collaborationMethods = {
         statement: 'Durable Artifact produced by the Agent.',
         value: '',
         owner: { type: 'agent', agentKind: kind, role },
-        audience: this.collaborationAudience(role),
+        audience,
         lifecycle: {
           state: 'active', sequence, recordedAt, supersedesEntryId: null,
         },
@@ -230,7 +234,7 @@ const collaborationMethods = {
         statement: 'Durable Evidence recorded for the Agent conclusion.',
         value: '',
         owner: { type: 'agent', agentKind: kind, role },
-        audience: this.collaborationAudience(role),
+        audience,
         lifecycle: {
           state: 'active', sequence, recordedAt, supersedesEntryId: null,
         },
