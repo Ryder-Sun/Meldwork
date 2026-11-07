@@ -174,6 +174,15 @@ test('task graph replays an artifact-only result after cursor checkpoint failure
   const superseded = { ...resumed, orchestration: structuredClone(resumed.orchestration) }
   superseded.orchestration.collaboration.entries[0].lifecycle.state = 'superseded'
   assert.throws(() => runner.applyTaskGraphAgentResult({}, superseded, node, result), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
+  for (const mutate of [
+    entries => entries.pop(),
+    entries => { entries[0].subject = 'task:other:artifact' },
+    entries => { entries[1] = structuredClone(entries[0]) },
+  ]) {
+    const tampered = { ...resumed, orchestration: structuredClone(resumed.orchestration) }
+    mutate(tampered.orchestration.collaboration.entries)
+    assert.throws(() => runner.applyTaskGraphAgentResult({}, tampered, node, result), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
+  }
   assert.equal(runner.applyTaskGraphAgentResult({}, resumed, node, result), true)
   assert.equal(resumed.orchestration.collaboration.entries.length, 2)
   assert.equal(runner.validateTaskGraphRecoveredResults(resumed), true)

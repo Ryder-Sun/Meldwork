@@ -228,6 +228,9 @@ const taskGraphMethods = {
     if (previous.length) {
       const primary = previous.filter(entry => ['claim', 'decision'].includes(entry.entryType))
       const artifactOnly = !conclusion && !node.acceptance.requireConclusion && primary.length === 0
+        && previous.length === Number(verifiedRefs.artifactIds.length > 0) + Number(verifiedRefs.evidenceIds.length > 0)
+        && previous.filter(entry => entry.entryType === 'artifact-ref').length === Number(verifiedRefs.artifactIds.length > 0)
+        && previous.filter(entry => entry.entryType === 'evidence-ref').length === Number(verifiedRefs.evidenceIds.length > 0)
         && previous.every(entry => ['artifact-ref', 'evidence-ref'].includes(entry.entryType)
           && entry.lifecycle.state === 'active'
           && entry.owner.type === 'agent' && entry.owner.agentKind === node.agentKind && entry.owner.role === node.role
@@ -235,7 +238,8 @@ const taskGraphMethods = {
           && canonicalJson(entry.provenance.artifactIds) === canonicalJson(verifiedRefs.artifactIds)
           && canonicalJson(entry.provenance.evidenceIds) === canonicalJson(verifiedRefs.evidenceIds)
           && entry.refs.length === 1 && (entry.entryType === 'artifact-ref'
-            ? verifiedRefs.artifactIds.includes(entry.refs[0]) : verifiedRefs.evidenceIds.includes(entry.refs[0])))
+            ? entry.subject === `task:${controller.taskId}:artifact` && entry.refs[0] === verifiedRefs.artifactIds[0]
+            : entry.subject === `task:${controller.taskId}:evidence` && entry.refs[0] === verifiedRefs.evidenceIds[0]))
       if (!artifactOnly && (primary.length !== 1 || primary[0].entryType !== (acceptedDecision ? 'decision' : 'claim')
           || primary[0].subject !== subject || primary[0].statement !== conclusion
           || primary[0].owner.type !== 'agent' || primary[0].owner.agentKind !== node.agentKind
