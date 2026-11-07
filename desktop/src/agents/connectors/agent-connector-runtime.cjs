@@ -473,6 +473,9 @@ class AgentConnectorRuntime {
         || !connector.capabilities.session.resume)) {
       fail('AGENT_CONNECTOR_RESUME_UNSUPPORTED')
     }
+    if (resume && !connector.capabilities.eventTypes.includes(resume.type === 'input' ? 'WaitingInput' : 'Permission')) {
+      fail('AGENT_CONNECTOR_RESUME_UNSUPPORTED')
+    }
     if (options.signal?.aborted && !connector.capabilities.session.cancel) {
       fail('AGENT_CONNECTOR_CANCEL_UNSUPPORTED')
     }

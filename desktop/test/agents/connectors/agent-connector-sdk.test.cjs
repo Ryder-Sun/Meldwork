@@ -695,15 +695,19 @@ test('installs and runs the non-delegate local echo sample end to end', async (t
   assert.equal(result.text, 'echo this')
   assert.equal(result.outcome, 'completed')
 
-  const resumed = await connectors.run(agent, 'ignored', directory, {
+  await assert.rejects(connectors.run(agent, 'ignored', directory, {
     runId: 'run-resume', agentRunId: 'agent-run-resume', sandbox: 'read-only',
     connectorResume: {
       type: 'input', requestId: 'request-1', response: 'resumed text',
       requestHash: 'a'.repeat(64), sessionRefHash: 'b'.repeat(64),
       sessionProvenanceHash: 'c'.repeat(64),
     },
+  }), { message: 'AGENT_CONNECTOR_RESUME_UNSUPPORTED' })
+  const resumed = await connectors.run(agent, 'continued', directory, {
+    runId: 'run-session-resume', agentRunId: 'agent-run-session-resume', sandbox: 'read-only',
+    sessionRef: 'local-echo-session',
   })
-  assert.equal(resumed.text, 'resumed text')
+  assert.equal(resumed.text, 'continued')
 
   const controller = new AbortController()
   controller.abort()

@@ -736,6 +736,24 @@ test('returns durable waiting input and passes an exactly validated resume respo
   }), { message: 'AGENT_CONNECTOR_RESUME_INVALID' })
 })
 
+test('a Connector cannot resume a wait type absent from its manifest', async () => {
+  const hashes = { requestHash: 'a'.repeat(64), sessionRefHash: 'b'.repeat(64), sessionProvenanceHash: 'c'.repeat(64) }
+  for (const resume of [
+    { type: 'input', requestId: 'request', response: 'answer', ...hashes },
+    { type: 'permission', requestId: 'request', status: 'approved', optionId: 'allow', permission: 'network', ...hashes },
+  ]) {
+    let calls = 0
+    const undeclared = resume.type === 'input' ? 'WaitingInput' : 'Permission'
+    const { runtime } = runtimeFixture(async () => { calls += 1 }, {
+      eventTypes: manifestInput().eventTypes.filter(type => type !== undeclared),
+    })
+    await assert.rejects(runtime.run(runtime.detectAgents()[0], 'Review', '/tmp/workspace', {
+      runId: 'run-undeclared-resume', agentRunId: 'agent-run-undeclared-resume', connectorResume: resume,
+    }), { message: 'AGENT_CONNECTOR_RESUME_UNSUPPORTED' })
+    assert.equal(calls, 0)
+  }
+})
+
 test('a Connector cannot enter an unrecoverable input or permission wait', async () => {
   for (const event of [
     { type: 'WaitingInput', requestId: 'request-input', prompt: 'Choose a channel' },
