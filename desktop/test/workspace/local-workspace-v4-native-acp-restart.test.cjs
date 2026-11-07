@@ -358,6 +358,7 @@ async function createManualPermissionRestart(t, restartOptions = {}) {
   })
   await restarted.refreshAgents()
   const beforeApprovalCalls = calls.length
+  if (restartOptions.beforeApproval) await restartOptions.beforeApproval(restarted)
   if (!restartOptions.tamperSessionHash) {
     assert.equal(restarted.humanGateStore.get(originalGate.gateId).status, 'pending')
     restarted.decideHumanGate(originalGate.gateId, {
@@ -373,8 +374,39 @@ async function createManualPermissionRestart(t, restartOptions = {}) {
     beforeApprovalCalls,
     waiting,
     writerSlot,
+    options,
   }
 }
+
+test('Manual V4 approval survives a second shutdown during recovery', async t => {
+  let interrupted = false
+  const recovery = await createManualPermissionRestart(t, {
+    beforeApproval: async workspace => {
+      workspace.messageSubmission.resumeV4Manual = async ({ controller }) => {
+        controller.stopReason = 'shutdown'
+        controller.abort()
+        interrupted = true
+        return { status: 'interrupted', failures: [] }
+      }
+    },
+  })
+  const { originalGate, restarted, restartedLedger, options } = recovery
+  await waitFor(() => interrupted && !restarted.activeRuns.size, 'second shutdown')
+  const persisted = restartedLedger.get(originalGate.runId)
+  assert.equal(persisted.status, 'waiting')
+  assert.equal(persisted.continuation.state, 'resuming')
+  assert.equal(restarted.humanGateStore.get(originalGate.gateId).status, 'approved')
+
+  const restored = new LocalWorkspace({
+    ...options,
+    runLedger: restartedLedger,
+    runScheduler: new RunScheduler({ taskLimit: 3, workspaceLimit: 3, globalLimit: 3 }),
+  })
+  await restored.refreshAgents()
+  const terminal = await terminalRun(restartedLedger, originalGate.runId)
+  assert.equal(terminal.status, 'completed', terminal.reason)
+  assert.equal(restored.listHumanGates({ pendingOnly: true }).length, 0)
+})
 
 test('Manual V4 native ACP permission restart resumes the persisted Session without a fresh Gate',
   async (t) => {
