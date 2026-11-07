@@ -47,9 +47,27 @@ test('OpenCodeReview readiness reads the selected native home', t => {
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))
   const selected = path.join(home, 'selected')
   fs.mkdirSync(path.join(selected, '.opencodereview'), { recursive: true })
-  fs.writeFileSync(path.join(selected, '.opencodereview', 'config.json'), JSON.stringify({ api_key: 'synthetic-key' }))
+  fs.writeFileSync(path.join(selected, '.opencodereview', 'config.json'), JSON.stringify({ llm: {
+    url: 'https://example.invalid/v1', model: 'test-model', auth_token: 'synthetic-key', protocol: 'openai',
+  } }))
   assert.equal(nativeCredentialState('opencodereview', { home, env: { HOME: selected } }).state, 'ready')
   assert.equal(nativeCredentialState('opencodereview', { home, env: {} }).state, 'unknown')
+})
+
+test('OpenCodeReview requires a complete native endpoint for non-provider configurations', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-ocr-endpoint-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const root = path.join(home, '.opencodereview')
+  fs.mkdirSync(root)
+  const file = path.join(root, 'config.json')
+  fs.writeFileSync(file, JSON.stringify({ llm: { auth_token: 'synthetic-key' } }))
+  assert.equal(nativeCredentialState('opencodereview', { home, env: {} }).state, 'unknown')
+  assert.equal(nativeCredentialState('opencodereview', { home, env: { OCR_LLM_TOKEN: 'synthetic-key' } }).state, 'unknown')
+  const env = { OCR_LLM_TOKEN: 'synthetic-key', OCR_LLM_URL: 'https://example.invalid/v1', OCR_LLM_MODEL: 'test' }
+  assert.equal(nativeCredentialState('opencodereview', { home, env }).state, 'ready')
+  fs.writeFileSync(file, JSON.stringify({ llm: { auth_token: 'synthetic-key', url: 'https://example.invalid/v1',
+    model: 'test', protocol: 'invalid' } }))
+  assert.equal(nativeCredentialState('opencodereview', { home, env }).state, 'unknown')
 })
 
 test('OpenCodeReview does not treat another provider credential as the selected provider', t => {
@@ -82,6 +100,9 @@ test('OpenCodeReview does not treat another provider credential as the selected 
   config.custom_providers.openai = { api_key: 'synthetic-shadow' }
   fs.writeFileSync(file, JSON.stringify(config))
   assert.equal(nativeCredentialState('opencodereview', { home, env: {} }).state, 'unknown')
+  assert.equal(nativeCredentialState('opencodereview', { home, env: { OPENAI_API_KEY: 'synthetic-openai' } }).state, 'unknown')
+  config.providers.openai = {}
+  fs.writeFileSync(file, JSON.stringify(config))
   assert.equal(nativeCredentialState('opencodereview', { home, env: { OPENAI_API_KEY: 'synthetic-openai' } }).state, 'ready')
 })
 
@@ -90,7 +111,8 @@ test('OpenCodeReview uses the native Responses API key independently of the Chat
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))
   const root = path.join(home, '.opencodereview')
   fs.mkdirSync(root)
-  fs.writeFileSync(path.join(root, 'config.json'), JSON.stringify({ provider: 'openai-responses', model: 'test-model' }))
+  fs.writeFileSync(path.join(root, 'config.json'), JSON.stringify({ provider: 'openai-responses', model: 'test-model',
+    providers: { 'openai-responses': {} } }))
   const env = { OPENAI_API_KEY: 'synthetic-unrelated', OPENAI_RESPONSES_API_KEY: 'synthetic-responses' }
   assert.equal(nativeCredentialState('opencodereview', { home, env: { OPENAI_API_KEY: env.OPENAI_API_KEY } }).state, 'unknown')
   assert.equal(nativeCredentialState('opencodereview', { home, env }).state, 'ready')
@@ -1249,7 +1271,9 @@ test('native readiness recognizes credential files for every supported CLI', () 
     ['qwen', ['.qwen', 'oauth_creds.json'], { access_token: 'qwen-secret' }],
     ['gemini', ['.gemini', 'oauth_creds.json'], { refresh_token: 'gemini-secret' }],
     ['opencode', ['.local', 'share', 'opencode', 'auth.json'], { openai: { token: 'opencode-secret' } }],
-    ['opencodereview', ['.opencodereview', 'config.json'], { llm: { auth_token: 'ocr-secret' } }],
+    ['opencodereview', ['.opencodereview', 'config.json'], { llm: {
+      url: 'https://example.invalid/v1', model: 'test-model', auth_token: 'ocr-secret',
+    } }],
   ]
   try {
     for (const [, segments, value] of fixtures) {

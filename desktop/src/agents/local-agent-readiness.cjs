@@ -99,8 +99,9 @@ function jsonContainsCredential(filename) {
 function openCodeReviewSelectedCredential(home, env, credentialSource, presetProviders) {
   let config
   try {
-    const contents = readCredentialFile(path.join(home, '.opencodereview', 'config.json'))
-    if (!contents) return null
+    const file = path.join(home, '.opencodereview', 'config.json')
+    const contents = readCredentialFile(file)
+    if (!contents) return fs.existsSync(file) ? { state: 'unknown', source: 'unverified' } : null
     config = JSON.parse(contents)
   } catch { return { state: 'unknown', source: 'unverified' } }
   const provider = typeof config?.provider === 'string' ? config.provider.trim() : ''
@@ -111,6 +112,9 @@ function openCodeReviewSelectedCredential(home, env, credentialSource, presetPro
   const knownPreset = Boolean(nativeKey) || (Array.isArray(presetProviders) && presetProviders.includes(provider))
   const selected = knownPreset ? config.providers?.[provider]
     : Array.isArray(presetProviders) ? config.custom_providers?.[provider] : null
+  if (!selected || typeof selected !== 'object' || Array.isArray(selected)) {
+    return { state: 'unknown', source: 'unverified' }
+  }
   const model = typeof selected?.model === 'string' && selected.model.trim()
     ? selected.model.trim() : (typeof config.model === 'string' ? config.model.trim() : '')
   if (!model) return { state: 'unknown', source: 'unverified' }
@@ -133,6 +137,37 @@ function openCodeReviewSelectedCredential(home, env, credentialSource, presetPro
   return configured || inherited
     ? { state: 'ready', source: inherited && credentialSource === 'native-shell' ? 'native-shell' : 'native-credential' }
     : { state: 'unknown', source: 'unverified' }
+}
+
+function openCodeReviewFallbackCredential(home, env, credentialSource) {
+  const unknown = { state: 'unknown', source: 'unverified' }
+  const validUrl = value => {
+    try { return ['http:', 'https:'].includes(new URL(value).protocol) } catch { return false }
+  }
+  const validProtocol = value => value == null || value === '' || (typeof value === 'string'
+    && ['openai', 'openai-responses', 'anthropic'].includes(value.trim().toLowerCase()))
+  let config = {}
+  try {
+    const contents = readCredentialFile(path.join(home, '.opencodereview', 'config.json'))
+    if (contents) config = JSON.parse(contents)
+  } catch { return unknown }
+  const llm = config?.llm || {}
+  const hasModel = value => typeof value === 'string' && Boolean(value.trim())
+  const command = typeof llm.auth_token_cmd === 'string' && llm.auth_token_cmd.trim()
+  if (llm.url && hasModel(llm.model) && (credentialLiteral(llm.auth_token) || command)) {
+    if (!validUrl(llm.url) || !validProtocol(llm.protocol) || !credentialLiteral(llm.auth_token)) return unknown
+    return { state: 'ready', source: 'native-credential' }
+  }
+  const sources = [
+    { url: env.OCR_LLM_URL, model: env.OCR_LLM_MODEL, token: env.OCR_LLM_TOKEN, protocol: env.OCR_LLM_PROTOCOL },
+    { url: env.ANTHROPIC_BASE_URL, model: env.ANTHROPIC_MODEL, token: env.ANTHROPIC_AUTH_TOKEN },
+  ]
+  for (const source of sources) {
+    if (!source.url || !hasModel(source.model) || !credentialLiteral(source.token)) continue
+    if (!validUrl(source.url) || !validProtocol(source.protocol)) return unknown
+    return { state: 'ready', source: credentialSource === 'native-shell' ? 'native-shell' : 'native-credential' }
+  }
+  return unknown
 }
 
 function openCodeAuthContainsCredential(filename) {
@@ -749,6 +784,7 @@ function nativeCredentialState(kind, options = {}) {
   if (kind === 'opencodereview') {
     const selected = openCodeReviewSelectedCredential(effectiveUserHome, env, options.credentialSource, options.ocrPresetProviders)
     if (selected) return selected
+    return openCodeReviewFallbackCredential(effectiveUserHome, env, options.credentialSource)
   }
   const codexHome = env.CODEX_HOME || path.join(home, '.codex')
   const claudeHome = env.CLAUDE_CONFIG_DIR || path.join(home, '.claude')
