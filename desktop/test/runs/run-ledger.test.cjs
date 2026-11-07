@@ -346,6 +346,32 @@ test('persists strict v4 concurrent batch state and rejects mutated snapshot bin
   assert.deepEqual(ledger.get(saved.runId).orchestration, saved.orchestration)
 })
 
+test('roundtrips V4 task graph progress and rejects impossible dependency state', t => {
+  const { storagePath } = fixture(t)
+  const ledger = new RunLedger({ storagePath, now: () => 1000 })
+  const node = (nodeId, agentKind, dependsOn, terminal) => ({ nodeId, agentKind, dependsOn,
+    role: terminal ? 'reviewer' : 'primary', inputNodeIds: dependsOn, expectedOutput: 'Result',
+    acceptance: { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 },
+    terminal, parallel: false, decisionOptions: [] })
+  const targetKinds = ['codex', 'hermes']
+  const graph = createTaskGraph({ template: 'task-graph', nodes: [
+    node('primary', 'codex', [], false), node('review', 'hermes', ['primary'], true),
+  ] }, targetKinds)
+  const cursor = createTaskGraphCursor(graph, 1000)
+  const orchestration = createOrchestrationV4({ workflow: 'auto', template: 'discussion', targetKinds,
+    phase: 'proposal', round: 1, snapshot: discussionSnapshot(targetKinds, 1),
+    collaboration: emptyCollaborationState(), taskGraph: cursor }, { targetKinds, now: 1000 })
+  const saved = ledger.checkpoint({ ...runRecord('run-v4-graph', 'group-v4-graph'),
+    mode: 'auto', targetKinds, orchestration })
+  const restored = new RunLedger({ storagePath, now: () => 1100 })
+  assert.deepEqual(restored.get(saved.runId).orchestration.taskGraph, cursor)
+  const invalid = { ...cursor, nodeStates: cursor.nodeStates.map(state => state.nodeId === 'review'
+    ? { ...state, status: 'accepted' } : state), terminalState: 'accepted' }
+  assert.throws(() => ledger.checkpoint({ runId: saved.runId,
+    orchestration: { ...saved.orchestration, taskGraph: invalid } }), { message: 'RUN_LEDGER_RECORD_INVALID' })
+  assert.deepEqual(ledger.get(saved.runId).orchestration.taskGraph, cursor)
+})
+
 test('roundtrips Auto candidate commit state and rejects parent or sink tampering', (t) => {
   const { storagePath } = fixture(t)
   const ledger = new RunLedger({ storagePath, now: () => 1000 })
