@@ -115,6 +115,17 @@ test('task graph recovery rechecks accepted evidence and rejects missing or chan
     outcomeRefs: { artifactIds: ['artifact-one'], evidenceIds: ['evidence-one'] } }
   assert.equal(runner.applyTaskGraphAgentResult({}, controller, node, result), true)
   assert.equal(runner.validateTaskGraphRecoveredResults(controller), true)
+  const foreign = { ...controller, orchestration: structuredClone(controller.orchestration) }
+  foreign.orchestration.collaboration = appendBlackboardEntry(foreign.orchestration.collaboration, {
+    entryType: 'claim', subject: 'another-subject', statement: 'Unrelated result', value: 'other',
+    owner: { type: 'agent', agentKind: 'hermes', role: 'primary' },
+    audience: { roles: ['reviewer'], agentKinds: [] },
+    lifecycle: { state: 'active', sequence: foreign.orchestration.collaboration.entries.at(-1).lifecycle.sequence + 1,
+      recordedAt: Date.now(), supersedesEntryId: null },
+    provenance: { runId: 'run', taskId: 'task', round: 1, agentRunId: 'other-run', artifactIds: [], evidenceIds: [] }, refs: [],
+  })
+  foreign.orchestration.taskGraph.nodeStates[0].entryIds.push(foreign.orchestration.collaboration.entries.at(-1).entryId)
+  assert.throws(() => runner.validateTaskGraphRecoveredResults(foreign), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
   const altered = { ...controller, orchestration: structuredClone(controller.orchestration) }
   altered.orchestration.collaboration.entries.find(entry => entry.entryType === 'claim').subject = 'another-task'
   assert.throws(() => runner.validateTaskGraphRecoveredResults(altered), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })

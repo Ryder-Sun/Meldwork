@@ -66,6 +66,15 @@ const taskGraphMethods = {
         && entry.owner?.type === 'agent' && entry.owner.agentKind === node.agentKind
         && entry.provenance?.runId === controller.runId && entry.provenance.taskId === controller.taskId)
       if (!anchor?.provenance.agentRunId) throw new Error('LOCAL_RUN_CONTINUATION_INVALID')
+      if (selected.some(entry => entry.provenance?.runId !== controller.runId
+          || entry.provenance?.taskId !== controller.taskId
+          || entry.provenance?.agentRunId !== anchor.provenance.agentRunId
+          || (entry.entryType === 'conflict' ? entry.owner?.type !== 'harness'
+            : !['claim', 'decision', 'artifact-ref', 'evidence-ref'].includes(entry.entryType)
+              || entry.owner?.type !== 'agent' || entry.owner.agentKind !== node.agentKind
+              || entry.owner.role !== node.role))) {
+        throw new Error('LOCAL_RUN_CONTINUATION_INVALID')
+      }
       const subject = node.role === 'primary'
         ? (node.claimKey ? `task:${controller.taskId}:claim:${node.claimKey}` : `task:${controller.taskId}:conclusion`)
         : `task:${controller.taskId}:node:${node.nodeId}`
