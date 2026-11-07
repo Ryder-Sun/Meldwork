@@ -3,6 +3,13 @@ const assert = require('node:assert/strict')
 const { nativeCredentialEnvironment } = require('../../../src/agents/local-agent-readiness.cjs')
 const { childEnvironment } = require('../../../src/agents/cli/cli-process-support.cjs')
 const { createRuntimeEventEmitter, redactChildSecrets } = require('../../../src/agents/cli/cli-runtime-event-sanitizer.cjs')
+
+test('short native credentials are redacted without hiding unrelated configuration', () => {
+  const env = { OPENAI_API_KEY: 'abc', AWS_SECRET_ACCESS_KEY: 'xy', AWS_SESSION_TOKEN: 'def',
+    AZURE_CLIENT_SECRET: 'gh', OPENAI_MODEL: 'model-name' }
+  assert.equal(redactChildSecrets('abc xy def gh model-name', env),
+    '[redacted] [redacted] [redacted] [redacted] model-name')
+})
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')

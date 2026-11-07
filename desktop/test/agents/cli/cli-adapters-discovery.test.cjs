@@ -38,6 +38,17 @@ test('Hermes discovery redacts configured credentials even when their names are 
   assert.doesNotMatch(JSON.stringify(agents), /abc/)
 })
 
+test('default discovery redacts short native credentials from CLI version output', async () => {
+  const agents = await detectAgents({
+    platform: 'darwin', env: { OPENAI_API_KEY: 'abc' },
+    resolveExecutableFn: async kind => kind === 'kimi' ? '/tmp/kimi' : null,
+    execFileFn: async () => ({ stdout: 'Kimi Code 0.19.2 abc', stderr: '' }),
+    probeAgentCapabilitiesFn: async () => ({ compatibilityState: 'compatible' }),
+  })
+  assert.equal(agents.length, 1)
+  assert.doesNotMatch(JSON.stringify(agents), /abc/)
+})
+
 test('default discovery passes only each Agent native environment to version and capability probes', async () => {
   const observed = new Map()
   const env = { ANTHROPIC_API_KEY: 'claude-key', AWS_PROFILE: 'cloud-profile',
