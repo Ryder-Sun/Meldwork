@@ -926,6 +926,24 @@ test('native project identity follows relative credential files captured for the
   assert.doesNotMatch(JSON.stringify([first, second]), /credentials|synthetic/)
 })
 
+test('native project identity follows absolute credential files captured for the project', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-absolute-identity-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const credentialFile = path.join(directory, 'credentials.json')
+  fs.writeFileSync(credentialFile, 'first synthetic credential')
+  const { harness } = loadMain(directory, {
+    nativeShellEnvironment: () => ({ source: 'native-shell', env: { GOOGLE_APPLICATION_CREDENTIALS: credentialFile } }),
+  })
+  await harness.ready()
+  const resolve = harness.workspaceInstances[0].input.resolveProjectEnvironmentIdentities
+  const first = await resolve(directory, ['hermes'])
+  fs.writeFileSync(credentialFile, 'replacement synthetic credential')
+  const second = await resolve(directory, ['hermes'])
+  assert.match(first.hermes, /^[a-f0-9]{64}$/)
+  assert.notEqual(first.hermes, second.hermes)
+  assert.doesNotMatch(JSON.stringify([first, second]), /credentials|synthetic/)
+})
+
 test('Codex and Hermes project identities track only their own native credentials', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-project-identities-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

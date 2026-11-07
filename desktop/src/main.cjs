@@ -4,7 +4,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const { redactSecrets } = require('./security/secret-redaction.cjs')
 const { ensurePrivateDirectory } = require('./security/private-file.cjs')
-const { projectVerificationIdentity } = require('./workspace/agent-verification-identity.cjs')
+const { agentVerificationIdentity, projectVerificationIdentity } = require('./workspace/agent-verification-identity.cjs')
 const { NATIVE_CONFIG_DIRECTORIES, NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_ENVIRONMENT_IDENTITY, NATIVE_AUTH_IDENTITY_FILES, NATIVE_PROJECT_CONFIG_PATHS,
   nativeConfigEnvironment, nativeIdentityDirectory, nativeEnvironmentIdentity, nativeAuthIdentityFiles, nativeProjectConfigPaths, nativeNetworkIdentityFiles, validateNativeConfigDirectory } = require('./agents/native-config-directory.cjs')
 const { AttachmentStore } = require('./attachments/attachment-store.cjs')
@@ -415,14 +415,18 @@ async function resolveProjectEnvironmentIdentities(workdir, kinds) {
     }
     const keys = nativeDeclaredCredentialKeys(kind, captured)
     const env = nativeConfigEnvironment(kind, workspace?.state.agentPreferences, captured.env)
+    const authFiles = [...new Set([...nativeAuthIdentityFiles(kind, env, captured.home),
+      ...nativeNetworkIdentityFiles(env)])]
+    const agent = { kind, [NATIVE_AUTH_IDENTITY_FILES]: authFiles }
     const environmentIdentity = nativeEnvironmentIdentity({
       ...(env.PATH ? { PATH: env.PATH } : {}),
       ...networkEnvironment(env), ...configDirectoryEnvironment(env),
       ...nativeCredentialEnvironment(kind, env, keys),
+      nativeAuthFiles: agentVerificationIdentity(agent),
     })
     const projectPaths = nativeProjectConfigPaths(kind, env)
     if (projectPaths.length) {
-      const agent = { [NATIVE_PROJECT_CONFIG_PATHS]: projectPaths }
+      agent[NATIVE_PROJECT_CONFIG_PATHS] = projectPaths
       result[kind] = projectVerificationIdentity(kind, workdir, agent, environmentIdentity)
     } else {
       result[kind] = environmentIdentity
