@@ -441,19 +441,22 @@ function hermesSelectedProvider(root, env) {
       const providers = config.providers && typeof config.providers === 'object' && !Array.isArray(config.providers)
         ? config.providers : {}
       const suffix = provider.slice(7)
-      const providerKey = Object.keys(providers).find(key => key.toLowerCase() === suffix)
+      const matches = value => typeof value === 'string'
+        && value.trim().toLowerCase().replace(/ /g, '-').replace(/^custom:/, '') === suffix
+      const usable = entry => {
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false
+        const enabled = entry.enabled === undefined || (Boolean(entry.enabled)
+          && !(typeof entry.enabled === 'string' && ['false', '0', 'no', 'off'].includes(entry.enabled.trim().toLowerCase())))
+        const endpoint = entry.api || entry.url || entry.base_url
+        return enabled && typeof endpoint === 'string' && Boolean(endpoint.trim())
+      }
+      const providerKey = Object.keys(providers).find(key => usable(providers[key])
+        && (matches(key) || matches(providers[key].name)))
       const legacy = Array.isArray(config.custom_providers) ? config.custom_providers.find(entry => (
-        entry && typeof entry === 'object' && !Array.isArray(entry)
-        && [entry.name, entry.provider_key].some(value => (
-          typeof value === 'string' && value.trim().toLowerCase().replace(/ /g, '-') === suffix
-        ))
+        usable(entry) && [entry.name, entry.provider_key].some(matches)
       )) : null
       const selected = (providerKey && providers[providerKey]) || legacy
       if (selected && typeof selected === 'object' && !Array.isArray(selected)) {
-        const enabled = selected.enabled === undefined || (Boolean(selected.enabled)
-          && !(typeof selected.enabled === 'string' && ['false', '0', 'no', 'off'].includes(selected.enabled.trim().toLowerCase())))
-        const endpoint = selected.api || selected.url || selected.base_url
-        if (!enabled || typeof endpoint !== 'string' || !endpoint.trim()) return { unavailable: true }
         return { provider: providerKey || suffix, selected, config, keys: nativeSecretEnvKeys([
           selected.key_env, selected.api_key_env,
         ]) }

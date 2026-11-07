@@ -965,6 +965,23 @@ test('Hermes readiness follows a named legacy custom provider', t => {
     { state: 'unknown', source: 'unverified' })
 })
 
+test('Hermes named provider readiness resolves native display aliases and skips disabled entries', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-provider-alias-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const root = path.join(home, '.hermes')
+  fs.mkdirSync(root)
+  fs.writeFileSync(path.join(root, 'config.yaml'), [
+    'model:', '  provider: "custom:work-team"', 'providers:',
+    '  disabled:', '    name: Work Team', '    enabled: false',
+    '    base_url: https://disabled.invalid/v1', '    key_env: OLD_TOKEN',
+    '  work:', '    name: Work Team', '    base_url: https://example.invalid/v1', '    key_env: WORK_TOKEN',
+  ].join('\n'))
+  assert.deepEqual(nativeCredentialState('hermes', { home, env: { OLD_TOKEN: 'old-secret' } }),
+    { state: 'unknown', source: 'unverified' })
+  assert.deepEqual(nativeCredentialState('hermes', { home, env: { WORK_TOKEN: 'selected-secret' } }),
+    { state: 'ready', source: 'native-credential' })
+})
+
 test('WorkBuddy readiness requires a selected model and never exposes configured keys', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-workbuddy-readiness-'))
   const secret = 'workbuddy-secret-value'
