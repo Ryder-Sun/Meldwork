@@ -1,6 +1,7 @@
 export default {
     'nativeConfig.title': 'Native configuration directory',
     'nativeConfig.configuredProvider': 'Configured provider',
+    'nativeConfig.userConfiguredProvider': 'Provider in user configuration (projects may override)',
     'nativeConfig.providerUnknown': 'Not specified or unavailable',
     'nativeConfig.automatic': 'No directory selected; the CLI native configuration will be discovered automatically.',
     'nativeConfig.choose': 'Choose directory',

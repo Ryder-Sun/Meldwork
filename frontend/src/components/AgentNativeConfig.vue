@@ -3,6 +3,7 @@
     <h3>{{ t('nativeConfig.title') }}</h3>
     <p v-if="directory !== null">{{ directory || t('nativeConfig.automatic') }}</p>
     <p v-if="kind === 'hermes' && directory !== null">{{ t('nativeConfig.configuredProvider') }}: {{ provider || t('nativeConfig.providerUnknown') }}</p>
+    <p v-if="kind === 'codex' && directory !== null">{{ t('nativeConfig.userConfiguredProvider') }}: {{ provider || t('nativeConfig.providerUnknown') }}</p>
     <p v-if="error" class="form-error" role="alert">{{ error }} <template v-if="invalid">{{ t(`nativeConfig.expected.${kind}`) }}</template></p>
     <button type="button" class="secondary-button" :disabled="busy" @click="update('choose')">{{ t('nativeConfig.choose') }}</button>
     <button v-if="directory" type="button" class="secondary-button" :disabled="busy" @click="update('clear')">{{ t('nativeConfig.clear') }}</button>
@@ -38,7 +39,7 @@ async function update(action) {
     if (!result.canceled) {
       directory.value = result.directory
       provider.value = ''
-      if (props.kind === 'hermes') {
+      if (['hermes', 'codex'].includes(props.kind)) {
         const details = await api.get(props.kind)
         if (details.directory === result.directory) provider.value = details.provider || ''
       }

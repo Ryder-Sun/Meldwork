@@ -518,6 +518,9 @@ test('Codex selected config passes its declared credential only to Codex', async
   })
   await harness.ready()
   harness.workspaceInstances[0].state.agentPreferences = { codex: { nativeConfigDirectory: native } }
+  const summary = await harness.ipcHandlers.get('local-agent-native-config:get')(harness.event(), 'codex')
+  assert.equal(summary.provider, 'custom')
+  assert.doesNotMatch(JSON.stringify(summary), /CUSTOM_CREDENTIAL|synthetic-secret/)
   await harness.workspaceInstances[0].input.runAgent({ kind: 'codex', executable: '/tmp/codex' }, 'hello', directory, {})
   const options = harness.runAgentCalls.at(-1)[3]
   assert.equal(options.env.CUSTOM_CREDENTIAL, 'synthetic-secret')

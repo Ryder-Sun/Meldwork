@@ -62,6 +62,15 @@ it('shows the configured Hermes provider and refreshes it after selecting a dire
   wrapper.unmount()
 })
 
+it('identifies Codex provider information as user configuration', async () => {
+  window.meldworkDesktop = { localAgentNativeConfig: { get: vi.fn().mockResolvedValue({ directory: '/native/codex', provider: 'custom' }) } }
+  const wrapper = mount(AgentNativeConfig, { props: { kind: 'codex' } })
+  await flushPromises()
+  expect(wrapper.text()).toContain(t('nativeConfig.userConfiguredProvider'))
+  expect(wrapper.text()).toContain('custom')
+  wrapper.unmount()
+})
+
 it('shows expected configuration files when the selected directory is invalid', async () => {
   const api = { get: vi.fn().mockResolvedValue({ directory: '/previous' }),
     choose: vi.fn().mockRejectedValue(new Error('LOCAL_NATIVE_CONFIG_INVALID')) }

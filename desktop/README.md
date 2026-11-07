@@ -81,6 +81,8 @@ Zcode 沿用默认配置；若其默认 Provider 缺少 API Key，需要先修�
 Hermes 的原生配置目录设置会显示 `config.yaml` 中显式指定的 Provider（包括嵌套模型及旧版根级配置），或配置中没有指定时的
 `HERMES_INFERENCE_PROVIDER`。显示 `auto` 表示交由 Hermes 自动选择，并不代表已经确认最终路由；
 无法读取或没有明确配置时显示未指定。此摘要不返回凭据。
+Codex 设置显示用户配置（含所选 profile）中的 `model_provider`；项目配置或运行参数仍可覆盖它，
+因此该值不等同于每次调用的最终 Provider。
 
 DeepSeek Harness 使用 `dsh` 的 ACP profile，未指定原生 ACP Provider 或模型时默认连接 ZGCI 的 `smart-router-v2`；
 若 ACP profile 或 DSH home 的 `cordis.patch.yml` 已指定 Provider 或模型，则沿用原生配置及其声明的凭据环境变量。

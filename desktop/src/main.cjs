@@ -51,6 +51,7 @@ const { CustomAgentStore } = require('./agents/custom-agent-store.cjs')
 const { configDirectoryEnvironment } = require('./agents/cli/cli-config-directories.cjs')
 const { deepseekNativeConfig } = require('./agents/cli/deepseek-native-config.cjs')
 const { hermesConfiguredProvider } = require('./agents/hermes-config-summary.cjs')
+const { codexConfiguredProvider } = require('./agents/codex-config-summary.cjs')
 const {
   codexDeclaredCredentialKeys,
   hermesDeclaredCredentialKeys,
@@ -948,10 +949,12 @@ function registerIpc() {
     getMainWindow: () => mainWindow,
     getWorkspace: () => workspace,
     getNativeConfigSummary: async (kind, currentWorkspace) => {
-      if (kind !== 'hermes') return null
+      if (!['hermes', 'codex'].includes(kind)) return null
       const shell = await nativeShellEnvironment()
       const env = nativeConfigEnvironment(kind, currentWorkspace.state.agentPreferences, shell.env)
-      return { provider: hermesConfiguredProvider({ home: shell.home, env }) }
+      return { provider: kind === 'hermes'
+        ? hermesConfiguredProvider({ home: shell.home, env })
+        : codexConfiguredProvider({ home: shell.home, env }) }
     },
     getWorkBuddySettings: async () => {
       const shell = await nativeShellEnvironment()
