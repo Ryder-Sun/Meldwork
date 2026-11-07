@@ -516,6 +516,23 @@ test('Hermes discovery honors an explicit installation directory after PATH', as
   assert.equal(await resolveExecutable('hermes', options), '/test/bin/hermes')
 })
 
+test('Hermes discovers a legacy Unix virtual environment only for legacy installs', async () => {
+  const legacy = '/test/custom-install/venv/bin/hermes'
+  const options = { platform: 'darwin', home: '/test/home',
+    env: { PATH: '/missing', HERMES_INSTALL_DIR: '/test/custom-install' },
+    accessFn: async candidate => { if (candidate !== legacy) throw new Error('missing') },
+    execFileFn: async () => { throw new Error('missing') },
+    statFn: async () => { const error = new Error('missing'); error.code = 'ENOENT'; throw error },
+  }
+  for (const platform of ['darwin', 'linux']) {
+    assert.equal(await resolveExecutable('hermes', { ...options, platform }), legacy)
+  }
+  options.statFn = async () => ({ isDirectory: () => true })
+  assert.equal(await resolveExecutable('hermes', options), null)
+  options.statFn = async () => { const error = new Error('denied'); error.code = 'EACCES'; throw error }
+  assert.equal(await resolveExecutable('hermes', options), null)
+})
+
 test('Hermes detection uses the selected native home when locating its installation', async () => {
   const expected = '/test/selected/hermes-agent/.hermes/bin/hermes'
   const agents = await detectAgents({ platform: 'darwin', home: '/test/home', env: { PATH: '/missing' },

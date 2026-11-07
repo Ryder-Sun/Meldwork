@@ -221,7 +221,10 @@ function agentCommands(kind, options = {}) {
       .filter(value => typeof value === 'string' && pathApi.isAbsolute(value))
     const roots = [installDir, ...homes.map(value => pathApi.join(value, 'hermes-agent'))]
       .filter(value => typeof value === 'string' && pathApi.isAbsolute(value))
-    for (const root of roots) commands.push(pathApi.join(root, '.hermes', 'bin', 'hermes'))
+    for (const root of roots) {
+      commands.push(pathApi.join(root, '.hermes', 'bin', 'hermes'))
+      commands.push(pathApi.join(root, 'venv', 'bin', 'hermes'))
+    }
   }
   if (kind === 'hermes' && platform === 'win32') {
     const configuredHome = envValue(env, 'HERMES_HOME', platform)
@@ -304,6 +307,15 @@ async function* resolvedExecutableCandidates(kind, options = {}) {
       if (seen.has(key)) continue
       seen.add(key)
       try {
+        if (kind === 'hermes' && platform !== 'win32' && pathApi.isAbsolute(command)
+            && candidate.endsWith('/venv/bin/hermes')) {
+          const installRoot = pathApi.dirname(pathApi.dirname(pathApi.dirname(candidate)))
+          try {
+            if ((await (options.statFn || fs.promises.stat)(pathApi.join(installRoot, 'pm'))).isDirectory()) continue
+          } catch (error) {
+            if (error?.code !== 'ENOENT') continue
+          }
+        }
         await accessFn(candidate, platform === 'win32' ? fs.constants.F_OK : fs.constants.X_OK)
         yield candidate
       } catch { /* keep searching */ }
