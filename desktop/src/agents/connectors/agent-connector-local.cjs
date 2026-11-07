@@ -363,7 +363,7 @@ class LocalAgentConnectors {
         if (!upgrade) continue
         try {
           const previous = this.packageStore.inspect(upgrade.details.fromPackageId)
-          if (this.compatibleInstanceUpgrade(previous, installed)) {
+          if (previous.state === 'disabled' && this.compatibleInstanceUpgrade(previous, installed)) {
             this.instanceStore.migrateManifest(previous.manifest, installed.manifest)
           }
         } catch { /* Unmigrated instances remain unavailable and can be retried. */ }
@@ -599,7 +599,10 @@ class LocalAgentConnectors {
       if (replaced && [...this.httpRequests].some(request => request.packageId === replaced.packageId)) {
         fail('AGENT_CONNECTOR_PACKAGE_IN_USE')
       }
-      if (replaced && this.instanceStore.listRecords().some(item => item.manifestId === replaced.manifestId)
+      const instances = this.instanceStore.listRecords()
+      if (replaced && instances.some(item => item.connectorId === target.manifest.connectorId
+          && item.manifestId !== replaced.manifestId)) fail('AGENT_CONNECTOR_PACKAGE_IN_USE')
+      if (replaced && instances.some(item => item.manifestId === replaced.manifestId)
           && (typeof this.instanceStore.migrateManifest !== 'function'
             || !this.compatibleInstanceUpgrade(store.inspect(replaced.packageId), target))) {
         fail('AGENT_CONNECTOR_PACKAGE_IN_USE')

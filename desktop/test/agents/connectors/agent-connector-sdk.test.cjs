@@ -192,6 +192,62 @@ test('an interrupted compatible upgrade recovers existing accounts after restart
   assert.equal(restarted.instanceStore.resolveCredential(restarted.instanceStore.listRecords()[0].credentialRef)['access-token'], 'account-secret')
 })
 
+test('revoking the previous package prevents recovery from migrating its account', t => {
+  const { connectors, packageStore } = fixture(t)
+  const first = httpPackage()
+  install(packageStore, first)
+  connectors.refresh([])
+  const configured = connectors.configure({ manifestId: first.manifest.manifestId, label: 'Account',
+    credentials: { 'access-token': 'account-secret' } })
+  const manifest = { ...first.manifest, connectorVersion: '1.1.0' }
+  delete manifest.manifestId
+  delete manifest.recordType
+  delete manifest.schemaVersion
+  const next = createAgentConnectorPackage({ publisher: first.publisher, provider: first.provider,
+    manifest: createAgentConnectorManifest(manifest) })
+  packageStore.import(serializeAgentConnectorPackage(next), 'next.json')
+  packageStore.approve(next.packageId)
+  const migrate = connectors.instanceStore.migrateManifest.bind(connectors.instanceStore)
+  connectors.instanceStore.migrateManifest = () => { throw new Error('simulated failure') }
+  assert.throws(() => connectors.upgradePackage(next.packageId), { message: 'AGENT_CONNECTOR_INSTANCE_STORE_UNAVAILABLE' })
+  packageStore.revoke(first.packageId)
+  connectors.instanceStore.migrateManifest = migrate
+  connectors.refresh([])
+  assert.equal(connectors.instanceStore.listRecords()[0].manifestId, first.manifest.manifestId)
+  assert.equal(connectors.detectAgents().some(agent => agent.kind === configured.instanceId), false)
+})
+
+test('a second upgrade is blocked until earlier instance migration finishes', t => {
+  const { connectors, packageStore } = fixture(t)
+  const first = httpPackage()
+  install(packageStore, first)
+  connectors.refresh([])
+  connectors.configure({ manifestId: first.manifest.manifestId, label: 'Account',
+    credentials: { 'access-token': 'account-secret' } })
+  const version = value => {
+    const manifest = { ...first.manifest, connectorVersion: value }
+    delete manifest.manifestId
+    delete manifest.recordType
+    delete manifest.schemaVersion
+    return createAgentConnectorPackage({ publisher: first.publisher, provider: first.provider,
+      manifest: createAgentConnectorManifest(manifest) })
+  }
+  const second = version('1.1.0')
+  const third = version('1.2.0')
+  for (const record of [second, third]) {
+    packageStore.import(serializeAgentConnectorPackage(record), 'next.json')
+    packageStore.approve(record.packageId)
+  }
+  const migrate = connectors.instanceStore.migrateManifest.bind(connectors.instanceStore)
+  connectors.instanceStore.migrateManifest = () => { throw new Error('simulated failure') }
+  assert.throws(() => connectors.upgradePackage(second.packageId), { message: 'AGENT_CONNECTOR_INSTANCE_STORE_UNAVAILABLE' })
+  assert.throws(() => connectors.upgradePackage(third.packageId), { message: 'AGENT_CONNECTOR_PACKAGE_IN_USE' })
+  assert.equal(packageStore.inspect(second.packageId).state, 'installed')
+  connectors.instanceStore.migrateManifest = migrate
+  connectors.refresh([])
+  assert.equal(connectors.upgradePackage(third.packageId).state, 'installed')
+})
+
 test('an upgrade cannot reuse an account with a different credential declaration', t => {
   const { connectors, packageStore } = fixture(t)
   const first = httpPackage()
