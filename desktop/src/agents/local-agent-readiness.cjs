@@ -181,6 +181,21 @@ function textContainsCredential(filename, allowedKeys = null) {
   }
 }
 
+function dotenvContainsCredential(filename, key) {
+  try {
+    for (const line of readCredentialFile(filename).split(/\r?\n/).reverse()) {
+      const match = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/)
+      if (!match || match[1] !== key) continue
+      const raw = match[2].trim()
+      const quoted = raw.match(/^(['"])(.*?)\1\s*(?:#.*)?$/)
+      if (/^['"]/.test(raw) && !quoted) return false
+      const value = (quoted ? quoted[2] : raw.replace(/\s*#.*$/, '')).trim()
+      return credentialLiteral(value)
+    }
+  } catch { /* Missing or unreadable configuration is unverified. */ }
+  return false
+}
+
 function hermesDeclaredCredentialKeys(options = {}) {
   const env = options.env || process.env
   const home = options.home || os.homedir()
@@ -704,7 +719,12 @@ function nativeCredentialState(kind, options = {}) {
   }
   if (kind === 'qwen' && options.nativeCredentialKeys?.length) {
     const [key] = nativeSecretEnvKeys(options.nativeCredentialKeys)
-    return key && typeof env[key] === 'string' && env[key].trim()
+    const inherited = key && Object.hasOwn(env, key)
+    const envFile = !inherited && key
+      ? [path.join(home, '.qwen', '.env'), path.join(home, '.env')].find(file => fs.existsSync(file)) : ''
+    const configured = inherited ? typeof env[key] === 'string' && env[key].trim()
+      : envFile && dotenvContainsCredential(envFile, key)
+    return configured
       ? { state: 'ready', source: options.credentialSource === 'native-shell' ? 'native-shell' : 'native-credential' }
       : { state: 'unknown', source: 'unverified' }
   }

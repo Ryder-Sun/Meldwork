@@ -30,6 +30,18 @@ test('Qwen captures only the selected model credential and redacts it', t => {
     { state: 'unknown', source: 'unverified' })
   assert.deepEqual(nativeCredentialState('qwen', { home, env: child, nativeCredentialKeys: keys }),
     { state: 'ready', source: 'native-credential' })
+  fs.writeFileSync(path.join(home, '.env'), 'CHOSEN_TOKEN=home-value\n')
+  assert.deepEqual(nativeCredentialState('qwen', { home, env: {}, nativeCredentialKeys: keys }),
+    { state: 'ready', source: 'native-credential' })
+  fs.writeFileSync(path.join(home, '.qwen', '.env'), 'OTHER_TOKEN=unrelated\n')
+  assert.deepEqual(nativeCredentialState('qwen', { home, env: {}, nativeCredentialKeys: keys }),
+    { state: 'unknown', source: 'unverified' })
+  fs.writeFileSync(path.join(home, '.qwen', '.env'), 'CHOSEN_TOKEN=selected\n')
+  assert.deepEqual(nativeCredentialState('qwen', { home, env: { CHOSEN_TOKEN: '' }, nativeCredentialKeys: keys }),
+    { state: 'unknown', source: 'unverified' })
+  fs.writeFileSync(path.join(home, '.qwen', '.env'), 'CHOSEN_TOKEN=selected\nCHOSEN_TOKEN=\n')
+  assert.deepEqual(nativeCredentialState('qwen', { home, env: {}, nativeCredentialKeys: keys }),
+    { state: 'unknown', source: 'unverified' })
 })
 
 test('Qwen does not read a project credential declaration when folder trust denies it', t => {
