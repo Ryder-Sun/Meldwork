@@ -147,6 +147,31 @@ test('default AWS credential updates change Pi and Claude verification identity'
   }
 })
 
+test('AWS CA bundle changes invalidate Bedrock Agent verification and relative paths are tracked', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-aws-ca-identity-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const filename = path.join(home, 'ca.pem')
+  fs.writeFileSync(filename, 'first certificate')
+  const { NATIVE_AUTH_IDENTITY_FILES } = require('../../src/agents/native-config-directory.cjs')
+  const { agentVerificationIdentity } = require('../../src/workspace/agent-verification-identity.cjs')
+  const agents = ['pi', 'claude', 'opencode'].map(kind => {
+    const agent = { kind }
+    Object.defineProperty(agent, NATIVE_AUTH_IDENTITY_FILES, {
+      value: nativeAuthIdentityFiles(kind, { AWS_CA_BUNDLE: filename }, home),
+    })
+    assert.ok(agent[NATIVE_AUTH_IDENTITY_FILES].includes(filename))
+    assert.deepEqual(nativeProjectConfigPaths(kind, { AWS_CA_BUNDLE: 'certs/ca.pem' }), [
+      { value: 'certs/ca.pem', directory: false },
+    ])
+    return agent
+  })
+  const before = agents.map(agent => agentVerificationIdentity(agent))
+  fs.writeFileSync(filename, 'replacement certificate')
+  for (let index = 0; index < agents.length; index += 1) {
+    assert.notEqual(agentVerificationIdentity(agents[index]), before[index])
+  }
+})
+
 test('MiMo recent model changes invalidate verification identity', t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-mimo-model-identity-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))
