@@ -10,6 +10,41 @@ const { LocalWorkspace } = require('../../src/workspace/local-workspace.cjs')
 const { RunLedger } = require('../../src/runs/run-ledger.cjs')
 const { deferred, fixture } = require('../support/local-workspace-test-helpers.cjs')
 
+for (const mode of ['manual', 'auto']) {
+  test(`V4 ${mode} gate continuation stays recoverable when shutdown interrupts resume`, async () => {
+    const abort = new AbortController()
+    const continuation = { resumeKind: 'agent_slot', gateId: 'gate-1', state: 'resuming',
+      agentKind: 'hermes', round: 1, phase: 'proposal', slotId: 'slot-1',
+      operationId: 'operation-1', snapshotHash: 'a'.repeat(64) }
+    const durable = { runId: 'run-1', groupId: 'group-1', mode, continuation }
+    const controller = { signal: abort.signal, stopReason: '', continuation: { ...continuation } }
+    const gate = { gateId: 'gate-1', runId: 'run-1', agentKind: 'hermes', agentRunId: 'agent-run-1', type: 'permission' }
+    const decision = { status: 'approved', optionId: 'allow-once' }
+    const statuses = []
+    let completed = 0
+    const interrupt = async () => { controller.stopReason = 'shutdown'; abort.abort(); return 'interrupted' }
+    const workspace = {
+      runLedger: { get: () => durable },
+      canResumeHumanGateRecord: () => true,
+      runCoordinator: { resume: () => controller },
+      getGroup: () => ({}),
+      canResumeManualOrchestration: () => false,
+      canResumeAutoOrchestration: () => false,
+      canResumeV4ManualAgentSlot: () => mode === 'manual',
+      canResumeV4AutoAgentSlot: () => mode === 'auto',
+      canFinalizeReplayedAgentSlot: () => false,
+      humanGateStore: { request: () => ({}) },
+      messageSubmission: { resumeV4Manual: async () => ({ status: await interrupt() }) },
+      autoRunner: { resume: interrupt },
+      completeHumanGateContinuation: () => { completed += 1; return true },
+      finishRun: async (_groupId, current, status) => statuses.push({ status, continuation: current.continuation.state }),
+    }
+    await LocalWorkspace.prototype.resumeHumanGateDecision.call(workspace, gate, decision)
+    assert.equal(completed, 0)
+    assert.deepEqual(statuses, [{ status: 'interrupted', continuation: 'resuming' }])
+  })
+}
+
 function pendingGate(workspace, timeoutMs = 2000) {
   const current = workspace.listHumanGates({ pendingOnly: true })[0]
   if (current) return Promise.resolve(current)

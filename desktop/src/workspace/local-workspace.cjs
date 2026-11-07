@@ -2285,6 +2285,10 @@ class LocalWorkspace extends EventEmitter {
             used: false,
           },
         })
+        if (controller.signal.aborted && controller.stopReason === 'shutdown') {
+          await this.finishRun(durable.groupId, controller, 'interrupted')
+          return
+        }
         if (controller.continuation?.gateId === gate.gateId
             && !this.completeHumanGateContinuation(durable.runId, gate.gateId, 'completed')) {
           throw new Error('LOCAL_RUN_PERSIST_FAILED')
@@ -2321,6 +2325,10 @@ class LocalWorkspace extends EventEmitter {
         const finalStatus = await this.autoRunner.resume(
           group, durable, controller, null, resumedGate,
         )
+        if (controller.signal.aborted && controller.stopReason === 'shutdown') {
+          await this.finishRun(durable.groupId, controller, 'interrupted')
+          return
+        }
         if (controller.continuation?.gateId === gate.gateId
             && !this.completeHumanGateContinuation(durable.runId, gate.gateId, 'completed')) {
           throw new Error('LOCAL_RUN_PERSIST_FAILED')
