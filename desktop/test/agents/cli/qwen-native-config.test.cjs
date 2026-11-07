@@ -31,8 +31,10 @@ test('Qwen captures only the selected model credential and redacts it', t => {
   assert.deepEqual(nativeCredentialState('qwen', { home, env: child, nativeCredentialKeys: keys }),
     { state: 'ready', source: 'native-credential' })
   fs.writeFileSync(path.join(home, '.env'), 'CHOSEN_TOKEN=home-value\n')
-  assert.deepEqual(nativeCredentialState('qwen', { home, env: {}, nativeCredentialKeys: keys }),
+  assert.deepEqual(nativeCredentialState('qwen', { home, env: {}, nativeCredentialKeys: keys, credentialSource: 'native-shell' }),
     { state: 'ready', source: 'native-credential' })
+  assert.deepEqual(nativeCredentialState('qwen', { home, env: child, nativeCredentialKeys: keys, credentialSource: 'native-shell' }),
+    { state: 'ready', source: 'native-shell' })
   fs.writeFileSync(path.join(home, '.qwen', '.env'), 'OTHER_TOKEN=unrelated\n')
   assert.deepEqual(nativeCredentialState('qwen', { home, env: {}, nativeCredentialKeys: keys }),
     { state: 'unknown', source: 'unverified' })

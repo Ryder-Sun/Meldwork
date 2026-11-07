@@ -729,7 +729,7 @@ function nativeCredentialState(kind, options = {}) {
     const configured = inherited ? typeof env[key] === 'string' && env[key].trim()
       : envFile && dotenvContainsCredential(envFile, key)
     return configured
-      ? { state: 'ready', source: options.credentialSource === 'native-shell' ? 'native-shell' : 'native-credential' }
+      ? { state: 'ready', source: inherited && options.credentialSource === 'native-shell' ? 'native-shell' : 'native-credential' }
       : { state: 'unknown', source: 'unverified' }
   }
   const piProvider = kind === 'pi' ? piDefaultProvider(piHome) : ''
