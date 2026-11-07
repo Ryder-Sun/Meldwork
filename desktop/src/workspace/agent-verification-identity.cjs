@@ -68,8 +68,10 @@ function projectVerificationIdentity(kind, workdir, agent = null) {
     mimo: ['mimocode.json', 'mimocode.jsonc', '.mimocode/mimocode.json', '.mimocode/mimocode.jsonc'],
     gemini: ['.gemini/settings.json'],
     qwen: ['.qwen/settings.json'],
+    pi: [],
   }[kind]
   if (!files) return ''
+  if (kind === 'pi' && !agent?.[NATIVE_PROJECT_CONFIG_PATHS]?.length) return ''
   if (typeof workdir !== 'string' || !path.isAbsolute(workdir)) return null
   const root = path.resolve(workdir)
   const entries = [kind, root]

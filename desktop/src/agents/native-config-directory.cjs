@@ -7,6 +7,12 @@ const NATIVE_AUTH_IDENTITY_FILES = Symbol('nativeAuthIdentityFiles')
 const NATIVE_PROJECT_CONFIG_PATHS = Symbol('nativeProjectConfigPaths')
 const environmentIdentityKey = randomBytes(32)
 
+function cloudIdentityPathKeys(kind) {
+  return ['AWS_CONFIG_FILE', 'AWS_SHARED_CREDENTIALS_FILE', 'AWS_WEB_IDENTITY_TOKEN_FILE',
+    'AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE', 'GOOGLE_APPLICATION_CREDENTIALS',
+    ...(kind === 'claude' ? ['AZURE_CLIENT_CERTIFICATE_PATH', 'AZURE_FEDERATED_TOKEN_FILE'] : [])]
+}
+
 function nativeProjectConfigPaths(kind, env = {}) {
   let entries = kind === 'opencode' ? [[env.OPENCODE_CONFIG, false], [env.OPENCODE_CONFIG_DIR, true]]
     : kind === 'mimo' ? [[env.MIMOCODE_CONFIG, false], [env.MIMOCODE_CONFIG_DIR, true]] : []
@@ -15,6 +21,9 @@ function nativeProjectConfigPaths(kind, env = {}) {
     const defaults = env[kind === 'gemini' ? 'GEMINI_CLI_SYSTEM_DEFAULTS_PATH' : 'QWEN_CODE_SYSTEM_DEFAULTS_PATH']
       || (typeof settings === 'string' && settings ? path.join(path.dirname(settings), 'system-defaults.json') : '')
     entries = [[settings, false], [defaults, false], ...(kind === 'gemini' ? [[env.GOOGLE_APPLICATION_CREDENTIALS, false]] : [])]
+  }
+  if (kind === 'pi' || kind === 'claude') {
+    entries = cloudIdentityPathKeys(kind).map(key => [env[key], false])
   }
   return entries.flatMap(([value, directory]) => {
     return typeof value === 'string' && value && !path.isAbsolute(value)
@@ -30,6 +39,11 @@ function nativeEnvironmentIdentity(env) {
 }
 
 function nativeAuthIdentityFiles(kind, env, home, platform = process.platform) {
+  if (kind === 'pi' || kind === 'claude') {
+    const paths = platform === 'win32' ? path.win32 : path.posix
+    return cloudIdentityPathKeys(kind).map(key => env?.[key])
+      .filter(filename => typeof filename === 'string' && paths.isAbsolute(filename))
+  }
   if (kind === 'qwen') {
     const paths = platform === 'win32' ? path.win32 : path.posix
     const settings = env?.QWEN_CODE_SYSTEM_SETTINGS_PATH || (platform === 'darwin'

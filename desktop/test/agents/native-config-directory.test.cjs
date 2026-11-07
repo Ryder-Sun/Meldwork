@@ -86,6 +86,24 @@ test('project config identities retain only relative CLI paths', () => {
   ])
   assert.deepEqual(nativeProjectConfigPaths('qwen', { QWEN_CODE_SYSTEM_SETTINGS_PATH: 'qwen/settings.json',
     QWEN_CODE_SYSTEM_DEFAULTS_PATH: '/absolute-defaults.json' }), [{ value: 'qwen/settings.json', directory: false }])
+  assert.deepEqual(nativeProjectConfigPaths('pi', { AWS_CONFIG_FILE: 'aws/config',
+    GOOGLE_APPLICATION_CREDENTIALS: 'google.json', AZURE_FEDERATED_TOKEN_FILE: 'ignored' }), [
+    { value: 'aws/config', directory: false }, { value: 'google.json', directory: false },
+  ])
+  assert.deepEqual(nativeProjectConfigPaths('claude', { AWS_SHARED_CREDENTIALS_FILE: 'aws/credentials',
+    AZURE_FEDERATED_TOKEN_FILE: 'azure/token', AWS_CONFIG_FILE: '/absolute' }), [
+    { value: 'aws/credentials', directory: false }, { value: 'azure/token', directory: false },
+  ])
+})
+
+test('Pi and Claude identity tracks explicitly selected absolute cloud credential files', () => {
+  const home = path.resolve('test-home')
+  const aws = path.join(home, 'aws', 'credentials')
+  const azure = path.join(home, 'azure', 'token')
+  const env = { AWS_SHARED_CREDENTIALS_FILE: aws, AZURE_FEDERATED_TOKEN_FILE: azure,
+    GOOGLE_APPLICATION_CREDENTIALS: 'relative.json' }
+  assert.deepEqual(nativeAuthIdentityFiles('pi', env, home), [aws])
+  assert.deepEqual(nativeAuthIdentityFiles('claude', env, home), [aws, azure])
 })
 
 test('Gemini authentication identity includes explicitly selected system and cloud files', () => {
