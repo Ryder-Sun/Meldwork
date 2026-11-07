@@ -9,14 +9,25 @@ const { agentVerificationIdentity, projectVerificationIdentity } = require('../.
 const { NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_ENVIRONMENT_IDENTITY, NATIVE_AUTH_IDENTITY_FILES, NATIVE_PROJECT_CONFIG_PATHS, nativeEnvironmentIdentity } = require('../../src/agents/native-config-directory.cjs')
 const { LocalWorkspaceAgentCatalog } = catalogApi
 
-test('deep workspaces cannot retain a verification that skipped ancestor configuration', t => {
+test('deep workspaces track ancestor configuration without disabling verification', t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-deep-verification-'))
   t.after(() => fs.rmSync(root, { recursive: true, force: true }))
   fs.mkdirSync(path.join(root, '.git'))
   const workdir = path.join(root, ...Array(65).fill('d'))
   fs.mkdirSync(workdir, { recursive: true })
-  fs.writeFileSync(path.join(root, 'zcode.json'), '{"model":{"main":"provider/model"}}')
-  assert.equal(projectVerificationIdentity('zcode', workdir), null)
+  const config = path.join(root, 'zcode.json')
+  fs.writeFileSync(config, '{"model":{"main":"provider/model"}}')
+  const initial = projectVerificationIdentity('zcode', workdir)
+  assert.match(initial, /^[a-f0-9]{64}$/)
+  const agent = { kind: 'zcode', executable: '/tmp/agent', version: '1', available: true, compatibilityState: 'compatible' }
+  const { catalog } = fixture({ initialAgents: [agent] })
+  catalog.markRuntimeCredential('zcode', 'ready', { verificationIdentity: agentVerificationIdentity(agent),
+    projectIdentity: initial, workdir })
+  assert.equal(catalog.isRecentlyVerified('zcode', workdir), true)
+  fs.writeFileSync(config, '{"model":{"main":"other/provider-model"}}')
+  assert.notEqual(projectVerificationIdentity('zcode', workdir), initial)
+  assert.equal(catalog.isRecentlyVerified('zcode', workdir), false)
+  assert.equal(projectVerificationIdentity('zcode', path.join(root, 'missing')), null)
 })
 
 test('Agent verification identity changes when the executable is replaced', t => {

@@ -76,6 +76,8 @@ function projectVerificationIdentity(kind, workdir, agent = null, environmentIde
   if (kind === 'pi' && !environmentIdentity && !agent?.[NATIVE_PROJECT_CONFIG_PATHS]?.length) return ''
   if (typeof workdir !== 'string' || !path.isAbsolute(workdir)) return null
   const root = path.resolve(workdir)
+  if (root.length > 32767) return null
+  try { if (!fs.statSync(root).isDirectory()) return null } catch { return null }
   const entries = [kind, root]
   if (environmentIdentity) entries.push(['native-environment', environmentIdentity])
   for (const item of agent?.[NATIVE_PROJECT_CONFIG_PATHS] || []) {
@@ -85,15 +87,13 @@ function projectVerificationIdentity(kind, workdir, agent = null, environmentIde
     entries.push([target, item.directory ? names.map(name => [name, fileIdentity(path.join(target, name))]) : fileIdentity(target)])
   }
   let current = root
-  let complete = false
-  for (let depth = 0; depth < 64; depth += 1) {
+  for (;;) {
     entries.push([current, ...(files || []).map(file => [file, fileIdentity(path.join(current, file))])])
-    if (fs.existsSync(path.join(current, '.git'))) { complete = true; break }
+    if (fs.existsSync(path.join(current, '.git'))) break
     const parent = path.dirname(current)
-    if (parent === current) { complete = true; break }
+    if (parent === current) break
     current = parent
   }
-  if (!complete) return null
   return createHash('sha256').update(JSON.stringify(entries)).digest('hex')
 }
 
