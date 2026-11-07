@@ -1196,11 +1196,22 @@ test('Agent Connector main process persists isolated accounts without returning 
     'const home = process.env.CODEX_HOME',
     'const scoped = process.env.XDG_CONFIG_HOME === path.join(home, "config")',
     'const account = process.env.CODEX_API_KEY === "connector-main-secret-a" ? "a" : process.env.CODEX_API_KEY === "connector-main-secret-b" ? "b" : "other"',
-    'process.stdout.write(JSON.stringify({type:"item.completed",item:{type:"agent_message",text:`${account}:${scoped}`}}) + "\\n")',
+    'const noGlobalProvider = process.env.OPENAI_API_KEY === undefined',
+    'process.stdout.write(JSON.stringify({type:"item.completed",item:{type:"agent_message",text:`${account}:${scoped}:${noGlobalProvider}`}}) + "\\n")',
   ].join('\n'))
-  for (const [options, expected] of [[firstOptions, 'a:true'], [secondOptions, 'b:true']]) {
-    const result = await runAgent({ kind: 'codex', name: 'Codex', executable: cli }, 'hello', directory, options)
-    assert.equal(result.text, expected)
+  const previousGlobalKey = process.env.OPENAI_API_KEY
+  const previousCodexKey = process.env.CODEX_API_KEY
+  process.env.OPENAI_API_KEY = 'unrelated-global-provider'
+  process.env.CODEX_API_KEY = 'unrelated-global-codex'
+  try {
+    const results = await Promise.all([firstOptions, secondOptions].map(options =>
+      runAgent({ kind: 'codex', name: 'Codex', executable: cli }, 'hello', directory, options)))
+    assert.deepEqual(results.map(result => result.text), ['a:true:true', 'b:true:true'])
+  } finally {
+    if (previousGlobalKey === undefined) delete process.env.OPENAI_API_KEY
+    else process.env.OPENAI_API_KEY = previousGlobalKey
+    if (previousCodexKey === undefined) delete process.env.CODEX_API_KEY
+    else process.env.CODEX_API_KEY = previousCodexKey
   }
 
   const instanceFile = fs.readFileSync(

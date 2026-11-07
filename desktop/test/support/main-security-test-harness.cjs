@@ -745,7 +745,7 @@ function loadMain(userData, options = {}) {
       imageAttachmentLimit: kind => ({ codex: 4, hermes: 1, opencode: 4 })[kind] || 0,
       runAgent: async (...args) => {
         runAgentCalls.push(args)
-        return { text: 'local reply', sessionRef: 'local-session' }
+        return { text: 'local reply', sessionRef: 'local-session', outcome: 'completed' }
       },
     },
     './agents/installer/agent-installer.cjs': { AgentInstaller: TestInstaller },
