@@ -429,6 +429,14 @@ test('Hermes fallback readiness ignores unrelated credentials', t => {
   assert.equal(nativeCredentialState('hermes', { home, env: { ...unrelated, ANTHROPIC_API_KEY: 'fallback-key' } }).state, 'ready')
   fs.writeFileSync(path.join(root, '.env'), 'ANTHROPIC_API_KEY=fallback-key\n')
   assert.equal(nativeCredentialState('hermes', { home, env: {} }).state, 'ready')
+  fs.unlinkSync(path.join(root, '.env'))
+  const auth = path.join(root, 'auth.json')
+  fs.writeFileSync(auth, JSON.stringify({ providers: { openai: { access_token: 'other-account' } } }))
+  assert.deepEqual(nativeCredentialState('hermes', { home, env: {} }), { state: 'unknown', source: 'unverified' })
+  fs.writeFileSync(auth, JSON.stringify({ providers: { anthropic: { access_token: 'fallback-token' } } }))
+  assert.equal(nativeCredentialState('hermes', { home, env: {} }).state, 'ready')
+  fs.writeFileSync(auth, JSON.stringify({ credential_pool: { openrouter: [{ access_token: 'primary-token' }] } }))
+  assert.equal(nativeCredentialState('hermes', { home, env: {} }).state, 'ready')
 })
 
 test('Hermes captures credentials for the native fallback provider chain and legacy fallback', async t => {

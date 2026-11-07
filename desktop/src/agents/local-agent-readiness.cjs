@@ -451,7 +451,15 @@ function hermesSelectedProvider(root, env, home) {
     if (!config || typeof config !== 'object' || Array.isArray(config)) return null
     if ([config.fallback_providers, config.fallback_model].some(value =>
       Array.isArray(value) ? value.length > 0 : value && typeof value === 'object')) {
-      return { provider: '', config, keys: hermesDeclaredCredentialKeys({ home, env: { ...env, HERMES_HOME: root } }) }
+      const fallbacks = [config.fallback_providers, config.fallback_model]
+        .flatMap(value => Array.isArray(value) ? value : [value])
+      const providers = [hermesProviderFromConfig(config, hermesProviderEnvironment(root, env)),
+        ...fallbacks.map(value => value?.provider)]
+        .filter(value => typeof value === 'string')
+        .map(value => value.trim().toLowerCase())
+        .filter(value => ['openai', 'openrouter', 'anthropic'].includes(value))
+      return { provider: '', authProviders: [...new Set(providers)], config,
+        keys: hermesDeclaredCredentialKeys({ home, env: { ...env, HERMES_HOME: root } }) }
     }
     const model = config.model && typeof config.model === 'object' && !Array.isArray(config.model) ? config.model : {}
     const provider = hermesProviderFromConfig(config, hermesProviderEnvironment(root, env)).toLowerCase()
@@ -782,7 +790,8 @@ function nativeCredentialState(kind, options = {}) {
     opencodereview: [path.join(home, '.opencodereview', 'config.json')],
   }[kind] || []
   if (jsonFiles.some(filename => kind === 'pi' ? !piCloudflare && piAuthContainsCredential(filename, piProvider)
-    : hermesSelection ? path.basename(filename) === 'auth.json' && hermesAuthContainsCredential(filename, hermesSelection.provider)
+    : hermesSelection ? path.basename(filename) === 'auth.json'
+      && (hermesSelection.authProviders || [hermesSelection.provider]).some(provider => hermesAuthContainsCredential(filename, provider))
       : jsonContainsCredential(filename))
       || (kind === 'pi' && piModelsContainCredential(piHome, env, piProvider))
       || (kind === 'opencode' && openCodeAuthContainsCredential(openCodeAuth))) {
