@@ -585,6 +585,43 @@ test('Connector input Gates release scheduler capacity and resume the exact Sess
   )), true)
 })
 
+for (const protocol of ['manual', 'v4']) test(`Connector permission Gate resumes its original session in ${protocol} mode`, async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const resumes = []
+  const connectorRuntime = inputConnectorRuntime(async input => {
+    if (!input.resume) {
+      input.emit({ eventId: 'waiting-permission', cursor: 'waiting-permission', sequence: 1,
+        type: 'Permission', requestId: 'network-access', permission: 'network', decision: 'requested' })
+      return { sessionRef: 'permission-session' }
+    }
+    resumes.push({ sessionRef: input.sessionRef, resume: input.resume })
+    input.emit({ eventId: 'completed-permission', cursor: 'completed-permission', sequence: 1,
+      type: 'Completed', outcome: 'completed' })
+    return { text: 'permission accepted', sessionRef: input.sessionRef }
+  })
+  options.detectAgents = async () => connectorRuntime.detectAgents()
+  options.connectorRuntime = connectorRuntime
+  options.runLedger = new RunLedger({ storagePath: path.join(directory, 'run-ledger.json') })
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Permission Gate', agentKinds: ['custom-bbbbbbbbbbbbbbbb'],
+    workdir: directory, allowWrite: false })
+  const sending = workspace.sendMessage({ groupId: group.id, text: 'Request access', targetKinds: group.agentKinds,
+    ...(protocol === 'v4' ? { mode: 'auto', protocol: 'v4', maxRounds: 1 } : {}) })
+  const gate = await waitForPendingGate(workspace)
+  const controller = workspace.activeRuns.get(group.id)
+  assert.equal(gate.type, 'permission')
+  workspace.decideHumanGate(gate.gateId, { optionId: 'allow-once' })
+  await sending
+  await controller?.promise
+  assert.equal(resumes.length, 1)
+  assert.equal(resumes[0].sessionRef, 'permission-session')
+  assert.equal(resumes[0].resume.permission, 'network')
+  assert.equal(resumes[0].resume.status, 'approved')
+  assert.ok(workspace.snapshot().messages.some(message => message.content === 'permission accepted'))
+})
+
 test('Connector input Gate survives shutdown and repeated restart without double execution', async (t) => {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
