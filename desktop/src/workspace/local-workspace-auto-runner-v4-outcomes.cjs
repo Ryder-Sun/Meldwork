@@ -599,10 +599,23 @@ const v4OutcomeMethods = {
     const workState = options.coordinationPlan
       ? this.v4WorkState(options.workReceipts, options.coordinationPlan, options.runId)
       : null
+    const referencesForRun = (record, artifactId = '') => {
+      if (!options.runId) return this.v4ReceiptReferencesComplete(record, artifactId)
+      const receipt = record?.receipt
+      const firstId = receipt?.artifactIds?.[0]
+      if (!firstId) return false
+      const identity = this.v4ArtifactIdentity(firstId)
+      return this.v4ReceiptReferencesComplete(record, artifactId, {
+        runId: options.runId,
+        agentRunId: identity.artifact.producedBy?.agentRunId,
+        agentKind: receipt.agentKind,
+        operationId: receipt.operationId,
+      })
+    }
     const referencesComplete = proposals.length === targetKinds.length
-      && proposals.every(record => this.v4ReceiptReferencesComplete(record))
+      && proposals.every(record => referencesForRun(record))
       && (!workState || workState.completed.size === options.coordinationPlan.assignments.length)
-      && this.v4ReceiptReferencesComplete(state.synthesis, state.candidate.artifactId)
+      && referencesForRun(state.synthesis, state.candidate.artifactId)
       && state.challengeInputs.length === targetKinds.length
       && state.challengeInputs.every(input => this.v4ReviewReceiptComplete(
         input, { runId: options.runId },

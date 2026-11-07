@@ -48,7 +48,7 @@ function storedOutput(fixtureValue, content, producer = {}) {
     level: 'observed',
     subject: { type: 'artifact', artifactId: artifact.artifactId },
     summary: 'Meldwork captured the concrete Agent output.',
-    recordedBy: { kind: 'system', actorId: 'meldwork-outcome-recorder' },
+    recordedBy: { kind: 'system', actorId: 'meldwork-main' },
     refs: [
       { type: 'artifact', artifactId: artifact.artifactId },
       { type: 'blob', contentRef, contentHash: contentRef.hash },
@@ -593,6 +593,33 @@ test('V4 acceptance requires the exact candidate Finding and complete required p
   assert.equal(accepted.accepted, true)
   assert.equal(accepted.candidateHash, sha256('Accepted candidate.'))
   assert.deepEqual(accepted.openIssueIds, [])
+
+  for (const producer of [{ runId: 'run-other', agentKind: 'codex' },
+    { runId, agentKind: 'hermes' }]) {
+    const foreign = storedOutput(value, 'Foreign proposal.', producer)
+    const altered = structuredClone(records)
+    altered[0].receipt.artifactIds = [foreign.artifact.artifactId]
+    altered[0].receipt.evidenceIds = [foreign.evidence.evidenceId]
+    assert.equal(value.runner.v4Acceptance(
+      altered, targetKinds, 'codex', ['hermes'], options,
+    ).accepted, false)
+  }
+
+  const roundState = value.runner.v4RoundState(records, targetKinds, 'codex', ['hermes'], {
+    ...options, includeVerification: true,
+  })
+  const foreignCandidate = storedOutput(value, 'Foreign synthesis.', { runId: 'run-other' })
+  const foreignSynthesis = receiptRecord({ phase: 'synthesis', agentKind: 'codex',
+    operationId: 'operation-synthesis-codex', output: foreignCandidate })
+  const originalRoundState = value.runner.v4RoundState
+  value.runner.v4RoundState = () => ({ ...roundState, synthesis: foreignSynthesis,
+    candidate: { artifactId: foreignCandidate.artifact.artifactId,
+      contentHash: foreignCandidate.artifact.contentHash } })
+  try {
+    assert.equal(value.runner.v4Acceptance(records, targetKinds, 'codex', ['hermes'], options).accepted, false)
+  } finally {
+    value.runner.v4RoundState = originalRoundState
+  }
 
   const fullReviewReceipts = structuredClone(records)
   for (const [recordIndex, reviewedOutput, label] of [
