@@ -5,6 +5,22 @@ const os = require('node:os')
 const path = require('node:path')
 const { nativeAuthIdentityFiles, nativeConfigEnvironment, nativeIdentityDirectory, nativeProjectConfigPaths, validateNativeConfigDirectory } = require('../../src/agents/native-config-directory.cjs')
 
+test('Gemini native configuration respects Windows directory case rules', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-gemini-case-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const directory = path.join(home, '.GEMINI')
+  fs.mkdirSync(directory)
+  fs.writeFileSync(path.join(directory, 'settings.json'), '{}')
+  const preferences = { gemini: { nativeConfigDirectory: directory } }
+  assert.equal(nativeConfigEnvironment('gemini', preferences, {}, 'win32').GEMINI_CLI_HOME, home)
+  if (process.platform === 'win32') {
+    assert.equal(validateNativeConfigDirectory('gemini', directory), directory)
+  } else {
+    assert.throws(() => validateNativeConfigDirectory('gemini', directory), { message: 'LOCAL_NATIVE_CONFIG_INVALID' })
+    assert.throws(() => nativeConfigEnvironment('gemini', preferences, {}, process.platform), { message: 'LOCAL_NATIVE_CONFIG_INVALID' })
+  }
+})
+
 test('OpenClaw selects its native state directory without changing other Agents', t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-openclaw-config-'))
   t.after(() => fs.rmSync(root, { recursive: true, force: true }))

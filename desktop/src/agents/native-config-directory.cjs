@@ -228,7 +228,10 @@ function nativeConfigEnvironment(kind, preferences, env = {}, platform = process
   if (!spec || directory === undefined || directory === '') return env
   if (typeof directory !== 'string' || directory.length > 4096
       || directory.includes('\u0000') || !path.isAbsolute(directory)) throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
-  if (kind === 'gemini' && path.basename(path.resolve(directory)) !== '.gemini') throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
+  if (kind === 'gemini') {
+    const name = path.basename(path.resolve(directory))
+    if ((platform === 'win32' ? name.toLowerCase() : name) !== '.gemini') throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
+  }
   if (kind === 'qwen' || kind === 'opencodereview') {
     const resolved = path.resolve(directory)
     const name = path.basename(resolved)
@@ -252,8 +255,8 @@ function validateNativeConfigDirectory(kind, directory) {
   const spec = Object.hasOwn(NATIVE_CONFIG_DIRECTORIES, kind) ? NATIVE_CONFIG_DIRECTORIES[kind] : null
   if (!spec || typeof directory !== 'string' || directory.length > 4096
       || directory.includes('\u0000') || !path.isAbsolute(directory)) throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
-  if (kind === 'gemini' && path.basename(path.resolve(directory)) !== '.gemini') throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
   const caseName = value => process.platform === 'win32' ? value.toLowerCase() : value
+  if (kind === 'gemini' && caseName(path.basename(path.resolve(directory))) !== '.gemini') throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
   if (kind === 'qwen' && caseName(path.basename(path.resolve(directory))) !== '.qwen') throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
   if (kind === 'opencodereview' && caseName(path.basename(path.resolve(directory))) !== '.opencodereview') throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
   if (kind === 'zcode' && (caseName(path.basename(path.resolve(directory))) !== 'cli'
