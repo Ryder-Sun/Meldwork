@@ -74,7 +74,8 @@ function nativeAuthIdentityFiles(kind, env, home, platform = process.platform) {
     const defaults = env?.QWEN_CODE_SYSTEM_DEFAULTS_PATH
       || (typeof settings === 'string' && paths.isAbsolute(settings) ? paths.join(paths.dirname(settings), 'system-defaults.json') : '')
     const userRoot = typeof home === 'string' && paths.isAbsolute(home) ? paths.join(home, '.qwen') : ''
-    return [settings, defaults, ...(userRoot ? ['settings.json', 'oauth_creds.json', '.env'].map(name => paths.join(userRoot, name)) : [])]
+    return [settings, defaults, ...(userRoot ? ['settings.json', 'oauth_creds.json', '.env'].map(name => paths.join(userRoot, name)) : []),
+      ...(typeof home === 'string' && paths.isAbsolute(home) ? [paths.join(home, '.env')] : [])]
       .filter(filename => typeof filename === 'string' && paths.isAbsolute(filename))
   }
   if (kind === 'gemini') {

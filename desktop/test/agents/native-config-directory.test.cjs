@@ -295,8 +295,24 @@ test('Qwen authentication identity tracks its native user and system settings', 
   const settings = path.join(home, 'system', 'qwen.json')
   assert.deepEqual(nativeAuthIdentityFiles('qwen', { QWEN_CODE_SYSTEM_SETTINGS_PATH: settings }, home, 'darwin'), [
     settings, path.join(home, 'system', 'system-defaults.json'),
-    path.join(home, '.qwen', 'settings.json'), path.join(home, '.qwen', 'oauth_creds.json'), path.join(home, '.qwen', '.env'),
+    path.join(home, '.qwen', 'settings.json'), path.join(home, '.qwen', 'oauth_creds.json'), path.join(home, '.qwen', '.env'), path.join(home, '.env'),
   ])
+})
+
+test('Qwen project verification tracks environment files above the Git root', t => {
+  const { projectVerificationIdentity } = require('../../src/workspace/agent-verification-identity.cjs')
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-qwen-project-'))
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+  const repository = path.join(root, 'repository')
+  const workdir = path.join(repository, 'nested')
+  fs.mkdirSync(path.join(repository, '.git'), { recursive: true })
+  fs.mkdirSync(workdir)
+  for (const filename of [path.join(root, '.env'), path.join(repository, '.qwen', '.env')]) {
+    fs.mkdirSync(path.dirname(filename), { recursive: true })
+    const before = projectVerificationIdentity('qwen', workdir)
+    fs.writeFileSync(filename, 'DASHSCOPE_API_KEY=changed\n')
+    assert.notEqual(projectVerificationIdentity('qwen', workdir), before, filename)
+  }
 })
 
 test('Qwen verification identity changes when its native environment file changes', t => {
