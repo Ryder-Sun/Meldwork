@@ -59,6 +59,7 @@ class LocalWorkspaceAutoRunner {
     this.requestHumanGate = typeof options.requestHumanGate === 'function'
       ? options.requestHumanGate
       : null
+    this.getHumanGateRequest = options.getHumanGateRequest || null
     this.requestTaskDecision = options.requestTaskDecision || null
     this.taskDecisionResponses = options.taskDecisionResponses || (() => [])
     this.completeHumanGateContinuation = typeof options.completeHumanGateContinuation === 'function'
@@ -295,6 +296,7 @@ class LocalWorkspaceAutoRunner {
     if (durable.continuation?.agentRunId !== expectedAgentRunId) {
       throw new Error('LOCAL_RUN_CONTINUATION_INVALID')
     }
+    this.validateTaskGraphHumanDecisionContext(controller, node, durable.continuation.gateId, decision)
     const accepted = this.applyTaskGraphHumanDecision(group, controller, node, decision)
     if (this.completeHumanGateContinuation?.(
       controller.runId,

@@ -500,6 +500,25 @@ test('task graph resumes a human decision after its blackboard checkpoint withou
     { status: 'rejected', optionId: 'reject' }), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
 })
 
+test('task graph checks the approved gate against its recorded context', () => {
+  const node = graphNode({ nodeId: 'human', role: 'human', agentKind: null, terminal: true, parallel: false,
+    acceptance: { requireConclusion: false, minArtifactRefs: 0, minEvidenceRefs: 0 },
+    decisionOptions: [{ optionId: 'approve', name: 'Approve', kind: 'allow_once' },
+      { optionId: 'reject', name: 'Reject', kind: 'reject_once' }] })
+  const graph = createTaskGraph({ template: 'task-graph', nodes: [node] })
+  const controller = { orchestration: { taskGraph: createTaskGraphCursor(graph), collaboration: emptyCollaborationState() } }
+  const runner = { ...taskGraphMethods }
+  const contextFingerprint = runner.taskGraphHumanContextFingerprint(controller, node)
+  runner.getHumanGateRequest = () => ({ contextFingerprint })
+  assert.doesNotThrow(() => runner.validateTaskGraphHumanDecisionContext(controller, node, 'gate', { status: 'approved' }))
+  runner.getHumanGateRequest = () => ({ contextFingerprint: '0'.repeat(64) })
+  assert.throws(() => runner.validateTaskGraphHumanDecisionContext(controller, node, 'gate', { status: 'approved' }),
+    { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
+  assert.doesNotThrow(() => runner.validateTaskGraphHumanDecisionContext(controller, node, 'gate', { status: 'rejected' }))
+  runner.getHumanGateRequest = () => ({})
+  assert.doesNotThrow(() => runner.validateTaskGraphHumanDecisionContext(controller, node, 'gate', { status: 'approved' }))
+})
+
 test('a human task graph decision does not resolve conflicts outside its selected inputs', () => {
   const first = graphNode({ nodeId: 'first', claimKey: 'shared',
     acceptance: { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 } })

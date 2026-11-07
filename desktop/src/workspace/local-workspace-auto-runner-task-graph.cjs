@@ -416,6 +416,30 @@ const taskGraphMethods = {
     ))
   },
 
+  taskGraphHumanContextFingerprint(controller, node) {
+    const cursor = parseTaskGraphCursor(controller.orchestration.taskGraph)
+    const selected = new Set(cursor.nodeStates.filter(state => node.inputNodeIds.includes(state.nodeId))
+      .flatMap(state => state.entryIds))
+    const entries = controller.orchestration.collaboration?.entries || []
+    return createHash('sha256').update(canonicalJson({
+      graphId: cursor.graph.graphId,
+      nodeId: node.nodeId,
+      inputNodeIds: node.inputNodeIds,
+      entries: entries.filter(entry => selected.has(entry.entryId)),
+      conflicts: this.taskGraphHumanResolvableConflicts(controller, node),
+    })).digest('hex')
+  },
+
+  validateTaskGraphHumanDecisionContext(controller, node, gateId, decision) {
+    if (decision.status !== 'approved' || !this.getHumanGateRequest) return
+    const request = this.getHumanGateRequest(gateId)
+    // Pending gates created by older versions did not contain a fingerprint.
+    if (request.contextFingerprint === undefined) return
+    if (request.contextFingerprint !== this.taskGraphHumanContextFingerprint(controller, node)) {
+      throw new Error('LOCAL_RUN_CONTINUATION_INVALID')
+    }
+  },
+
   applyTaskGraphHumanDecision(group, controller, node, decision) {
     const option = node.decisionOptions.find(candidate => candidate.optionId === decision.optionId)
     if (!option) throw new Error('LOCAL_WORKFLOW_DECISION_INVALID')
@@ -589,6 +613,7 @@ const taskGraphMethods = {
         nodeId: node.nodeId,
         inputNodeIds: node.inputNodeIds,
         decisionContext,
+        contextFingerprint: this.taskGraphHumanContextFingerprint(controller, node),
       },
     }, {
       signal: controller.signal,
@@ -600,6 +625,7 @@ const taskGraphMethods = {
         round: controller.currentRound,
       },
     })
+    this.validateTaskGraphHumanDecisionContext(controller, node, gate.gateId, gate)
     const accepted = this.applyTaskGraphHumanDecision(group, controller, node, gate)
     if (this.completeHumanGateContinuation?.(
       controller.runId,

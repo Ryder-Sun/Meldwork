@@ -357,6 +357,7 @@ class LocalWorkspace extends EventEmitter {
       checkpointRun: (...args) => this.checkpointRun(...args),
       hasRunLedger: () => Boolean(this.runLedger),
       requestHumanGate: (...args) => this.requestHumanGate(...args),
+      getHumanGateRequest: gateId => this.humanGateStore.request(gateId),
       completeHumanGateContinuation: (...args) => this.completeHumanGateContinuation(...args),
       requestTaskDecision: (...args) => this.requestV4TaskDecision(...args),
       taskDecisionResponses: runId => this.v4TaskDecisionResponses(runId),
