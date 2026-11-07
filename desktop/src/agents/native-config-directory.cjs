@@ -43,9 +43,24 @@ function nativeAuthIdentityFiles(kind, env, home, platform = process.platform) {
     const root = typeof configured === 'string' && configured.trim() ? configured.trim() : home
     return typeof root === 'string' && path.isAbsolute(root) ? [path.join(root, '.zcode', 'cli', 'config.json')] : []
   }
+  if (kind === 'mimo') {
+    const explicit = env?.MIMOCODE_CONFIG
+    const userRoot = typeof home === 'string' && path.isAbsolute(home) ? path.join(home, '.mimocode') : ''
+    const configRoot = env?.XDG_CONFIG_HOME || (home && path.join(home, '.config'))
+    const sharedRoot = typeof configRoot === 'string' && path.isAbsolute(configRoot) ? path.join(configRoot, 'mimocode') : ''
+    return [explicit, ...[userRoot, sharedRoot].filter(Boolean)
+      .flatMap(root => ['mimocode.json', 'mimocode.jsonc'].map(name => path.join(root, name)))]
+      .filter(filename => typeof filename === 'string' && path.isAbsolute(filename))
+  }
   if (kind !== 'opencode') return []
   const root = env?.XDG_DATA_HOME || (typeof home === 'string' && path.isAbsolute(home) ? path.join(home, '.local', 'share') : '')
-  return typeof root === 'string' && path.isAbsolute(root) ? [path.join(root, 'opencode', 'auth.json')] : []
+  const configRoot = env?.XDG_CONFIG_HOME || (home && path.join(home, '.config'))
+  const sharedRoot = typeof configRoot === 'string' && path.isAbsolute(configRoot) ? path.join(configRoot, 'opencode') : ''
+  const explicit = typeof env?.OPENCODE_CONFIG === 'string' && typeof home === 'string' && path.isAbsolute(home)
+    ? env.OPENCODE_CONFIG.replace(/^~(?=$|[\\/])/, home) : env?.OPENCODE_CONFIG
+  return [typeof root === 'string' && path.isAbsolute(root) ? path.join(root, 'opencode', 'auth.json') : '', explicit,
+    ...(sharedRoot ? ['opencode.json', 'opencode.jsonc'].map(name => path.join(sharedRoot, name)) : [])]
+    .filter(filename => typeof filename === 'string' && path.isAbsolute(filename))
 }
 
 const NATIVE_CONFIG_DIRECTORIES = Object.freeze({

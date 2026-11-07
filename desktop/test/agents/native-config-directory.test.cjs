@@ -47,11 +47,25 @@ test('MiMo validates its selected native configuration directory', t => {
 
 test('OpenCode authentication identity follows its XDG data directory', () => {
   const home = path.resolve('test-home')
-  assert.deepEqual(nativeAuthIdentityFiles('opencode', {}, home), [path.join(home, '.local', 'share', 'opencode', 'auth.json')])
+  const shared = ['opencode.json', 'opencode.jsonc'].map(name => path.join(home, '.config', 'opencode', name))
+  assert.deepEqual(nativeAuthIdentityFiles('opencode', {}, home), [path.join(home, '.local', 'share', 'opencode', 'auth.json'), ...shared])
   assert.deepEqual(nativeAuthIdentityFiles('opencode', { XDG_DATA_HOME: path.join(home, 'data') }, home),
-    [path.join(home, 'data', 'opencode', 'auth.json')])
-  assert.deepEqual(nativeAuthIdentityFiles('opencode', { XDG_DATA_HOME: 'relative' }, home), [])
+    [path.join(home, 'data', 'opencode', 'auth.json'), ...shared])
+  assert.deepEqual(nativeAuthIdentityFiles('opencode', { XDG_DATA_HOME: 'relative' }, home), shared)
+  assert.deepEqual(nativeAuthIdentityFiles('opencode', { OPENCODE_CONFIG: path.join(home, 'custom.json') }, home),
+    [path.join(home, '.local', 'share', 'opencode', 'auth.json'), path.join(home, 'custom.json'), ...shared])
+  assert.deepEqual(nativeAuthIdentityFiles('opencode', { OPENCODE_CONFIG: '~/custom.json' }, home),
+    [path.join(home, '.local', 'share', 'opencode', 'auth.json'), path.join(home, 'custom.json'), ...shared])
   assert.deepEqual(nativeAuthIdentityFiles('codex', {}, home), [])
+})
+
+test('MiMo identity tracks its explicit and user configuration files', () => {
+  const home = path.resolve('test-home')
+  assert.deepEqual(nativeAuthIdentityFiles('mimo', { MIMOCODE_CONFIG: path.join(home, 'custom.json') }, home), [
+    path.join(home, 'custom.json'), path.join(home, '.mimocode', 'mimocode.json'),
+    path.join(home, '.mimocode', 'mimocode.jsonc'),
+    path.join(home, '.config', 'mimocode', 'mimocode.json'), path.join(home, '.config', 'mimocode', 'mimocode.jsonc'),
+  ])
 })
 
 test('Gemini authentication identity includes explicitly selected system and cloud files', () => {

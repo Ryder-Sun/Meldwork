@@ -327,6 +327,32 @@ test('OpenCode authentication file changes invalidate successful and late verifi
   assert.equal(agents()[0].recentlyVerified, false)
 })
 
+for (const [kind, key] of [['opencode', 'OPENCODE_CONFIG'], ['mimo', 'MIMOCODE_CONFIG']]) {
+  test(`${kind} explicit configuration changes invalidate prior verification`, async t => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-explicit-config-identity-'))
+    t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+    const filename = path.join(directory, 'custom.json')
+    fs.writeFileSync(filename, '{"model":"first"}')
+    const { nativeAuthIdentityFiles } = require('../../src/agents/native-config-directory.cjs')
+    const detected = () => {
+      const agent = { kind, executable: '/tmp/agent', version: '1', compatibilityState: 'compatible' }
+      Object.defineProperty(agent, NATIVE_AUTH_IDENTITY_FILES, { value: nativeAuthIdentityFiles(kind, { [key]: filename }, directory) })
+      return agent
+    }
+    const { catalog, agents, state } = fixture({ detectAgents: async () => [detected()],
+      credentialState: async () => ({ state: 'unknown', source: 'unverified' }) })
+    await catalog.refresh()
+    const identity = agentVerificationIdentity(agents()[0], state.agentPreferences)
+    catalog.markRuntimeCredential(kind, 'ready', { verificationIdentity: identity })
+    assert.equal(catalog.isRecentlyVerified(kind), true)
+    fs.writeFileSync(filename, '{"model":"replacement"}')
+    await catalog.refresh()
+    assert.equal(catalog.isRecentlyVerified(kind), false)
+    catalog.markRuntimeCredential(kind, 'ready', { verificationIdentity: identity })
+    assert.equal(catalog.isRecentlyVerified(kind), false)
+  })
+}
+
 test('Gemini selected cloud credential changes invalidate prior and late verification', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-gemini-cloud-identity-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
