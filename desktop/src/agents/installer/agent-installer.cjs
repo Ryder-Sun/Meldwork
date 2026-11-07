@@ -33,6 +33,11 @@ const COMPATIBILITY_REASONS = new Set([
   'LOCAL_AGENT_REQUIRED_CAPABILITY_MISSING',
   'LOCAL_AGENT_PROTOCOL_UNAVAILABLE',
 ])
+const INCONCLUSIVE_REASONS = new Set([
+  'LOCAL_AGENT_CAPABILITY_PROBE_TIMEOUT',
+  'LOCAL_AGENT_CAPABILITY_PROBE_FAILED',
+  'LOCAL_AGENT_AUTH_REQUIRED',
+])
 
 function publicCompatibility(agent) {
   if (!agent) {
@@ -62,8 +67,8 @@ function publicCompatibility(agent) {
     : Boolean(resolvedVersion)
   const compatible = compatibilityState === 'compatible'
   const incompatibilityReason = compatibilityState === 'unknown'
-      && agent.incompatibilityReason === 'LOCAL_AGENT_CAPABILITY_PROBE_TIMEOUT'
-    ? 'LOCAL_AGENT_CAPABILITY_PROBE_TIMEOUT'
+      && INCONCLUSIVE_REASONS.has(agent.incompatibilityReason)
+    ? agent.incompatibilityReason
     : compatibilityState === 'incompatible'
     ? (COMPATIBILITY_REASONS.has(agent.incompatibilityReason)
         ? agent.incompatibilityReason

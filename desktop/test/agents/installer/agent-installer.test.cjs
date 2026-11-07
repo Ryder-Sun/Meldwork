@@ -42,6 +42,23 @@ test('catalog preserves an inconclusive timeout without hiding the installed CLI
   assert.equal(agent.incompatibilityProbe, 'codex-exec')
 })
 
+test('catalog retains safe inconclusive probe reasons without exposing arbitrary errors', async () => {
+  for (const [reason, expected] of [
+    ['LOCAL_AGENT_CAPABILITY_PROBE_FAILED', 'LOCAL_AGENT_CAPABILITY_PROBE_FAILED'],
+    ['LOCAL_AGENT_AUTH_REQUIRED', 'LOCAL_AGENT_AUTH_REQUIRED'],
+    ['private error details', ''],
+  ]) {
+    const service = new AgentInstaller({
+      detectAgents: async () => [{ kind: 'codex', compatibilityState: 'unknown',
+        incompatibilityReason: reason, incompatibilityProbe: 'codex-exec' }],
+      findCommand: async () => '/usr/bin/npm',
+    })
+    const agent = (await service.catalog()).agents.find(item => item.kind === 'codex')
+    assert.equal(agent.incompatibilityReason, expected)
+    assert.equal(agent.incompatibilityProbe, expected ? 'codex-exec' : '')
+  }
+})
+
 test('catalog exposes install versus update action and permits updating an older CLI', async () => {
   const service = installer({
     detectAgents: async () => [{ kind: 'pi', version: '0.80.0', compatibilityState: 'compatible' }],
