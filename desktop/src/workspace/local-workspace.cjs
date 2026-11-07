@@ -621,6 +621,7 @@ class LocalWorkspace extends EventEmitter {
       if (record?.mode !== 'auto' || TERMINAL_RUN_STATUSES.has(record.status)
           || !groupIds.has(record.groupId) || retainedGroups.has(record.groupId)
           || orchestration?.version !== 4 || orchestration.workflow !== 'auto'
+          || orchestration.taskGraph
           || orchestration.template !== 'discussion'
           || (record.continuation && record.continuation.state !== 'completed' && !terminalRecovery)
           || (!resumablePhase && !resumableCommit

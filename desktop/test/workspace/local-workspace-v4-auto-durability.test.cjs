@@ -11,6 +11,25 @@ const {
 const { RunLedger } = require('../../src/runs/run-ledger.cjs')
 const { deferred, fixture } = require('../support/local-workspace-test-helpers.cjs')
 
+test('startup does not clean graph messages as an ordinary V4 discussion', () => {
+  const workspace = Object.create(LocalWorkspace.prototype)
+  const record = { runId: 'graph-run', groupId: 'group', mode: 'auto', status: 'running',
+    orchestration: { version: 4, workflow: 'auto', template: 'discussion', phase: 'proposal',
+      taskGraph: { nodeStates: [] }, commitState: { messageIds: [] } } }
+  const message = { id: 'graph-message', trace: { runId: record.runId } }
+  workspace.state = { groups: [{ id: 'group' }], messages: [message] }
+  workspace.runLedger = { list: () => [record], checkpoint: () => { throw new Error('unexpected checkpoint') } }
+  workspace.runLedgerCoordinator = { restoreInterruptedRuns: () => {} }
+  workspace.recoverableV4ManualRecords = () => []
+  workspace.recoverableTaskGraphRecords = () => []
+  workspace.save = () => { throw new Error('unexpected save') }
+  assert.deepEqual(workspace.recoverableV4AutoRecords(), [])
+  workspace.restoreInterruptedRuns()
+  assert.deepEqual(workspace.state.messages, [message])
+  delete record.orchestration.taskGraph
+  assert.deepEqual(workspace.recoverableV4AutoRecords(), [record])
+})
+
 async function waitFor(predicate, label, timeoutMs = 5000) {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
