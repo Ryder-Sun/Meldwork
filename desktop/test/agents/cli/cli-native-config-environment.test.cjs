@@ -180,6 +180,25 @@ test('MiMo resolves the selected model from the native shell before finding its 
   assert.equal(mimoConfiguredProvider({ home, workdir: home, env }), true)
 })
 
+test('MiMo captures embedded key and header references for only the selected provider', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-mimo-headers-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  fs.writeFileSync(path.join(home, 'mimocode.json'), JSON.stringify({ model: 'custom/model',
+    provider: { custom: { options: { apiKey: 'prefix-{env:CUSTOM_KEY}', headers: { authorization: 'Bearer {env:HEADER_KEY}' } } },
+      other: { options: { apiKey: '{env:OTHER_KEY}' } } } }))
+  const { mimoDeclaredCredentialKeys, mimoConfiguredProvider } = require('../../../src/agents/cli/mimo-native-config.cjs')
+  const env = { CUSTOM_KEY: 'synthetic', HEADER_KEY: 'header', OTHER_KEY: 'other' }
+  const keys = mimoDeclaredCredentialKeys({ home, workdir: home, env })
+  assert.deepEqual(keys, ['CUSTOM_KEY', 'HEADER_KEY'])
+  assert.equal(mimoConfiguredProvider({ home, workdir: home, env }), true)
+  assert.equal(mimoConfiguredProvider({ home, workdir: home, env: {} }), false)
+  const child = childEnvironment({ kind: 'mimo' }, home,
+    { env: nativeCredentialEnvironment('mimo', env, keys), nativeCredentialKeys: keys }, 'darwin')
+  assert.equal(child.CUSTOM_KEY, 'synthetic')
+  assert.equal(child.HEADER_KEY, 'header')
+  assert.equal(child.OTHER_KEY, undefined)
+})
+
 test('inline native provider credentials are redacted in complete and streamed output', () => {
   for (const kind of ['mimo', 'opencode']) {
     const key = kind === 'mimo' ? 'MIMOCODE_CONFIG_CONTENT' : 'OPENCODE_CONFIG_CONTENT'

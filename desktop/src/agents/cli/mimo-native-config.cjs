@@ -67,14 +67,17 @@ function mimoModel(configs) {
   return configs.reduce((model, config) => typeof config?.model === 'string' ? config.model : model, '')
 }
 
+function mimoProviderId(configs, env) {
+  const model = mimoModel(configs).replace(/\{env:([A-Za-z_][A-Za-z0-9_]*)\}/g,
+    (_match, name) => nativeSecretEnvKeys([name]).length ? env[name] || '' : '')
+  return model.includes('/') ? model.split('/')[0] : ''
+}
+
 function mimoProviderKey(options = {}, configs = mimoConfigLayers(options)) {
   if (!configs) return ''
   try {
-    const env = options.env || process.env
-    const model = mimoModel(configs).replace(/\{env:([A-Za-z_][A-Za-z0-9_]*)\}/g,
-      (_match, name) => nativeSecretEnvKeys([name]).length ? env[name] || '' : '')
-    if (!model.includes('/')) return ''
-    const providerId = model.split('/')[0]
+    const providerId = mimoProviderId(configs, options.env || process.env)
+    if (!providerId) return ''
     let key
     for (const config of configs) {
       const options = config?.provider?.[providerId]?.options
@@ -88,18 +91,47 @@ function mimoProviderKey(options = {}, configs = mimoConfigLayers(options)) {
 function mimoDeclaredCredentialKeys(options = {}) {
   const configs = mimoConfigLayers(options)
   if (!configs) return []
-  const modelKeys = [...mimoModel(configs).matchAll(/\{env:([A-Za-z_][A-Za-z0-9_]*)\}/g)].map(match => match[1])
-  const reference = mimoProviderKey(options, configs).match(/^\{env:([A-Za-z_][A-Za-z0-9_]*)\}$/)
-  return nativeSecretEnvKeys([...modelKeys, ...(reference ? [reference[1]] : [])])
+  const keys = []
+  const visit = (value, depth = 0) => {
+    if (depth > 32 || keys.length >= 128) return
+    if (typeof value === 'string') {
+      for (const match of value.matchAll(/\{env:([A-Za-z_][A-Za-z0-9_]*)\}/g)) keys.push(match[1])
+    } else if (value && typeof value === 'object') {
+      for (const child of Object.values(value)) visit(child, depth + 1)
+    }
+  }
+  visit(mimoModel(configs))
+  const providerId = mimoProviderId(configs, options.env || process.env)
+  if (providerId) {
+    const merge = (current, incoming, depth = 0) => {
+      if (depth > 32 || !incoming || typeof incoming !== 'object' || Array.isArray(incoming)) return incoming
+      const result = current && typeof current === 'object' && !Array.isArray(current)
+        ? current : Object.create(null)
+      for (const [key, value] of Object.entries(incoming)) {
+        result[key] = merge(result[key], value, depth + 1)
+      }
+      return result
+    }
+    let provider = null
+    for (const config of configs) {
+      if (Object.hasOwn(config?.provider || {}, providerId)) provider = merge(provider, config.provider[providerId])
+    }
+    visit(provider)
+  }
+  return nativeSecretEnvKeys(keys)
 }
 
 function mimoConfiguredProvider(options = {}) {
   const env = options.env || process.env
   let key = mimoProviderKey(options)
   if (!key) return false
-  const reference = key.match(/^\{env:([A-Za-z_][A-Za-z0-9_]*)\}$/)
-  if (reference) key = nativeSecretEnvKeys([reference[1]]).length ? env[reference[1]] : ''
-  else if (/^\{.*\}$/.test(key)) return false
+  let missing = false
+  key = key.replace(/\{env:([A-Za-z_][A-Za-z0-9_]*)\}/g, (_match, name) => {
+    const value = nativeSecretEnvKeys([name]).length ? env[name] : ''
+    if (typeof value !== 'string' || !value.trim()) missing = true
+    return value || ''
+  })
+  if (missing || /^\{.*\}$/.test(key)) return false
   return typeof key === 'string' && Boolean(key.trim())
 }
 
