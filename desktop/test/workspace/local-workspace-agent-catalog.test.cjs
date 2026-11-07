@@ -93,6 +93,10 @@ for (const [kind, relative, directory, filename] of [
   ['opencode', 'custom', true, 'custom/opencode.jsonc'],
   ['mimo', 'custom/settings.json', false, 'custom/settings.json'],
   ['mimo', 'custom', true, 'custom/mimocode.jsonc'],
+  ['gemini', 'custom/system-defaults.json', false, 'custom/system-defaults.json'],
+  ['gemini', 'custom/credentials.json', false, 'custom/credentials.json'],
+  ['qwen', 'custom/settings.json', false, 'custom/settings.json'],
+  ['qwen', 'custom/system-defaults.json', false, 'custom/system-defaults.json'],
 ]) {
   test(`${kind} relative native configuration invalidates project verification`, t => {
     const workdir = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-relative-config-'))

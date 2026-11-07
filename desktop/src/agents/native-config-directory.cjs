@@ -8,10 +8,15 @@ const NATIVE_PROJECT_CONFIG_PATHS = Symbol('nativeProjectConfigPaths')
 const environmentIdentityKey = randomBytes(32)
 
 function nativeProjectConfigPaths(kind, env = {}) {
-  const keys = kind === 'opencode' ? [['OPENCODE_CONFIG', false], ['OPENCODE_CONFIG_DIR', true]]
-    : kind === 'mimo' ? [['MIMOCODE_CONFIG', false], ['MIMOCODE_CONFIG_DIR', true]] : []
-  return keys.flatMap(([key, directory]) => {
-    const value = env[key]
+  let entries = kind === 'opencode' ? [[env.OPENCODE_CONFIG, false], [env.OPENCODE_CONFIG_DIR, true]]
+    : kind === 'mimo' ? [[env.MIMOCODE_CONFIG, false], [env.MIMOCODE_CONFIG_DIR, true]] : []
+  if (kind === 'gemini' || kind === 'qwen') {
+    const settings = env[kind === 'gemini' ? 'GEMINI_CLI_SYSTEM_SETTINGS_PATH' : 'QWEN_CODE_SYSTEM_SETTINGS_PATH']
+    const defaults = env[kind === 'gemini' ? 'GEMINI_CLI_SYSTEM_DEFAULTS_PATH' : 'QWEN_CODE_SYSTEM_DEFAULTS_PATH']
+      || (typeof settings === 'string' && settings ? path.join(path.dirname(settings), 'system-defaults.json') : '')
+    entries = [[settings, false], [defaults, false], ...(kind === 'gemini' ? [[env.GOOGLE_APPLICATION_CREDENTIALS, false]] : [])]
+  }
+  return entries.flatMap(([value, directory]) => {
     return typeof value === 'string' && value && !path.isAbsolute(value)
       && !(kind === 'opencode' && /^~(?=$|[\\/])/.test(value))
       ? [{ value, directory }] : []

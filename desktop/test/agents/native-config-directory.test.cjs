@@ -79,6 +79,13 @@ test('project config identities retain only relative CLI paths', () => {
     { value: '~/config.json', directory: false },
   ])
   assert.deepEqual(nativeProjectConfigPaths('codex', { OPENCODE_CONFIG: 'custom.json' }), [])
+  assert.deepEqual(nativeProjectConfigPaths('gemini', { GEMINI_CLI_SYSTEM_SETTINGS_PATH: 'system/settings.json',
+    GOOGLE_APPLICATION_CREDENTIALS: 'credentials.json' }), [
+    { value: 'system/settings.json', directory: false }, { value: 'system/system-defaults.json', directory: false },
+    { value: 'credentials.json', directory: false },
+  ])
+  assert.deepEqual(nativeProjectConfigPaths('qwen', { QWEN_CODE_SYSTEM_SETTINGS_PATH: 'qwen/settings.json',
+    QWEN_CODE_SYSTEM_DEFAULTS_PATH: '/absolute-defaults.json' }), [{ value: 'qwen/settings.json', directory: false }])
 })
 
 test('Gemini authentication identity includes explicitly selected system and cloud files', () => {
