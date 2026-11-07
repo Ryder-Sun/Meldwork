@@ -47,7 +47,8 @@ test('MiMo validates its selected native configuration directory', t => {
 
 test('OpenCode authentication identity follows its XDG data directory', () => {
   const home = path.resolve('test-home')
-  const shared = ['opencode.json', 'opencode.jsonc'].map(name => path.join(home, '.config', 'opencode', name))
+  const shared = ['config.json', 'opencode.json', 'opencode.jsonc'].map(name => path.join(home, '.config', 'opencode', name))
+  shared.push(...['opencode.json', 'opencode.jsonc'].map(name => path.join(home, '.opencode', name)))
   const cloud = [path.join(home, '.local', 'state', 'opencode', 'model.json'),
     path.join(home, '.cache', 'opencode', 'models.json'),
     path.join(home, '.aws', 'config'), path.join(home, '.aws', 'credentials')]

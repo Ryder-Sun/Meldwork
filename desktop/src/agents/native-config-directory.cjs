@@ -102,7 +102,9 @@ function nativeAuthIdentityFiles(kind, env, home, platform = process.platform) {
   const stateRoot = env?.XDG_STATE_HOME || (home && path.join(home, '.local', 'state'))
   const cacheRoot = env?.XDG_CACHE_HOME || (home && path.join(home, '.cache'))
   return [typeof root === 'string' && path.isAbsolute(root) ? path.join(root, 'opencode', 'auth.json') : '', explicit,
-    ...(sharedRoot ? ['opencode.json', 'opencode.jsonc'].map(name => path.join(sharedRoot, name)) : []),
+    ...(sharedRoot ? ['config.json', 'opencode.json', 'opencode.jsonc'].map(name => path.join(sharedRoot, name)) : []),
+    ...(typeof home === 'string' && path.isAbsolute(home)
+      ? ['opencode.json', 'opencode.jsonc'].map(name => path.join(home, '.opencode', name)) : []),
     typeof stateRoot === 'string' && path.isAbsolute(stateRoot) ? path.join(stateRoot, 'opencode', 'model.json') : '',
     typeof cacheRoot === 'string' && path.isAbsolute(cacheRoot) ? path.join(cacheRoot, 'opencode', 'models.json') : '',
     ...cloudIdentityFiles(kind, env, home, platform)]

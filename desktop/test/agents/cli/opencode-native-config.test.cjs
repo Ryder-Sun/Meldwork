@@ -26,6 +26,29 @@ test('OpenCode discovers native provider references in global, explicit, inline 
   assert.deepEqual(opencodeDeclaredCredentialKeys({ home, env }), ['GLOBAL_SECRET', 'INLINE_SECRET', 'MODEL_CHOICE'])
 })
 
+test('OpenCode reads native global config.json and honors disabled project configuration', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-opencode-project-policy-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const global = path.join(home, '.config', 'opencode')
+  const nativeHome = path.join(home, '.opencode')
+  const project = path.join(home, 'project')
+  for (const directory of [global, nativeHome, project]) fs.mkdirSync(directory, { recursive: true })
+  fs.writeFileSync(path.join(global, 'config.json'), JSON.stringify({ provider: {
+    global: { options: { apiKey: '{env:GLOBAL_KEY}' } },
+  } }))
+  fs.writeFileSync(path.join(nativeHome, 'opencode.json'), JSON.stringify({ provider: {
+    home: { options: { apiKey: '{env:HOME_KEY}' } },
+  } }))
+  fs.writeFileSync(path.join(project, 'opencode.json'), JSON.stringify({ provider: {
+    project: { options: { apiKey: '{env:PROJECT_KEY}' } },
+  } }))
+  assert.deepEqual(opencodeDeclaredCredentialKeys({ home, workdir: project, env: {} }), ['GLOBAL_KEY', 'HOME_KEY', 'PROJECT_KEY'])
+  assert.deepEqual(opencodeDeclaredCredentialKeys({ home, workdir: project, env: { OPENCODE_DISABLE_PROJECT_CONFIG: 'true' } }),
+    ['GLOBAL_KEY', 'HOME_KEY'])
+  assert.deepEqual(opencodeDeclaredCredentialKeys({ home, workdir: project, env: { OPENCODE_DISABLE_PROJECT_CONFIG: 'false' } }),
+    ['GLOBAL_KEY', 'HOME_KEY', 'PROJECT_KEY'])
+})
+
 test('OpenCode discovers env names for selected native model providers only', async t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-opencode-providers-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))

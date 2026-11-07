@@ -23,7 +23,7 @@ test('native configuration controls reach only the CLI that owns them', () => {
     deepseek: { DSH_HOME: '/native/dsh', DSH_AGENTS_HOME: '/native/shared' },
     kimi: { KIMI_CODE_HOME: '/native/kimi', KIMI_MODEL_PROVIDER_TYPE: 'openai' },
     mimo: { MIMOCODE_CONFIG_DIR: '/native/mimo', MIMOCODE_CONFIG_CONTENT: '{"model":"local/model"}' },
-    opencode: { OPENCODE_CONFIG: '/native/opencode.json', OPENCODE_CONFIG_DIR: '/native/opencode', OPENCODE_CONFIG_CONTENT: '{"model":"local/model"}', GCLOUD_PROJECT: 'native-project' },
+    opencode: { OPENCODE_CONFIG: '/native/opencode.json', OPENCODE_CONFIG_DIR: '/native/opencode', OPENCODE_CONFIG_CONTENT: '{"model":"local/model"}', OPENCODE_DISABLE_PROJECT_CONFIG: 'true', GCLOUD_PROJECT: 'native-project' },
     qwen: { QWEN_HOME: '/native/qwen' },
     gemini: { GOOGLE_GEMINI_BASE_URL: 'http://127.0.0.1:3425', GCLOUD_PROJECT: 'native-project' },
   }

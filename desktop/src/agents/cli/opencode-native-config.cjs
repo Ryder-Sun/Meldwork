@@ -15,11 +15,12 @@ function opencodeDeclaredCredentialKeys(options = {}) {
     return path.isAbsolute(expanded) ? expanded : workdir ? path.resolve(workdir, expanded) : ''
   }
   const configRoot = env.XDG_CONFIG_HOME || path.join(home, '.config')
-  const roots = [path.join(configRoot, 'opencode'), resolvePath(env.OPENCODE_CONFIG_DIR)].filter(Boolean)
-  const files = roots.flatMap(root => ['opencode.json', 'opencode.jsonc'].map(name => path.join(root, name)))
+  const globalRoot = path.join(configRoot, 'opencode')
+  const files = ['config.json', 'opencode.json', 'opencode.jsonc'].map(name => path.join(globalRoot, name))
   const explicit = resolvePath(env.OPENCODE_CONFIG)
   if (explicit) files.push(explicit)
-  if (workdir) {
+  const projectDisabled = /^(?:1|true)$/i.test(String(env.OPENCODE_DISABLE_PROJECT_CONFIG || ''))
+  if (workdir && !projectDisabled) {
     let current = path.resolve(workdir)
     for (let depth = 0; depth < 64; depth += 1) {
       files.push(...['opencode.json', 'opencode.jsonc'].map(name => path.join(current, name)))
@@ -30,6 +31,8 @@ function opencodeDeclaredCredentialKeys(options = {}) {
       current = parent
     }
   }
+  const roots = [path.join(home, '.opencode'), resolvePath(env.OPENCODE_CONFIG_DIR)].filter(Boolean)
+  files.push(...roots.flatMap(root => ['opencode.json', 'opencode.jsonc'].map(name => path.join(root, name))))
   const configs = []
   for (const file of new Set(files)) {
     try {
