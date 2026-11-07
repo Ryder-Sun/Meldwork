@@ -41,7 +41,12 @@ function nativeEnvironmentIdentity(env) {
 function nativeAuthIdentityFiles(kind, env, home, platform = process.platform) {
   if (kind === 'pi' || kind === 'claude') {
     const paths = platform === 'win32' ? path.win32 : path.posix
-    return cloudIdentityPathKeys(kind).map(key => env?.[key])
+    const configuredHome = platform === 'win32' ? env?.USERPROFILE : env?.HOME
+    const root = typeof configuredHome === 'string' && paths.isAbsolute(configuredHome) ? configuredHome : home
+    const defaults = typeof root === 'string' && paths.isAbsolute(root)
+      ? { AWS_CONFIG_FILE: paths.join(root, '.aws', 'config'),
+        AWS_SHARED_CREDENTIALS_FILE: paths.join(root, '.aws', 'credentials') } : {}
+    return cloudIdentityPathKeys(kind).map(key => env?.[key] || defaults[key])
       .filter(filename => typeof filename === 'string' && paths.isAbsolute(filename))
   }
   if (kind === 'qwen') {

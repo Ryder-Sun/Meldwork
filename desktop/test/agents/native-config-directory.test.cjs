@@ -102,8 +102,31 @@ test('Pi and Claude identity tracks explicitly selected absolute cloud credentia
   const azure = path.join(home, 'azure', 'token')
   const env = { AWS_SHARED_CREDENTIALS_FILE: aws, AZURE_FEDERATED_TOKEN_FILE: azure,
     GOOGLE_APPLICATION_CREDENTIALS: 'relative.json' }
-  assert.deepEqual(nativeAuthIdentityFiles('pi', env, home), [aws])
-  assert.deepEqual(nativeAuthIdentityFiles('claude', env, home), [aws, azure])
+  const config = path.join(home, '.aws', 'config')
+  assert.deepEqual(nativeAuthIdentityFiles('pi', env, home), [config, aws])
+  assert.deepEqual(nativeAuthIdentityFiles('claude', env, home), [config, aws, azure])
+  assert.deepEqual(nativeAuthIdentityFiles('pi', { AWS_CONFIG_FILE: 'relative-config' }, home),
+    [path.join(home, '.aws', 'credentials')])
+})
+
+test('default AWS credential updates change Pi and Claude verification identity', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-aws-identity-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const filename = path.join(home, '.aws', 'credentials')
+  fs.mkdirSync(path.dirname(filename), { recursive: true })
+  fs.writeFileSync(filename, 'first')
+  const { NATIVE_AUTH_IDENTITY_FILES } = require('../../src/agents/native-config-directory.cjs')
+  const { agentVerificationIdentity } = require('../../src/workspace/agent-verification-identity.cjs')
+  const agents = ['pi', 'claude'].map(kind => {
+    const agent = { kind }
+    Object.defineProperty(agent, NATIVE_AUTH_IDENTITY_FILES, { value: nativeAuthIdentityFiles(kind, {}, home) })
+    return agent
+  })
+  const before = agents.map(agent => agentVerificationIdentity(agent))
+  fs.writeFileSync(filename, 'replacement credentials')
+  for (let index = 0; index < agents.length; index += 1) {
+    assert.notEqual(agentVerificationIdentity(agents[index]), before[index])
+  }
 })
 
 test('Gemini authentication identity includes explicitly selected system and cloud files', () => {
