@@ -43,14 +43,21 @@ function qwenNativeSelection(options = {}) {
         const stat = fs.statSync(trustFile)
         const rules = stat.isFile() && stat.size <= 1024 * 1024 ? JSON5.parse(fs.readFileSync(trustFile, 'utf8')) : null
         const target = path.resolve(options.workdir)
-        includeProject = Boolean(rules && typeof rules === 'object' && !Array.isArray(rules)
-          && Object.entries(rules).some(([folder, level]) => {
+        if (!rules || typeof rules !== 'object' || Array.isArray(rules)) return { keys: [], unsupported: true }
+        const entries = Object.entries(rules)
+        const trusted = entries.some(([folder, level]) => {
             if (!path.isAbsolute(folder) || !['TRUST_FOLDER', 'TRUST_PARENT'].includes(level)) return false
             const root = path.resolve(level === 'TRUST_PARENT' ? path.dirname(folder) : folder)
             const relative = path.relative(root, target)
             return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative))
-          }))
-      } catch { includeProject = false }
+          })
+        const denied = entries.some(([folder, level]) => level === 'DO_NOT_TRUST'
+          && path.isAbsolute(folder) && path.normalize(folder) === path.normalize(target))
+        includeProject = trusted || !denied
+      } catch (error) {
+        if (error.code !== 'ENOENT') return { keys: [], unsupported: true }
+        includeProject = true
+      }
     }
     for (const entry of [defaults, user, ...(includeProject && project ? [project] : []), system]) {
       const settings = configs.get(entry)

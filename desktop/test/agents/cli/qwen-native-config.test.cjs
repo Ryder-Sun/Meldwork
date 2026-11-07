@@ -3,7 +3,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
-const { qwenDeclaredCredentialKeys } = require('../../../src/agents/cli/qwen-native-config.cjs')
+const { qwenDeclaredCredentialKeys, qwenCredentialSelection } = require('../../../src/agents/cli/qwen-native-config.cjs')
 const { nativeCredentialEnvironment } = require('../../../src/agents/agent-native-environment.cjs')
 const { childEnvironment } = require('../../../src/agents/cli/cli-process-support.cjs')
 const { redactChildSecrets } = require('../../../src/agents/cli/cli-runtime-events.cjs')
@@ -79,9 +79,30 @@ test('Qwen does not read a project credential declaration when folder trust deni
     modelProviders: { openai: [{ id: 'chosen', envKey: 'PROJECT_TOKEN' }] },
   }))
   const env = { QWEN_CODE_SYSTEM_SETTINGS_PATH: path.join(home, 'missing.json') }
+  fs.writeFileSync(path.join(home, '.qwen', 'trustedFolders.json'), JSON.stringify({ [workdir]: 'DO_NOT_TRUST' }))
   assert.deepEqual(qwenDeclaredCredentialKeys({ home, workdir, env }), [])
   fs.writeFileSync(path.join(home, '.qwen', 'trustedFolders.json'), JSON.stringify({ [workdir]: 'TRUST_FOLDER' }))
   assert.deepEqual(qwenDeclaredCredentialKeys({ home, workdir, env }), ['PROJECT_TOKEN'])
+})
+
+test('Qwen follows native folder trust defaults and rejects malformed trust files', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-qwen-default-trust-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const workdir = path.join(home, 'project')
+  fs.mkdirSync(path.join(home, '.qwen'))
+  fs.mkdirSync(path.join(workdir, '.qwen'), { recursive: true })
+  fs.writeFileSync(path.join(home, '.qwen', 'settings.json'), JSON.stringify({ security: { folderTrust: { enabled: true } } }))
+  fs.writeFileSync(path.join(workdir, '.qwen', 'settings.json'), JSON.stringify({
+    model: { name: 'chosen' }, security: { auth: { selectedType: 'openai' } },
+    modelProviders: { openai: [{ id: 'chosen', envKey: 'PROJECT_TOKEN' }] },
+  }))
+  const env = { QWEN_CODE_SYSTEM_SETTINGS_PATH: path.join(home, 'missing.json') }
+  const trustFile = path.join(home, '.qwen', 'trustedFolders.json')
+  assert.deepEqual(qwenDeclaredCredentialKeys({ home, workdir, env }), ['PROJECT_TOKEN'])
+  fs.writeFileSync(trustFile, JSON.stringify({ [workdir]: 'DO_NOT_TRUST' }))
+  assert.deepEqual(qwenDeclaredCredentialKeys({ home, workdir, env }), [])
+  fs.writeFileSync(trustFile, '{ malformed')
+  assert.deepEqual(qwenCredentialSelection({ home, workdir, env }), { keys: [], unsupported: true })
 })
 
 test('Qwen system configuration takes precedence and unsafe credential names are rejected', t => {
