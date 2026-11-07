@@ -220,6 +220,28 @@ test('capability probe cache does not cross native configuration or credential e
   assert.equal((await probeAgentCapabilities('workbuddy', executable, options)).compatibilityState, 'unknown')
 })
 
+test('Windows capability cache follows the executable behind an npm shim', async () => {
+  const executable = 'C:\\test\\npm\\codebuddy.cmd'
+  let targetVersion = 1
+  let timeout = false
+  const options = {
+    platform: 'win32', home: 'C:\\Users\\Test', env: {}, version: '2.115.0',
+    readFileFn: () => '"%_prog%" "%dp0%\\node_modules\\codebuddy\\bin\\cli.js" %*',
+    existsFn: () => false,
+    statFn: filename => ({ dev: 1, ino: filename === executable ? 1 : targetVersion,
+      size: 100, mtimeMs: 1, ctimeMs: 1 }),
+    execFileFn: async () => {
+      if (timeout) throw Object.assign(new Error('timeout'), { code: 'ETIMEDOUT' })
+      return { stdout: '--print --output-format --permission-mode --max-turns --resume json plan acceptEdits' }
+    },
+  }
+  assert.equal((await probeAgentCapabilities('workbuddy', executable, options)).compatibilityState, 'compatible')
+  timeout = true
+  assert.equal((await probeAgentCapabilities('workbuddy', executable, options)).compatibilityState, 'compatible')
+  targetVersion = 2
+  assert.equal((await probeAgentCapabilities('workbuddy', executable, options)).compatibilityState, 'unknown')
+})
+
 test('Agent detection does not promote an inconclusive capability check to compatible', async () => {
   const [agent] = await detectAgents({
     env: {},

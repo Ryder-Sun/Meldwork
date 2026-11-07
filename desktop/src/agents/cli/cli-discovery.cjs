@@ -415,12 +415,20 @@ async function probeAgentCapabilities(kind, executable, options = {}) {
   let identity = ''
   try {
     const stat = (options.statFn || fs.statSync)(executable)
+    let shimTargetIdentity = null
+    if (platform === 'win32' && /\.(?:cmd|bat)$/i.test(executable)) {
+      const target = npmShimTarget(executable, options)
+      if (!target) throw new Error('LOCAL_CLI_WRAPPER_UNSUPPORTED')
+      const targetStat = (options.statFn || fs.statSync)(target)
+      shimTargetIdentity = [target, targetStat.dev, targetStat.ino, targetStat.size,
+        targetStat.mtimeMs, targetStat.ctimeMs]
+    }
     const environment = Object.keys(childEnv).sort().map(key => [key, childEnv[key]])
     const environmentFingerprint = createHmac('sha256', capabilityEnvironmentKey)
       .update(JSON.stringify(environment)).digest('hex')
     identity = JSON.stringify([
       kind, executable, options.version || '', stat.dev, stat.ino,
-      stat.size, stat.mtimeMs, stat.ctimeMs, environmentFingerprint,
+      stat.size, stat.mtimeMs, stat.ctimeMs, shimTargetIdentity, environmentFingerprint,
     ])
   } catch { /* caching requires a verifiable executable identity */ }
   const cacheKey = `${kind}:${executable}`
