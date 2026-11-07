@@ -153,6 +153,27 @@ test('project config identities retain only relative CLI paths', () => {
     AZURE_FEDERATED_TOKEN_FILE: 'azure/token', AWS_CONFIG_FILE: '/absolute' }), [
     { value: 'aws/credentials', directory: false }, { value: 'azure/token', directory: false },
   ])
+  assert.deepEqual(nativeProjectConfigPaths('hermes', { AWS_CONFIG_FILE: 'aws/config',
+    VERTEX_CREDENTIALS_PATH: 'vertex.json' }), [
+    { value: 'aws/config', directory: false }, { value: 'vertex.json', directory: false },
+  ])
+})
+
+test('Hermes verification tracks native cloud credential files', t => {
+  const { NATIVE_AUTH_IDENTITY_FILES } = require('../../src/agents/native-config-directory.cjs')
+  const { agentVerificationIdentity } = require('../../src/workspace/agent-verification-identity.cjs')
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-cloud-identity-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const filename = path.join(home, 'vertex.json')
+  fs.writeFileSync(filename, 'first')
+  const agent = { kind: 'hermes' }
+  Object.defineProperty(agent, NATIVE_AUTH_IDENTITY_FILES, {
+    value: nativeAuthIdentityFiles('hermes', { VERTEX_CREDENTIALS_PATH: filename }, home),
+  })
+  assert.ok(agent[NATIVE_AUTH_IDENTITY_FILES].includes(path.join(home, '.config', 'gcloud', 'application_default_credentials.json')))
+  const before = agentVerificationIdentity(agent)
+  fs.writeFileSync(filename, 'replacement')
+  assert.notEqual(agentVerificationIdentity(agent), before)
 })
 
 test('Pi and Claude identity tracks explicitly selected absolute cloud credential files', () => {

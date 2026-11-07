@@ -19,7 +19,7 @@ const { runAgent } = require('../../../src/agents/cli/cli-adapters.cjs')
 test('native configuration controls reach only the CLI that owns them', () => {
   const entries = {
     codex: { CODEX_HOME: '/native/codex' },
-    hermes: { HERMES_HOME: '/native/hermes' },
+    hermes: { HERMES_HOME: '/native/hermes', GCLOUD_PROJECT: 'native-project' },
     deepseek: { DSH_HOME: '/native/dsh', DSH_AGENTS_HOME: '/native/shared' },
     kimi: { KIMI_CODE_HOME: '/native/kimi', KIMI_MODEL_PROVIDER_TYPE: 'openai' },
     mimo: { MIMOCODE_CONFIG_DIR: '/native/mimo', MIMOCODE_CONFIG_CONTENT: '{"model":"local/model"}' },

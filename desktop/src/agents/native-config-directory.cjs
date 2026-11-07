@@ -19,6 +19,7 @@ function nativeNetworkIdentityFiles(env = {}, platform = process.platform) {
 function cloudIdentityPathKeys(kind) {
   return ['AWS_CONFIG_FILE', 'AWS_SHARED_CREDENTIALS_FILE', 'AWS_WEB_IDENTITY_TOKEN_FILE', 'AWS_CA_BUNDLE',
     'AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE', 'GOOGLE_APPLICATION_CREDENTIALS',
+    ...(kind === 'hermes' ? ['VERTEX_CREDENTIALS_PATH'] : []),
     ...(kind === 'claude' ? ['AZURE_CLIENT_CERTIFICATE_PATH', 'AZURE_FEDERATED_TOKEN_FILE'] : [])]
 }
 
@@ -29,7 +30,12 @@ function cloudIdentityFiles(kind, env, home, platform) {
   const defaults = typeof root === 'string' && paths.isAbsolute(root)
     ? { AWS_CONFIG_FILE: paths.join(root, '.aws', 'config'),
       AWS_SHARED_CREDENTIALS_FILE: paths.join(root, '.aws', 'credentials') } : {}
-  return cloudIdentityPathKeys(kind).map(key => env?.[key] || defaults[key])
+  const cloudRoot = env?.CLOUDSDK_CONFIG || (platform === 'win32'
+    ? env?.APPDATA && paths.join(env.APPDATA, 'gcloud')
+    : root && paths.join(env?.XDG_CONFIG_HOME || paths.join(root, '.config'), 'gcloud'))
+  return [...cloudIdentityPathKeys(kind).map(key => env?.[key] || defaults[key]),
+    ...(kind === 'hermes' && typeof cloudRoot === 'string' && paths.isAbsolute(cloudRoot)
+      ? [paths.join(cloudRoot, 'application_default_credentials.json')] : [])]
     .filter(filename => typeof filename === 'string' && paths.isAbsolute(filename))
 }
 
@@ -43,7 +49,7 @@ function nativeProjectConfigPaths(kind, env = {}) {
       || (typeof settings === 'string' && settings ? path.join(path.dirname(settings), 'system-defaults.json') : '')
     entries = [[settings, false], [defaults, false], ...(kind === 'gemini' ? [[env.GOOGLE_APPLICATION_CREDENTIALS, false]] : [])]
   }
-  if (kind === 'pi' || kind === 'claude') {
+  if (kind === 'pi' || kind === 'claude' || kind === 'hermes') {
     entries = cloudIdentityPathKeys(kind).map(key => [env[key], false])
   }
   if (kind === 'opencode') entries.push(...cloudIdentityPathKeys(kind).map(key => [env[key], false]))
@@ -63,7 +69,7 @@ function nativeEnvironmentIdentity(env) {
 }
 
 function nativeAuthIdentityFiles(kind, env, home, platform = process.platform) {
-  if (kind === 'pi' || kind === 'claude') {
+  if (kind === 'pi' || kind === 'claude' || kind === 'hermes') {
     return cloudIdentityFiles(kind, env, home, platform)
   }
   if (kind === 'qwen') {

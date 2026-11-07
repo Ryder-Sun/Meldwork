@@ -16,6 +16,18 @@ const {
   resolveNativeShellEnvironment,
 } = require('../../src/agents/local-agent-readiness.cjs')
 
+test('Hermes receives native Bedrock and Vertex environment for discovery and execution', async () => {
+  const env = { AWS_PROFILE: 'research', AWS_REGION: 'us-east-1', AWS_ACCESS_KEY_ID: 'native-access',
+    AWS_SECRET_ACCESS_KEY: 'native-secret', GOOGLE_APPLICATION_CREDENTIALS: '/native/google.json',
+    VERTEX_CREDENTIALS_PATH: '/native/vertex.json', VERTEX_PROJECT_ID: 'project', VERTEX_REGION: 'region' }
+  const captured = await resolveNativeShellEnvironment({ cache: false, platform: 'win32', env })
+  const selected = nativeCredentialEnvironment('hermes', captured.env)
+  assert.deepEqual(selected, env)
+  const child = childEnvironment({ kind: 'hermes' }, '/workspace', { env: selected }, 'darwin')
+  for (const [key, value] of Object.entries(env)) assert.equal(child[key], value)
+  assert.deepEqual(nativeCredentialEnvironment('codex', captured.env), {})
+})
+
 test('Gemini uses its shell-selected native home for readiness and execution', async t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-gemini-native-home-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))
