@@ -2,7 +2,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const os = require('node:os')
 const JSON5 = require('json5')
-const { nativeSecretEnvKeys } = require('./native-secret-environment.cjs')
+const { nativeSecretEnvKeys, configSecrets } = require('./native-secret-environment.cjs')
 
 function qwenNativeSelection(options = {}) {
   const env = options.env || process.env
@@ -33,6 +33,9 @@ function qwenNativeSelection(options = {}) {
       const settings = JSON5.parse(fs.readFileSync(file, 'utf8'))
       if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return { keys: [], unsupported: true }
       configs.set(entry, settings)
+    }
+    if (Array.isArray(options.redactionSecrets)) {
+      options.redactionSecrets.push(...configSecrets([...configs.values()]))
     }
     const trustEnabled = configs.get(system)?.security?.folderTrust?.enabled
       ?? configs.get(user)?.security?.folderTrust?.enabled ?? false
@@ -107,4 +110,10 @@ function qwenDeclaredCredentialKeys(options = {}) {
   return qwenCredentialSelection(options).keys
 }
 
-module.exports = { qwenCredentialSelection, qwenDeclaredCredentialKeys, qwenConfiguredAuth }
+function qwenConfigSecrets(options = {}) {
+  const redactionSecrets = []
+  qwenNativeSelection({ ...options, redactionSecrets })
+  return redactionSecrets
+}
+
+module.exports = { qwenCredentialSelection, qwenDeclaredCredentialKeys, qwenConfiguredAuth, qwenConfigSecrets }

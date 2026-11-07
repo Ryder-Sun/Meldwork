@@ -71,6 +71,25 @@ test('OpenCode native provider credentials are redacted from split streaming out
   assert.doesNotMatch(JSON.stringify(events), /opencode-private-value/)
 })
 
+test('Qwen project credentials are redacted from split streaming output', t => {
+  const workdir = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-qwen-project-secret-'))
+  t.after(() => fs.rmSync(workdir, { recursive: true, force: true }))
+  fs.mkdirSync(path.join(workdir, '.qwen'))
+  fs.writeFileSync(path.join(workdir, '.qwen', 'settings.json'), JSON.stringify({
+    security: { auth: { selectedType: 'openai', apiKey: 'qwen-private-value' } },
+  }))
+  const child = childEnvironment({ kind: 'qwen' }, workdir, {
+    env: { QWEN_CODE_SYSTEM_SETTINGS_PATH: path.join(workdir, 'missing-system.json') },
+  }, process.platform)
+  assert.equal(redactChildSecrets('qwen-private-value', child), '[redacted]')
+  const events = []
+  const emitter = createRuntimeEventEmitter({ onEvent: event => events.push(event) }, child)
+  emitter.emit({ type: 'answer_delta', delta: 'qwen-private-' })
+  emitter.emit({ type: 'answer_delta', delta: 'value' })
+  emitter.finalize({ text: 'qwen-private-value', status: 'completed' })
+  assert.doesNotMatch(JSON.stringify(events), /qwen-private-value/)
+})
+
 test('Zcode receives its selected native home without changing other Agent homes', () => {
   const options = { env: { HOME: '/selected-zcode', USERPROFILE: 'C:\\selected-zcode' } }
   const unix = childEnvironment({ kind: 'zcode' }, '/tmp', options, 'darwin')
