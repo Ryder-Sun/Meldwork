@@ -23,7 +23,7 @@ test('V4 work recovery rejects a completed task whose dependency is missing', ()
     { taskId: 'independent', ownerKind: 'workbuddy', dependsOn: [] },
   ] }
   const receipt = (taskId, ownerKind) => ({ planHash: 'plan', taskId, ownerKind,
-    collaborationReceipt: {}, artifacts: [] })
+    collaborationReceipt: { artifactIds: ['artifact'], evidenceIds: ['evidence'] }, artifacts: [] })
   const runner = { ...v4OutcomeMethods, v4ReceiptReferencesComplete: () => true }
   assert.throws(() => runner.v4WorkState([receipt('downstream', 'hermes')], plan),
     { message: 'LOCAL_RUN_V4_WORK_RECEIPT_INVALID' })
@@ -37,6 +37,20 @@ test('V4 work recovery rejects a completed task whose dependency is missing', ()
   const bound = { ...receipt('downstream', 'hermes'), dependencyWorkReceiptIds: [upstream.workReceiptId] }
   assert.equal(runner.v4WorkState([bound, upstream], plan).completed.size, 2)
   assert.throws(() => runner.v4WorkState([{ ...bound, dependencyWorkReceiptIds: [`work-receipt-${'b'.repeat(64)}`] }, upstream], plan),
+    { message: 'LOCAL_RUN_V4_WORK_RECEIPT_INVALID' })
+})
+
+test('V4 work acceptance applies explicit Artifact and Evidence minimums', () => {
+  const runner = { ...v4OutcomeMethods }
+  const assignment = { acceptance: { minArtifactRefs: 2, minEvidenceRefs: 2 } }
+  assert.equal(runner.v4WorkAcceptanceSatisfied(assignment, { artifactIds: ['a'], evidenceIds: ['e1', 'e2'] }), false)
+  assert.equal(runner.v4WorkAcceptanceSatisfied(assignment, { artifactIds: ['a', 'b'], evidenceIds: ['e1'] }), false)
+  assert.equal(runner.v4WorkAcceptanceSatisfied(assignment, { artifactIds: ['a', 'b'], evidenceIds: ['e1', 'e2'] }), true)
+  assert.equal(runner.v4WorkAcceptanceSatisfied({}, { artifactIds: ['a'], evidenceIds: ['e1'] }), true)
+  const plan = { planHash: 'plan', assignments: [{ ...assignment, taskId: 'task', ownerKind: 'codex', dependsOn: [] }] }
+  const completed = { planHash: 'plan', taskId: 'task', ownerKind: 'codex', artifacts: [],
+    collaborationReceipt: { artifactIds: ['a'], evidenceIds: ['e1', 'e2'] } }
+  assert.throws(() => ({ ...runner, v4ReceiptReferencesComplete: () => true }).v4WorkState([completed], plan),
     { message: 'LOCAL_RUN_V4_WORK_RECEIPT_INVALID' })
 })
 

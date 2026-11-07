@@ -8,6 +8,12 @@ const {
 const { canonicalJson } = require('../collaboration/context-pack-records.cjs')
 
 const v4OutcomeMethods = {
+  v4WorkAcceptanceSatisfied(assignment, receipt) {
+    const acceptance = assignment?.acceptance || { minArtifactRefs: 1, minEvidenceRefs: 1 }
+    return Array.isArray(receipt?.artifactIds) && receipt.artifactIds.length >= acceptance.minArtifactRefs
+      && Array.isArray(receipt?.evidenceIds) && receipt.evidenceIds.length >= acceptance.minEvidenceRefs
+  },
+
   v4LatestReceipt(receiptRecords, phase, agentKind = '') {
     return [...receiptRecords].reverse().find(record => (
       record?.receipt?.phase === phase
@@ -35,7 +41,8 @@ const v4OutcomeMethods = {
         agentKind: assignment.ownerKind,
         operationId: exactReceipt.operationId,
       } : null
-      if (!this.v4ReceiptReferencesComplete(record, '', expectedProducer)
+      if (!this.v4WorkAcceptanceSatisfied(assignment, exactReceipt.collaborationReceipt)
+          || !this.v4ReceiptReferencesComplete(record, '', expectedProducer)
           || exactReceipt.artifacts.some((binding) => {
             const identity = this.v4ArtifactIdentity(binding.artifactId)
             return identity.contentHash !== binding.contentHash

@@ -30,6 +30,22 @@ function orchestration(overrides = {}) {
   }, { targetKinds: ['codex', 'hermes'], now: 1000 })
 }
 
+test('coordination plans preserve bounded typed work acceptance requirements', () => {
+  const targetKinds = ['codex', 'hermes']
+  const assignment = (taskId, ownerKind, role) => ({ taskId, ownerKind, role,
+    objective: 'Work', expectedOutput: 'Result', inputRefs: [], artifactIds: [], dependsOn: [] })
+  const input = { snapshotHash: 'a'.repeat(64), targetKinds,
+    assignments: [{ ...assignment('first', 'codex', 'worker'), acceptance: { minArtifactRefs: 2, minEvidenceRefs: 3 } },
+      assignment('final', 'hermes', 'integrator')], finalizerKind: 'hermes', verifierKinds: ['codex'], agreedBy: targetKinds }
+  const plan = createCoordinationPlan(input)
+  assert.deepEqual(plan.assignments.find(item => item.taskId === 'first').acceptance, { minArtifactRefs: 2, minEvidenceRefs: 3 })
+  assert.notEqual(plan.planHash, createCoordinationPlan({ ...input,
+    assignments: input.assignments.map(({ acceptance, ...item }) => item) }).planHash)
+  assert.throws(() => createCoordinationPlan({ ...input, assignments: [
+    { ...input.assignments[0], acceptance: { minArtifactRefs: 0, minEvidenceRefs: 1 } }, input.assignments[1],
+  ] }), { code: 'ORCHESTRATION_V4_COORDINATION_PLAN_INVALID' })
+})
+
 test('V4 rejects task graph cursors that ran ahead of their dependencies', () => {
   const { createTaskGraph, createTaskGraphCursor, updateTaskGraphCursor } = require('../../src/collaboration/task-graph-records.cjs')
   const node = (nodeId, agentKind, dependsOn, terminal) => ({ nodeId, agentKind, dependsOn,
@@ -743,6 +759,12 @@ test('round-trips exact work receipts bound to the active plan, snapshot, operat
 
   assert.deepEqual(parseOrchestrationV4(record, { targetKinds }), record)
   assert.deepEqual(appendWorkReceipt([workReceipt], workReceipt), [workReceipt])
+  const strictPlan = createCoordinationPlan({ ...coordinationPlan, targetKinds,
+    assignments: coordinationPlan.assignments.map(item => item.taskId === 'codex-work'
+      ? { ...item, acceptance: { minArtifactRefs: 2, minEvidenceRefs: 1 } } : item) })
+  const insufficient = createWorkReceipt({ ...workReceipt, planHash: strictPlan.planHash })
+  assert.throws(() => parseOrchestrationV4({ ...record, coordinationPlan: strictPlan,
+    workReceipts: [insufficient] }, { targetKinds }), { code: 'ORCHESTRATION_V4_WORK_RECEIPT_INVALID' })
 
   const dependentPlan = createCoordinationPlan({
     ...coordinationPlan, targetKinds,

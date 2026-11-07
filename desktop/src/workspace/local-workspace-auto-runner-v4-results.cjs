@@ -142,6 +142,7 @@ const v4ResultMethods = {
           inputRefs: listFieldFrom(value.inputRefs, 64),
           artifactIds: listFieldFrom(value.artifactIds, 64),
           dependsOn: listFieldFrom(value.dependsOn, 32),
+          ...(Object.hasOwn(value, 'acceptance') ? { acceptance: value.acceptance } : {}),
         }))
         .filter(value => value.taskId && value.ownerKind && value.role
           && value.objective && value.expectedOutput)
@@ -528,6 +529,7 @@ const v4ResultMethods = {
         },
       )
       if (!assignment || receiptRecord.receipt.workItemId !== assignment.taskId
+          || !this.v4WorkAcceptanceSatisfied(assignment, receiptRecord.receipt)
           || !this.v4ReceiptReferencesComplete(receiptRecord, '', {
             runId: controller.runId,
             agentRunId: resultTrace?.agentRunId,

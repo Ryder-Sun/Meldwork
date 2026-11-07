@@ -773,7 +773,9 @@ test('V4 work admission rejects foreign reported Artifacts or Evidence as curren
     verifierKinds: ['codex'],
     agreedBy: ['codex', 'hermes'],
   })
-  const admit = (producedOutcomeRefs) => {
+  const admit = (producedOutcomeRefs, acceptance = null) => {
+    const activePlan = acceptance ? createCoordinationPlan({ ...coordinationPlan, targetKinds: ['codex', 'hermes'],
+      assignments: coordinationPlan.assignments.map(item => item.taskId === 'codex-work' ? { ...item, acceptance } : item) }) : coordinationPlan
     const slot = {
       agentKind: 'codex',
       slotId: 'slot-codex',
@@ -829,10 +831,10 @@ test('V4 work admission rejects foreign reported Artifacts or Evidence as curren
         phaseSlots: [slot],
         receiptRecords: [],
         challengeBindings: [],
-        coordinationPlan,
+        coordinationPlan: activePlan,
         workReceipts: [],
         phaseReceipts: [],
-        workAssignments: [coordinationPlan.assignments.find(item => item.ownerKind === 'codex')],
+        workAssignments: [activePlan.assignments.find(item => item.ownerKind === 'codex')],
       },
     )
   }
@@ -860,6 +862,9 @@ test('V4 work admission rejects foreign reported Artifacts or Evidence as curren
   })
   assert.equal(accepted.failure, null)
   assert.equal(accepted.workReceipts.length, 1)
+  const insufficient = admit({ artifactIds: [currentArtifact.artifactId], evidenceIds: [currentEvidence.evidenceId] },
+    { minArtifactRefs: 2, minEvidenceRefs: 1 })
+  assert.equal(insufficient.failure?.error?.message, 'LOCAL_RUN_V4_WORK_RECEIPT_INVALID')
 })
 
 test('V4 sanitizes proposal delivery and omits a responsibility hash when typed graph text is unsafe', async (t) => {
@@ -1021,6 +1026,7 @@ test('V4 lets Agents negotiate responsibilities, execute every work package, and
       expectedOutput: `EXPECTED_START_${'e'.repeat(500)}_EXPECTED_TAIL`,
       inputRefs: [frozenInput.id],
       artifactIds: [directArtifact.artifactId],
+      acceptance: { minArtifactRefs: 1, minEvidenceRefs: 1 },
     })
     return assignments
   }
@@ -1306,6 +1312,7 @@ test('V4 lets Agents negotiate responsibilities, execute every work package, and
     ['codex', 2], ['hermes', 2], ['workbuddy', 2],
   ])
   assert.ok(integratorContext)
+  assert.match(integratorContext, /Required Artifact refs: 1; Evidence refs: 1/)
   const persistedPlan = controller.orchestration.coordinationPlan
   const { supportReceiptIds, ...persistedGraph } = persistedPlan
   assert.deepEqual(persistedGraph, preferredPlan)

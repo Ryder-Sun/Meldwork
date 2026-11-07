@@ -279,10 +279,19 @@ function normalizeAssignment(input, targetKinds, index) {
   }
 }
 
+function normalizeWorkAcceptance(input, errorCode) {
+  if (!isRecord(input) || !exactFields(input, ['minArtifactRefs', 'minEvidenceRefs'])
+      || !Number.isInteger(input.minArtifactRefs) || input.minArtifactRefs < 1 || input.minArtifactRefs > MAX_V4_REFS
+      || !Number.isInteger(input.minEvidenceRefs) || input.minEvidenceRefs < 1 || input.minEvidenceRefs > MAX_V4_REFS) {
+    fail(errorCode)
+  }
+  return { minArtifactRefs: input.minArtifactRefs, minEvidenceRefs: input.minEvidenceRefs }
+}
+
 function normalizeCoordinationAssignment(input, targetKinds, index) {
   if (!isRecord(input) || !exactFields(input, [
     'taskId', 'ownerKind', 'role', 'objective', 'expectedOutput',
-    'inputRefs', 'artifactIds', 'dependsOn',
+    'inputRefs', 'artifactIds', 'dependsOn', 'acceptance',
   ])) fail('ORCHESTRATION_V4_COORDINATION_PLAN_INVALID')
   const taskId = cleanId(input.taskId)
   const ownerKind = cleanId(input.ownerKind)
@@ -300,6 +309,7 @@ function normalizeCoordinationAssignment(input, targetKinds, index) {
     inputRefs: uniqueIds(input.inputRefs || [], MAX_V4_REFS).sort(),
     artifactIds: uniqueIds(input.artifactIds || [], MAX_V4_REFS).sort(),
     dependsOn: uniqueIds(input.dependsOn || [], MAX_V4_ASSIGNMENTS).sort(),
+    ...(hasOwn(input, 'acceptance') ? { acceptance: normalizeWorkAcceptance(input.acceptance, 'ORCHESTRATION_V4_COORDINATION_PLAN_INVALID') } : {}),
     index,
   }
 }
@@ -1586,6 +1596,8 @@ function validateV4Relations(orchestration, targetKinds) {
           && watermark.watermark >= workReceipt.collaborationReceipt.deliveryWatermark
         ))
       if (!assignment || assignment.ownerKind !== workReceipt.ownerKind
+          || (assignment.acceptance && (workReceipt.collaborationReceipt.artifactIds.length < assignment.acceptance.minArtifactRefs
+            || workReceipt.collaborationReceipt.evidenceIds.length < assignment.acceptance.minEvidenceRefs))
           || !slot || slot.agentKind !== workReceipt.ownerKind
           || !operationBound
           || workReceipt.snapshotHash !== orchestration.snapshotHash
@@ -2310,7 +2322,7 @@ function parseCollaborationControlBlock(input, options = {}) {
   const proposedAssignments = (input.proposedAssignments || []).map(item => {
     if (!isRecord(item) || !exactFields(item, [
       'taskId', 'ownerKind', 'role', 'objective', 'expectedOutput',
-      'inputRefs', 'artifactIds', 'dependsOn',
+      'inputRefs', 'artifactIds', 'dependsOn', 'acceptance',
     ])) fail('COLLABORATION_CONTROL_BLOCK_INVALID')
     const taskId = safeText(item.taskId, 120, true)
     const ownerKind = safeText(item.ownerKind, 120, true)
@@ -2327,6 +2339,7 @@ function parseCollaborationControlBlock(input, options = {}) {
       inputRefs: boundedList(item.inputRefs || [], MAX_V4_REFS, 120),
       artifactIds: boundedList(item.artifactIds || [], MAX_V4_REFS, 120),
       dependsOn: boundedList(item.dependsOn || [], MAX_V4_ASSIGNMENTS, 120),
+      ...(hasOwn(item, 'acceptance') ? { acceptance: normalizeWorkAcceptance(item.acceptance, 'COLLABORATION_CONTROL_BLOCK_INVALID') } : {}),
     }
   })
   const finalizerKind = input.finalizerKind == null ? '' : safeText(input.finalizerKind, 120, false)
