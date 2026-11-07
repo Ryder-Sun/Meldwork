@@ -137,17 +137,36 @@ test('DeepSeek native stored credentials are redacted from final and streamed ou
     'records:', '  llm-pi-ai/custom:', '    kind: api-key', '    key: record-private-value',
   ].join('\n'))
   fs.writeFileSync(path.join(home, 'profiles', 'acp', 'cordis.patch.yml'),
-    '- id: llm-pi-ai\n  config:\n    apiKey: patch-private-value\n')
+    '- id: llm-pi-ai\n  config:\n    apiKey: patch-private-value\n    apiKeyEnv: CUSTOM_REFERENCE\n')
+  fs.writeFileSync(path.join(home, '.env'), 'CUSTOM_REFERENCE=dotenv-private-value\n')
   const child = childEnvironment({ kind: 'deepseek' }, home, { env: { DSH_HOME: home } }, process.platform)
   assert.equal(child.CUSTOM_REFERENCE, undefined)
-  assert.equal(redactChildSecrets('reference-private-value record-private-value patch-private-value', child),
-    '[redacted] [redacted] [redacted]')
+  assert.equal(redactChildSecrets('reference-private-value record-private-value patch-private-value dotenv-private-value', child),
+    '[redacted] [redacted] [redacted] [redacted]')
   const events = []
   const emitter = createRuntimeEventEmitter({ onEvent: event => events.push(event) }, child)
   emitter.emit({ type: 'answer_delta', delta: 'reference-private-' })
   emitter.emit({ type: 'answer_delta', delta: 'value' })
   emitter.finalize({ text: 'reference-private-value', status: 'completed' })
   assert.doesNotMatch(JSON.stringify(events), /reference-private-value/)
+})
+
+test('DeepSeek includes both native and project dotenv in runtime fingerprint and redaction', t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-dsh-env-'))
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+  const home = path.join(root, 'dsh')
+  const workdir = path.join(root, 'workspace')
+  fs.mkdirSync(home)
+  fs.mkdirSync(workdir)
+  fs.writeFileSync(path.join(home, '.env'), 'ZGCI_API_KEY=home-private-value\n')
+  fs.writeFileSync(path.join(workdir, '.env'), 'ZGCI_API_KEY="project-private-value"\n')
+  const { deepseekConfigurationFingerprint } = require('../../../src/agents/cli/deepseek-native-config.cjs')
+  const options = { env: { DSH_HOME: home }, home: root, workdir }
+  const previous = deepseekConfigurationFingerprint(options)
+  const child = childEnvironment({ kind: 'deepseek' }, workdir, { env: options.env }, process.platform)
+  assert.equal(redactChildSecrets('home-private-value project-private-value', child), '[redacted] [redacted]')
+  fs.writeFileSync(path.join(workdir, '.env'), 'ZGCI_API_KEY=changed-private-value\n')
+  assert.notEqual(deepseekConfigurationFingerprint(options), previous)
 })
 
 test('Zcode receives its selected native home without changing other Agent homes', () => {

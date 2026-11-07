@@ -634,7 +634,7 @@ function runtimeSignature(agent, workdir, spec, profile, childEnv) {
     nativeConfiguration: agent.kind === 'mimo'
       ? mimoConfigurationFingerprint({ env: childEnv, home: childEnv.HOME, workdir }) || randomBytes(32).toString('hex')
       : agent.kind === 'deepseek'
-        ? deepseekConfigurationFingerprint({ env: childEnv, home: childEnv.HOME }) || randomBytes(32).toString('hex')
+        ? deepseekConfigurationFingerprint({ env: childEnv, home: childEnv.HOME, workdir }) || randomBytes(32).toString('hex')
         : '',
     environment,
     secretEnvironmentKeys: nativeSecretEnvKeys(childEnv[SECRET_ENV_KEYS]),

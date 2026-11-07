@@ -1,6 +1,7 @@
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
+const { parseEnv } = require('node:util')
 const { createHash } = require('node:crypto')
 const yaml = require('js-yaml')
 const { nativeSecretEnvKeys, configSecrets } = require('./native-secret-environment.cjs')
@@ -15,11 +16,13 @@ function deepseekConfigurationFingerprint(options = {}) {
   const root = typeof env.DSH_HOME === 'string' && env.DSH_HOME ? env.DSH_HOME.replace(/^~(?=$|[\\/])/, home) : path.join(home, '.dsh')
   if (!path.isAbsolute(root)) return null
   const files = ['cordis.patch.yml', '.credentials.yaml', 'profiles/acp/cordis.patch.yml',
-    'profiles/acp/.credentials.yaml']
+    'profiles/acp/.credentials.yaml', '.env'].map(file => [file, path.join(root, file)])
+  if (typeof options.workdir === 'string' && path.isAbsolute(options.workdir)) {
+    files.push(['project/.env', path.join(options.workdir, '.env')])
+  }
   const entries = []
-  for (const file of files) {
+  for (const [file, filename] of files) {
     try {
-      const filename = path.join(root, file)
       const stat = fs.statSync(filename)
       if (!stat.isFile() || stat.size > 1024 * 1024) return null
       entries.push([file, createHash('sha256').update(fs.readFileSync(filename)).digest('hex')])
@@ -59,6 +62,20 @@ function deepseekNativeSecrets(options = {}) {
         }
       }
     } catch { /* The CLI handles unreadable or invalid native configuration. */ }
+  }
+  const declared = new Set(['ZGCI_API_KEY', ...deepseekNativeConfig({ env, home }).credentialKeys])
+  const dotenvFiles = [path.join(root, '.env')]
+  if (typeof options.workdir === 'string' && path.isAbsolute(options.workdir)) {
+    dotenvFiles.push(path.join(options.workdir, '.env'))
+  }
+  for (const file of dotenvFiles) {
+    try {
+      const stat = fs.statSync(file)
+      if (!stat.isFile() || stat.size > 1024 * 1024) continue
+      for (const [key, value] of Object.entries(parseEnv(fs.readFileSync(file, 'utf8')))) {
+        if (declared.has(key) || /(?:API[_-]?KEY|ACCESS[_-]?KEY|TOKEN|SECRET|PASSWORD|AUTHORIZATION)/i.test(key)) add(value)
+      }
+    } catch { /* The CLI handles unreadable or invalid native environment files. */ }
   }
   return [...secrets]
 }

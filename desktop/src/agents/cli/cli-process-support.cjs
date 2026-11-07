@@ -233,7 +233,7 @@ function childEnvironment(agent, workdir, options, platform) {
   }
   if (agent.kind === 'deepseek') {
     const home = platform === 'win32' ? (childEnv.USERPROFILE || childEnv.HOME) : childEnv.HOME
-    const secrets = deepseekNativeSecrets({ env: childEnv, home })
+    const secrets = deepseekNativeSecrets({ env: childEnv, home, workdir })
     Object.defineProperty(childEnv, Symbol.for('meldwork.project-secret-values'), { value: secrets })
   }
   if (agent.kind === 'qwen') {
