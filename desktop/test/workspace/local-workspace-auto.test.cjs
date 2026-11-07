@@ -150,6 +150,37 @@ test('task graph can revalidate artifact-only outcomes when no conclusion is req
   assert.throws(() => runner.validateTaskGraphRecoveredResults(controller), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
 })
 
+test('task graph replays an artifact-only result after cursor checkpoint failure', () => {
+  const node = graphNode({ terminal: true,
+    acceptance: { requireConclusion: false, minArtifactRefs: 1, minEvidenceRefs: 1 } })
+  const graph = createTaskGraph({ template: 'task-graph', nodes: [node] })
+  const controller = { runId: 'run', taskId: 'task', currentRound: 1, completedKinds: [], failedKinds: [],
+    orchestration: { taskGraph: createTaskGraphCursor(graph), collaboration: emptyCollaborationState(), activeKinds: ['codex'] } }
+  let failCheckpoint = true
+  const runner = { ...collaborationMethods, ...taskGraphMethods,
+    taskGraphVerifiedOutcomeRefs: () => ({ artifactIds: ['artifact-one'], evidenceIds: ['evidence-one'] }),
+    checkpointOrchestration: (_group, target, updates) => Object.assign(target.orchestration, updates),
+    checkpointTaskGraph: (_group, target, next) => {
+      if (failCheckpoint) throw new Error('LOCAL_RUN_PERSIST_FAILED')
+      target.orchestration.taskGraph = next
+      return next
+    },
+  }
+  const result = { message: { content: '', trace: { status: 'completed', agentRunId: 'agent-run' } },
+    outcomeRefs: { artifactIds: ['artifact-one'], evidenceIds: ['evidence-one'] } }
+  assert.throws(() => runner.applyTaskGraphAgentResult({}, controller, node, result), { message: 'LOCAL_RUN_PERSIST_FAILED' })
+  const resumed = { ...controller, orchestration: structuredClone(controller.orchestration), completedKinds: [], failedKinds: [] }
+  failCheckpoint = false
+  const superseded = { ...resumed, orchestration: structuredClone(resumed.orchestration) }
+  superseded.orchestration.collaboration.entries[0].lifecycle.state = 'superseded'
+  assert.throws(() => runner.applyTaskGraphAgentResult({}, superseded, node, result), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
+  assert.equal(runner.applyTaskGraphAgentResult({}, resumed, node, result), true)
+  assert.equal(resumed.orchestration.collaboration.entries.length, 2)
+  assert.equal(runner.validateTaskGraphRecoveredResults(resumed), true)
+  const changed = { ...runner, taskGraphVerifiedOutcomeRefs: () => ({ artifactIds: ['other'], evidenceIds: ['evidence-one'] }) }
+  assert.throws(() => changed.applyTaskGraphAgentResult({}, resumed, node, result), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
+})
+
 test('task graph cannot accept an empty arbitration while conflicts remain', () => {
   const node = graphNode({ role: 'arbiter', agentKind: 'codex', terminal: true,
     acceptance: { requireConclusion: false, minArtifactRefs: 0, minEvidenceRefs: 0 } })

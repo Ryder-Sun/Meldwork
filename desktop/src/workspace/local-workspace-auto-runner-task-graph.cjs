@@ -227,12 +227,21 @@ const taskGraphMethods = {
     )) : []
     if (previous.length) {
       const primary = previous.filter(entry => ['claim', 'decision'].includes(entry.entryType))
-      if (primary.length !== 1 || primary[0].entryType !== (acceptedDecision ? 'decision' : 'claim')
+      const artifactOnly = !conclusion && !node.acceptance.requireConclusion && primary.length === 0
+        && previous.every(entry => ['artifact-ref', 'evidence-ref'].includes(entry.entryType)
+          && entry.lifecycle.state === 'active'
+          && entry.owner.type === 'agent' && entry.owner.agentKind === node.agentKind && entry.owner.role === node.role
+          && entry.provenance.taskId === controller.taskId
+          && canonicalJson(entry.provenance.artifactIds) === canonicalJson(verifiedRefs.artifactIds)
+          && canonicalJson(entry.provenance.evidenceIds) === canonicalJson(verifiedRefs.evidenceIds)
+          && entry.refs.length === 1 && (entry.entryType === 'artifact-ref'
+            ? verifiedRefs.artifactIds.includes(entry.refs[0]) : verifiedRefs.evidenceIds.includes(entry.refs[0])))
+      if (!artifactOnly && (primary.length !== 1 || primary[0].entryType !== (acceptedDecision ? 'decision' : 'claim')
           || primary[0].subject !== subject || primary[0].statement !== conclusion
           || primary[0].owner.type !== 'agent' || primary[0].owner.agentKind !== node.agentKind
           || primary[0].provenance.taskId !== controller.taskId
           || canonicalJson(primary[0].provenance.artifactIds) !== canonicalJson(verifiedRefs.artifactIds)
-          || canonicalJson(primary[0].provenance.evidenceIds) !== canonicalJson(verifiedRefs.evidenceIds)) {
+          || canonicalJson(primary[0].provenance.evidenceIds) !== canonicalJson(verifiedRefs.evidenceIds))) {
         throw new Error('LOCAL_RUN_CONTINUATION_INVALID')
       }
     }
