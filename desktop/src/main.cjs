@@ -406,7 +406,7 @@ async function resolveProjectEnvironmentIdentities(workdir, kinds) {
       if (!agent?.executable) continue
       try {
         const runtime = await resolveNativeOpenClawRuntime({ executable: agent.executable,
-          env: captured.env, home: captured.home })
+          env: nativeConfigEnvironment(kind, workspace?.state.agentPreferences, captured.env), home: captured.home })
         result[kind] = nativeEnvironmentIdentity({ runtime: JSON.stringify(runtime),
           ...networkEnvironment(captured.env) })
       } catch { /* Fail closed for this Agent without blocking other kinds. */ }
@@ -546,7 +546,7 @@ async function runCoreAgent(agent, prompt, workdir, options = {}) {
   const nativeRuntime = !connectorCredentialIsolation && agent.kind === 'openclaw'
     ? await resolveNativeOpenClawRuntime({
         executable: agent.executable,
-        env: shellEnvironment.env,
+        env: selectedNativeEnv,
         home: shellEnvironment.home,
       })
     : null

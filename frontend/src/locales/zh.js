@@ -11,6 +11,7 @@ export default {
     'nativeConfig.invalid': '所选目录没有找到此 Agent 的原生配置文件。',
     'nativeConfig.sessionProfilesInvalid': '无法安全切换原生配置：保存的会话数据无效或已达到容量上限。',
     'nativeConfig.expected.hermes': '需要 config.yaml、auth.json 或 .env。',
+    'nativeConfig.expected.openclaw': '需要 openclaw.json 或 agents 目录。',
     'nativeConfig.expected.codex': '需要 config.toml 或 auth.json。',
     'nativeConfig.expected.claude': '需要 settings.json 或 .credentials.json。',
     'nativeConfig.expected.pi': '需要 settings.json、auth.json 或 models.json。',

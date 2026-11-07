@@ -1538,6 +1538,26 @@ test('OpenClaw native runtime rejects Env SecretRefs without reading unrelated p
   assert.equal(calls[0].env.GITHUB_TOKEN, undefined)
 })
 
+test('OpenClaw native runtime accepts a selected state root but rejects agents outside it', async t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-openclaw-selected-root-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const selected = fs.realpathSync(home)
+  const agentDir = path.join(selected, 'agents', 'main', 'agent')
+  fs.mkdirSync(agentDir, { recursive: true })
+  fs.writeFileSync(path.join(agentDir, 'models.json'), openClawModelsCatalog('synthetic-key'))
+  const status = directory => JSON.stringify({ resolvedDefault: 'provider/model', agentDir: directory,
+    auth: { missingProvidersInUse: [] } })
+  const options = { home, env: { OPENCLAW_STATE_DIR: selected }, executable: '/tmp/openclaw',
+    execFileFn: async (_command, _args, child) => {
+      assert.equal(child.env.OPENCLAW_STATE_DIR, selected)
+      return { stdout: status(agentDir) }
+    } }
+  assert.equal((await resolveNativeOpenClawRuntime(options)).provider.apiKey, 'synthetic-key')
+  await assert.rejects(resolveNativeOpenClawRuntime({ ...options,
+    execFileFn: async () => ({ stdout: status(path.dirname(selected)) }) }),
+  { message: 'OPENCLAW_NATIVE_RUNTIME_UNAVAILABLE' })
+})
+
 test('OpenClaw native runtime rejects every structured and string SecretRef marker', async (t) => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-openclaw-secretrefs-'))
   const agentDir = path.join(home, '.openclaw', 'agents', 'main', 'agent')

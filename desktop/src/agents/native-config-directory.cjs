@@ -154,6 +154,7 @@ function nativeAuthIdentityFiles(kind, env, home, platform = process.platform) {
 
 const NATIVE_CONFIG_DIRECTORIES = Object.freeze({
   hermes: { key: 'HERMES_HOME', files: ['config.yaml', 'auth.json', '.env'], identityFiles: ['config.json'] },
+  openclaw: { key: 'OPENCLAW_STATE_DIR', files: ['openclaw.json'], directories: ['agents'] },
   codex: { key: 'CODEX_HOME', files: ['config.toml', 'auth.json'], identityFiles: ['config.json', '.env'] },
   claude: { key: 'CLAUDE_CONFIG_DIR', files: ['settings.json', '.credentials.json'], identityFiles: ['settings.local.json', '.env'] },
   pi: { key: 'PI_CODING_AGENT_DIR', files: ['settings.json', 'auth.json', 'models.json'] },
@@ -193,7 +194,7 @@ function nativeIdentityDirectory(kind, env, home, platform = process.platform) {
     hermes: platform === 'win32'
       ? path.join(env?.LOCALAPPDATA || path.join(home, 'AppData', 'Local'), `hermes${env?.HERMES_DATA_DIR_SUFFIX || ''}`)
       : path.join(home, `.hermes${env?.HERMES_DATA_DIR_SUFFIX || ''}`),
-    codex: path.join(home, '.codex'), claude: path.join(home, '.claude'),
+    codex: path.join(home, '.codex'), claude: path.join(home, '.claude'), openclaw: path.join(home, '.openclaw'),
     pi: path.join(home, '.pi', 'agent'), kimi: path.join(home, '.kimi-code'),
     mimo: path.join(env?.XDG_CONFIG_HOME || path.join(home, '.config'), 'mimocode'),
     opencode: path.join(env?.XDG_CONFIG_HOME || path.join(home, '.config'), 'opencode'),

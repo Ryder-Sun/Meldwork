@@ -1083,7 +1083,9 @@ function parseOpenClawStatus(output, options = {}) {
       return { credentialState: { state: 'unknown', source: 'native-runtime-unavailable' } }
     }
     const resolvedHome = fs.realpathSync(path.resolve(options.home || os.homedir()))
-    const nativeRoot = path.join(resolvedHome, '.openclaw')
+    const configuredRoot = options.env?.OPENCLAW_STATE_DIR
+    if (configuredRoot && !path.isAbsolute(configuredRoot)) return null
+    const nativeRoot = configuredRoot ? path.resolve(configuredRoot) : path.join(resolvedHome, '.openclaw')
     const nativeRootIdentity = openClawDirectoryIdentity(nativeRoot)
     const agentDir = fs.realpathSync(requestedAgentDir)
     if (!fs.statSync(agentDir).isDirectory() || !pathInside(nativeRoot, agentDir)) {

@@ -991,6 +991,27 @@ test('OpenClaw project identity tracks its guarded native runtime without exposi
   assert.equal(failed.codex, second.codex)
 })
 
+test('OpenClaw selected state directory reaches runtime discovery and isolated execution', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-openclaw-selected-main-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const selected = path.join(directory, 'native-state')
+  fs.mkdirSync(path.join(selected, 'agents'), { recursive: true })
+  const calls = []
+  const { harness } = loadMain(directory, {
+    nativeOpenClawRuntime: input => {
+      calls.push(input.env.OPENCLAW_STATE_DIR)
+      return { model: 'native/model', provider: { id: 'native', baseUrl: 'https://example.test', apiKey: 'synthetic' } }
+    },
+  })
+  await harness.ready()
+  const workspace = harness.workspaceInstances[0]
+  workspace.state.agentPreferences = { openclaw: { nativeConfigDirectory: selected } }
+  workspace.detectedAgents = [{ kind: 'openclaw', executable: '/native/openclaw' }]
+  await workspace.input.resolveProjectEnvironmentIdentities(directory, ['openclaw'])
+  await workspace.input.runAgent({ kind: 'openclaw', executable: '/native/openclaw' }, 'hello', directory, {})
+  assert.deepEqual(calls, [selected, selected])
+})
+
 test('MiMo captures the recent model provider credential for a project', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-mimo-recent-main-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

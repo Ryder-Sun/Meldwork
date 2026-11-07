@@ -11,6 +11,7 @@ export default {
     'nativeConfig.invalid': 'The selected directory does not contain this Agent’s native configuration.',
     'nativeConfig.sessionProfilesInvalid': 'Cannot safely switch configurations because saved session data is invalid or at its limit.',
     'nativeConfig.expected.hermes': 'Expected config.yaml, auth.json, or .env.',
+    'nativeConfig.expected.openclaw': 'Expected openclaw.json or an agents directory.',
     'nativeConfig.expected.codex': 'Expected config.toml or auth.json.',
     'nativeConfig.expected.claude': 'Expected settings.json or .credentials.json.',
     'nativeConfig.expected.pi': 'Expected settings.json, auth.json or models.json.',

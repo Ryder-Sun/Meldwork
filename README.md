@@ -105,6 +105,8 @@ An explicit ACP provider or model in the native profile or DSH home patch takes 
 
 WorkBuddy also supports selecting its existing native configuration directory in Settings → Agents. Its model list, execution environment, and local and plugin Skills use the selected directory.
 
+OpenClaw also supports selecting its native state directory in Settings → Agents. Meldwork reads the selected Agent's model configuration from that directory and runs it in its guarded local runtime.
+
 When switching an Agent's native configuration directory, Meldwork keeps separate local conversation sessions for each selected directory and restores them when switching back. Configuration changes are blocked while a run is active or awaiting recovery.
 
 For Zcode, choose an existing `.zcode/cli` directory containing `config.json`. Zcode runs with that directory's parent user home, which also affects its home-relative session and other file paths; project configuration may still override user configuration.

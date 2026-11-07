@@ -5,6 +5,18 @@ const os = require('node:os')
 const path = require('node:path')
 const { nativeAuthIdentityFiles, nativeConfigEnvironment, nativeIdentityDirectory, nativeProjectConfigPaths, validateNativeConfigDirectory } = require('../../src/agents/native-config-directory.cjs')
 
+test('OpenClaw selects its native state directory without changing other Agents', t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-openclaw-config-'))
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+  assert.throws(() => validateNativeConfigDirectory('openclaw', root), { message: 'LOCAL_NATIVE_CONFIG_INVALID' })
+  fs.mkdirSync(path.join(root, 'agents'))
+  const selected = validateNativeConfigDirectory('openclaw', root)
+  const preferences = { openclaw: { nativeConfigDirectory: selected } }
+  assert.equal(nativeConfigEnvironment('openclaw', preferences, {}).OPENCLAW_STATE_DIR, selected)
+  assert.equal(nativeIdentityDirectory('openclaw', { OPENCLAW_STATE_DIR: selected }, root), selected)
+  assert.equal(nativeConfigEnvironment('hermes', preferences, {}).OPENCLAW_STATE_DIR, undefined)
+})
+
 test('OpenCodeReview selects its native configuration directory and parent home', t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-ocr-config-home-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))
