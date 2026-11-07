@@ -88,7 +88,9 @@ function deepseekDefaultCredentialConfigured(options = {}) {
   if (!path.isAbsolute(root)) return false
   const mapping = value => value && typeof value === 'object' && !Array.isArray(value)
     && (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null)
+  let remaining = 8192
   const jsonValue = (value, seen = new Set(), depth = 0) => {
+    if (--remaining < 0) return false
     if (value === null || typeof value === 'string' || typeof value === 'boolean') return true
     if (typeof value === 'number') return Number.isFinite(value)
     if (depth > 32 || (!Array.isArray(value) && !mapping(value)) || seen.has(value)) return false

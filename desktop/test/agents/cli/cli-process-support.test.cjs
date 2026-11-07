@@ -4,12 +4,24 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { EventEmitter } = require('node:events')
+const { spawnSync } = require('node:child_process')
 
 const { childEnvironment, failedAgentProcessError, terminateWindowsProcessTree } = require('../../../src/agents/cli/cli-process-support.cjs')
 const { systemChildEnvironment } = require('../../../src/agents/cli/cli-discovery.cjs')
 const { redactChildSecrets, createRuntimeEventEmitter } = require('../../../src/agents/cli/cli-runtime-event-sanitizer.cjs')
 const { nativeOpenClawOptions } = require('../../../src/agents/cli/openclaw-runtime.cjs')
 const { workBuddyInstall } = require('../../support/cli-adapters-test-helpers.cjs')
+
+test('native credential extraction handles cyclic and shared configuration references', () => {
+  const modulePath = require.resolve('../../../src/agents/cli/native-secret-environment.cjs')
+  const script = `const { configSecrets } = require(${JSON.stringify(modulePath)})
+const root = { apiKey: 'synthetic-private-value' }
+root.first = root; root.second = root
+process.stdout.write(JSON.stringify(configSecrets([root])))`
+  const result = spawnSync(process.execPath, ['-e', script], { encoding: 'utf8', timeout: 3000 })
+  assert.equal(result.status, 0)
+  assert.deepEqual(JSON.parse(result.stdout), ['synthetic-private-value'])
+})
 
 test('Claude project credentials are redacted from final and split streaming output', t => {
   const workdir = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-claude-project-secret-'))

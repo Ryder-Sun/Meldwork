@@ -20,9 +20,12 @@ function credentialLiteral(value) {
 function configSecrets(configs) {
   const secrets = new Set()
   const pending = configs.map(value => [value, 0])
+  const visited = new WeakMap()
   while (pending.length && secrets.size < 128) {
     const [value, depth] = pending.pop()
     if (!value || typeof value !== 'object' || depth > 32) continue
+    if (visited.has(value) && visited.get(value) <= depth) continue
+    visited.set(value, depth)
     for (const [key, item] of Object.entries(value)) {
       if ((/(?:api[_-]?key|access[_-]?key|token|secret|password|authorization)$/i.test(key)
           || (key === 'key' && value.type === 'api_key'))

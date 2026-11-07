@@ -30,6 +30,12 @@ test('DeepSeek recognizes its native default-route credential without exposing i
   assert.equal(state().state, 'unknown')
   write('version: 1\nrefs:\n  ZGCI_API_KEY: synthetic-key\nrecords:\n  invalid: {}\n')
   assert.equal(state().state, 'unknown')
+  const aliases = ['      n0: &n0 [x, x]']
+  for (let index = 1; index < 16; index += 1) {
+    aliases.push(`      n${index}: &n${index} [*n${index - 1}, *n${index - 1}]`)
+  }
+  write(`version: 1\nrefs:\n  ZGCI_API_KEY: synthetic-key\nrecords:\n  other/provider:\n    kind: grant\n    payload:\n${aliases.join('\n')}\n`)
+  assert.equal(state().state, 'unknown')
   write('version: 1\nrefs:\n  ZGCI_API_KEY: synthetic-key\n')
   if (process.platform !== 'win32') {
     fs.chmodSync(file, 0o644)
