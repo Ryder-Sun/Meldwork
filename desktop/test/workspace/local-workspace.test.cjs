@@ -697,6 +697,45 @@ test('an authentication failure cannot block credentials changed during the run'
   assert.equal(workspace.state.agentRuntime.mimo?.projectFailures?.length || 0, 0)
 })
 
+test('a group authentication failure does not block replacement project credentials', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const { nativeEnvironmentIdentity } = require('../../src/agents/native-config-directory.cjs')
+  const { agentRuntimeError } = require('../../src/agents/agent-runtime-contract.cjs')
+  const started = deferred()
+  const release = deferred()
+  let secret = 'first-synthetic-secret'
+  options.detectAgents = async () => [
+    { kind: 'mimo', name: 'MiMo', executable: '/tmp/mimo', version: '1' },
+    { kind: 'codex', name: 'Codex', executable: '/tmp/codex', version: '1' },
+  ]
+  options.resolveProjectEnvironmentIdentities = async () => ({ mimo: nativeEnvironmentIdentity({ CUSTOM_KEY: secret }) })
+  options.naturalAgentResponses = true
+  options.runAgent = async agent => {
+    if (agent.kind === 'mimo') {
+      started.resolve()
+      await release.promise
+      throw agentRuntimeError('LOCAL_AGENT_AUTH_REQUIRED', 'HTTP 401: expired test token')
+    }
+    return { text: 'Codex completed.', outcome: 'completed' }
+  }
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Project group', agentKinds: ['mimo', 'codex'], workdir: directory })
+  const run = workspace.sendMessage({ groupId: group.id, text: 'Discuss', mode: 'auto', protocol: 'v4',
+    maxRounds: 1, targetKinds: ['mimo', 'codex'] })
+  await started.promise
+  const controller = workspace.activeRuns.get(group.id)
+  secret = 'replacement-synthetic-secret'
+  release.resolve()
+  await run
+  if (controller) await controller.done
+  assert.equal(workspace.agentCatalog.isProjectAuthBlocked('mimo', directory), false)
+  assert.equal(workspace.state.agentRuntime.mimo?.projectFailures?.length || 0, 0)
+  assert.equal(workspace.snapshot().messages.some(message => message.role === 'agent'
+    && message.agentKind === 'codex' && message.content.includes('Codex completed.')), true)
+})
+
 test('automatic routing rejects a busy group before recapturing its environment', async t => {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
