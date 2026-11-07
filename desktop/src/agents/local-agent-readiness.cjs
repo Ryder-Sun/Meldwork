@@ -8,6 +8,7 @@ const yaml = require('js-yaml')
 const JSON5 = require('json5')
 const toml = require('@iarna/toml')
 const { nativeSecretEnvKeys } = require('./cli/native-secret-environment.cjs')
+const { OCR_PROVIDER_KEYS } = require('./cli/ocr-provider-environment.cjs')
 const { deepseekNativeConfig } = require('./cli/deepseek-native-config.cjs')
 const { hermesProviderFromConfig, hermesProviderEnvironment } = require('./hermes-config-summary.cjs')
 const { qwenCredentialSelection } = require('./cli/qwen-native-config.cjs')
@@ -106,10 +107,9 @@ function openCodeReviewSelectedCredential(home, env, credentialSource, presetPro
   } catch { return { state: 'unknown', source: 'unverified' } }
   const provider = typeof config?.provider === 'string' ? config.provider.trim() : ''
   if (!provider) return null
-  const nativeKey = provider === 'openai' ? 'OPENAI_API_KEY'
-    : provider === 'openai-responses' ? 'OPENAI_RESPONSES_API_KEY'
-    : provider === 'anthropic' ? 'ANTHROPIC_API_KEY' : ''
-  const knownPreset = Boolean(nativeKey) || (Array.isArray(presetProviders) && presetProviders.includes(provider))
+  const knownPreset = Array.isArray(presetProviders) ? presetProviders.includes(provider)
+    : ['openai', 'openai-responses', 'anthropic'].includes(provider)
+  const nativeKey = knownPreset && Object.hasOwn(OCR_PROVIDER_KEYS, provider) ? OCR_PROVIDER_KEYS[provider] : ''
   const selected = knownPreset ? config.providers?.[provider]
     : Array.isArray(presetProviders) ? config.custom_providers?.[provider] : null
   if (!selected || typeof selected !== 'object' || Array.isArray(selected)) {

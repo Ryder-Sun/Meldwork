@@ -686,12 +686,14 @@ test('OpenCodeReview selected native directory reaches detection and execution',
   const home = path.join(directory, 'selected-home')
   const selected = path.join(home, '.opencodereview')
   fs.mkdirSync(selected, { recursive: true })
-  fs.writeFileSync(path.join(selected, 'config.json'), '{}')
+  fs.writeFileSync(path.join(selected, 'config.json'), JSON.stringify({ provider: 'deepseek', model: 'test-model', providers: { deepseek: {} } }))
   const readiness = require('../../src/agents/local-agent-readiness.cjs')
   let detected
   const { harness } = loadMain(directory, {
     dialogResult: { canceled: false, filePaths: [selected] },
     nativeEnvironment: readiness.nativeCredentialEnvironment,
+    nativeShellEnvironment: input => ({ source: 'native-shell', env: input.extraEnvKeys?.includes('DEEPSEEK_API_KEY')
+      ? { DEEPSEEK_API_KEY: 'synthetic-selected' } : {} }),
     detectAgents: input => { detected = input.nativeEnvironmentForKind('opencodereview'); return [] },
   })
   await harness.ready()
@@ -704,8 +706,10 @@ test('OpenCodeReview selected native directory reaches detection and execution',
   assert.equal(choice.directory, selected)
   await harness.installerInstances[0].input.detectAgents()
   assert.equal(detected.HOME, home)
+  assert.equal(detected.DEEPSEEK_API_KEY, 'synthetic-selected')
   await workspace.input.runAgent({ kind: 'opencodereview', executable: '/tmp/ocr' }, 'hello', directory, {})
   assert.equal(harness.runAgentCalls.at(-1)[3].env.HOME, home)
+  assert.equal(harness.runAgentCalls.at(-1)[3].env.DEEPSEEK_API_KEY, 'synthetic-selected')
 })
 
 test('Qwen verification follows the selected native home environment file', async t => {

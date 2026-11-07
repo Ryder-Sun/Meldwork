@@ -31,6 +31,7 @@ const {
 } = require('./agents/cli/cli-adapters.cjs')
 const { AgentInstaller } = require('./agents/installer/agent-installer.cjs')
 const { networkEnvironment } = require('./agents/cli/cli-network-environment.cjs')
+const { ocrDeclaredCredentialKeys } = require('./agents/cli/ocr-provider-environment.cjs')
 const { mimoDeclaredCredentialKeys } = require('./agents/cli/mimo-native-config.cjs')
 const { qwenDeclaredCredentialKeys } = require('./agents/cli/qwen-native-config.cjs')
 const { opencodeDeclaredCredentialKeys } = require('./agents/cli/opencode-native-config.cjs')
@@ -271,6 +272,8 @@ async function nativeShellEnvironment(options = {}) {
   const zcodeCredentialKeys = zcodeDeclaredCredentialKeys({ home, workdir: options.workdir, env: zcodeEnv })
   const qwenEnv = nativeConfigEnvironment('qwen', workspace?.state.agentPreferences, initialEnv)
   const qwenCredentialKeys = qwenDeclaredCredentialKeys({ home, workdir: options.workdir, env: qwenEnv })
+  const ocrEnv = nativeConfigEnvironment('opencodereview', workspace?.state.agentPreferences, initialEnv)
+  const ocrCredentialKeys = ocrDeclaredCredentialKeys({ home, env: ocrEnv })
   const piEnv = nativeConfigEnvironment('pi', workspace?.state.agentPreferences, initialEnv)
   const piCredentialKeys = piDeclaredCredentialKeys({ home, env: piEnv })
   const opencodeEnv = nativeConfigEnvironment('opencode', workspace?.state.agentPreferences, initialEnv)
@@ -279,7 +282,7 @@ async function nativeShellEnvironment(options = {}) {
   let mimoCredentialKeys = mimoDeclaredCredentialKeys({ home, env: mimoEnv, workdir: options.workdir })
   for (let pass = 0; pass < 2; pass += 1) {
     const declaredKeys = [...new Set([...codexCredentialKeys, ...hermesCredentialKeys, ...zcodeCredentialKeys, ...piCredentialKeys,
-      ...opencodeCredentialKeys, ...mimoCredentialKeys, ...deepseekCredentialKeys, ...qwenCredentialKeys])]
+      ...opencodeCredentialKeys, ...mimoCredentialKeys, ...deepseekCredentialKeys, ...qwenCredentialKeys, ...ocrCredentialKeys])]
     if (!declaredKeys.length) break
     const chunks = []
     for (let index = 0; index < declaredKeys.length; index += 32) chunks.push(declaredKeys.slice(index, index + 32))
@@ -343,6 +346,7 @@ async function nativeShellEnvironment(options = {}) {
     deepseekCredentialKeys,
     zcodeCredentialKeys,
     qwenCredentialKeys,
+    ocrCredentialKeys,
     piCredentialKeys,
     opencodeCredentialKeys,
     mimoCredentialKeys,
@@ -353,7 +357,7 @@ function nativeDeclaredCredentialKeys(kind, captured) {
   const properties = {
     codex: 'codexCredentialKeys', hermes: 'hermesCredentialKeys', zcode: 'zcodeCredentialKeys',
     pi: 'piCredentialKeys', opencode: 'opencodeCredentialKeys', mimo: 'mimoCredentialKeys',
-    deepseek: 'deepseekCredentialKeys', qwen: 'qwenCredentialKeys',
+    deepseek: 'deepseekCredentialKeys', qwen: 'qwenCredentialKeys', opencodereview: 'ocrCredentialKeys',
   }
   const keys = Object.hasOwn(properties, kind) ? captured?.[properties[kind]] || [] : []
   return kind === 'codex' ? ['CODEX_API_KEY', ...keys] : keys

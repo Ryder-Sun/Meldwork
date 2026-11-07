@@ -126,6 +126,34 @@ test('OpenCodeReview uses the native Responses API key independently of the Chat
   assert.equal(redactChildSecrets('synthetic-responses', child), '[redacted]')
 })
 
+test('OpenCodeReview selects only the native key for its configured preset', async t => {
+  const { ocrDeclaredCredentialKeys } = require('../../src/agents/cli/ocr-provider-environment.cjs')
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-ocr-native-key-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const root = path.join(home, '.opencodereview')
+  fs.mkdirSync(root)
+  const file = path.join(root, 'config.json')
+  const config = { provider: 'deepseek', model: 'test-model', providers: { deepseek: {} } }
+  fs.writeFileSync(file, JSON.stringify(config))
+  const keys = ocrDeclaredCredentialKeys({ home, env: {} })
+  assert.deepEqual(keys, ['DEEPSEEK_API_KEY'])
+  const env = { HOME: home, DEEPSEEK_API_KEY: 'synthetic-selected', MISTRAL_API_KEY: 'synthetic-unrelated',
+    OPENAI_API_KEY: 'synthetic-other', OCR_LLM_TOKEN: 'synthetic-fallback' }
+  const native = nativeCredentialEnvironment('opencodereview', env, keys)
+  assert.equal(native.DEEPSEEK_API_KEY, env.DEEPSEEK_API_KEY)
+  assert.equal(native.MISTRAL_API_KEY, undefined)
+  assert.equal(native.OPENAI_API_KEY, undefined)
+  assert.equal(native.OCR_LLM_TOKEN, undefined)
+  const child = childEnvironment({ kind: 'opencodereview' }, home, { env: native, nativeCredentialKeys: keys }, 'darwin')
+  const { redactChildSecrets } = require('../../src/agents/cli/cli-runtime-event-sanitizer.cjs')
+  assert.equal(redactChildSecrets('synthetic-selected', child), '[redacted]')
+  assert.equal(nativeCredentialState('opencodereview', { home, env: native,
+    ocrPresetProviders: ['openai', 'anthropic', 'deepseek'] }).state, 'ready')
+  config.providers.deepseek.api_key_cmd = 'native-credential-command'
+  fs.writeFileSync(file, JSON.stringify(config))
+  assert.deepEqual(ocrDeclaredCredentialKeys({ home, env: {} }), [])
+})
+
 test('OpenCodeReview probes native provider names before trusting a custom credential', async t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-ocr-provider-list-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))

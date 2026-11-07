@@ -8,6 +8,7 @@ const { LocalWorkspace } = require('../../src/workspace/local-workspace.cjs')
 const { runAgent } = require('../../src/agents/cli/cli-adapters.cjs')
 const { nativeCredentialEnvironment } = require('../../src/agents/agent-native-environment.cjs')
 const { nativeConfigEnvironment, validateNativeConfigDirectory } = require('../../src/agents/native-config-directory.cjs')
+const { ocrDeclaredCredentialKeys } = require('../../src/agents/cli/ocr-provider-environment.cjs')
 const { fixture } = require('../support/local-workspace-test-helpers.cjs')
 const { executable } = require('../support/cli-adapters-test-helpers.cjs')
 
@@ -67,8 +68,10 @@ test('real OpenCodeReview uses the selected home in direct and group chats',
     execFileSync('git', ['commit', '-qm', 'initial'], { cwd: repo })
     fs.writeFileSync(path.join(repo, 'app.js'), 'const value = 2;\n')
     let requests = 0
+    let selectedCredentialUsed = true
     const server = http.createServer((request, response) => {
       requests += 1
+      selectedCredentialUsed &&= request.headers.authorization === 'Bearer synthetic-key'
       request.resume()
       request.on('end', () => {
         response.writeHead(200, { 'content-type': 'application/json' })
@@ -80,10 +83,8 @@ test('real OpenCodeReview uses the selected home in direct and group chats',
     })
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
     t.after(() => server.close())
-    fs.writeFileSync(path.join(config, 'config.json'), JSON.stringify({ llm: {
-      url: `http://127.0.0.1:${server.address().port}/v1/chat/completions`,
-      auth_token: 'synthetic-key', model: 'mock', protocol: 'openai',
-    } }))
+    fs.writeFileSync(path.join(config, 'config.json'), JSON.stringify({ provider: 'deepseek', model: 'mock',
+      providers: { deepseek: { url: `http://127.0.0.1:${server.address().port}/v1/chat/completions` } } }))
     const selected = validateNativeConfigDirectory('opencodereview', config)
     const cli = execFileSync('which', ['ocr'], { encoding: 'utf8' }).trim()
     options.detectAgents = async () => [
@@ -93,8 +94,15 @@ test('real OpenCodeReview uses the selected home in direct and group chats',
     let workspace
     options.runAgent = async (agent, prompt, workdir, runOptions) => {
       if (agent.kind !== 'opencodereview') return { text: 'Peer reply', outcome: 'completed', sessionRef: 'peer-session' }
-      const env = nativeConfigEnvironment('opencodereview', workspace.state.agentPreferences, { PATH: process.env.PATH })
-      return runAgent(agent, prompt, workdir, { ...runOptions, env })
+      const shell = nativeConfigEnvironment('opencodereview', workspace.state.agentPreferences,
+        { PATH: process.env.PATH, DEEPSEEK_API_KEY: 'synthetic-key', MISTRAL_API_KEY: 'synthetic-unrelated',
+          OPENAI_API_KEY: 'synthetic-other' })
+      const keys = ocrDeclaredCredentialKeys({ env: shell })
+      assert.deepEqual(keys, ['DEEPSEEK_API_KEY'])
+      const env = nativeCredentialEnvironment('opencodereview', shell, keys)
+      assert.equal(env.MISTRAL_API_KEY, undefined)
+      assert.equal(env.OPENAI_API_KEY, undefined)
+      return runAgent(agent, prompt, workdir, { ...runOptions, env, nativeCredentialKeys: keys })
     }
     workspace = new LocalWorkspace(options)
     workspace.state.agentPreferences.opencodereview = { nativeConfigDirectory: selected }
@@ -108,5 +116,6 @@ test('real OpenCodeReview uses the selected home in direct and group chats',
       message.groupId === id && message.agentKind === 'opencodereview' && message.trace?.status === 'completed'
     )))
     assert.equal(requests, 2)
+    assert.equal(selectedCredentialUsed, true)
     await workspace.stopAll()
   })

@@ -1,6 +1,7 @@
 const { nativeSecretEnvKeys } = require('./cli/native-secret-environment.cjs')
 const { PI_BUILTIN_CREDENTIAL_KEYS, PI_BUILTIN_CONFIG_KEYS } = require('./cli/pi-provider-environment.cjs')
 const { deepseekNativeConfig } = require('./cli/deepseek-native-config.cjs')
+const { ocrSelectedProvider } = require('./cli/ocr-provider-environment.cjs')
 
 const VERTEX_MODEL_REGION_KEY = /^VERTEX_REGION_[A-Z0-9_]{1,120}$/
 const CREDENTIAL_ENV_KEYS = Object.freeze({
@@ -133,8 +134,14 @@ const RUNTIME_ENV_KEYS = Object.freeze({
 function nativeCredentialEnvironment(kind, env = process.env, declaredKeys = [], platform = process.platform) {
   const result = {}
   const sourceKeys = Object.keys(env)
-  const runtimeKeys = kind === 'deepseek' && deepseekNativeConfig({ env }).explicitModel
+  let runtimeKeys = kind === 'deepseek' && deepseekNativeConfig({ env }).explicitModel
     ? RUNTIME_ENV_KEYS.deepseek.filter(key => key !== 'ZGCI_API_KEY') : (RUNTIME_ENV_KEYS[kind] || [])
+  if (kind === 'opencodereview' && ocrSelectedProvider({ env, platform })) {
+    const selected = new Set(nativeSecretEnvKeys(declaredKeys))
+    const credentials = new Set(['OCR_LLM_TOKEN', 'OPENAI_API_KEY', 'OPENAI_RESPONSES_API_KEY',
+      'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_API_KEY'])
+    runtimeKeys = runtimeKeys.filter(key => !credentials.has(key) || selected.has(key))
+  }
   const keys = [...runtimeKeys, ...(kind === 'claude'
     ? sourceKeys.map(key => platform === 'win32' ? key.toUpperCase() : key)
       .filter(key => VERTEX_MODEL_REGION_KEY.test(key)) : []),
