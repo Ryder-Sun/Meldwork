@@ -15,6 +15,19 @@ test('declared native credentials work for a future agent without passing unsafe
   assert.equal(redactChildSecrets('token=synthetic-future-secret', child), 'token=[redacted]')
 })
 
+test('Gemini native workspace trust settings reach only its child process', () => {
+  for (const env of [{ GEMINI_CLI_TRUST_WORKSPACE: 'true' },
+    { GEMINI_CLI_TRUST_WORKSPACE: 'false', GEMINI_RESTRICTED_MODE: 'true' }]) {
+    const native = nativeCredentialEnvironment('gemini', env)
+    const gemini = childEnvironment({ kind: 'gemini' }, '/workspace', { env: native }, 'darwin')
+    assert.equal(gemini.GEMINI_CLI_TRUST_WORKSPACE, env.GEMINI_CLI_TRUST_WORKSPACE)
+    assert.equal(gemini.GEMINI_RESTRICTED_MODE, env.GEMINI_RESTRICTED_MODE)
+    const other = childEnvironment({ kind: 'codex' }, '/workspace', { env }, 'darwin')
+    assert.equal(other.GEMINI_CLI_TRUST_WORKSPACE, undefined)
+    assert.equal(other.GEMINI_RESTRICTED_MODE, undefined)
+  }
+})
+
 test('short native credentials are redacted without hiding unrelated configuration', () => {
   const env = { OPENAI_API_KEY: 'abc', AWS_SECRET_ACCESS_KEY: 'xy', AWS_SESSION_TOKEN: 'def', AWS_BEARER_TOKEN_BEDROCK: 'zz',
     AZURE_CLIENT_SECRET: 'gh', OPENAI_MODEL: 'model-name' }
