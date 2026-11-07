@@ -6,6 +6,9 @@ const { terminalRunStatusForReason } = require('./local-workspace-auto-runner-su
 
 const v4DiscussionMethods = {
   async runV4Discussion(group, controller, threadRootId, context, resume = false, resumedGate = null) {
+    if (controller.orchestration?.version === 4 && controller.orchestration.taskGraph) {
+      throw new Error('LOCAL_WORKFLOW_PROTOCOL_UNSUPPORTED')
+    }
     const snapshotTargetKinds = [...controller.targetKinds]
     const existing = controller.orchestration?.version === 4
       ? controller.orchestration

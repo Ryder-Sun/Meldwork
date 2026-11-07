@@ -9,11 +9,20 @@ const { LocalWorkspace } = require('../../src/workspace/local-workspace.cjs')
 const { naturalConsensusMethods } = require('../../src/workspace/local-workspace-auto-runner-natural-consensus.cjs')
 const { v4NaturalDecisionMethods, explicitTaskFailure } = require('../../src/workspace/local-workspace-auto-runner-natural-decisions.cjs')
 const { naturalDiscussionMethods } = require('../../src/workspace/local-workspace-auto-runner-natural-discussion.cjs')
+const { v4DiscussionMethods } = require('../../src/workspace/local-workspace-auto-runner-v4-discussion.cjs')
 const { deferred, fixture } = require('../support/local-workspace-test-helpers.cjs')
 
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
+
+test('V4 recovery refuses to execute a task graph as an ordinary discussion', async () => {
+  const controller = { targetKinds: ['codex'], orchestration: { version: 4, taskGraph: {} } }
+  await assert.rejects(v4DiscussionMethods.runV4Discussion({}, controller, 'task', {}, true), {
+    message: 'LOCAL_WORKFLOW_PROTOCOL_UNSUPPORTED',
+  })
+  assert.equal(controller.discussionStyle, undefined)
+})
 
 test('stopping unlimited discussion persists partial proposal output before removing the live run', { timeout: 10000 }, async t => {
   const { directory, options } = fixture()
