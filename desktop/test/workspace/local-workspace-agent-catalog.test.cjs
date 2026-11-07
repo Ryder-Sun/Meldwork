@@ -60,6 +60,34 @@ function fixture(overrides = {}) {
   return { agents: () => agents, catalog, events, state }
 }
 
+test('uninspectable project configuration cannot retain successful verification', t => {
+  const workdir = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-uninspectable-config-'))
+  t.after(() => fs.rmSync(workdir, { recursive: true, force: true }))
+  fs.mkdirSync(path.join(workdir, '.git'))
+  fs.mkdirSync(path.join(workdir, '.codex'))
+  const filename = path.join(workdir, '.codex', 'config.toml')
+  const agent = { kind: 'codex', executable: '/tmp/agent', version: '1', available: true, compatibilityState: 'compatible' }
+  const { catalog } = fixture({ initialAgents: [agent] })
+  const projectIdentity = projectVerificationIdentity('codex', workdir, agent)
+  assert.equal(projectVerificationIdentity('codex', workdir, agent), projectIdentity)
+  catalog.markRuntimeCredential('codex', 'ready', { workdir, projectIdentity })
+  assert.equal(catalog.isRecentlyVerified('codex', workdir), true)
+  try { fs.symlinkSync('config.toml', filename) } catch { t.skip('Symbolic links unavailable'); return }
+  assert.equal(catalog.isRecentlyVerified('codex', workdir), false)
+  assert.notEqual(projectVerificationIdentity('codex', workdir, agent), projectVerificationIdentity('codex', workdir, agent))
+})
+
+test('uninspectable native authentication files do not yield a stable verification identity', t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-uninspectable-auth-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const filename = path.join(directory, 'auth.json')
+  const agent = { kind: 'codex' }
+  Object.defineProperty(agent, NATIVE_AUTH_IDENTITY_FILES, { value: [filename] })
+  assert.equal(agentVerificationIdentity(agent), agentVerificationIdentity(agent))
+  try { fs.symlinkSync('auth.json', filename) } catch { t.skip('Symbolic links unavailable'); return }
+  assert.notEqual(agentVerificationIdentity(agent), agentVerificationIdentity(agent))
+})
+
 for (const [kind, config] of [['codex', '.codex/config.toml'], ['claude', '.claude/settings.json'],
   ['claude', '.claude/settings.local.json'], ['zcode', 'zcode.json'], ['opencode', 'opencode.json'],
   ['mimo', '.mimocode/mimocode.json'], ['mimo', 'mimocode.json'], ['gemini', '.gemini/settings.json'],

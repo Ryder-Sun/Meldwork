@@ -7,7 +7,9 @@ function fileIdentity(filename) {
   try {
     const stat = fs.statSync(filename)
     return [stat.dev, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs]
-  } catch { return null }
+  } catch (error) {
+    return error?.code === 'ENOENT' ? null : ['unreadable', randomBytes(32).toString('hex')]
+  }
 }
 
 function selectedConfigurationIdentity(agent, preferences) {
