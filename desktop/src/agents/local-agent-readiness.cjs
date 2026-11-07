@@ -12,6 +12,7 @@ const { OCR_PROVIDER_KEYS } = require('./cli/ocr-provider-environment.cjs')
 const { deepseekNativeConfig } = require('./cli/deepseek-native-config.cjs')
 const { hermesProviderFromConfig, hermesProviderEnvironment } = require('./hermes-config-summary.cjs')
 const { qwenCredentialSelection, qwenConfiguredAuth } = require('./cli/qwen-native-config.cjs')
+const { geminiNativeAuth } = require('./cli/gemini-native-config.cjs')
 const { prepareCommand, searchPath } = require('./cli/cli-discovery.cjs')
 const { isOpenClawSecretReference } = require('./cli/openclaw-runtime.cjs')
 const { NETWORK_ENV_KEYS, networkEnvironment } = require('./cli/cli-network-environment.cjs')
@@ -803,6 +804,21 @@ function nativeCredentialState(kind, options = {}) {
   const geminiHome = env.GEMINI_CLI_HOME
     ? (path.isAbsolute(env.GEMINI_CLI_HOME) ? path.join(env.GEMINI_CLI_HOME, '.gemini') : null)
     : path.join(home, '.gemini')
+  if (kind === 'gemini') {
+    const selection = geminiNativeAuth({ home, env, workdir: options.workdir, platform: options.platform })
+    if (selection.uncertain) return { state: 'unknown', source: 'unverified' }
+    if (selection.authType === 'oauth-personal') {
+      return jsonContainsCredential(path.join(selection.root, 'oauth_creds.json'))
+        ? { state: 'ready', source: 'native-credential' }
+        : { state: 'unknown', source: 'unverified' }
+    }
+    if (selection.authType === 'gemini-api-key') {
+      const found = ['GOOGLE_API_KEY', 'GEMINI_API_KEY'].some(key => typeof env[key] === 'string' && env[key].trim())
+      return found ? { state: 'ready', source: options.credentialSource === 'native-shell' ? 'native-shell' : 'native-credential' }
+        : { state: 'unknown', source: 'unverified' }
+    }
+    if (selection.authType) return { state: 'unknown', source: 'unverified' }
+  }
   const expandHome = value => String(value).replace(/^~(?=$|[\\/])/, home)
   const piHome = env.PI_CODING_AGENT_DIR ? expandHome(env.PI_CODING_AGENT_DIR) : path.join(home, '.pi', 'agent')
   const kimiHome = env.KIMI_CODE_HOME
