@@ -46,8 +46,8 @@ test('V4 rejects task graph cursors that ran ahead of their dependencies', () =>
     ? { ...state, status: 'accepted' } : state), terminalState: 'accepted' }
   assert.throws(() => parseOrchestrationV4({ ...record, taskGraph: invalid }, { targetKinds: ['codex', 'hermes'] }),
     { message: 'ORCHESTRATION_V4_TASK_GRAPH_INVALID' })
-  const primaryAccepted = updateTaskGraphCursor(cursor, 'primary', { status: 'accepted' })
-  const valid = updateTaskGraphCursor(primaryAccepted, 'review', { status: 'accepted' })
+  const primaryAccepted = updateTaskGraphCursor(cursor, 'primary', { status: 'accepted', conclusionHash: 'a'.repeat(64) })
+  const valid = updateTaskGraphCursor(primaryAccepted, 'review', { status: 'accepted', conclusionHash: 'b'.repeat(64) })
   assert.doesNotThrow(() => parseOrchestrationV4({ ...record, taskGraph: valid }, { targetKinds: ['codex', 'hermes'] }))
 })
 
@@ -59,11 +59,48 @@ test('V4 rejects legacy terminal states that hide unfinished independent work', 
   const graph = createTaskGraph({ template: 'task-graph', nodes: [
     node('work', 'codex', false), node('final', 'hermes', true),
   ] }, ['codex', 'hermes'])
-  const cursor = updateTaskGraphCursor(createTaskGraphCursor(graph), 'final', { status: 'accepted' })
+  const cursor = updateTaskGraphCursor(createTaskGraphCursor(graph), 'final', { status: 'accepted', conclusionHash: 'a'.repeat(64) })
   const record = { ...orchestration(), taskGraph: cursor }
   assert.doesNotThrow(() => parseOrchestrationV4(record, { targetKinds: ['codex', 'hermes'] }))
   assert.throws(() => parseOrchestrationV4({ ...record, taskGraph: { ...cursor, terminalState: 'accepted' } },
     { targetKinds: ['codex', 'hermes'] }), { message: 'ORCHESTRATION_V4_TASK_GRAPH_INVALID' })
+})
+
+test('V4 rejects accepted task nodes without their required typed results', () => {
+  const { createTaskGraph, createTaskGraphCursor, updateTaskGraphCursor } = require('../../src/collaboration/task-graph-records.cjs')
+  const graph = createTaskGraph({ template: 'task-graph', nodes: [{ nodeId: 'work', role: 'primary',
+    agentKind: 'codex', dependsOn: [], inputNodeIds: [], expectedOutput: 'Result',
+    acceptance: { requireConclusion: true, minArtifactRefs: 1, minEvidenceRefs: 1 },
+    terminal: true, parallel: false, decisionOptions: [] }] }, ['codex'])
+  const base = updateTaskGraphCursor(createTaskGraphCursor(graph), 'work', { status: 'accepted',
+    conclusionHash: 'a'.repeat(64), artifactIds: ['artifact-one'], evidenceIds: ['evidence-one'] })
+  const record = { ...orchestration(), taskGraph: base }
+  assert.doesNotThrow(() => parseOrchestrationV4(record, { targetKinds: ['codex', 'hermes'] }))
+  for (const update of [{ conclusionHash: '' }, { artifactIds: [] }, { evidenceIds: [] }]) {
+    const invalid = { ...base, nodeStates: [{ ...base.nodeStates[0], ...update }] }
+    assert.throws(() => parseOrchestrationV4({ ...record, taskGraph: invalid }, { targetKinds: ['codex', 'hermes'] }),
+      { message: 'ORCHESTRATION_V4_TASK_GRAPH_INVALID' })
+  }
+})
+
+test('V4 binds completed human graph decisions to an option and durable entry', () => {
+  const { createTaskGraph, createTaskGraphCursor, updateTaskGraphCursor } = require('../../src/collaboration/task-graph-records.cjs')
+  const graph = createTaskGraph({ template: 'task-graph', nodes: [{ nodeId: 'decision', role: 'human',
+    agentKind: null, dependsOn: [], inputNodeIds: [], expectedOutput: 'Decide',
+    acceptance: { requireConclusion: false, minArtifactRefs: 0, minEvidenceRefs: 0 },
+    terminal: true, parallel: false, decisionOptions: [
+      { optionId: 'yes', name: 'Approve', kind: 'allow_once' },
+      { optionId: 'no', name: 'Reject', kind: 'reject_once' },
+    ] }] })
+  const base = updateTaskGraphCursor(createTaskGraphCursor(graph), 'decision',
+    { status: 'accepted', decisionOptionId: 'yes', entryIds: ['decision-entry'] })
+  const record = { ...orchestration(), taskGraph: base }
+  assert.doesNotThrow(() => parseOrchestrationV4(record, { targetKinds: ['codex', 'hermes'] }))
+  for (const update of [{ decisionOptionId: '' }, { decisionOptionId: 'no' }, { entryIds: [] }]) {
+    const invalid = { ...base, nodeStates: [{ ...base.nodeStates[0], ...update }] }
+    assert.throws(() => parseOrchestrationV4({ ...record, taskGraph: invalid }, { targetKinds: ['codex', 'hermes'] }),
+      { message: 'ORCHESTRATION_V4_TASK_GRAPH_INVALID' })
+  }
 })
 
 test('V4 phase checkpoints preserve an existing task graph cursor', () => {

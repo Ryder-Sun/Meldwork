@@ -2054,6 +2054,20 @@ function parseOrchestrationV4(input, options = {}) {
       const { parseTaskGraphCursor, assertTaskGraphDependencies, terminalTaskGraphState } = require('./task-graph-records.cjs')
       const cursor = assertTaskGraphDependencies(parseTaskGraphCursor(input.taskGraph, effectiveKinds))
       if (cursor.terminalState !== terminalTaskGraphState(cursor)) throw new Error('TASK_GRAPH_CURSOR_INVALID')
+      const nodes = new Map(cursor.graph.nodes.map(node => [node.nodeId, node]))
+      for (const state of cursor.nodeStates) {
+        const node = nodes.get(state.nodeId)
+        if (node.role === 'human' && ['accepted', 'rejected'].includes(state.status)) {
+          const decision = node.decisionOptions.find(option => option.optionId === state.decisionOptionId)
+          if (!decision || decision.kind !== (state.status === 'accepted' ? 'allow_once' : 'reject_once')
+              || !state.entryIds.length) throw new Error('TASK_GRAPH_CURSOR_INVALID')
+        } else if (node.role !== 'human' && state.status === 'accepted'
+            && ((node.acceptance.requireConclusion && !state.conclusionHash)
+              || state.artifactIds.length < node.acceptance.minArtifactRefs
+              || state.evidenceIds.length < node.acceptance.minEvidenceRefs)) {
+          throw new Error('TASK_GRAPH_CURSOR_INVALID')
+        }
+      }
     } catch {
       fail('ORCHESTRATION_V4_TASK_GRAPH_INVALID')
     }

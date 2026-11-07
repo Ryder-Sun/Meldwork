@@ -369,6 +369,10 @@ test('roundtrips V4 task graph progress and rejects impossible dependency state'
     ? { ...state, status: 'accepted' } : state), terminalState: 'accepted' }
   assert.throws(() => ledger.checkpoint({ runId: saved.runId,
     orchestration: { ...saved.orchestration, taskGraph: invalid } }), { message: 'RUN_LEDGER_RECORD_INVALID' })
+  const missingConclusion = { ...cursor, nodeStates: cursor.nodeStates.map(state => state.nodeId === 'primary'
+    ? { ...state, status: 'accepted' } : state) }
+  assert.throws(() => ledger.checkpoint({ runId: saved.runId,
+    orchestration: { ...saved.orchestration, taskGraph: missingConclusion } }), { message: 'RUN_LEDGER_RECORD_INVALID' })
   assert.deepEqual(ledger.get(saved.runId).orchestration.taskGraph, cursor)
 })
 
