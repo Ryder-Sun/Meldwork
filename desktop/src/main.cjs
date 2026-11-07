@@ -359,6 +359,7 @@ async function detectLocalAgents() {
           : agent.kind === 'pi' ? shellEnvironment.piCredentialKeys : agent.kind === 'opencode' ? shellEnvironment.opencodeCredentialKeys
             : agent.kind === 'mimo' ? shellEnvironment.mimoCredentialKeys : []
       const fingerprint = nativeEnvironmentIdentity({
+        ...(env.PATH ? { PATH: env.PATH } : {}),
         ...networkEnvironment(env), ...configDirectoryEnvironment(env),
         ...nativeCredentialEnvironment(agent.kind, env, keys),
       })
@@ -392,6 +393,7 @@ async function resolveProjectEnvironmentIdentities(workdir, kinds) {
         : kind === 'opencode' ? captured.opencodeCredentialKeys : []
     const env = nativeConfigEnvironment(kind, workspace?.state.agentPreferences, captured.env)
     result[kind] = nativeEnvironmentIdentity({
+      ...(env.PATH ? { PATH: env.PATH } : {}),
       ...networkEnvironment(env), ...configDirectoryEnvironment(env),
       ...nativeCredentialEnvironment(kind, env, keys),
     })

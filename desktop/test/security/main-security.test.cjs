@@ -648,6 +648,22 @@ test('project environment identities follow the selected native credential witho
   assert.doesNotMatch(JSON.stringify([first, second]), /synthetic-secret|CUSTOM_KEY/)
 })
 
+test('native project identity changes when the CLI tool search path changes', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-path-identity-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  let nativePath = '/synthetic/first-tool-bin'
+  const { harness } = loadMain(directory, {
+    nativeShellEnvironment: () => ({ source: 'native-shell', env: { PATH: nativePath } }),
+  })
+  await harness.ready()
+  const resolve = harness.workspaceInstances[0].input.resolveProjectEnvironmentIdentities
+  const first = await resolve(directory, ['codex'])
+  nativePath = '/synthetic/second-tool-bin'
+  const second = await resolve(directory, ['codex'])
+  assert.notEqual(first.codex, second.codex)
+  assert.doesNotMatch(JSON.stringify([first, second]), /synthetic|tool-bin/)
+})
+
 test('Codex and Hermes project identities track only their own native credentials', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-project-identities-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
