@@ -235,6 +235,15 @@ test('task graph resumes a human decision after its blackboard checkpoint withou
   const missing = { ...resumed, orchestration: { ...resumed.orchestration,
     collaboration: emptyCollaborationState() } }
   assert.throws(() => runner.validateTaskGraphRecoveredResults(missing), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
+  const revoked = structuredClone(resumed)
+  revoked.orchestration.collaboration.entries[0].lifecycle.state = 'retracted'
+  assert.throws(() => runner.validateTaskGraphRecoveredResults(revoked), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
+  const rejected = { ...controller, orchestration: { taskGraph: cursor, collaboration: emptyCollaborationState() } }
+  assert.equal(runner.applyTaskGraphHumanDecision({}, rejected, node,
+    { status: 'rejected', optionId: 'reject' }), false)
+  assert.equal(runner.validateTaskGraphRecoveredResults(rejected), true)
+  rejected.orchestration.collaboration.entries[0].lifecycle.state = 'retracted'
+  assert.throws(() => runner.validateTaskGraphRecoveredResults(rejected), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
   assert.throws(() => runner.applyTaskGraphHumanDecision({}, controller, node,
     { status: 'approved', optionId: 'reject' }), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
   assert.throws(() => runner.applyTaskGraphHumanDecision({}, controller, node,

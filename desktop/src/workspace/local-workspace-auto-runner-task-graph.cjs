@@ -26,13 +26,15 @@ const taskGraphMethods = {
     const cursor = parseTaskGraphCursor(controller.orchestration.taskGraph)
     const entries = controller.orchestration.collaboration?.entries || []
     for (const state of cursor.nodeStates) {
-      if (state.status !== 'accepted') continue
       const node = cursor.graph.nodes.find(candidate => candidate.nodeId === state.nodeId)
+      if (state.status !== 'accepted' && !(node.role === 'human' && state.status === 'rejected')) continue
       if (node.role === 'human') {
         const option = node.decisionOptions.find(candidate => candidate.optionId === state.decisionOptionId)
         const decision = state.entryIds.length === 1
           ? entries.find(entry => entry.entryId === state.entryIds[0]) : null
-        if (!option || option.kind !== 'allow_once' || decision?.entryType !== 'decision'
+        if (!option || option.kind !== (state.status === 'accepted' ? 'allow_once' : 'reject_once')
+            || decision?.entryType !== 'decision' || decision.lifecycle?.state !== 'active'
+            || (state.status === 'rejected' && decision.refs?.length !== 0)
             || decision.owner?.type !== 'harness' || decision.provenance?.runId !== controller.runId
             || decision.provenance.taskId !== controller.taskId
             || decision.provenance.agentRunId !== this.taskGraphDecisionAgentRunId(cursor.graph.graphId, node.nodeId)
