@@ -463,6 +463,18 @@ test('Hermes honors environment-selected native provider when config.yaml is abs
   assert.deepEqual(hermesDeclaredCredentialKeys({ home, env }), [])
 })
 
+test('Hermes selects credentials for an unquoted numeric native provider', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-numeric-provider-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const root = path.join(home, '.hermes')
+  fs.mkdirSync(root)
+  fs.writeFileSync(path.join(root, 'config.yaml'), [
+    'model:', '  provider: 2070', 'providers:', '  2070:', '    api_key_env: SELECTED_TOKEN',
+    '  other:', '    api_key_env: OTHER_TOKEN',
+  ].join('\n'))
+  assert.deepEqual(hermesDeclaredCredentialKeys({ home, env: {} }), ['SELECTED_TOKEN'])
+})
+
 test('Hermes selects configured provider credentials for an auto-routed qualified model', t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-qualified-model-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))
