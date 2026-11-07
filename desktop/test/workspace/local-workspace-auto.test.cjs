@@ -4267,6 +4267,7 @@ test('task graph reviewer does not resume the same Agent primary session', async
   assert.equal(calls[1].runOptions.sessionRef, '')
   assert.match(calls[1].prompt, /MELDWORK_TASK_GRAPH_V1/)
   assert.match(calls[1].prompt, /Role: reviewer/)
+  for (const call of calls) assert.match(call.prompt, /Meldwork records your completed response as an Artifact/)
   assert.match(calls[1].prompt, /A completed result/)
   assert.equal(ledger.list(group.id)[0].orchestration.taskGraph.terminalState, 'accepted')
 })

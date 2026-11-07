@@ -133,6 +133,7 @@ const taskGraphMethods = {
       `Acceptance criteria: ${this.taskGraphAcceptanceCriteria(node).join(' | ')}`,
       unlimitedReviewContract(unlimitedRounds),
       collaborationPackage.text,
+      'Meldwork records your completed response as an Artifact and associated Evidence. Do not search for, invent, or output internal Artifact or Evidence IDs.',
       'Return the requested result directly. Completion is evaluated from durable typed records; do not emit a consensus marker.',
     ].join('\n')
   },
@@ -397,6 +398,7 @@ const taskGraphMethods = {
         runtimeInstruction: isolated ? '' : [
           `Execute task-graph node ${node.nodeId} as ${node.role}.`,
           `Expected output: ${node.expectedOutput}`,
+          'Meldwork records your completed response as an Artifact and associated Evidence. Do not search for, invent, or output internal Artifact or Evidence IDs.',
           'Do not emit a consensus marker.',
         ].join('\n'),
         ...(isolated ? {
