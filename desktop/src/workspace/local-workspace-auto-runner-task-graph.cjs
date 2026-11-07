@@ -469,6 +469,7 @@ const taskGraphMethods = {
 
   async runTaskGraph(group, controller, threadRootId, context) {
     while (!controller.signal.aborted) {
+      this.validateTaskGraphRecoveredResults(controller)
       let cursor = assertTaskGraphDependencies(controller.orchestration.taskGraph)
       const terminalState = terminalTaskGraphState(cursor)
       if (cursor.terminalState !== terminalState) {

@@ -323,6 +323,44 @@ test('task graph resumes a persisted node boundary after restart without repeati
   assert.equal(calls.filter(kind => kind === 'workbuddy').length, 2)
 })
 
+test('task graph does not dispatch dependent work when an accepted artifact disappears during the run', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const ledger = new RunLedger({ storagePath: path.join(directory, 'run-ledger.json') })
+  options.runLedger = ledger
+  const calls = []
+  options.runAgent = async agent => {
+    calls.push(agent.kind)
+    return { text: 'Durable graph outcome.', outcome: 'completed' }
+  }
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Lost graph artifact', agentKinds: ['codex', 'workbuddy'],
+    workdir: directory, allowWrite: false })
+  const original = workspace.autoRunner.applyTaskGraphAgentResult.bind(workspace.autoRunner)
+  workspace.autoRunner.applyTaskGraphAgentResult = (...args) => {
+    const accepted = original(...args)
+    if (accepted && args[2].nodeId === 'first') {
+      const state = args[1].orchestration.taskGraph.nodeStates.find(item => item.nodeId === 'first')
+      const ref = workspace.outcomeStore.getArtifact(state.artifactIds[0]).contentRef
+      fs.rmSync(path.join(workspace.contentBlobStore.ensureBlobDirectory(ref.hash, false), ref.hash))
+    }
+    return accepted
+  }
+  const node = (nodeId, agentKind, rest = {}) => ({ nodeId, role: 'primary', agentKind,
+    dependsOn: [], inputNodeIds: [], expectedOutput: 'Produce a conclusion.',
+    acceptance: { requireConclusion: true, minArtifactRefs: 1, minEvidenceRefs: 1 },
+    terminal: false, parallel: false, decisionOptions: [], ...rest })
+  await workspace.sendMessage({ groupId: group.id, text: 'Review together', mode: 'auto', maxRounds: 3,
+    targetKinds: ['codex', 'workbuddy'], workflow: { template: 'task-graph', nodes: [
+      node('first', 'codex'), node('final', 'workbuddy', { dependsOn: ['first'], inputNodeIds: ['first'], terminal: true }),
+    ] } })
+  const runId = ledger.list(group.id)[0].runId
+  const terminal = await waitForTerminalRun(ledger, runId)
+  assert.equal(terminal.status, 'failed')
+  assert.deepEqual(calls, ['codex'])
+})
+
 test('task graph recovery does not dispatch dependent work after an accepted artifact disappears', async t => {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
