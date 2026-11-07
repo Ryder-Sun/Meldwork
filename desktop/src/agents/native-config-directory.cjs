@@ -47,7 +47,8 @@ function nativeProjectConfigPaths(kind, env = {}) {
     const settings = env[kind === 'gemini' ? 'GEMINI_CLI_SYSTEM_SETTINGS_PATH' : 'QWEN_CODE_SYSTEM_SETTINGS_PATH']
     const defaults = env[kind === 'gemini' ? 'GEMINI_CLI_SYSTEM_DEFAULTS_PATH' : 'QWEN_CODE_SYSTEM_DEFAULTS_PATH']
       || (typeof settings === 'string' && settings ? path.join(path.dirname(settings), 'system-defaults.json') : '')
-    entries = [[settings, false], [defaults, false], ...(kind === 'gemini' ? [[env.GOOGLE_APPLICATION_CREDENTIALS, false]]
+    entries = [[settings, false], [defaults, false], ...(kind === 'gemini' ? [[env.GOOGLE_APPLICATION_CREDENTIALS, false],
+      [env.GEMINI_CLI_TRUSTED_FOLDERS_PATH, false]]
       : [[env.GEMINI_CLI_TRUSTED_FOLDERS_PATH, false]])]
   }
   if (kind === 'pi' || kind === 'claude' || kind === 'hermes') {
@@ -111,7 +112,7 @@ function nativeAuthIdentityFiles(kind, env, home, platform = process.platform) {
     const credentials = env?.GOOGLE_APPLICATION_CREDENTIALS
       || (typeof cloudRoot === 'string' && paths.isAbsolute(cloudRoot)
         ? paths.join(cloudRoot, 'application_default_credentials.json') : '')
-    return [settings, defaults, credentials,
+    return [settings, defaults, credentials, env?.GEMINI_CLI_TRUSTED_FOLDERS_PATH,
       ...(typeof home === 'string' && paths.isAbsolute(home) ? [paths.join(home, '.env')] : [])]
       .filter(filename => typeof filename === 'string' && paths.isAbsolute(filename))
   }
@@ -157,7 +158,7 @@ const NATIVE_CONFIG_DIRECTORIES = Object.freeze({
   claude: { key: 'CLAUDE_CONFIG_DIR', files: ['settings.json', '.credentials.json'], identityFiles: ['settings.local.json', '.env'] },
   pi: { key: 'PI_CODING_AGENT_DIR', files: ['settings.json', 'auth.json', 'models.json'] },
   opencode: { key: 'OPENCODE_CONFIG_DIR', files: ['opencode.json', 'opencode.jsonc'] },
-  gemini: { key: 'GEMINI_CLI_HOME', files: ['oauth_creds.json', 'gemini-credentials.json', 'google_accounts.json', 'settings.json', '.env'] },
+  gemini: { key: 'GEMINI_CLI_HOME', files: ['oauth_creds.json', 'gemini-credentials.json', 'google_accounts.json', 'settings.json', '.env'], identityFiles: ['trustedFolders.json'] },
   kimi: { key: 'KIMI_CODE_HOME', files: ['config.toml'], identityFiles: ['.env'], directories: ['credentials'] },
   mimo: { key: 'MIMOCODE_CONFIG_DIR', files: ['mimocode.json', 'mimocode.jsonc'] },
   deepseek: { key: 'DSH_HOME', files: ['cordis.patch.yml', '.credentials.yaml'], directories: ['profiles'] },

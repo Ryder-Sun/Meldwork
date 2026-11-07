@@ -6,8 +6,37 @@ const path = require('node:path')
 
 const catalogApi = require('../../src/workspace/local-workspace-agent-catalog.cjs')
 const { agentVerificationIdentity, projectVerificationIdentity } = require('../../src/workspace/agent-verification-identity.cjs')
-const { NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_ENVIRONMENT_IDENTITY, NATIVE_AUTH_IDENTITY_FILES, NATIVE_PROJECT_CONFIG_PATHS, nativeEnvironmentIdentity } = require('../../src/agents/native-config-directory.cjs')
+const { NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_ENVIRONMENT_IDENTITY, NATIVE_AUTH_IDENTITY_FILES, NATIVE_PROJECT_CONFIG_PATHS, nativeEnvironmentIdentity, nativeAuthIdentityFiles, nativeProjectConfigPaths } = require('../../src/agents/native-config-directory.cjs')
 const { LocalWorkspaceAgentCatalog } = catalogApi
+
+test('Gemini trust changes invalidate default, absolute and relative configuration identities', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-gemini-trust-identity-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const root = path.join(home, '.gemini')
+  fs.mkdirSync(root)
+  const agent = { kind: 'gemini' }
+  Object.defineProperty(agent, NATIVE_CONFIG_IDENTITY_DIRECTORY, { value: root })
+  const initial = agentVerificationIdentity(agent)
+  fs.writeFileSync(path.join(root, 'trustedFolders.json'), '{}')
+  assert.notEqual(agentVerificationIdentity(agent), initial)
+
+  const absolute = path.join(home, 'custom-trust.json')
+  const absoluteAgent = { kind: 'gemini' }
+  Object.defineProperty(absoluteAgent, NATIVE_AUTH_IDENTITY_FILES, {
+    value: nativeAuthIdentityFiles('gemini', { GEMINI_CLI_TRUSTED_FOLDERS_PATH: absolute }, home),
+  })
+  const beforeAbsolute = agentVerificationIdentity(absoluteAgent)
+  fs.writeFileSync(absolute, '{}')
+  assert.notEqual(agentVerificationIdentity(absoluteAgent), beforeAbsolute)
+
+  const relativeAgent = { kind: 'gemini' }
+  Object.defineProperty(relativeAgent, NATIVE_PROJECT_CONFIG_PATHS, {
+    value: nativeProjectConfigPaths('gemini', { GEMINI_CLI_TRUSTED_FOLDERS_PATH: 'relative-trust.json' }),
+  })
+  const beforeRelative = projectVerificationIdentity('gemini', home, relativeAgent)
+  fs.writeFileSync(path.join(home, 'relative-trust.json'), '{}')
+  assert.notEqual(projectVerificationIdentity('gemini', home, relativeAgent), beforeRelative)
+})
 
 test('deep workspaces track ancestor configuration without disabling verification', t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-deep-verification-'))
