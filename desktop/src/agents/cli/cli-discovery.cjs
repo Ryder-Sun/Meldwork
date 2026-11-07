@@ -7,6 +7,7 @@ const { promisify } = require('node:util')
 const { networkEnvironment } = require('./cli-network-environment.cjs')
 const { SECRET_ENV_KEYS, nativeSecretEnvKeys } = require('./native-secret-environment.cjs')
 const { NATIVE_CONFIG_DIRECTORIES } = require('../native-config-directory.cjs')
+const { nativeCredentialEnvironment } = require('../agent-native-environment.cjs')
 const { redactChildSecrets } = require('./cli-runtime-event-sanitizer.cjs')
 const {
   assessAgentVersion,
@@ -372,6 +373,7 @@ async function probeAgentCapabilities(kind, executable, options = {}) {
     ...(options.childEnv || {
       ...systemChildEnvironment(env, platform),
       ...nativeConfigDirectoryEnvironment(kind, env, platform),
+      ...(kind === 'openclaw' ? {} : nativeCredentialEnvironment(kind, env, options.nativeCredentialKeys, platform)),
       PATH: searchPath(options),
     }),
     ...launchEnvironment(kind, executable, options),

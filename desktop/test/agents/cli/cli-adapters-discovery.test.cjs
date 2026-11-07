@@ -1300,6 +1300,46 @@ test('direct capability probes use only their own native configuration directory
   }
 })
 
+test('direct probes use the same Agent-scoped native environment as execution', async () => {
+  const seen = []
+  await probeAgentCapabilities('claude', '/tmp/claude-direct', {
+    platform: 'darwin', env: { ANTHROPIC_API_KEY: 'claude-private', AWS_PROFILE: 'native-profile',
+      GEMINI_API_KEY: 'gemini-private', HTTPS_PROXY: 'http://proxy.example:3128' },
+    execFileFn: async (_command, _args, options) => { seen.push(options.env); throw new Error('unavailable') },
+  })
+  assert.ok(seen.length)
+  for (const env of seen) {
+    assert.equal(env.ANTHROPIC_API_KEY, 'claude-private')
+    assert.equal(env.AWS_PROFILE, 'native-profile')
+    assert.equal(env.HTTPS_PROXY, 'http://proxy.example:3128')
+    assert.equal(env.GEMINI_API_KEY, undefined)
+  }
+})
+
+test('direct Windows probes canonicalize native environment variable names', async () => {
+  const seen = []
+  await probeAgentCapabilities('claude', 'C:\\tools\\claude.exe', {
+    platform: 'win32', env: { anthropic_api_key: 'native-secret', vertex_region_model: 'region-a' },
+    execFileFn: async (_command, _args, options) => { seen.push(options.env); throw new Error('unavailable') },
+  })
+  assert.ok(seen.length)
+  assert.equal(seen[0].ANTHROPIC_API_KEY, 'native-secret')
+  assert.equal(seen[0].VERTEX_REGION_MODEL, 'region-a')
+})
+
+test('direct OpenClaw probes do not inherit ambient provider credentials', async () => {
+  const seen = []
+  await probeAgentCapabilities('openclaw', '/tmp/openclaw-direct', {
+    env: { OPENAI_API_KEY: 'ambient-secret', OPENROUTER_API_KEY: 'other-secret' },
+    execFileFn: async (_command, _args, options) => { seen.push(options.env); throw new Error('unavailable') },
+  })
+  assert.ok(seen.length)
+  for (const env of seen) {
+    assert.equal(env.OPENAI_API_KEY, undefined)
+    assert.equal(env.OPENROUTER_API_KEY, undefined)
+  }
+})
+
 test('direct probes use every supported native directory without leaking other Agents configuration', async () => {
   const entries = { codex: 'CODEX_HOME', hermes: 'HERMES_HOME', claude: 'CLAUDE_CONFIG_DIR',
     pi: 'PI_CODING_AGENT_DIR', deepseek: 'DSH_HOME', workbuddy: 'CODEBUDDY_CONFIG_DIR' }
