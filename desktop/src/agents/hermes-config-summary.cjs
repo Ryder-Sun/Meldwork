@@ -3,6 +3,7 @@ const os = require('node:os')
 const path = require('node:path')
 const yaml = require('js-yaml')
 const { redactSecrets } = require('../security/secret-redaction.cjs')
+const { hermesDotenvAssignments } = require('./hermes-dotenv.cjs')
 
 function hermesProviderFromConfig(config, env = {}) {
   const model = config?.model && typeof config.model === 'object' && !Array.isArray(config.model) ? config.model : {}
@@ -24,10 +25,8 @@ function hermesProviderEnvironment(root, env = {}) {
     const stat = fs.statSync(file)
     if (stat.isFile() && stat.size <= 1024 * 1024) {
       let provider
-      for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
-        if (!/^\s*(?:export\s+)?HERMES_INFERENCE_PROVIDER\s*=/.test(line)) continue
-        const match = line.match(/^\s*(?:export\s+)?HERMES_INFERENCE_PROVIDER\s*=\s*(?:"([A-Za-z0-9._:-]*)"|'([A-Za-z0-9._:-]*)'|([A-Za-z0-9._:-]*))\s*(?:#.*)?$/)
-        provider = match ? match[1] ?? match[2] ?? match[3] : ''
+      for (const [key, value] of hermesDotenvAssignments(fs.readFileSync(file, 'utf8'), env)) {
+        if (key === 'HERMES_INFERENCE_PROVIDER') provider = value ?? ''
       }
       if (provider !== undefined) return { ...env, HERMES_INFERENCE_PROVIDER: provider }
     }

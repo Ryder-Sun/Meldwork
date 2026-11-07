@@ -2,6 +2,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const yaml = require('js-yaml')
 const { nativeIdentityDirectory } = require('../native-config-directory.cjs')
+const { hermesDotenvAssignments } = require('../hermes-dotenv.cjs')
 const { configSecrets, nativeSecretEnvKeys } = require('./native-secret-environment.cjs')
 
 function hermesConfigSecrets({ env, home, platform, declaredKeys }) {
@@ -20,19 +21,7 @@ function hermesConfigSecrets({ env, home, platform, declaredKeys }) {
   const secrets = new Set(configSecrets(configs))
   const declared = new Set(nativeSecretEnvKeys(declaredKeys))
   try {
-    const values = { ...env }
-    for (const line of read('.env').split(/\r?\n/)) {
-      const match = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/)
-      if (!match) continue
-      const [, key, raw] = match
-      const quoted = raw.match(/^(['"])(.*?)\1\s*(?:#.*)?$/)
-      if (/^['"]/.test(raw) && !quoted) continue
-      let value = quoted ? quoted[2] : raw.replace(/\s+#.*$/, '').trim()
-      if (quoted?.[1] === '"') value = value.replace(/\\([nr"\\])/g, (_, c) => ({ n: '\n', r: '\r', '"': '"', '\\': '\\' })[c])
-      if (quoted?.[1] === "'") value = value.replace(/\\(['\\])/g, '$1')
-      value = value.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}/g,
-        (_, name, fallback) => Object.hasOwn(values, name) ? values[name] : fallback || '')
-      values[key] = value
+    for (const [key, value] of hermesDotenvAssignments(read('.env'), env)) {
       if ((declared.has(key) || /(?:API[_-]?KEY|ACCESS[_-]?KEY|TOKEN|SECRET|PASSWORD|AUTHORIZATION)/i.test(key))
           && value && value.length <= 8192) secrets.add(value)
     }
