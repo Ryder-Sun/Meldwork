@@ -69,6 +69,23 @@ test('new task graphs reject human decision summaries that cannot be displayed',
   assert.deepEqual(parseTaskGraph(legacy), legacy)
 })
 
+test('new Agent nodes require an acceptance criterion while legacy graphs remain readable', () => {
+  const emptyAcceptance = { requireConclusion: false, minArtifactRefs: 0, minEvidenceRefs: 0 }
+  const emptyNode = node({ terminal: true, acceptance: emptyAcceptance })
+  assert.throws(() => createTaskGraph({ template: 'task-graph', nodes: [emptyNode] }),
+    { message: 'TASK_GRAPH_SCHEMA_INVALID' })
+  for (const acceptance of [
+    { ...emptyAcceptance, requireConclusion: true },
+    { ...emptyAcceptance, minArtifactRefs: 1 },
+    { ...emptyAcceptance, minEvidenceRefs: 1 },
+  ]) {
+    assert.doesNotThrow(() => createTaskGraph({ template: 'task-graph', nodes: [{ ...emptyNode, acceptance }] }))
+  }
+  const body = { version: 1, recordType: 'task-graph', template: 'task-graph', nodes: [emptyNode] }
+  const graph = { ...body, graphId: `task-graph-${createHash('sha256').update(canonicalJson(body)).digest('hex')}` }
+  assert.deepEqual(parseTaskGraph(graph), graph)
+})
+
 test('restored task graphs enforce the same decision and terminal constraints as new graphs', () => {
   const graph = createTaskGraph(workflow())
   const signed = nodes => {
@@ -161,11 +178,12 @@ test('terminal acceptance cannot hide unfinished or failed graph nodes, includin
 })
 
 test('runner normalizes legacy success before applying the round limit', async () => {
-  const graph = createTaskGraph({ template: 'task-graph', nodes: [
+  const body = { version: 1, recordType: 'task-graph', template: 'task-graph', nodes: [
     node({ nodeId: 'independent' }),
     node({ nodeId: 'terminal', agentKind: 'hermes', terminal: true,
       acceptance: { requireConclusion: false, minArtifactRefs: 0, minEvidenceRefs: 0 } }),
-  ] })
+  ] }
+  const graph = { ...body, graphId: `task-graph-${createHash('sha256').update(canonicalJson(body)).digest('hex')}` }
   const cursor = updateTaskGraphCursor(createTaskGraphCursor(graph), 'terminal', { status: 'accepted' })
   const controller = { signal: { aborted: false }, unlimitedRounds: false, currentRound: 1, maxRounds: 1,
     orchestration: { taskGraph: { ...cursor, terminalState: 'accepted' } } }

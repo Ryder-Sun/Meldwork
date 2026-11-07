@@ -153,6 +153,11 @@ function validateGraphRelations(graph, targetKinds = null) {
 function createTaskGraph(input, targetKinds = null) {
   const parsed = graphInputSchema.safeParse(input)
   if (!parsed.success) fail('TASK_GRAPH_SCHEMA_INVALID')
+  if (parsed.data.nodes.some(node => node.role !== 'human'
+      && !node.acceptance.requireConclusion && !node.acceptance.minArtifactRefs
+      && !node.acceptance.minEvidenceRefs)) {
+    fail('TASK_GRAPH_SCHEMA_INVALID')
+  }
   if (parsed.data.nodes.some(node => node.role === 'human'
       && (!node.decisionOptions.some(option => option.kind === 'allow_once')
         || !node.decisionOptions.some(option => option.kind === 'reject_once')))) {

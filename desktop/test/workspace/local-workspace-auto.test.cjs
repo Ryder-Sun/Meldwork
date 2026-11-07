@@ -390,7 +390,8 @@ test('task graph review materializes bounded verified outcome content without ex
 test('task graph cannot accept an empty arbitration while conflicts remain', () => {
   const node = graphNode({ role: 'arbiter', agentKind: 'codex', terminal: true,
     acceptance: { requireConclusion: false, minArtifactRefs: 0, minEvidenceRefs: 0 } })
-  const graph = createTaskGraph({ template: 'task-graph', nodes: [node] })
+  const body = { version: 1, recordType: 'task-graph', template: 'task-graph', nodes: [node] }
+  const graph = { ...body, graphId: `task-graph-${createHash('sha256').update(canonicalJson(body)).digest('hex')}` }
   let collaboration = emptyCollaborationState()
   for (const [index, kind] of ['codex', 'hermes'].entries()) {
     collaboration = appendBlackboardEntry(collaboration, { entryType: 'claim', subject: 'shared',
