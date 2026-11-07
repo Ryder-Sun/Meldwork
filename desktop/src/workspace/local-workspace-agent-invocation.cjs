@@ -342,6 +342,7 @@ class LocalWorkspaceAgentInvocation {
     const runtimeBlocked = runtime?.credentialState === 'missing'
       || this.isProjectAuthBlocked(kind, group.workdir)
     const usable = item => item.installed !== false && item.invocable !== false
+      && item.versionIdentified !== false && item.compatible !== false
       && item.runtimePrerequisitesReady !== false && !item.runtimeBlockSource
       && item.compatibilityState !== 'incompatible' && item.credentialState !== 'missing'
       && !['runtime-auth-failure', 'none'].includes(item.availabilitySource)

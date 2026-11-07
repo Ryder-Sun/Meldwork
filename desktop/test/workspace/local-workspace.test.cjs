@@ -493,6 +493,8 @@ test('an active run cannot bypass newly failed Agent prerequisites or reuse a bl
   workspace.activeRuns.set(group.id, { runId: 'run-readiness', targetKinds: ['codex'] })
   for (const blocked of [
     { invocable: false },
+    { versionIdentified: false },
+    { compatible: false },
     { runtimePrerequisitesReady: false },
     { runtimeBlockSource: 'workbuddy-model-unavailable' },
     { credentialState: 'missing' },
