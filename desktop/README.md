@@ -78,7 +78,9 @@ CLI 解锁；可在 Meldwork 中选择桌面配置里已有且已配置鉴权的
 Meldwork 仅保存模型标识，运行时由主进程读取原生配置，不向渲染层返回密钥。
 Zcode 沿用默认配置；若其默认 Provider 缺少 API Key，需要先修复本机原生配置。
 
-DeepSeek Harness 使用 `dsh` 的 ACP profile，默认连接 ZGCI 的 `smart-router-v2`。可在 DeepSeek Harness
+DeepSeek Harness 使用 `dsh` 的 ACP profile，未指定原生 ACP Provider 或模型时默认连接 ZGCI 的 `smart-router-v2`；
+若 ACP profile 或 DSH home 的 `cordis.patch.yml` 已指定 Provider 或模型，则沿用原生配置及其声明的凭据环境变量。
+可在 DeepSeek Harness
 的原生凭据服务中配置 `ZGCI_API_KEY`，或在启动 Meldwork 的环境中提供该变量；
 Meldwork 不保存该密钥。默认只读，授权工作区写入后才允许修改工作区；权限模式改变时会建立
 新的原生会话并由 Meldwork 补充对话上下文。需要超出所选工作区权限的原生升级请求会被拒绝。

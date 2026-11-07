@@ -200,7 +200,7 @@ function childEnvironment(agent, workdir, options, platform) {
   for (const key of options.nativeUnsetKeys || []) {
     if (!Object.hasOwn(options.env || {}, key)) delete source[key]
   }
-  const nativeKeys = ['codex', 'hermes', 'zcode', 'mimo', 'pi', 'opencode'].includes(agent.kind)
+  const nativeKeys = ['codex', 'hermes', 'zcode', 'mimo', 'pi', 'opencode', 'deepseek'].includes(agent.kind)
     ? nativeSecretEnvKeys(options.nativeCredentialKeys) : []
   const nativeEnvironment = nativeCredentialEnvironment(agent.kind, options.env || {}, nativeKeys, platform)
   const controlled = {

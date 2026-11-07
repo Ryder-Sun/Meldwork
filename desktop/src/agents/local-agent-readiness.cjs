@@ -8,6 +8,7 @@ const yaml = require('js-yaml')
 const JSON5 = require('json5')
 const toml = require('@iarna/toml')
 const { nativeSecretEnvKeys } = require('./cli/native-secret-environment.cjs')
+const { deepseekNativeConfig } = require('./cli/deepseek-native-config.cjs')
 const { prepareCommand, searchPath } = require('./cli/cli-discovery.cjs')
 const { isOpenClawSecretReference } = require('./cli/openclaw-runtime.cjs')
 const { NETWORK_ENV_KEYS, networkEnvironment } = require('./cli/cli-network-environment.cjs')
@@ -663,6 +664,9 @@ function resolveNativeShellEnvironment(options = {}) {
 
 function nativeCredentialState(kind, options = {}) {
   if (kind === 'workbuddy') return workBuddyCredentialState(options)
+  if (kind === 'deepseek' && deepseekNativeConfig(options).explicitModel) {
+    return { state: 'unknown', source: 'unverified' }
+  }
   if (kind === 'zcode') {
     const selected = zcodeSelectedCredentialState(options)
     if (selected) return selected

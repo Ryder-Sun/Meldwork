@@ -1,4 +1,5 @@
 const path = require('node:path')
+const { deepseekNativeConfig } = require('./deepseek-native-config.cjs')
 
 const CODEX_SANDBOXES = new Set(['read-only', 'workspace-write'])
 const IMAGE_ATTACHMENT_LIMITS = Object.freeze({
@@ -232,7 +233,8 @@ function invocation(kind, executable, workdir, sessionRef = '', options = {}) {
     const policyDirectory = __dirname.replace(/app\.asar(?=[\\/])/, 'app.asar.unpacked')
     return {
       command: executable,
-      args: ['--profile', 'acp', '--patch', path.join(policyDirectory, 'deepseek-zgci.yml'),
+      args: ['--profile', 'acp', ...(deepseekNativeConfig({ env: options.env }).explicitModel
+        ? [] : ['--patch', path.join(policyDirectory, 'deepseek-zgci.yml')]),
         '--patch', path.join(policyDirectory, `deepseek-${mode}.yml`)],
       eventTransport: 'acp',
       deepSeekMode: mode,

@@ -1,16 +1,23 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
+const path = require('node:path')
 const { LocalWorkspace } = require('../../src/workspace/local-workspace.cjs')
 const { runAgent, shutdownAcpSessionRuntime } = require('../../src/agents/cli/cli-adapters.cjs')
 const { executable } = require('../support/cli-adapters-test-helpers.cjs')
 const { fixture } = require('../support/local-workspace-test-helpers.cjs')
 
-test('DeepSeek participates in direct and group chats with separate reusable sessions', async (t) => {
+test('DeepSeek native provider participates in direct and group chats with separate reusable sessions', async (t) => {
   const { directory, options } = fixture()
+  fs.mkdirSync(path.join(directory, 'profiles', 'acp'), { recursive: true })
+  fs.writeFileSync(path.join(directory, 'profiles', 'acp', 'cordis.patch.yml'), [
+    '- id: llm-pi-ai', '  config:', '    providers:', '      custom:', '        apiKeyEnv: CUSTOM_DSH_KEY',
+    '- id: acp', '  config:', '    provider: custom', '    model: chosen-model',
+  ].join('\n'))
   const cli = executable(directory, 'dsh.cjs', `
 const readline = require('node:readline')
 const { randomUUID } = require('node:crypto')
+if (process.argv.some(arg => arg.endsWith('deepseek-zgci.yml')) || process.env.CUSTOM_DSH_KEY !== 'native-test-secret') process.exit(2)
 const send = value => process.stdout.write(JSON.stringify(value) + '\\n')
 readline.createInterface({ input: process.stdin }).on('line', line => {
   const message = JSON.parse(line)
@@ -35,7 +42,10 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
   const refs = []
   options.runAgent = async (agent, prompt, workdir, runOptions) => {
     if (agent.kind === 'codex') return { text: 'Codex reply', outcome: 'completed' }
-    const result = await runAgent(agent, prompt, workdir, runOptions)
+    const result = await runAgent(agent, prompt, workdir, { ...runOptions,
+      env: { DSH_HOME: directory, CUSTOM_DSH_KEY: 'native-test-secret' },
+      nativeCredentialKeys: ['CUSTOM_DSH_KEY'],
+    })
     refs.push({ incoming: runOptions.sessionRef, returned: result.sessionRef })
     return result
   }

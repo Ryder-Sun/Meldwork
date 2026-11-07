@@ -920,6 +920,35 @@ test('DeepSeek native directory selection reaches detection, execution, and Skil
   assert.equal(harness.skillCatalogInstances[0].input.configDirectoryForKind('deepseek'), chosen.directory)
 })
 
+test('DeepSeek native provider credentials reach detection and execution without unrelated keys', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-dsh-native-env-ipc-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const native = path.join(directory, 'dsh-home')
+  fs.mkdirSync(path.join(native, 'profiles', 'acp'), { recursive: true })
+  fs.writeFileSync(path.join(native, 'profiles', 'acp', 'cordis.patch.yml'), [
+    '- id: llm-pi-ai', '  config:', '    providers:', '      custom:', '        apiKeyEnv: CUSTOM_DSH_KEY',
+    '- id: acp', '  config:', '    provider: custom', '    model: chosen-model',
+  ].join('\n'))
+  const actualNativeEnvironment = require('../../src/agents/agent-native-environment.cjs').nativeCredentialEnvironment
+  let detected
+  const { harness } = loadMain(directory, {
+    nativeShellEnvironment: input => ({ env: { DSH_HOME: native, ZGCI_API_KEY: 'unrelated',
+      ...(input.extraEnvKeys?.includes('CUSTOM_DSH_KEY') ? { CUSTOM_DSH_KEY: 'native-secret' } : {}) }, source: 'native-shell' }),
+    nativeEnvironment: (...args) => actualNativeEnvironment(...args),
+    detectAgents: input => { detected = input.nativeEnvironmentForKind('deepseek'); return [] },
+  })
+  await harness.ready()
+  await harness.installerInstances[0].input.detectAgents()
+  assert.equal(detected.CUSTOM_DSH_KEY, 'native-secret')
+  assert.equal(detected.ZGCI_API_KEY, undefined)
+  const workspace = harness.workspaceInstances[0]
+  await workspace.input.runAgent({ kind: 'deepseek', executable: '/tmp/dsh' }, 'hello', directory, {})
+  const options = harness.runAgentCalls.at(-1)[3]
+  assert.equal(options.env.CUSTOM_DSH_KEY, 'native-secret')
+  assert.equal(options.env.ZGCI_API_KEY, undefined)
+  assert.deepEqual(options.nativeCredentialKeys, ['CUSTOM_DSH_KEY'])
+})
+
 test('DeepSeek shared Skill directory follows the native shell and invalidates its cache', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-dsh-shared-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

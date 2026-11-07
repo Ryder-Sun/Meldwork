@@ -138,6 +138,7 @@ async function runAgent(agent, prompt, workdir, options = {}) {
     : agent.acpAvailable
   const spec = invocation(agent.kind, agent.executable, workdir, sessionRef, {
     platform,
+    ...(agent.kind === 'deepseek' ? { env: options.env } : {}),
     sandbox: options.sandbox,
     attachments: options.attachments,
     hermesAcpAvailable,

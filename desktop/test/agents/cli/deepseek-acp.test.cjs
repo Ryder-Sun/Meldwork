@@ -80,3 +80,112 @@ test('DeepSeek invocation pins policy and preserves only its allowed native envi
   assert.equal(env.DSH_HOME, '/tmp/dsh')
   assert.equal(env.DSH_PERMISSION_MODE, undefined)
 })
+
+test('DeepSeek honors an explicitly configured ACP provider and its declared credential', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-dsh-native-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  fs.mkdirSync(path.join(home, 'profiles', 'acp'), { recursive: true })
+  fs.writeFileSync(path.join(home, 'profiles', 'acp', 'cordis.patch.yml'), [
+    '- id: llm-pi-ai', '  config:', '    providers:', '      custom:', '        apiKeyEnv: CUSTOM_DSH_KEY',
+    '    localValue: !!js process.cwd()',
+    '- id: acp', '  config:', '    provider: custom', '    model: chosen-model',
+  ].join('\n'))
+  const { deepseekNativeConfig } = require('../../../src/agents/cli/deepseek-native-config.cjs')
+  const { nativeCredentialEnvironment } = require('../../../src/agents/agent-native-environment.cjs')
+  const { redactChildSecrets } = require('../../../src/agents/cli/cli-runtime-event-sanitizer.cjs')
+  const native = deepseekNativeConfig({ env: { DSH_HOME: home } })
+  assert.deepEqual(native, { explicitModel: true, credentialKeys: ['CUSTOM_DSH_KEY'] })
+  assert.deepEqual(nativeCredentialEnvironment('deepseek', { DSH_HOME: home, CUSTOM_DSH_KEY: 'selected-secret',
+    ZGCI_API_KEY: 'other-account', UNRELATED_SECRET: 'private' }, native.credentialKeys),
+  { DSH_HOME: home, CUSTOM_DSH_KEY: 'selected-secret' })
+  for (const sandbox of ['read-only', 'workspace-write']) {
+    const options = { sandbox, env: { DSH_HOME: home, CUSTOM_DSH_KEY: 'selected-secret' },
+      nativeCredentialKeys: native.credentialKeys }
+    const spec = invocation('deepseek', '/bin/dsh', '/tmp', '', options)
+    assert.equal(spec.args.some(arg => /deepseek-zgci\.yml$/.test(arg)), false)
+    assert.match(spec.args.at(-1), /deepseek-(?:read|write)\.yml$/)
+    const child = childEnvironment({ kind: 'deepseek' }, '/tmp', options, process.platform)
+    assert.equal(child.CUSTOM_DSH_KEY, 'selected-secret')
+    assert.doesNotMatch(redactChildSecrets('failed with selected-secret', child), /selected-secret/)
+  }
+})
+
+test('DeepSeek uses the default model only without an explicit native selection', t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-dsh-default-'))
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+  const env = { DSH_HOME: root }
+  const options = { sandbox: 'read-only', env }
+  assert.equal(invocation('deepseek', '/bin/dsh', '/tmp', '', options).args.some(arg => /deepseek-zgci\.yml$/.test(arg)), true)
+  fs.writeFileSync(path.join(root, 'cordis.patch.yml'), '- id: acp\n  config:\n    model: user-model\n')
+  assert.equal(invocation('deepseek', '/bin/dsh', '/tmp', '', options).args.some(arg => /deepseek-zgci\.yml$/.test(arg)), false)
+  fs.writeFileSync(path.join(root, 'cordis.patch.yml'), 'invalid: [')
+  assert.equal(invocation('deepseek', '/bin/dsh', '/tmp', '', options).args.some(arg => /deepseek-zgci\.yml$/.test(arg)), false)
+})
+
+test('DeepSeek ACP uses the native selected provider in both permission modes', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-dsh-native-acp-'))
+  fs.mkdirSync(path.join(directory, 'profiles', 'acp'), { recursive: true })
+  fs.writeFileSync(path.join(directory, 'profiles', 'acp', 'cordis.patch.yml'), [
+    '- id: llm-pi-ai', '  config:', '    providers:', '      custom:', '        apiKeyEnv: CUSTOM_DSH_KEY',
+    '- id: acp', '  config:', '    provider: custom', '    model: chosen-model',
+  ].join('\n'))
+  const cli = executable(directory, 'native-dsh.cjs', `
+const readline = require('node:readline')
+if (process.argv.some(arg => arg.endsWith('deepseek-zgci.yml')) || process.env.CUSTOM_DSH_KEY !== 'native-test-secret') process.exit(2)
+const input = readline.createInterface({ input: process.stdin })
+const send = message => process.stdout.write(JSON.stringify(message) + '\\n')
+input.on('line', line => {
+  const message = JSON.parse(line)
+  if (message.method === 'initialize') send({ jsonrpc: '2.0', id: message.id, result: { protocolVersion: 1 } })
+  else if (message.method === 'session/new') send({ jsonrpc: '2.0', id: message.id, result: { sessionId: 'native-session' } })
+  else if (message.method === 'session/prompt') {
+    send({ jsonrpc: '2.0', method: 'session/update', params: { sessionId: 'native-session', update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'Native provider reply' } } } })
+    send({ jsonrpc: '2.0', id: message.id, result: { stopReason: 'end_turn' } })
+  }
+})
+`)
+  t.after(async () => { await shutdownAcpSessionRuntime(); fs.rmSync(directory, { recursive: true, force: true }) })
+  for (const sandbox of ['read-only', 'workspace-write']) {
+    const result = await runAgent({ kind: 'deepseek', executable: cli }, 'hello', directory, {
+      sandbox, env: { DSH_HOME: directory, CUSTOM_DSH_KEY: 'native-test-secret' },
+      nativeCredentialKeys: ['CUSTOM_DSH_KEY'],
+    })
+    assert.equal(result.text, 'Native provider reply')
+  }
+})
+
+test('DeepSeek restarts its persistent ACP process after native model configuration changes', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-dsh-native-reload-'))
+  fs.mkdirSync(path.join(directory, 'profiles', 'acp'), { recursive: true })
+  const config = path.join(directory, 'profiles', 'acp', 'cordis.patch.yml')
+  const writeConfig = model => fs.writeFileSync(config, `- id: acp\n  config:\n    provider: custom\n    model: ${model}\n`)
+  writeConfig('first-model')
+  const cli = executable(directory, 'reload-dsh.cjs', `
+const fs = require('node:fs')
+fs.appendFileSync(process.env.MELDWORK_TEST_START_FILE, 'start\\n')
+const readline = require('node:readline')
+const send = message => process.stdout.write(JSON.stringify(message) + '\\n')
+readline.createInterface({ input: process.stdin }).on('line', line => {
+  const message = JSON.parse(line)
+  if (message.method === 'initialize') send({ jsonrpc: '2.0', id: message.id, result: { protocolVersion: 1 } })
+  else if (message.method === 'session/new') send({ jsonrpc: '2.0', id: message.id, result: { sessionId: 'reload-session' } })
+  else if (message.method === 'session/resume') send({ jsonrpc: '2.0', id: message.id, result: {} })
+  else if (message.method === 'session/prompt') {
+    send({ jsonrpc: '2.0', method: 'session/update', params: { sessionId: 'reload-session', update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'Reply' } } } })
+    send({ jsonrpc: '2.0', id: message.id, result: { stopReason: 'end_turn' } })
+  }
+})
+`)
+  t.after(async () => { await shutdownAcpSessionRuntime(); fs.rmSync(directory, { recursive: true, force: true }) })
+  const starts = path.join(directory, 'starts')
+  const agent = { kind: 'deepseek', executable: cli }
+  const options = { sandbox: 'read-only', acpPersistenceKey: 'reload-test',
+    env: { DSH_HOME: directory, MELDWORK_TEST_START_FILE: starts } }
+  const first = await runAgent(agent, 'first', directory, options)
+  writeConfig('second-model')
+  await assert.rejects(runAgent(agent, 'second', directory, { ...options, sessionRef: first.sessionRef }),
+    { code: 'LOCAL_AGENT_SESSION_INVALID' })
+  const second = await runAgent(agent, 'second', directory, options)
+  assert.equal(second.text, 'Reply')
+  assert.equal(fs.readFileSync(starts, 'utf8'), 'start\nstart\n')
+})

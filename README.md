@@ -101,6 +101,7 @@ Approved Agent Connectors and custom executable Agents use the desktop connector
 The [Agent Connector SDK guide](desktop/AGENT_CONNECTOR_SDK.md) explains supported packages, approval, upgrades, and conformance checks.
 
 DeepSeek Harness (`dsh`) supports direct chats and group replies through ACP, with separate resumable sessions and workspace permissions. Its default route is ZGCI `smart-router-v2`; provide `ZGCI_API_KEY` through native credentials or the launch environment. In Settings → Agents → DeepSeek Harness, you can select an existing native `DSH_HOME` directory; detection, execution, and local Skills use that selection. The native `DSH_AGENTS_HOME` environment variable also controls the shared Skills directory. The icon comes from the official macOS application.
+An explicit ACP provider or model in the native profile or DSH home patch takes precedence over this default; credential environment variables declared there are passed to DSH.
 
 WorkBuddy also supports selecting its existing native configuration directory in Settings → Agents. Its model list, execution environment, and local and plugin Skills use the selected directory.
 

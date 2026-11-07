@@ -1,5 +1,6 @@
 const { nativeSecretEnvKeys } = require('./cli/native-secret-environment.cjs')
 const { PI_BUILTIN_CREDENTIAL_KEYS, PI_BUILTIN_CONFIG_KEYS } = require('./cli/pi-provider-environment.cjs')
+const { deepseekNativeConfig } = require('./cli/deepseek-native-config.cjs')
 
 const VERTEX_MODEL_REGION_KEY = /^VERTEX_REGION_[A-Z0-9_]{1,120}$/
 const CREDENTIAL_ENV_KEYS = Object.freeze({
@@ -120,10 +121,12 @@ const RUNTIME_ENV_KEYS = Object.freeze({
 function nativeCredentialEnvironment(kind, env = process.env, declaredKeys = [], platform = process.platform) {
   const result = {}
   const sourceKeys = Object.keys(env)
-  const keys = [...(RUNTIME_ENV_KEYS[kind] || []), ...(kind === 'claude'
+  const runtimeKeys = kind === 'deepseek' && deepseekNativeConfig({ env }).explicitModel
+    ? RUNTIME_ENV_KEYS.deepseek.filter(key => key !== 'ZGCI_API_KEY') : (RUNTIME_ENV_KEYS[kind] || [])
+  const keys = [...runtimeKeys, ...(kind === 'claude'
     ? sourceKeys.map(key => platform === 'win32' ? key.toUpperCase() : key)
       .filter(key => VERTEX_MODEL_REGION_KEY.test(key)) : []),
-    ...(['codex', 'hermes', 'zcode', 'mimo', 'pi', 'opencode'].includes(kind) ? nativeSecretEnvKeys(declaredKeys) : [])]
+    ...(['codex', 'hermes', 'zcode', 'mimo', 'pi', 'opencode', 'deepseek'].includes(kind) ? nativeSecretEnvKeys(declaredKeys) : [])]
   for (const key of keys) {
     const sourceKey = Object.hasOwn(env, key) ? key
       : platform === 'win32' ? sourceKeys.find(name => name.toUpperCase() === key.toUpperCase()) : undefined
