@@ -235,6 +235,27 @@ test('spawn and authentication failures invalidate a previously successful capab
   assert.equal((await probe()).compatibilityState, 'unknown')
 })
 
+test('a late successful probe cannot restore a cache after a newer spawn failure', async () => {
+  let release
+  const pending = new Promise(resolve => { release = resolve })
+  const options = { env: {}, version: '2.115.0',
+    statFn: () => ({ dev: 1, ino: 1, size: 100, mtimeMs: 1, ctimeMs: 1 }) }
+  const executable = '/test/parallel-probe-cache'
+  const oldProbe = probeAgentCapabilities('workbuddy', executable, { ...options,
+    execFileFn: async () => { await pending; return { stdout: '--print --output-format --permission-mode --max-turns --resume json plan acceptEdits' } },
+  })
+  const newer = await probeAgentCapabilities('workbuddy', executable, { ...options,
+    execFileFn: async () => { throw Object.assign(new Error('permission denied'), { code: 'EACCES' }) },
+  })
+  assert.equal(newer.compatibilityState, 'unknown')
+  release()
+  assert.equal((await oldProbe).compatibilityState, 'compatible')
+  const timeout = await probeAgentCapabilities('workbuddy', executable, { ...options,
+    execFileFn: async () => { throw Object.assign(new Error('timeout'), { code: 'ETIMEDOUT' }) },
+  })
+  assert.equal(timeout.compatibilityState, 'unknown')
+})
+
 test('capability probe cache expires when the system clock moves backwards', async t => {
   let now = 10_000
   t.mock.method(Date, 'now', () => now)
