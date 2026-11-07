@@ -19,6 +19,7 @@ function qwenDeclaredCredentialKeys(options = {}) {
     ? path.join(options.workdir, '.qwen', 'settings.json') : ''
   let model = ''
   let auth = ''
+  let inlineCredential = ''
   const providers = new Map()
   try {
     const configs = new Map()
@@ -55,6 +56,7 @@ function qwenDeclaredCredentialKeys(options = {}) {
       if (!settings) continue
       if (typeof settings.model?.name === 'string') model = settings.model.name
       if (typeof settings.security?.auth?.selectedType === 'string') auth = settings.security.auth.selectedType
+      if (Object.hasOwn(settings.security?.auth || {}, 'apiKey')) inlineCredential = settings.security.auth.apiKey
       if (settings.modelProviders && typeof settings.modelProviders === 'object' && !Array.isArray(settings.modelProviders)) {
         providers.clear()
         for (const [type, entries] of Object.entries(settings.modelProviders)) {
@@ -63,10 +65,14 @@ function qwenDeclaredCredentialKeys(options = {}) {
       }
     }
     auth ||= typeof env.QWEN_DEFAULT_AUTH_TYPE === 'string' ? env.QWEN_DEFAULT_AUTH_TYPE : ''
-    if (!auth || !model) return []
-    const selected = (providers.get(auth) || []).filter(entry => entry?.id === model)
-    if (selected.length !== 1) return []
-    return nativeSecretEnvKeys([selected[0]?.envKey])
+    if (!auth) return []
+    const selected = model ? (providers.get(auth) || []).filter(entry => entry?.id === model) : []
+    if (selected.length > 1) return []
+    if (selected[0]?.envKey) return nativeSecretEnvKeys([selected[0].envKey])
+    if (typeof inlineCredential === 'string' && inlineCredential.trim()) return []
+    const defaultKeys = { openai: 'OPENAI_API_KEY', anthropic: 'ANTHROPIC_API_KEY',
+      gemini: 'GEMINI_API_KEY', 'vertex-ai': 'GOOGLE_API_KEY' }
+    return nativeSecretEnvKeys([defaultKeys[auth]])
   } catch { return [] }
 }
 

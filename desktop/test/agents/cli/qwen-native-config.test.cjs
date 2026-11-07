@@ -76,5 +76,22 @@ test('Qwen system configuration takes precedence and unsafe credential names are
   fs.writeFileSync(system, JSON.stringify(config('NODE_OPTIONS')))
   assert.deepEqual(qwenDeclaredCredentialKeys({ home, workdir, env }), [])
   fs.writeFileSync(system, JSON.stringify({ modelProviders: { anthropic: [{ id: 'other', envKey: 'OTHER_KEY' }] } }))
-  assert.deepEqual(qwenDeclaredCredentialKeys({ home, workdir, env }), [])
+  assert.deepEqual(qwenDeclaredCredentialKeys({ home, workdir, env }), ['OPENAI_API_KEY'])
+})
+
+test('Qwen readiness follows the selected standard provider credential', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-qwen-standard-provider-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  fs.mkdirSync(path.join(home, '.qwen'))
+  const settings = path.join(home, '.qwen', 'settings.json')
+  const env = { QWEN_CODE_SYSTEM_SETTINGS_PATH: path.join(home, 'missing.json'), OPENAI_API_KEY: 'other-provider' }
+  for (const [auth, key] of [['anthropic', 'ANTHROPIC_API_KEY'], ['gemini', 'GEMINI_API_KEY'], ['vertex-ai', 'GOOGLE_API_KEY']]) {
+    fs.writeFileSync(settings, JSON.stringify({ security: { auth: { selectedType: auth } } }))
+    const keys = qwenDeclaredCredentialKeys({ home, env })
+    assert.deepEqual(keys, [key])
+    assert.deepEqual(nativeCredentialState('qwen', { home, env, nativeCredentialKeys: keys }),
+      { state: 'unknown', source: 'unverified' })
+    assert.deepEqual(nativeCredentialState('qwen', { home, env: { ...env, [key]: 'selected' }, nativeCredentialKeys: keys }),
+      { state: 'ready', source: 'native-credential' })
+  }
 })
