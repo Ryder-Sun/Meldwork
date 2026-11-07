@@ -49,6 +49,14 @@ it('explains the Qwen home directory used by the selected configuration', async 
   wrapper.unmount()
 })
 
+it('explains the OpenCodeReview native directory', async () => {
+  window.meldworkDesktop = { localAgentNativeConfig: { get: vi.fn().mockResolvedValue({ directory: '' }) } }
+  const wrapper = mount(AgentNativeConfig, { props: { kind: 'opencodereview' } })
+  await flushPromises()
+  expect(wrapper.text()).toContain(t('nativeConfig.expected.opencodereview'))
+  wrapper.unmount()
+})
+
 it('does not claim automatic discovery when the saved directory cannot be read', async () => {
   window.meldworkDesktop = { localAgentNativeConfig: {
     get: vi.fn().mockRejectedValue(new Error('LOCAL_WORKSPACE_UNAVAILABLE')),

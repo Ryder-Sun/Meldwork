@@ -680,6 +680,34 @@ test('Qwen selected native configuration controls credentials, execution and Ski
   assert.equal(harness.skillCatalogInstances[0].input.configDirectoryForKind('qwen'), path.resolve(home))
 })
 
+test('OpenCodeReview selected native directory reaches detection and execution', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-ocr-config-main-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const home = path.join(directory, 'selected-home')
+  const selected = path.join(home, '.opencodereview')
+  fs.mkdirSync(selected, { recursive: true })
+  fs.writeFileSync(path.join(selected, 'config.json'), '{}')
+  const readiness = require('../../src/agents/local-agent-readiness.cjs')
+  let detected
+  const { harness } = loadMain(directory, {
+    dialogResult: { canceled: false, filePaths: [selected] },
+    nativeEnvironment: readiness.nativeCredentialEnvironment,
+    detectAgents: input => { detected = input.nativeEnvironmentForKind('opencodereview'); return [] },
+  })
+  await harness.ready()
+  const workspace = harness.workspaceInstances[0]
+  workspace.state.agentPreferences = {}
+  workspace.state.agentRuntime = {}
+  workspace.activeRuns = new Map()
+  workspace.save = () => {}
+  const choice = await harness.ipcHandlers.get('local-agent-native-config:choose')(harness.event(), 'opencodereview')
+  assert.equal(choice.directory, selected)
+  await harness.installerInstances[0].input.detectAgents()
+  assert.equal(detected.HOME, home)
+  await workspace.input.runAgent({ kind: 'opencodereview', executable: '/tmp/ocr' }, 'hello', directory, {})
+  assert.equal(harness.runAgentCalls.at(-1)[3].env.HOME, home)
+})
+
 test('Qwen verification follows the selected native home environment file', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-qwen-selected-identity-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

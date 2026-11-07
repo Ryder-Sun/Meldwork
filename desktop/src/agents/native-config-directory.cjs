@@ -164,12 +164,13 @@ const NATIVE_CONFIG_DIRECTORIES = Object.freeze({
   workbuddy: { key: 'CODEBUDDY_CONFIG_DIR', files: ['models.json', 'settings.json', '.credentials.json'] },
   zcode: { key: 'HOME', files: ['config.json'] },
   qwen: { key: 'HOME', files: ['settings.json', 'oauth_creds.json', '.env'], identityFiles: ['trustedFolders.json'] },
+  opencodereview: { key: 'HOME', files: ['config.json'], identityFiles: ['.env'] },
 })
 function nativeIdentityDirectory(kind, env, home, platform = process.platform) {
-  if (kind === 'qwen') {
+  if (kind === 'qwen' || kind === 'opencodereview') {
     const paths = platform === 'win32' ? path.win32 : path.posix
     const base = (platform === 'win32' ? env?.USERPROFILE : env?.HOME) || home
-    return typeof base === 'string' && paths.isAbsolute(base) ? paths.join(base, '.qwen') : ''
+    return typeof base === 'string' && paths.isAbsolute(base) ? paths.join(base, kind === 'qwen' ? '.qwen' : '.opencodereview') : ''
   }
   if (kind === 'zcode') {
     const paths = platform === 'win32' ? path.win32 : path.posix
@@ -207,10 +208,10 @@ function nativeConfigEnvironment(kind, preferences, env = {}, platform = process
   if (typeof directory !== 'string' || directory.length > 4096
       || directory.includes('\u0000') || !path.isAbsolute(directory)) throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
   if (kind === 'gemini' && path.basename(path.resolve(directory)) !== '.gemini') throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
-  if (kind === 'qwen') {
+  if (kind === 'qwen' || kind === 'opencodereview') {
     const resolved = path.resolve(directory)
     const name = path.basename(resolved)
-    if ((platform === 'win32' ? name.toLowerCase() : name) !== '.qwen') throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
+    if ((platform === 'win32' ? name.toLowerCase() : name) !== (kind === 'qwen' ? '.qwen' : '.opencodereview')) throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
     const home = path.dirname(resolved)
     return platform === 'win32' ? { ...env, HOME: home, USERPROFILE: home } : { ...env, HOME: home }
   }
@@ -233,6 +234,7 @@ function validateNativeConfigDirectory(kind, directory) {
   if (kind === 'gemini' && path.basename(path.resolve(directory)) !== '.gemini') throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
   const caseName = value => process.platform === 'win32' ? value.toLowerCase() : value
   if (kind === 'qwen' && caseName(path.basename(path.resolve(directory))) !== '.qwen') throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
+  if (kind === 'opencodereview' && caseName(path.basename(path.resolve(directory))) !== '.opencodereview') throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
   if (kind === 'zcode' && (caseName(path.basename(path.resolve(directory))) !== 'cli'
       || caseName(path.basename(path.dirname(path.resolve(directory)))) !== '.zcode')) throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
   let resolved
@@ -245,7 +247,7 @@ function validateNativeConfigDirectory(kind, directory) {
           try { return fs.statSync(path.join(resolved, name)).isDirectory() } catch { return false }
         }))) throw new Error('invalid directory')
   } catch { throw new Error('LOCAL_NATIVE_CONFIG_INVALID') }
-  return ['gemini', 'zcode', 'qwen'].includes(kind) ? path.resolve(directory) : resolved
+  return ['gemini', 'zcode', 'qwen', 'opencodereview'].includes(kind) ? path.resolve(directory) : resolved
 }
 
 module.exports = { NATIVE_CONFIG_DIRECTORIES, NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_ENVIRONMENT_IDENTITY, NATIVE_AUTH_IDENTITY_FILES, NATIVE_PROJECT_CONFIG_PATHS,

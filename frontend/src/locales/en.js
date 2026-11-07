@@ -22,6 +22,7 @@ export default {
     'nativeConfig.expected.gemini': 'Choose a .gemini directory containing settings or credentials.',
     'nativeConfig.expected.zcode': 'Choose a .zcode/cli directory containing config.json. Zcode uses its parent user home.',
     'nativeConfig.expected.qwen': 'Choose a .qwen directory containing settings or credentials. Qwen uses its parent user home.',
+    'nativeConfig.expected.opencodereview': 'Choose a .opencodereview directory containing config.json. OpenCodeReview uses its parent user home.',
     'skillTrust.title': 'Skill trust',
     'skillTrust.hint': 'Review trust granted to an Agent and exact Skill content. Changed content requires approval again.',
     'skillTrust.refresh': 'Refresh',

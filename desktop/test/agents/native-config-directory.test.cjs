@@ -5,6 +5,36 @@ const os = require('node:os')
 const path = require('node:path')
 const { nativeAuthIdentityFiles, nativeConfigEnvironment, nativeIdentityDirectory, nativeProjectConfigPaths, validateNativeConfigDirectory } = require('../../src/agents/native-config-directory.cjs')
 
+test('OpenCodeReview selects its native configuration directory and parent home', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-ocr-config-home-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const directory = path.join(home, '.opencodereview')
+  fs.mkdirSync(directory)
+  assert.throws(() => validateNativeConfigDirectory('opencodereview', directory), { message: 'LOCAL_NATIVE_CONFIG_INVALID' })
+  fs.writeFileSync(path.join(directory, 'config.json'), '{}')
+  assert.equal(validateNativeConfigDirectory('opencodereview', directory), directory)
+  const preferences = { opencodereview: { nativeConfigDirectory: directory } }
+  assert.equal(nativeConfigEnvironment('opencodereview', preferences, { HOME: '/old' }).HOME, home)
+  const { childEnvironment } = require('../../src/agents/cli/cli-process-support.cjs')
+  const selected = nativeConfigEnvironment('opencodereview', preferences, { HOME: '/old' })
+  assert.equal(childEnvironment({ kind: 'opencodereview' }, home, { env: selected }, process.platform).HOME, home)
+  assert.deepEqual(nativeConfigEnvironment('opencodereview', preferences, {}, 'win32'), { HOME: home, USERPROFILE: home })
+  const windows = nativeConfigEnvironment('opencodereview', preferences, {}, 'win32')
+  assert.equal(childEnvironment({ kind: 'opencodereview' }, home, { env: windows }, 'win32').USERPROFILE, home)
+  assert.equal(nativeIdentityDirectory('opencodereview', { HOME: home }, '/other', 'linux'), directory)
+  assert.throws(() => nativeConfigEnvironment('opencodereview', { opencodereview: { nativeConfigDirectory: home } }),
+    { message: 'LOCAL_NATIVE_CONFIG_INVALID' })
+  if (process.platform !== 'win32') {
+    assert.throws(() => nativeConfigEnvironment('opencodereview', { opencodereview: { nativeConfigDirectory: path.join(home, '.OPENCODEREVIEW') } }),
+      { message: 'LOCAL_NATIVE_CONFIG_INVALID' })
+    const alias = path.join(home, 'alias', '.opencodereview')
+    fs.mkdirSync(path.dirname(alias))
+    fs.symlinkSync(directory, alias, 'dir')
+    assert.equal(validateNativeConfigDirectory('opencodereview', alias), alias)
+    assert.equal(nativeConfigEnvironment('opencodereview', { opencodereview: { nativeConfigDirectory: alias } }).HOME, path.dirname(alias))
+  }
+})
+
 test('OpenCodeReview verification changes when native credentials or configuration change', t => {
   const { NATIVE_AUTH_IDENTITY_FILES } = require('../../src/agents/native-config-directory.cjs')
   const { agentVerificationIdentity } = require('../../src/workspace/agent-verification-identity.cjs')

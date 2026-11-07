@@ -42,6 +42,16 @@ test('OpenCodeReview receives its native Anthropic configuration without exposin
   assert.equal(redactChildSecrets('synthetic-token synthetic-key', child), '[redacted] [redacted]')
 })
 
+test('OpenCodeReview readiness reads the selected native home', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-ocr-readiness-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const selected = path.join(home, 'selected')
+  fs.mkdirSync(path.join(selected, '.opencodereview'), { recursive: true })
+  fs.writeFileSync(path.join(selected, '.opencodereview', 'config.json'), JSON.stringify({ api_key: 'synthetic-key' }))
+  assert.equal(nativeCredentialState('opencodereview', { home, env: { HOME: selected } }).state, 'ready')
+  assert.equal(nativeCredentialState('opencodereview', { home, env: {} }).state, 'unknown')
+})
+
 test('Hermes receives native Bedrock and Vertex environment for discovery and execution', async () => {
   const env = { AWS_PROFILE: 'research', AWS_REGION: 'us-east-1', AWS_ACCESS_KEY_ID: 'native-access',
     AWS_SECRET_ACCESS_KEY: 'native-secret', GOOGLE_APPLICATION_CREDENTIALS: '/native/google.json',

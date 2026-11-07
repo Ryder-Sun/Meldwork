@@ -316,7 +316,7 @@ async function nativeShellEnvironment(options = {}) {
   for (const key of resolved.unsetKeys || []) delete env[key]
   opencodeCredentialKeys = opencodeCredentialKeys.filter(key => typeof env[key] === 'string' && env[key].length > 0)
   for (const [kind, { key }] of Object.entries(NATIVE_CONFIG_DIRECTORIES)) {
-    if (kind === 'zcode') continue
+    if (kind === 'zcode' || kind === 'opencodereview') continue
     if (kind === 'qwen') {
       const directory = (process.platform === 'win32' ? env.USERPROFILE : env.HOME) || ''
       if (Object.hasOwn(nativeSkillDirectories, key) && nativeSkillDirectories[key] !== directory) skillCatalog?.invalidate(kind)
