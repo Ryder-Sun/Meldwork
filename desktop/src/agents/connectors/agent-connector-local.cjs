@@ -708,7 +708,7 @@ class LocalAgentConnectors {
           connectorInstanceId: input.connector.instanceId } : {}),
         ...(Object.keys(credentialEnv).length ? { env: credentialEnv } : {}),
       })
-      const outcome = String(result?.outcome || 'completed')
+      const outcome = String(result?.outcome || '')
       if (outcome === 'completed' || outcome === 'partial') {
         input.emit({ ...terminal, type: 'Completed', outcome })
       } else if (outcome === 'waiting_input') {

@@ -448,6 +448,23 @@ test('delegate failures preserve the upstream classification in the terminal Con
   assert.doesNotMatch(JSON.stringify(result), /LOCAL_AGENT_INCOMPLETE_RESPONSE/)
 })
 
+test('a delegated result without an outcome is not reported as completed', async t => {
+  const { connectors } = fixture(t, {
+    seedSample: true,
+    runAgent: async () => ({ text: 'A reply without a terminal outcome.' }),
+  })
+  connectors.refresh([codex()])
+  connectors.configure({ manifestId: SAMPLE_AGENT_CONNECTOR_MANIFEST.manifestId,
+    label: 'Codex review account', credentials: null })
+  const result = await connectors.run(connectors.detectAgents()[0], 'Review this', '/tmp/workspace', {
+    runId: 'run-missing-outcome', agentRunId: 'agent-run-missing-outcome', sandbox: 'read-only',
+  })
+  assert.equal(result.outcome, 'failed')
+  assert.equal(result.failure.code, 'LOCAL_AGENT_OUTCOME_INVALID')
+  assert.equal(result.failure.category, 'protocol')
+  assert.equal(result.connectorEventState.status, 'failed')
+})
+
 test('untrusted and incompatible local Manifests fail closed', (t) => {
   const { connectors, directory, instanceStore } = fixture(t)
   const manifestDirectory = path.join(directory, 'manifests')
