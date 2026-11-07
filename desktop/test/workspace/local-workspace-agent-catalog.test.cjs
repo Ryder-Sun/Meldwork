@@ -329,6 +329,7 @@ for (const [kind, relative, directory, filename] of [
   ['qwen', 'custom/system-defaults.json', false, 'custom/system-defaults.json'],
   ['pi', 'custom/credentials.json', false, 'custom/credentials.json'],
   ['claude', 'custom/token', false, 'custom/token'],
+  ['hermes', 'custom/credentials.json', false, 'custom/credentials.json'],
 ]) {
   test(`${kind} relative native configuration invalidates project verification`, t => {
     const workdir = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-relative-config-'))
