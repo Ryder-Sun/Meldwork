@@ -717,7 +717,7 @@ function normalizeSlot(input, targetKinds, topPhase, index, template) {
     'slotId', 'agentKind', 'phase', 'status', 'operationId', 'agentRunId', 'queuePosition',
     'snapshotHash', 'deliveryWatermark', 'receiptId', 'resultHash',
     'assignedAt', 'startedAt', 'finishedAt', 'commitStatus', 'attempt', 'permission',
-    'resultRefs', 'resultBodyArtifactId', 'commitId', 'messageId', 'blackboardEntryId',
+    'resultRefs', 'resultBodyArtifactId', 'commitId', 'messageId', 'blackboardEntryId', 'workDependencyBinding',
   ])) fail('ORCHESTRATION_V4_SLOT_INVALID')
   const slotId = cleanId(input.slotId)
   const agentKind = cleanId(input.agentKind)
@@ -754,6 +754,19 @@ function normalizeSlot(input, targetKinds, topPhase, index, template) {
   const messageId = input.messageId == null ? '' : cleanId(input.messageId)
   const blackboardEntryId = input.blackboardEntryId == null
     ? '' : String(input.blackboardEntryId)
+  let workDependencyBinding
+  if (hasOwn(input, 'workDependencyBinding')) {
+    const binding = input.workDependencyBinding
+    if (phase !== 'work' || !isRecord(binding)
+        || !exactFields(binding, ['taskId', 'dependencyWorkReceiptIds'])
+        || !cleanId(binding.taskId) || !Array.isArray(binding.dependencyWorkReceiptIds)
+        || binding.dependencyWorkReceiptIds.length > MAX_V4_ASSIGNMENTS
+        || binding.dependencyWorkReceiptIds.some(id => typeof id !== 'string' || !WORK_RECEIPT_ID.test(id))
+        || new Set(binding.dependencyWorkReceiptIds).size !== binding.dependencyWorkReceiptIds.length) {
+      fail('ORCHESTRATION_V4_SLOT_INVALID')
+    }
+    workDependencyBinding = { taskId: binding.taskId, dependencyWorkReceiptIds: [...binding.dependencyWorkReceiptIds].sort() }
+  }
   if ((resultBodyArtifactId && !ARTIFACT_ID.test(resultBodyArtifactId))
       || (input.commitId != null && !commitId)
       || (input.messageId != null && !messageId)
@@ -803,6 +816,7 @@ function normalizeSlot(input, targetKinds, topPhase, index, template) {
     deliveryWatermark, receiptId, resultHash, assignedAt, startedAt, finishedAt, commitStatus,
     attempt,
     ...(permission ? { permission } : {}),
+    ...(workDependencyBinding ? { workDependencyBinding } : {}),
     ...(resultRefs ? { resultRefs } : {}),
     ...(resultBodyArtifactId ? { resultBodyArtifactId } : {}),
     ...(commitId ? { commitId } : {}),
@@ -1603,6 +1617,19 @@ function validateV4Relations(orchestration, targetKinds) {
       if (canonicalJson(receipt.dependencyWorkReceiptIds) !== canonicalJson(dependencies)) {
         fail('ORCHESTRATION_V4_WORK_RECEIPT_INVALID')
       }
+    }
+  }
+  for (const slot of orchestration.slots) {
+    const binding = slot.workDependencyBinding
+    if (!binding) continue
+    const assignment = orchestration.coordinationPlan?.assignments.find(item => item.taskId === binding.taskId)
+    if (!assignment || assignment.ownerKind !== slot.agentKind) fail('ORCHESTRATION_V4_WORK_RECEIPT_INVALID')
+    const dependencies = assignment.dependsOn.map(id => (
+      orchestration.workReceipts?.find(item => item.taskId === id)?.workReceiptId
+    )).sort()
+    if (dependencies.some(id => !id)
+        || canonicalJson(binding.dependencyWorkReceiptIds) !== canonicalJson(dependencies)) {
+      fail('ORCHESTRATION_V4_WORK_RECEIPT_INVALID')
     }
   }
   const assignmentsBySlot = new Map(orchestration.plan.assignments.map(item => [item.slotId, item]))

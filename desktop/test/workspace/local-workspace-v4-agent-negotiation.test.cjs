@@ -779,6 +779,7 @@ test('V4 work admission rejects foreign reported Artifacts or Evidence as curren
       slotId: 'slot-codex',
       operationId: 'operation-codex',
       status: 'running',
+      workDependencyBinding: { taskId: 'codex-work', dependencyWorkReceiptIds: [] },
       deliveryWatermark: 0,
       resultRefs: { artifactIds: [], evidenceIds: [], workflowOutcomeRefs: [] },
     }
@@ -815,7 +816,7 @@ test('V4 work admission rejects foreign reported Artifacts or Evidence as curren
       { id: 'group-current-work' },
       controller,
       'thread-current-work',
-      { kind: 'codex', invocation: { result } },
+      { kind: 'codex', invocation: { result }, dispatchedDependencies: [] },
       {
         targetKinds: ['codex', 'hermes'],
         writerKind: 'hermes',

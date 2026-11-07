@@ -417,6 +417,10 @@ async function restartAutoV4SecondWorkGate(t, rejected = false) {
       : null
   }, 'second Auto V4 work package Gate')
   const gatedSlot = waiting.orchestration.slots.find(slot => slot.agentKind === 'codex')
+  const firstWork = waiting.orchestration.workReceipts.find(receipt => receipt.taskId === 'codex-work-1')
+  assert.deepEqual(gatedSlot.workDependencyBinding, {
+    taskId: 'codex-work-2', dependencyWorkReceiptIds: [firstWork.workReceiptId],
+  })
   const secondCall = invocations.find(call => (
     call.kind === 'codex' && call.phase === 'work' && call.workItemId === 'codex-work-2'
   ))

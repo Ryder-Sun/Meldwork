@@ -35,9 +35,12 @@ const v4PhaseMethods = {
         ? (operationIds?.get(slot.agentKind)
           || this.v4OperationId(controller, slot.agentKind, phase, slot.slotId))
         : slot.operationId
-      const { agentRunId: previousAgentRunId, ...retainedSlot } = slot
+      const { agentRunId: previousAgentRunId, workDependencyBinding: previousBinding, ...retainedSlot } = slot
       return {
         ...retainedSlot,
+        ...(phase === 'work' && previousBinding && controller.orchestration?.round === controller.currentRound
+          && (!running || operationId === slot.operationId)
+          ? { workDependencyBinding: previousBinding } : {}),
         ...(!running && operationId === slot.operationId && previousAgentRunId
           ? { agentRunId: previousAgentRunId }
           : {}),
@@ -318,6 +321,15 @@ const v4PhaseMethods = {
     const snapshotSourceMessageIds = [snapshot.messageId, ...snapshot.history.map(item => item.id)]
     for (const slot of phaseSlots) {
       if (activeSet.has(slot.agentKind)) {
+        if (phase === 'work') {
+          const assignment = workAssignmentsByKind.get(slot.agentKind)
+          const binding = { taskId: assignment.taskId,
+            dependencyWorkReceiptIds: this.v4DependencyWorkReceiptIds(assignment, coordinationPlan, workReceipts) }
+          if (slot.workDependencyBinding && hashValue(slot.workDependencyBinding) !== hashValue(binding)) {
+            throw new Error('LOCAL_RUN_V4_WORK_RECEIPT_INVALID')
+          }
+          slot.workDependencyBinding = binding
+        }
         slot.status = phase === 'synthesis' ? 'queued' : 'running'
       }
     }
@@ -454,9 +466,7 @@ const v4PhaseMethods = {
         phase, kind, coordinationPlan, workAssignmentsByKind.get(kind) || null,
       )
       const extraContext = extraContextFor(kind)
-      const dispatchedDependencies = phase === 'work'
-        ? this.v4DependencyWorkReceiptIds(workAssignmentsByKind.get(kind), coordinationPlan, workReceipts)
-        : null
+      const dispatchedDependencies = phase === 'work' ? [...slot.workDependencyBinding.dependencyWorkReceiptIds] : null
       const promptOptions = {
         reviewTarget: phase === 'challenge'
           ? challengeBinding?.proposalKind || ''

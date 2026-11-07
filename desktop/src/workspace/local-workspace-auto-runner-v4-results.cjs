@@ -516,6 +516,11 @@ const v4ResultMethods = {
         throw new Error('LOCAL_RUN_COLLABORATION_SCOPE_INVALID')
       }
       const assignment = workAssignments?.find(candidate => candidate.ownerKind === item.kind)
+      if (!assignment || liveSlot.workDependencyBinding?.taskId !== assignment.taskId
+          || canonicalJson(liveSlot.workDependencyBinding.dependencyWorkReceiptIds)
+            !== canonicalJson(item.dispatchedDependencies)) {
+        throw new Error('LOCAL_RUN_V4_WORK_RECEIPT_INVALID')
+      }
       const receiptRecord = this.v4ReceiptForResult(
         result, 'work', item.kind, slot, snapshotHash, {
           controller,
