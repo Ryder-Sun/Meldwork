@@ -5,6 +5,7 @@ const { parseDeliveryTasks } = require('./delivery-tasks.cjs')
 const { loadedWorkPreferences } = require('./work-preferences.cjs')
 const { RUN_STATUSES } = require('../runs/run-ledger-records.cjs')
 const { normalizeSessionMeta } = require('../runs/run-harness.cjs')
+const { parseNativeSessionProfiles } = require('./native-session-profiles.cjs')
 const {
   SESSION_KEY,
   cleanCurrentRound,
@@ -231,6 +232,7 @@ function loadWorkspaceState(storagePath) {
         messages,
         sessions,
         sessionMeta,
+        ...(parsed.nativeSessionProfiles ? { nativeSessionProfiles: parseNativeSessionProfiles(parsed.nativeSessionProfiles) } : {}),
         agentPreferences: parsed.agentPreferences
           && typeof parsed.agentPreferences === 'object' && !Array.isArray(parsed.agentPreferences)
           ? { ...parsed.agentPreferences }

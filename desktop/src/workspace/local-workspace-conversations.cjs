@@ -39,6 +39,7 @@ class LocalWorkspaceConversations {
       messages: [...state.messages],
       sessions: { ...state.sessions },
       sessionMeta: { ...state.sessionMeta },
+      ...(state.nativeSessionProfiles ? { nativeSessionProfiles: structuredClone(state.nativeSessionProfiles) } : {}),
       ...(state.deliveryTasks ? { deliveryTasks: structuredClone(state.deliveryTasks) } : {}),
     }
   }

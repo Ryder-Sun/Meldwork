@@ -8,6 +8,7 @@ const { registerDeliveryIpc } = require('./delivery-ipc.cjs')
 const { loadedWorkPreferences, parseWorkPreferences } = require('../workspace/work-preferences.cjs')
 const { NATIVE_CONFIG_DIRECTORIES, validateNativeConfigDirectory } = require('../agents/native-config-directory.cjs')
 const { nativeSecretEnvKeys } = require('../agents/cli/native-secret-environment.cjs')
+const { switchNativeSessionProfile } = require('../workspace/native-session-profiles.cjs')
 
 const LOCAL_GROUP_IDENTIFIER = /^[^\u0000-\u001f\u007f]{1,100}$/u
 const LOCAL_RUN_IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/
@@ -451,6 +452,7 @@ function registerDesktopIpc(options) {
       const workspace = getWorkspace()
       if (!workspace) throw new Error('LOCAL_WORKSPACE_UNAVAILABLE')
       if (workspace.activeRuns.size || workspace.preparingRuns?.size) throw new Error('LOCAL_WORK_PREFERENCES_BUSY')
+      const originalDirectory = workspace.state.agentPreferences[kind]?.nativeConfigDirectory || ''
       let directory = ''
       if (action === 'choose') {
         const selected = await dialog.showOpenDialog(getMainWindow(), { properties: ['openDirectory'] })
@@ -458,14 +460,34 @@ function registerDesktopIpc(options) {
         directory = validateNativeConfigDirectory(kind, selected.filePaths[0])
       }
       if (getWorkspace() !== workspace || workspace.activeRuns.size || workspace.preparingRuns?.size) throw new Error('LOCAL_WORK_PREFERENCES_BUSY')
+      if ((workspace.state.agentPreferences[kind]?.nativeConfigDirectory || '') !== originalDirectory) throw new Error('LOCAL_WORK_PREFERENCES_BUSY')
+      if (directory !== originalDirectory) {
+        try {
+          workspace.runLedger?.assertLoaded?.()
+          const records = workspace.runLedger?.list?.() || []
+          if (workspace.pendingV4AutoRecoveries?.size || records.some(record =>
+            ['preparing', 'queued', 'running', 'waiting', 'reconciling'].includes(record.status)
+            || ['pending', 'ready', 'resuming'].includes(record.continuation?.state))) {
+            throw new Error('LOCAL_WORK_PREFERENCES_BUSY')
+          }
+        } catch { throw new Error('LOCAL_WORK_PREFERENCES_BUSY') }
+      }
       const previous = workspace.state.agentPreferences[kind]
       const previousRuntime = workspace.state.agentRuntime[kind]
+      const previousSessions = workspace.state.sessions
+      const previousSessionMeta = workspace.state.sessionMeta
+      const previousProfiles = workspace.state.nativeSessionProfiles
+      switchNativeSessionProfile(workspace.state, kind, originalDirectory, directory)
       workspace.state.agentPreferences[kind] = { ...previous, nativeConfigDirectory: directory }
       delete workspace.state.agentRuntime[kind]
       try { workspace.save() } catch (error) {
         if (previous) workspace.state.agentPreferences[kind] = previous
         else delete workspace.state.agentPreferences[kind]
         if (previousRuntime) workspace.state.agentRuntime[kind] = previousRuntime
+        workspace.state.sessions = previousSessions
+        workspace.state.sessionMeta = previousSessionMeta
+        if (previousProfiles === undefined) delete workspace.state.nativeSessionProfiles
+        else workspace.state.nativeSessionProfiles = previousProfiles
         throw error
       }
       installer.invalidateDetectionCache()

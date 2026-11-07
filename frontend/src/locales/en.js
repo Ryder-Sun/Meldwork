@@ -8,6 +8,7 @@ export default {
     'nativeConfig.choose': 'Choose directory',
     'nativeConfig.clear': 'Restore automatic discovery',
     'nativeConfig.invalid': 'The selected directory does not contain this Agent’s native configuration.',
+    'nativeConfig.sessionProfilesInvalid': 'Cannot safely switch configurations because saved session data is invalid or at its limit.',
     'nativeConfig.expected.hermes': 'Expected config.yaml, auth.json, or .env.',
     'nativeConfig.expected.codex': 'Expected config.toml or auth.json.',
     'nativeConfig.expected.claude': 'Expected settings.json or .credentials.json.',

@@ -1166,6 +1166,65 @@ test('native configuration cannot change if a run starts while the picker is ope
   assert.equal(workspace.state.agentPreferences.hermes, undefined)
 })
 
+test('a stale native configuration picker cannot overwrite a newer selection', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-config-stale-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  fs.writeFileSync(path.join(directory, 'config.yaml'), 'model: native\n')
+  let resolvePicker
+  const picker = new Promise(resolve => { resolvePicker = resolve })
+  const { harness } = loadMain(directory, { onOpenDialog: () => picker })
+  await harness.ready()
+  const workspace = harness.workspaceInstances[0]
+  workspace.state.agentPreferences = {}
+  workspace.state.agentRuntime = {}
+  workspace.activeRuns = new Map()
+  workspace.save = () => assert.fail('must not save a stale selection')
+  const choosing = harness.ipcHandlers.get('local-agent-native-config:choose')(harness.event(), 'hermes')
+  workspace.state.agentPreferences.hermes = { nativeConfigDirectory: '/newer-selection' }
+  resolvePicker({ canceled: false, filePaths: [directory] })
+  await assert.rejects(() => choosing, { message: 'LOCAL_WORK_PREFERENCES_BUSY' })
+  assert.equal(workspace.state.agentPreferences.hermes.nativeConfigDirectory, '/newer-selection')
+})
+
+test('native configuration switching preserves sessions and refuses waiting runs', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-session-ipc-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  fs.writeFileSync(path.join(directory, 'config.yaml'), 'model: native\n')
+  const { harness } = loadMain(directory, { dialogResult: { canceled: false, filePaths: [directory] } })
+  await harness.ready()
+  const workspace = harness.workspaceInstances[0]
+  workspace.state.agentPreferences = {}
+  workspace.state.agentRuntime = {}
+  workspace.state.groups = [{ id: 'direct', agentKinds: ['hermes'] }]
+  workspace.state.messages = []
+  workspace.state.sessions = { 'direct:hermes': 'session-a' }
+  workspace.state.sessionMeta = {}
+  workspace.activeRuns = new Map()
+  workspace.runLedger = { assertLoaded() {}, list: () => [{ status: 'waiting' }] }
+  workspace.save = () => {}
+  const choose = harness.ipcHandlers.get('local-agent-native-config:choose')
+  const clear = harness.ipcHandlers.get('local-agent-native-config:clear')
+  await assert.rejects(() => choose(harness.event(), 'hermes'), { message: 'LOCAL_WORK_PREFERENCES_BUSY' })
+  assert.equal(workspace.state.sessions['direct:hermes'], 'session-a')
+  workspace.runLedger = { assertLoaded() { throw new Error('ledger unavailable') } }
+  await assert.rejects(() => choose(harness.event(), 'hermes'), { message: 'LOCAL_WORK_PREFERENCES_BUSY' })
+  workspace.runLedger = { list: () => [{ status: 'interrupted', continuation: { state: 'ready' } }] }
+  await assert.rejects(() => choose(harness.event(), 'hermes'), { message: 'LOCAL_WORK_PREFERENCES_BUSY' })
+  workspace.runLedger.list = () => []
+  workspace.save = () => { throw new Error('save failed') }
+  await assert.rejects(() => choose(harness.event(), 'hermes'), { message: 'save failed' })
+  assert.equal(workspace.state.sessions['direct:hermes'], 'session-a')
+  assert.equal(workspace.state.nativeSessionProfiles, undefined)
+  workspace.save = () => {}
+  await choose(harness.event(), 'hermes')
+  assert.equal(workspace.state.sessions['direct:hermes'], undefined)
+  workspace.state.sessions['direct:hermes'] = 'session-b'
+  await clear(harness.event(), 'hermes')
+  assert.equal(workspace.state.sessions['direct:hermes'], 'session-a')
+  await choose(harness.event(), 'hermes')
+  assert.equal(workspace.state.sessions['direct:hermes'], 'session-b')
+})
+
 test('ready activates one fixed local workspace and loads the bundled frontend', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-ready-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

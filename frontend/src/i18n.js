@@ -50,6 +50,7 @@ export function messageKeys(language) {
 
 export const DESKTOP_ERROR_MESSAGE_KEYS = Object.freeze({
   LOCAL_NATIVE_CONFIG_INVALID: 'nativeConfig.invalid',
+  LOCAL_NATIVE_SESSION_PROFILES_INVALID: 'nativeConfig.sessionProfilesInvalid',
   AGENT_CONNECTOR_CREDENTIAL_ENV_MISSING: 'connectorPackages.environmentMissing',
   AGENT_CONNECTOR_PACKAGE_CHANGED: 'connectorPackages.changedDuringApproval',
   AGENT_CONNECTOR_SESSION_INVALID: 'connectorPackages.sessionInvalid',

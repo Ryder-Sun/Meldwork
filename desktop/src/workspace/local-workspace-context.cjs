@@ -388,6 +388,15 @@ function clearSessionState(state, groupId) {
   for (const key of Object.keys(state.sessionMeta)) {
     if (key.startsWith(existingPrefix) || derivedKeys.has(key)) delete state.sessionMeta[key]
   }
+  for (const profiles of Object.values(state.nativeSessionProfiles || {})) {
+    for (const snapshot of Object.values(profiles)) {
+      for (const field of ['sessions', 'sessionMeta']) {
+        for (const key of Object.keys(snapshot[field] || {})) {
+          if (key.startsWith(existingPrefix) || derivedKeys.has(key)) delete snapshot[field][key]
+        }
+      }
+    }
+  }
 }
 
 function openClawSessionRef(group, generation = '', taskId = '') {
