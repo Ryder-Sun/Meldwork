@@ -4,6 +4,8 @@ const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
 const http = require('node:http')
+const { createHash } = require('node:crypto')
+const { canonicalJson } = require('../../../src/collaboration/outcome-records.cjs')
 const { outboundWirePayloadBytes } = require('../../../src/collaboration/outbound-payload.cjs')
 const { LocalWorkspace } = require('../../../src/workspace/local-workspace.cjs')
 const { fixture: workspaceFixture } = require('../../support/local-workspace-test-helpers.cjs')
@@ -113,6 +115,23 @@ test('HTTP connector packages reject recognizable credentials in endpoint paths'
   assert.throws(() => create(`https://connector.example.com/v1/%73%6b%2d${'a'.repeat(32)}`),
     { message: 'AGENT_CONNECTOR_PACKAGE_SCHEMA_INVALID' })
   assert.doesNotThrow(() => create('https://connector.example.com/v1/run'))
+})
+
+test('older Connector packages remain manageable while unsafe new imports are rejected', t => {
+  const { packageStore } = fixture(t)
+  const original = httpPackage()
+  const { packageId: _packageId, ...body } = original
+  body.provider = { ...body.provider, config: { ...body.provider.config,
+    endpoint: `https://connector.example.com/v1/sk-${'a'.repeat(32)}` } }
+  const legacy = { ...body, packageId: `connector-package-${createHash('sha256').update(canonicalJson(body)).digest('hex')}` }
+  const serialized = canonicalJson(legacy)
+  assert.throws(() => packageStore.import(serialized), { message: 'AGENT_CONNECTOR_PACKAGE_SCHEMA_INVALID' })
+  fs.writeFileSync(packageStore.packagePath(legacy.packageId), serialized, { mode: 0o600 })
+  packageStore.append('imported', legacy.packageId, { originFilename: 'legacy.json', originSha256: 'a'.repeat(64) })
+  packageStore.append('approved', legacy.packageId, {})
+  packageStore.append('installed', legacy.packageId, {})
+  assert.equal(packageStore.list()[0].packageId, legacy.packageId)
+  assert.equal(packageStore.disable(legacy.packageId).state, 'disabled')
 })
 
 test('concurrent HTTP Connector accounts use only their own credentials at the transport boundary', async t => {

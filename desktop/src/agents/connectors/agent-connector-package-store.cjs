@@ -52,15 +52,23 @@ function safeTextSchema(max) {
 const httpsEndpointSchema = z.string().min(9).max(2048).superRefine((value, context) => {
   try {
     const parsed = new URL(value)
-    const decodedPath = decodeURIComponent(parsed.pathname)
     if (parsed.protocol !== 'https:' || parsed.username || parsed.password
-        || parsed.search || parsed.hash || redactSecrets(decodedPath) !== decodedPath) {
+        || parsed.search || parsed.hash) {
       context.addIssue({ code: 'custom', message: 'HTTPS endpoint required' })
     }
   } catch {
     context.addIssue({ code: 'custom', message: 'HTTPS endpoint required' })
   }
 })
+
+function assertSafePackageEndpoint(provider) {
+  if (provider.id !== SDK_HTTP_JSON_RECIPE_ID) return
+  try {
+    const pathname = decodeURIComponent(new URL(provider.config.endpoint).pathname)
+    if (redactSecrets(pathname) === pathname) return
+  } catch { /* Invalid encoding cannot be safely checked. */ }
+  fail('AGENT_CONNECTOR_PACKAGE_SCHEMA_INVALID')
+}
 
 const publisherSchema = z.strictObject({
   id: z.string().min(1).max(120).regex(PUBLIC_ID),
@@ -160,6 +168,7 @@ function canonicalPackage(record) {
 function createAgentConnectorPackage(input) {
   const result = packageContentSchema.safeParse(input)
   if (!result.success) fail('AGENT_CONNECTOR_PACKAGE_SCHEMA_INVALID')
+  assertSafePackageEndpoint(result.data.provider)
   if (!supportsSdkCapabilities(parseAgentConnectorManifest(result.data.manifest))) {
     fail('AGENT_CONNECTOR_PACKAGE_SCHEMA_INVALID')
   }
@@ -475,6 +484,7 @@ class AgentConnectorPackageStore {
   import(input, originFilename = 'connector-package.json') {
     this.requireAvailable()
     const packageRecord = parseAgentConnectorPackage(input)
+    assertSafePackageEndpoint(packageRecord.provider)
     if (!supportsSdkCapabilities(packageRecord.manifest)) fail('AGENT_CONNECTOR_PACKAGE_SCHEMA_INVALID')
     const existing = this.states.get(packageRecord.packageId)
     if (existing && existing.state !== 'removed') return this.inspect(packageRecord.packageId)
