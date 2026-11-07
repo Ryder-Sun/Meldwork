@@ -256,6 +256,37 @@ test('a late successful probe cannot restore a cache after a newer spawn failure
   assert.equal(timeout.compatibilityState, 'unknown')
 })
 
+test('identical concurrent successful probes both remain compatible', async () => {
+  let release
+  const pending = new Promise(resolve => { release = resolve })
+  const options = { env: {}, version: '2.115.0',
+    statFn: () => ({ dev: 1, ino: 1, size: 100, mtimeMs: 1, ctimeMs: 1 }) }
+  const executable = '/test/parallel-successful-probes'
+  const help = '--print --output-format --permission-mode --max-turns --resume json plan acceptEdits'
+  const first = probeAgentCapabilities('workbuddy', executable, { ...options,
+    execFileFn: async () => { await pending; return { stdout: help } } })
+  const second = await probeAgentCapabilities('workbuddy', executable, { ...options,
+    execFileFn: async () => ({ stdout: help }) })
+  assert.equal(second.compatibilityState, 'compatible')
+  release()
+  assert.equal((await first).compatibilityState, 'compatible')
+})
+
+test('a superseded probe does not reuse a newer executable identity', async () => {
+  let release
+  const pending = new Promise(resolve => { release = resolve })
+  const stat = ino => () => ({ dev: 1, ino, size: 100, mtimeMs: 1, ctimeMs: 1 })
+  const executable = '/test/parallel-replaced-executable'
+  const help = '--print --output-format --permission-mode --max-turns --resume json plan acceptEdits'
+  const first = probeAgentCapabilities('workbuddy', executable, { env: {}, version: '2.115.0',
+    statFn: stat(1), execFileFn: async () => { await pending; return { stdout: help } } })
+  const second = await probeAgentCapabilities('workbuddy', executable, { env: {}, version: '2.115.0',
+    statFn: stat(2), execFileFn: async () => ({ stdout: help }) })
+  assert.equal(second.compatibilityState, 'compatible')
+  release()
+  assert.equal((await first).compatibilityState, 'unknown')
+})
+
 test('a late spawn failure cannot erase a newer successful probe cache', async () => {
   let release
   const pending = new Promise(resolve => { release = resolve })
@@ -270,7 +301,7 @@ test('a late spawn failure cannot erase a newer successful probe cache', async (
   })
   assert.equal(newer.compatibilityState, 'compatible')
   release()
-  assert.equal((await oldProbe).compatibilityState, 'unknown')
+  assert.equal((await oldProbe).compatibilityState, 'compatible')
   const timeout = await probeAgentCapabilities('workbuddy', executable, { ...options,
     execFileFn: async () => { throw Object.assign(new Error('timeout'), { code: 'ETIMEDOUT' }) },
   })

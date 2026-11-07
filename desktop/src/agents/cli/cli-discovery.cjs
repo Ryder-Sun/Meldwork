@@ -443,99 +443,111 @@ async function probeAgentCapabilities(kind, executable, options = {}) {
     ])
   } catch { /* caching requires a verifiable executable identity */ }
   const cacheKey = `${kind}:${executable}`
-  const probeToken = Symbol('capability-probe')
-  activeCapabilityProbes.set(cacheKey, probeToken)
+  let resolveCompletion
+  const record = { identity, next: null, completion: new Promise(resolve => { resolveCompletion = resolve }) }
+  const previousProbe = activeCapabilityProbes.get(cacheKey)
+  if (previousProbe) previousProbe.next = record
+  activeCapabilityProbes.set(cacheKey, record)
   try {
-    const prior = capabilityCache.get(cacheKey)
-    const now = Date.now()
-    const recentCompatible = identity && prior?.identity === identity
-      && now >= prior.checkedAt && now - prior.checkedAt < CAPABILITY_CACHE_TTL_MS
-    const results = await Promise.all(capabilityProbes(kind).map(async (probe) => {
-      for (const timeout of probe.timeout ? [probe.timeout] : [8000, 16000]) {
-        try {
-          const command = prepareCommandFn(executable, probe.args, options)
-          const execution = execFileFn(command.command, command.args, {
-            timeout,
-            windowsHide: true,
-            env: childEnv,
-          })
-          if (probe.id === 'pi-json') execution.child?.stdin?.end()
-          const result = await execution
-          const output = `${result.stdout || ''}\n${result.stderr || ''}`
-          const missingCapabilities = probe.requiredText.some(value => !output.includes(value))
-            || (probe.validateOutput && !probe.validateOutput(output))
-          return { probe, output, authRequired: missingCapabilities && authFailureCertainty(output) === 'definitive' }
-        } catch (error) {
-          const timedOut = error?.killed === true || error?.code === 'ETIMEDOUT'
-          if (timedOut && timeout === 8000) continue
-          const diagnostic = `${error?.stdout || ''}\n${error?.stderr || ''}\n${error?.message || ''}`
-          return { probe, error: true, timedOut, systemError: typeof error?.code === 'string' && !timedOut,
-            authRequired: authFailureCertainty(diagnostic) === 'definitive' }
+    const outcome = await (async () => {
+      const prior = capabilityCache.get(cacheKey)
+      const now = Date.now()
+      const recentCompatible = identity && prior?.identity === identity
+        && now >= prior.checkedAt && now - prior.checkedAt < CAPABILITY_CACHE_TTL_MS
+      const results = await Promise.all(capabilityProbes(kind).map(async (probe) => {
+        for (const timeout of probe.timeout ? [probe.timeout] : [8000, 16000]) {
+          try {
+            const command = prepareCommandFn(executable, probe.args, options)
+            const execution = execFileFn(command.command, command.args, {
+              timeout,
+              windowsHide: true,
+              env: childEnv,
+            })
+            if (probe.id === 'pi-json') execution.child?.stdin?.end()
+            const result = await execution
+            const output = `${result.stdout || ''}\n${result.stderr || ''}`
+            const missingCapabilities = probe.requiredText.some(value => !output.includes(value))
+              || (probe.validateOutput && !probe.validateOutput(output))
+            return { probe, output, authRequired: missingCapabilities && authFailureCertainty(output) === 'definitive' }
+          } catch (error) {
+            const timedOut = error?.killed === true || error?.code === 'ETIMEDOUT'
+            if (timedOut && timeout === 8000) continue
+            const diagnostic = `${error?.stdout || ''}\n${error?.stderr || ''}\n${error?.message || ''}`
+            return { probe, error: true, timedOut, systemError: typeof error?.code === 'string' && !timedOut,
+              authRequired: authFailureCertainty(diagnostic) === 'definitive' }
+          }
+        }
+      }))
+      if (record.next) {
+        const newer = await record.next.completion
+        return identity && identity === record.next.identity
+          ? newer : { compatibilityState: 'unknown', incompatibilityReason: '', incompatibilityProbe: '' }
+      }
+      const failed = results.find(result => !result.timedOut && !result.systemError && !result.authRequired && (result.error
+        || result.probe.requiredText.some(value => !result.output.includes(value))
+        || (result.probe.validateOutput && !result.probe.validateOutput(result.output))))
+      if (activeCapabilityProbes.get(cacheKey) === record
+          && (failed || results.some(result => result.systemError || result.authRequired))) capabilityCache.delete(cacheKey)
+      for (const result of results) {
+        const { probe } = result
+        if (result.authRequired && !failed) {
+          return {
+            compatibilityState: 'unknown',
+            incompatibilityReason: 'LOCAL_AGENT_AUTH_REQUIRED',
+            incompatibilityProbe: probe.id,
+          }
+        }
+        if (result.authRequired) continue
+        if (result.timedOut && !failed) {
+          if (recentCompatible) continue
+          return {
+            compatibilityState: 'unknown',
+            incompatibilityReason: 'LOCAL_AGENT_CAPABILITY_PROBE_TIMEOUT',
+            incompatibilityProbe: probe.id,
+          }
+        }
+        if (result.timedOut) continue
+        if (result.systemError && !failed) {
+          return { compatibilityState: 'unknown', incompatibilityReason: 'LOCAL_AGENT_CAPABILITY_PROBE_FAILED',
+            incompatibilityProbe: probe.id }
+        }
+        if (result.systemError) continue
+        if (result.error) {
+          return {
+            compatibilityState: 'incompatible',
+            incompatibilityReason: probe.id.endsWith('-acp')
+              ? 'LOCAL_AGENT_PROTOCOL_UNAVAILABLE'
+              : 'LOCAL_AGENT_REQUIRED_CAPABILITY_MISSING',
+            incompatibilityProbe: probe.id,
+          }
+        }
+        if (probe.requiredText.some(value => !result.output.includes(value))
+            || (probe.validateOutput && !probe.validateOutput(result.output))) {
+          return {
+            compatibilityState: 'incompatible',
+            incompatibilityReason: 'LOCAL_AGENT_REQUIRED_CAPABILITY_MISSING',
+            incompatibilityProbe: probe.id,
+          }
         }
       }
-    }))
-    if (activeCapabilityProbes.get(cacheKey) !== probeToken) {
-      return { compatibilityState: 'unknown', incompatibilityReason: '', incompatibilityProbe: '' }
-    }
-    const failed = results.find(result => !result.timedOut && !result.systemError && !result.authRequired && (result.error
-      || result.probe.requiredText.some(value => !result.output.includes(value))
-      || (result.probe.validateOutput && !result.probe.validateOutput(result.output))))
-    if (activeCapabilityProbes.get(cacheKey) === probeToken
-        && (failed || results.some(result => result.systemError || result.authRequired))) capabilityCache.delete(cacheKey)
-    for (const result of results) {
-      const { probe } = result
-      if (result.authRequired && !failed) {
-        return {
-          compatibilityState: 'unknown',
-          incompatibilityReason: 'LOCAL_AGENT_AUTH_REQUIRED',
-          incompatibilityProbe: probe.id,
-        }
+      if (activeCapabilityProbes.get(cacheKey) === record && identity && !results.some(result => result.timedOut)) {
+        capabilityCache.set(cacheKey, { identity, checkedAt: Date.now() })
       }
-      if (result.authRequired) continue
-      if (result.timedOut && !failed) {
-        if (recentCompatible) continue
-        return {
-          compatibilityState: 'unknown',
-          incompatibilityReason: 'LOCAL_AGENT_CAPABILITY_PROBE_TIMEOUT',
-          incompatibilityProbe: probe.id,
-        }
+      return {
+        compatibilityState: 'compatible',
+        incompatibilityReason: '',
+        incompatibilityProbe: '',
+        ...(kind === 'hermes' && results.some(result => result.output?.includes('--format')
+          && result.output.includes('stream-json')) ? { streamJsonAvailable: true } : {}),
       }
-      if (result.timedOut) continue
-      if (result.systemError && !failed) {
-        return { compatibilityState: 'unknown', incompatibilityReason: 'LOCAL_AGENT_CAPABILITY_PROBE_FAILED',
-          incompatibilityProbe: probe.id }
-      }
-      if (result.systemError) continue
-      if (result.error) {
-        return {
-          compatibilityState: 'incompatible',
-          incompatibilityReason: probe.id.endsWith('-acp')
-            ? 'LOCAL_AGENT_PROTOCOL_UNAVAILABLE'
-            : 'LOCAL_AGENT_REQUIRED_CAPABILITY_MISSING',
-          incompatibilityProbe: probe.id,
-        }
-      }
-      if (probe.requiredText.some(value => !result.output.includes(value))
-          || (probe.validateOutput && !probe.validateOutput(result.output))) {
-        return {
-          compatibilityState: 'incompatible',
-          incompatibilityReason: 'LOCAL_AGENT_REQUIRED_CAPABILITY_MISSING',
-          incompatibilityProbe: probe.id,
-        }
-      }
-    }
-    if (activeCapabilityProbes.get(cacheKey) === probeToken && identity && !results.some(result => result.timedOut)) {
-      capabilityCache.set(cacheKey, { identity, checkedAt: Date.now() })
-    }
-    return {
-      compatibilityState: 'compatible',
-      incompatibilityReason: '',
-      incompatibilityProbe: '',
-      ...(kind === 'hermes' && results.some(result => result.output?.includes('--format')
-        && result.output.includes('stream-json')) ? { streamJsonAvailable: true } : {}),
-    }
+    })()
+    resolveCompletion(outcome)
+    return outcome
+  } catch (error) {
+    resolveCompletion({ compatibilityState: 'unknown', incompatibilityReason: '', incompatibilityProbe: '' })
+    throw error
   } finally {
-    if (activeCapabilityProbes.get(cacheKey) === probeToken) activeCapabilityProbes.delete(cacheKey)
+    if (activeCapabilityProbes.get(cacheKey) === record) activeCapabilityProbes.delete(cacheKey)
   }
 }
 
