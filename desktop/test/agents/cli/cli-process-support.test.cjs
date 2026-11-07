@@ -6,6 +6,7 @@ const path = require('node:path')
 const { EventEmitter } = require('node:events')
 
 const { childEnvironment, failedAgentProcessError, terminateWindowsProcessTree } = require('../../../src/agents/cli/cli-process-support.cjs')
+const { systemChildEnvironment } = require('../../../src/agents/cli/cli-discovery.cjs')
 const { redactChildSecrets } = require('../../../src/agents/cli/cli-runtime-event-sanitizer.cjs')
 const { nativeOpenClawOptions } = require('../../../src/agents/cli/openclaw-runtime.cjs')
 const { workBuddyInstall } = require('../../support/cli-adapters-test-helpers.cjs')
@@ -107,6 +108,18 @@ test('local Agent child environments keep supported runtime settings but reject 
   assert.equal(Object.hasOwn(env, 'GITHUB_TOKEN'), false)
   assert.equal(Object.hasOwn(env, 'NODE_OPTIONS'), false)
   assert.equal(Object.hasOwn(env, 'DYLD_INSERT_LIBRARIES'), false)
+})
+
+test('Windows child execution preserves case-insensitive proxy settings', () => {
+  const source = { Https_Proxy: 'http://proxy.example:3128', No_Proxy: 'localhost' }
+  const probeEnv = systemChildEnvironment(source, 'win32')
+  const env = childEnvironment({ kind: 'codex' }, 'C:\\work', {
+    env: source,
+  }, 'win32')
+  assert.equal(env.HTTPS_PROXY, probeEnv.HTTPS_PROXY)
+  assert.equal(env.NO_PROXY, probeEnv.NO_PROXY)
+  assert.equal(env.HTTPS_PROXY, source.Https_Proxy)
+  assert.equal(env.NO_PROXY, source.No_Proxy)
 })
 
 test('native execution uses the same Agent-scoped environment contract as readiness', () => {

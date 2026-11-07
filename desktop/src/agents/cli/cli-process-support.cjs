@@ -1,6 +1,6 @@
 const path = require('node:path')
 const { launchEnvironment, searchPath, systemChildEnvironment } = require('./cli-discovery.cjs')
-const { NETWORK_ENV_KEYS, networkEnvironment } = require('./cli-network-environment.cjs')
+const { networkEnvironment } = require('./cli-network-environment.cjs')
 const { CONFIG_DIRECTORY_ENV_KEYS } = require('./cli-config-directories.cjs')
 const { SECRET_ENV_KEYS, nativeSecretEnvKeys } = require('./native-secret-environment.cjs')
 const { nativeCredentialEnvironment } = require('../agent-native-environment.cjs')
@@ -205,8 +205,9 @@ function childEnvironment(agent, workdir, options, platform) {
   const nativeEnvironment = nativeCredentialEnvironment(agent.kind, options.env || {}, nativeKeys, platform)
   const controlled = {
     ...Object.fromEntries(Object.entries(nativeEnvironment).filter(([key]) => !BLOCKED_RUNTIME_ENV.test(key))),
+    ...networkEnvironment(options.env || {}, platform),
     ...Object.fromEntries(Object.entries(options.env || {}).filter(([key, value]) => (
-      typeof value === 'string' && (TEST_RUNTIME_ENV.test(key) || NETWORK_ENV_KEYS.includes(key)
+      typeof value === 'string' && (TEST_RUNTIME_ENV.test(key)
         || CONFIG_DIRECTORY_ENV_KEYS.includes(key)) && !BLOCKED_RUNTIME_ENV.test(key)
     ))),
   }
