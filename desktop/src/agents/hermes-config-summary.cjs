@@ -6,14 +6,15 @@ const { redactSecrets } = require('../security/secret-redaction.cjs')
 
 function hermesProviderFromConfig(config, env = {}) {
   const model = config?.model && typeof config.model === 'object' && !Array.isArray(config.model) ? config.model : {}
-  let provider = typeof model.provider === 'string' ? model.provider.trim() : ''
+  const providerText = value => typeof value === 'string' ? value.trim()
+    : typeof value === 'number' && Number.isSafeInteger(value) ? String(value) : ''
+  let provider = providerText(model.provider)
   for (const key of ['default', 'model', 'name']) {
     const nested = model[key]
     if (nested && typeof nested === 'object' && !Array.isArray(nested)
-        && typeof nested.provider === 'string' && nested.provider.trim()
-        && (!provider || provider === 'auto')) provider = nested.provider.trim()
+        && nested.provider && providerText(nested.provider) && (!provider || provider === 'auto')) provider = providerText(nested.provider)
   }
-  if (!provider && typeof config?.provider === 'string') provider = config.provider.trim()
+  if (!provider && config?.provider) provider = providerText(config.provider)
   return provider || (typeof env.HERMES_INFERENCE_PROVIDER === 'string' ? env.HERMES_INFERENCE_PROVIDER.trim() : '')
 }
 
