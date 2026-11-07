@@ -22,13 +22,19 @@ function opencodeDeclaredCredentialKeys(options = {}) {
   const projectDisabled = /^(?:1|true)$/i.test(String(env.OPENCODE_DISABLE_PROJECT_CONFIG || ''))
   if (workdir && !projectDisabled) {
     let current = path.resolve(workdir)
+    const directories = []
     for (let depth = 0; depth < 64; depth += 1) {
-      files.push(...['opencode.json', 'opencode.jsonc'].map(name => path.join(current, name)))
-      files.push(...['opencode.json', 'opencode.jsonc'].map(name => path.join(current, '.opencode', name)))
+      directories.push(current)
       if (fs.existsSync(path.join(current, '.git'))) break
       const parent = path.dirname(current)
       if (parent === current) break
       current = parent
+    }
+    for (const directory of [...directories].reverse()) {
+      files.push(...['opencode.json', 'opencode.jsonc'].map(name => path.join(directory, name)))
+    }
+    for (const directory of directories) {
+      files.push(...['opencode.json', 'opencode.jsonc'].map(name => path.join(directory, '.opencode', name)))
     }
   }
   const roots = [path.join(home, '.opencode'), resolvePath(env.OPENCODE_CONFIG_DIR)].filter(Boolean)
@@ -44,15 +50,16 @@ function opencodeDeclaredCredentialKeys(options = {}) {
       && Buffer.byteLength(env.OPENCODE_CONFIG_CONTENT) <= 2 * 1024 * 1024) {
     try { configs.push(JSON5.parse(env.OPENCODE_CONFIG_CONTENT)) } catch { /* Native CLI reports invalid content. */ }
   }
-  const unambiguousProviderList = name => {
+  const effectiveProviderList = name => {
     const lists = configs.filter(config => Array.isArray(config?.[name])).map(config => config[name])
-    if (lists.length !== 1 || !lists[0].every(value => typeof value === 'string')) return null
-    const resolved = lists[0].map(value => value.replace(/\{env:([A-Za-z_][A-Za-z0-9_]*)\}/g,
+    const selected = lists.at(-1)
+    if (!selected || !selected.every(value => typeof value === 'string')) return null
+    const resolved = selected.map(value => value.replace(/\{env:([A-Za-z_][A-Za-z0-9_]*)\}/g,
       (_match, key) => env[key] || ''))
     return resolved.every(Boolean) ? new Set(resolved) : null
   }
-  const enabled = unambiguousProviderList('enabled_providers')
-  const disabled = unambiguousProviderList('disabled_providers')
+  const enabled = effectiveProviderList('enabled_providers')
+  const disabled = effectiveProviderList('disabled_providers')
   const providerAllowed = provider => (!enabled || enabled.has(provider)) && !disabled?.has(provider)
   const keys = []
   const visit = (value, depth = 0) => {
@@ -77,10 +84,12 @@ function opencodeDeclaredCredentialKeys(options = {}) {
   }
   const resolveModel = model => typeof model === 'string'
     ? model.replace(/\{env:([A-Za-z_][A-Za-z0-9_]*)\}/g, (_match, name) => env[name] || '') : model
-  const providers = new Set(configs.flatMap(config => [resolveModel(config?.model), resolveModel(config?.small_model)])
+  const effectiveModel = configs.findLast(config => typeof config?.model === 'string')?.model || ''
+  const effectiveSmallModel = configs.findLast(config => typeof config?.small_model === 'string')?.small_model || ''
+  const providers = new Set([resolveModel(effectiveModel), resolveModel(effectiveSmallModel)]
     .filter(model => typeof model === 'string' && /^[A-Za-z0-9._-]+\/.+/.test(model))
     .map(model => model.slice(0, model.indexOf('/'))))
-  const hasConfiguredModel = configs.some(config => typeof config?.model === 'string' && config.model)
+  const hasConfiguredModel = Boolean(effectiveModel)
   if (!hasConfiguredModel) {
     const stateRoot = env.XDG_STATE_HOME || path.join(home, '.local', 'state')
     const filename = path.join(stateRoot, 'opencode', 'model.json')

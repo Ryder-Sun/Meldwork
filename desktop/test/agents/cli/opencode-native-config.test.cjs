@@ -135,6 +135,36 @@ test('OpenCode respects unambiguous native provider enablement when discovering 
     ['DEEPSEEK_API_KEY', 'ENABLED_PROVIDER'])
 })
 
+test('OpenCode follows native model and provider precedence across config layers', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-opencode-precedence-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const global = path.join(home, '.config', 'opencode')
+  const cache = path.join(home, '.cache', 'opencode')
+  const project = path.join(home, 'project')
+  const workdir = path.join(project, 'nested')
+  const selected = path.join(home, 'selected')
+  for (const dir of [global, cache, workdir, selected, path.join(project, '.git'),
+    path.join(project, '.opencode'), path.join(workdir, '.opencode')]) fs.mkdirSync(dir, { recursive: true })
+  fs.writeFileSync(path.join(cache, 'models.json'), JSON.stringify({
+    deepseek: { env: ['DEEPSEEK_API_KEY'] }, groq: { env: ['GROQ_API_KEY'] }, xai: { env: ['XAI_API_KEY'] },
+  }))
+  const write = (filename, provider) => fs.writeFileSync(filename, JSON.stringify({
+    model: `${provider}/model`, enabled_providers: [provider],
+  }))
+  write(path.join(global, 'config.json'), 'deepseek')
+  write(path.join(project, 'opencode.json'), 'groq')
+  write(path.join(workdir, 'opencode.json'), 'xai')
+  assert.deepEqual(opencodeDeclaredCredentialKeys({ home, workdir, env: {} }), ['XAI_API_KEY'])
+  write(path.join(workdir, '.opencode', 'opencode.json'), 'groq')
+  write(path.join(project, '.opencode', 'opencode.json'), 'deepseek')
+  assert.deepEqual(opencodeDeclaredCredentialKeys({ home, workdir, env: {} }), ['DEEPSEEK_API_KEY'])
+  write(path.join(selected, 'opencode.json'), 'groq')
+  assert.deepEqual(opencodeDeclaredCredentialKeys({ home, workdir, env: { OPENCODE_CONFIG_DIR: selected } }), ['GROQ_API_KEY'])
+  const inline = JSON.stringify({ model: 'xai/model', enabled_providers: ['xai'] })
+  assert.deepEqual(opencodeDeclaredCredentialKeys({ home, workdir, env: { OPENCODE_CONFIG_DIR: selected,
+    OPENCODE_CONFIG_CONTENT: inline } }), ['XAI_API_KEY'])
+})
+
 test('OpenCode resolves an env-selected native model to its provider credential name', t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-opencode-model-env-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))
