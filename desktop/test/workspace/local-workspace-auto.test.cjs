@@ -483,6 +483,68 @@ test('task graph resumes a human decision after its blackboard checkpoint withou
     { status: 'rejected', optionId: 'reject' }), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
 })
 
+test('a human task graph decision does not resolve conflicts outside its selected inputs', () => {
+  const first = graphNode({ nodeId: 'first', claimKey: 'shared',
+    acceptance: { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 } })
+  const second = graphNode({ nodeId: 'second', agentKind: 'hermes', claimKey: 'shared',
+    acceptance: { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 } })
+  const human = graphNode({ nodeId: 'human', role: 'human', agentKind: null, dependsOn: ['first', 'second'],
+    inputNodeIds: ['first'], acceptance: { requireConclusion: false, minArtifactRefs: 0, minEvidenceRefs: 0 },
+    decisionOptions: [{ optionId: 'approve', name: 'Approve', kind: 'allow_once' },
+      { optionId: 'reject', name: 'Reject', kind: 'reject_once' }] })
+  const arbiter = graphNode({ nodeId: 'arbiter', role: 'arbiter', terminal: true,
+    dependsOn: ['human'], inputNodeIds: ['human'] })
+  const graph = createTaskGraph({ template: 'task-graph', nodes: [first, second, human, arbiter] })
+  const controller = { runId: 'run', taskId: 'task', currentRound: 1, completedKinds: [], failedKinds: [],
+    orchestration: { taskGraph: createTaskGraphCursor(graph), collaboration: emptyCollaborationState(), activeKinds: ['codex', 'hermes'] } }
+  const runner = { ...collaborationMethods, ...taskGraphMethods,
+    taskGraphVerifiedOutcomeRefs: () => ({ artifactIds: [], evidenceIds: [] }),
+    checkpointOrchestration: (_group, target, updates) => Object.assign(target.orchestration, updates),
+    checkpointTaskGraph: (_group, target, next) => { target.orchestration.taskGraph = next; return next },
+  }
+  for (const [node, text] of [[first, 'First position'], [second, 'Different position']]) {
+    assert.equal(runner.applyTaskGraphAgentResult({}, controller, node,
+      { message: { content: text, trace: { status: 'completed', agentRunId: `${node.nodeId}-run` } } }), true)
+  }
+  controller.orchestration.taskGraph = updateTaskGraphCursor(controller.orchestration.taskGraph, 'human', { status: 'waiting', attempts: 1 })
+  assert.equal(runner.applyTaskGraphHumanDecision({}, controller, human, { status: 'approved', optionId: 'approve' }), true)
+  assert.equal(runner.unresolvedTaskGraphConflicts(controller.orchestration.collaboration).length, 1)
+  const decision = controller.orchestration.collaboration.entries.find(entry => entry.entryType === 'decision')
+  assert.deepEqual(decision.refs, [])
+  decision.refs = [runner.unresolvedTaskGraphConflicts(controller.orchestration.collaboration)[0].entryId]
+  assert.throws(() => runner.validateTaskGraphRecoveredResults(controller), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
+})
+
+test('a terminal human gate cannot approve an unselected conflict', async () => {
+  const first = graphNode({ nodeId: 'first', claimKey: 'shared',
+    acceptance: { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 } })
+  const second = graphNode({ nodeId: 'second', agentKind: 'hermes', claimKey: 'shared',
+    acceptance: { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 } })
+  const human = graphNode({ nodeId: 'human', role: 'human', agentKind: null, terminal: true,
+    dependsOn: ['first', 'second'], inputNodeIds: ['first'],
+    acceptance: { requireConclusion: false, minArtifactRefs: 0, minEvidenceRefs: 0 },
+    decisionOptions: [{ optionId: 'approve', name: 'Approve', kind: 'allow_once' },
+      { optionId: 'reject', name: 'Reject', kind: 'reject_once' }] })
+  const graph = createTaskGraph({ template: 'task-graph', nodes: [first, second, human] })
+  const controller = { runId: 'run', taskId: 'task', currentRound: 1, completedKinds: [], failedKinds: [],
+    orchestration: { taskGraph: createTaskGraphCursor(graph), collaboration: emptyCollaborationState(), activeKinds: ['codex', 'hermes'] } }
+  let requests = 0
+  const runner = { ...collaborationMethods, ...taskGraphMethods,
+    requestHumanGate: () => { requests += 1 },
+    taskGraphVerifiedOutcomeRefs: () => ({ artifactIds: [], evidenceIds: [] }),
+    checkpointOrchestration: (_group, target, updates) => Object.assign(target.orchestration, updates),
+    checkpointTaskGraph: (_group, target, next) => { target.orchestration.taskGraph = next; return next },
+  }
+  for (const [node, text] of [[first, 'First position'], [second, 'Different position']]) {
+    assert.equal(runner.applyTaskGraphAgentResult({}, controller, node,
+      { message: { content: text, trace: { status: 'completed', agentRunId: `${node.nodeId}-run` } } }), true)
+  }
+  await assert.rejects(runner.executeTaskGraphHumanNode({}, controller, human), { message: 'LOCAL_WORKFLOW_INPUT_UNAVAILABLE' })
+  assert.equal(requests, 0)
+  assert.throws(() => runner.applyTaskGraphHumanDecision({}, controller, human,
+    { status: 'approved', optionId: 'approve' }), { message: 'LOCAL_WORKFLOW_INPUT_UNAVAILABLE' })
+})
+
 for (const role of ['primary', 'arbiter']) test(`task graph replays a checkpointed ${role} result without losing references`, () => {
   const node = graphNode({ role, terminal: true,
     ...(role === 'primary' ? { claimKey: 'reviewed-result' } : {}),

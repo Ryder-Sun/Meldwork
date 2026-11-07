@@ -39,6 +39,7 @@ export default {
     'skillTrust.revoke': 'Revoke trust',
     'skillTrust.confirm': 'Revoke this approval?',
     'error.workflowProtocolUnsupported': 'Task graphs do not yet support the V4 discussion protocol. Choose a compatible workflow.',
+    'error.workflowInputUnavailable': 'The decision needs information that is unavailable or outside its selected inputs. Include the relevant results and try again.',
     'connectorPackages.title': 'Manage Connectors',
     'connectorPackages.sessionInvalid': 'The Connector session reference is invalid. Start a new conversation or check its configuration.',
     'connectorPackages.upstreamIncompatible': 'The local Agent version is outside this Connector’s supported range. Check the Agent and Connector versions.',

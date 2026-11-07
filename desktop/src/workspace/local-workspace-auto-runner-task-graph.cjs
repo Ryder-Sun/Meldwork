@@ -40,6 +40,9 @@ const taskGraphMethods = {
             || decision.provenance.agentRunId !== this.taskGraphDecisionAgentRunId(cursor.graph.graphId, node.nodeId)
             || decision.subject !== `task:${controller.taskId}:node:${node.nodeId}`
             || decision.statement !== `Human selected: ${option.name}`
+            || decision.refs.some(id => !this.taskGraphHumanResolvableConflicts(controller, node).some(entry => entry.entryId === id))
+            || (node.terminal && state.status === 'accepted'
+              && this.unresolvedTaskGraphConflicts(controller.orchestration.collaboration).length > 0)
             || (decision.value !== option.optionId && !(decision.value === ''
               && node.decisionOptions.filter(candidate => candidate.name === option.name).length === 1))) {
           throw new Error('LOCAL_RUN_CONTINUATION_INVALID')
@@ -403,6 +406,16 @@ const taskGraphMethods = {
       .find(Boolean) || controller.targetKinds[0]
   },
 
+  taskGraphHumanResolvableConflicts(controller, node) {
+    const cursor = parseTaskGraphCursor(controller.orchestration.taskGraph)
+    const selected = new Set(cursor.nodeStates.filter(state => node.inputNodeIds.includes(state.nodeId))
+      .flatMap(state => state.entryIds))
+    return (controller.orchestration.collaboration?.entries || []).filter(entry => (
+      entry.entryType === 'conflict' && entry.lifecycle.state === 'active'
+      && entry.refs.every(id => selected.has(id))
+    ))
+  },
+
   applyTaskGraphHumanDecision(group, controller, node, decision) {
     const option = node.decisionOptions.find(candidate => candidate.optionId === decision.optionId)
     if (!option) throw new Error('LOCAL_WORKFLOW_DECISION_INVALID')
@@ -410,7 +423,13 @@ const taskGraphMethods = {
     if (decision.status !== (option.kind === 'allow_once' ? 'approved' : 'rejected')) {
       throw new Error('LOCAL_RUN_CONTINUATION_INVALID')
     }
-    const conflicts = this.unresolvedTaskGraphConflicts(controller.orchestration.collaboration)
+    const resolvable = this.taskGraphHumanResolvableConflicts(controller, node)
+    const resolvableIds = new Set(resolvable.map(entry => entry.entryId))
+    const unresolved = this.unresolvedTaskGraphConflicts(controller.orchestration.collaboration)
+    const conflicts = unresolved.filter(entry => resolvableIds.has(entry.entryId))
+    if (accepted && node.terminal && unresolved.some(entry => !resolvableIds.has(entry.entryId))) {
+      throw new Error('LOCAL_WORKFLOW_INPUT_UNAVAILABLE')
+    }
     let collaboration = controller.orchestration.collaboration
     const agentRunId = this.taskGraphDecisionAgentRunId(controller.orchestration.taskGraph.graph.graphId, node.nodeId)
     const subject = `task:${controller.taskId}:node:${node.nodeId}`
@@ -422,7 +441,8 @@ const taskGraphMethods = {
         || prior.lifecycle.state !== 'active' || prior.statement !== `Human selected: ${option.name}`
         || (prior.value !== option.optionId && !(prior.value === ''
           && node.decisionOptions.filter(candidate => candidate.name === option.name).length === 1))
-        || (!accepted && prior.refs.length)))) throw new Error('LOCAL_RUN_CONTINUATION_INVALID')
+        || (!accepted && prior.refs.length)
+        || prior.refs.some(id => !resolvableIds.has(id))))) throw new Error('LOCAL_RUN_CONTINUATION_INVALID')
     if (!prior) collaboration = appendBlackboardEntry(collaboration, {
       entryType: 'decision',
       subject,
@@ -528,6 +548,12 @@ const taskGraphMethods = {
 
   async executeTaskGraphHumanNode(group, controller, node) {
     if (!this.requestHumanGate) throw new Error('LOCAL_WORKFLOW_DECISION_UNAVAILABLE')
+    if (node.terminal) {
+      const resolvable = new Set(this.taskGraphHumanResolvableConflicts(controller, node).map(entry => entry.entryId))
+      if (this.unresolvedTaskGraphConflicts(controller.orchestration.collaboration).some(entry => !resolvable.has(entry.entryId))) {
+        throw new Error('LOCAL_WORKFLOW_INPUT_UNAVAILABLE')
+      }
+    }
     const anchorKind = this.taskGraphDecisionAnchor(controller, node)
     const agentRunId = this.taskGraphDecisionAgentRunId(
       controller.orchestration.taskGraph.graph.graphId,
