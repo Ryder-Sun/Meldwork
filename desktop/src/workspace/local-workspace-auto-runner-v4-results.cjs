@@ -536,6 +536,7 @@ const v4ResultMethods = {
         : input.workReceipts
       const exactReceipt = this.v4ExactWorkReceipt(
         receiptRecord, assignment, slot, snapshotRecord, snapshotHash, coordinationPlan, durableReceipts,
+        item.dispatchedDependencies,
       )
       const appended = appendWorkReceipt(durableReceipts, exactReceipt)
       const assignmentOrder = new Map(coordinationPlan.assignments.map((candidate, index) => (

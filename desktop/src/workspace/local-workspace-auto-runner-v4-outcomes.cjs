@@ -271,8 +271,16 @@ const v4OutcomeMethods = {
     }
   },
 
+  v4DependencyWorkReceiptIds(assignment, coordinationPlan, workReceipts) {
+    return assignment.dependsOn.map(taskId => {
+      const dependency = workReceipts?.find(item => item.taskId === taskId && item.planHash === coordinationPlan.planHash)
+      if (!dependency?.workReceiptId) throw new Error('LOCAL_RUN_V4_WORK_RECEIPT_INVALID')
+      return dependency.workReceiptId
+    }).sort()
+  },
+
   v4ExactWorkReceipt(receiptRecord, assignment, slot, snapshotRecord, snapshotHash,
-    coordinationPlan, workReceipts) {
+    coordinationPlan, workReceipts, dispatchedDependencies) {
     const receipt = receiptRecord?.receipt
     if (!receipt || !assignment || !slot || !snapshotRecord?.bodyHash
         || !snapshotRecord?.contentRef || !coordinationPlan?.planHash) {
@@ -286,11 +294,11 @@ const v4OutcomeMethods = {
         contentRef: artifact.contentRef,
       }
     })
-    const dependencyWorkReceiptIds = assignment.dependsOn.map(taskId => {
-      const dependency = workReceipts?.find(item => item.taskId === taskId && item.planHash === coordinationPlan.planHash)
-      if (!dependency?.workReceiptId) throw new Error('LOCAL_RUN_V4_WORK_RECEIPT_INVALID')
-      return dependency.workReceiptId
-    })
+    const dependencyWorkReceiptIds = this.v4DependencyWorkReceiptIds(assignment, coordinationPlan, workReceipts)
+    if (!Array.isArray(dispatchedDependencies)
+        || canonicalJson(dispatchedDependencies) !== canonicalJson(dependencyWorkReceiptIds)) {
+      throw new Error('LOCAL_RUN_V4_WORK_RECEIPT_INVALID')
+    }
     return createWorkReceipt({
       snapshotHash,
       snapshotBodyHash: snapshotRecord.bodyHash,

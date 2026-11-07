@@ -40,6 +40,18 @@ test('V4 work recovery rejects a completed task whose dependency is missing', ()
     { message: 'LOCAL_RUN_V4_WORK_RECEIPT_INVALID' })
 })
 
+test('V4 work settlement rejects dependencies changed after dispatch', () => {
+  const runner = { ...v4OutcomeMethods }
+  const assignment = { taskId: 'downstream', ownerKind: 'hermes', dependsOn: ['upstream'] }
+  const plan = { planHash: 'plan' }
+  const original = [{ planHash: 'plan', taskId: 'upstream', workReceiptId: `work-receipt-${'a'.repeat(64)}` }]
+  const dispatched = runner.v4DependencyWorkReceiptIds(assignment, plan, original)
+  const changed = [{ ...original[0], workReceiptId: `work-receipt-${'b'.repeat(64)}` }]
+  assert.throws(() => runner.v4ExactWorkReceipt({ receipt: { artifactIds: [] } }, assignment,
+    { slotId: 'slot' }, { bodyHash: 'hash', contentRef: {} }, 'snapshot', plan, changed, dispatched),
+  { message: 'LOCAL_RUN_V4_WORK_RECEIPT_INVALID' })
+})
+
 test('V4 work recovery rejects artifacts and evidence from another run or Agent', () => {
   const plan = { planHash: 'plan', assignments: [{ taskId: 'work', ownerKind: 'codex', dependsOn: [] }] }
   const contentRef = { hash: 'a'.repeat(64), mediaType: 'text/plain', size: 4 }

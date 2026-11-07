@@ -454,6 +454,9 @@ const v4PhaseMethods = {
         phase, kind, coordinationPlan, workAssignmentsByKind.get(kind) || null,
       )
       const extraContext = extraContextFor(kind)
+      const dispatchedDependencies = phase === 'work'
+        ? this.v4DependencyWorkReceiptIds(workAssignmentsByKind.get(kind), coordinationPlan, workReceipts)
+        : null
       const promptOptions = {
         reviewTarget: phase === 'challenge'
           ? challengeBinding?.proposalKind || ''
@@ -618,7 +621,7 @@ const v4PhaseMethods = {
           item = { kind, error }
         }
       }
-      return phase === 'work' ? admitWork(item) : item
+      return phase === 'work' ? admitWork({ ...item, dispatchedDependencies }) : item
     }))
 
     for (const item of phase === 'work' ? [] : settled) {
