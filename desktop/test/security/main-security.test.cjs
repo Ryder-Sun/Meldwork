@@ -3091,6 +3091,24 @@ test('native Agent credentials are injected only through local Agent execution o
   assert.equal(options.env.XDG_DATA_HOME, '/native/data')
 })
 
+test('OpenClaw discovery binds workspace-relative TLS bundles to verification identity', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-openclaw-ca-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const certificate = path.join(directory, 'ca.pem')
+  fs.writeFileSync(certificate, 'first certificate')
+  const { harness } = loadMain(directory, {
+    detectAgents: async () => [{ kind: 'openclaw', name: 'OpenClaw', executable: '/tmp/openclaw', version: '2026.7.1-2' }],
+    nativeShellEnvironment: () => ({ env: { SSL_CERT_FILE: 'ca.pem' }, source: 'native-shell' }),
+  })
+  await harness.ready()
+  const detected = await harness.installerInstances[0].input.detectAgents()
+  const agent = detected.find(item => item.kind === 'openclaw')
+  const { projectVerificationIdentity } = require('../../src/workspace/agent-verification-identity.cjs')
+  const before = projectVerificationIdentity('openclaw', directory, agent, 'environment')
+  fs.writeFileSync(certificate, 'replacement certificate')
+  assert.notEqual(projectVerificationIdentity('openclaw', directory, agent, 'environment'), before)
+})
+
 test('Pi execution receives its native cloud configuration from the shell', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-pi-native-cloud-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
