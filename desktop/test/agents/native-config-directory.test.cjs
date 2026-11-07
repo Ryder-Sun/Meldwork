@@ -274,8 +274,23 @@ test('Qwen authentication identity tracks its native user and system settings', 
   const settings = path.join(home, 'system', 'qwen.json')
   assert.deepEqual(nativeAuthIdentityFiles('qwen', { QWEN_CODE_SYSTEM_SETTINGS_PATH: settings }, home, 'darwin'), [
     settings, path.join(home, 'system', 'system-defaults.json'),
-    path.join(home, '.qwen', 'settings.json'), path.join(home, '.qwen', 'oauth_creds.json'),
+    path.join(home, '.qwen', 'settings.json'), path.join(home, '.qwen', 'oauth_creds.json'), path.join(home, '.qwen', '.env'),
   ])
+})
+
+test('Qwen verification identity changes when its native environment file changes', t => {
+  const { NATIVE_AUTH_IDENTITY_FILES } = require('../../src/agents/native-config-directory.cjs')
+  const { agentVerificationIdentity } = require('../../src/workspace/agent-verification-identity.cjs')
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-qwen-identity-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const filename = path.join(home, '.qwen', '.env')
+  fs.mkdirSync(path.dirname(filename), { recursive: true })
+  fs.writeFileSync(filename, 'DASHSCOPE_API_KEY=first\n')
+  const agent = { kind: 'qwen', installed: true }
+  Object.defineProperty(agent, NATIVE_AUTH_IDENTITY_FILES, { value: nativeAuthIdentityFiles('qwen', {}, home) })
+  const before = agentVerificationIdentity(agent)
+  fs.writeFileSync(filename, 'DASHSCOPE_API_KEY=replacement\n')
+  assert.notEqual(agentVerificationIdentity(agent), before)
 })
 
 test('a selected native directory survives workspace restart', t => {
