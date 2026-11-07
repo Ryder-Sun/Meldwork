@@ -249,7 +249,7 @@ test('a late successful probe cannot restore a cache after a newer spawn failure
   })
   assert.equal(newer.compatibilityState, 'unknown')
   release()
-  assert.equal((await oldProbe).compatibilityState, 'compatible')
+  assert.equal((await oldProbe).compatibilityState, 'unknown')
   const timeout = await probeAgentCapabilities('workbuddy', executable, { ...options,
     execFileFn: async () => { throw Object.assign(new Error('timeout'), { code: 'ETIMEDOUT' }) },
   })
@@ -276,6 +276,7 @@ test('a late spawn failure cannot erase a newer successful probe cache', async (
   })
   assert.equal(timeout.compatibilityState, 'compatible')
 })
+
 
 test('capability probe cache expires when the system clock moves backwards', async t => {
   let now = 10_000

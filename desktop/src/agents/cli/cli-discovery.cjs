@@ -474,6 +474,9 @@ async function probeAgentCapabilities(kind, executable, options = {}) {
         }
       }
     }))
+    if (activeCapabilityProbes.get(cacheKey) !== probeToken) {
+      return { compatibilityState: 'unknown', incompatibilityReason: '', incompatibilityProbe: '' }
+    }
     const failed = results.find(result => !result.timedOut && !result.systemError && !result.authRequired && (result.error
       || result.probe.requiredText.some(value => !result.output.includes(value))
       || (result.probe.validateOutput && !result.probe.validateOutput(result.output))))
