@@ -8,7 +8,7 @@ const RECENT_VERIFICATION_MS = 24 * 60 * 60 * 1000
 const AUTH_FAILURE_RETRY_MS = 30 * 1000
 const MAX_PROJECT_AUTH_RECORDS = 64
 const PROJECT_NATIVE_ENVIRONMENT_KINDS = new Set([
-  'codex', 'hermes', 'workbuddy', 'zcode', 'pi', 'kimi', 'mimo', 'deepseek',
+  'codex', 'hermes', 'openclaw', 'workbuddy', 'zcode', 'pi', 'kimi', 'mimo', 'deepseek',
   'claude', 'gemini', 'opencode', 'qwen', 'opencodereview',
 ])
 // A readiness probe that times out or crashes says nothing about whether the

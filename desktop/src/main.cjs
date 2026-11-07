@@ -372,7 +372,18 @@ async function resolveProjectEnvironmentIdentities(workdir, kinds) {
   const captured = await nativeShellEnvironment({ workdir, refresh: true })
   const result = {}
   for (const kind of kinds) {
-    if (!LOCAL_AGENT_KINDS.has(kind) || kind === 'openclaw') continue
+    if (!LOCAL_AGENT_KINDS.has(kind)) continue
+    if (kind === 'openclaw') {
+      const agent = workspace?.detectedAgents?.find(item => item.kind === kind)
+      if (!agent?.executable) continue
+      try {
+        const runtime = await resolveNativeOpenClawRuntime({ executable: agent.executable,
+          env: captured.env, home: captured.home })
+        result[kind] = nativeEnvironmentIdentity({ runtime: JSON.stringify(runtime),
+          ...networkEnvironment(captured.env) })
+      } catch { /* Fail closed for this Agent without blocking other kinds. */ }
+      continue
+    }
     const keys = kind === 'codex' ? captured.codexCredentialKeys
       : kind === 'hermes' ? captured.hermesCredentialKeys
       : kind === 'zcode' ? captured.zcodeCredentialKeys

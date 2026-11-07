@@ -597,7 +597,7 @@ test('automatic routing requires a successful Zcode run in the current project',
     targetKinds: [], routingMode: 'automatic' }), { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
 })
 
-for (const kind of ['codex', 'hermes', 'workbuddy', 'zcode', 'pi', 'kimi', 'mimo', 'deepseek',
+for (const kind of ['codex', 'hermes', 'openclaw', 'workbuddy', 'zcode', 'pi', 'kimi', 'mimo', 'deepseek',
   'claude', 'gemini', 'opencode', 'qwen', 'opencodereview']) {
   test(`${kind} automatic routing follows the current project's native credential`, async t => {
     const { directory, calls, options } = fixture()

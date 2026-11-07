@@ -704,6 +704,34 @@ test('Pi and Claude project identities follow their native authentication enviro
   assert.doesNotMatch(JSON.stringify([first, second, third]), /pi-first|claude-first|CUSTOM_KEY|AUTH_TOKEN/)
 })
 
+test('OpenClaw project identity tracks its guarded native runtime without exposing credentials', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-openclaw-project-identity-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  let secret = 'openclaw-first-secret'
+  let unavailable = false
+  const { harness } = loadMain(directory, {
+    nativeOpenClawRuntime: input => {
+      assert.equal(input.executable, '/native/openclaw')
+      if (unavailable) throw new Error('OPENCLAW_NATIVE_RUNTIME_UNAVAILABLE')
+      return { model: 'native/model', provider: { id: 'native', baseUrl: 'https://example.test', apiKey: secret } }
+    },
+  })
+  await harness.ready()
+  harness.workspaceInstances[0].detectedAgents = [{ kind: 'openclaw', executable: '/native/openclaw' }]
+  const resolve = harness.workspaceInstances[0].input.resolveProjectEnvironmentIdentities
+  const first = await resolve(directory, ['openclaw', 'codex'])
+  secret = 'openclaw-second-secret'
+  const second = await resolve(directory, ['openclaw', 'codex'])
+  assert.match(first.openclaw, /^[a-f0-9]{64}$/)
+  assert.notEqual(first.openclaw, second.openclaw)
+  assert.equal(first.codex, second.codex)
+  assert.doesNotMatch(JSON.stringify([first, second]), /openclaw-first-secret|openclaw-second-secret/)
+  unavailable = true
+  const failed = await resolve(directory, ['openclaw', 'codex'])
+  assert.equal(failed.openclaw, undefined)
+  assert.equal(failed.codex, second.codex)
+})
+
 test('MiMo captures the recent model provider credential for a project', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-mimo-recent-main-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
