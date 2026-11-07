@@ -96,6 +96,26 @@ function jsonContainsCredential(filename) {
   }
 }
 
+function openCodeReviewSelectedCredential(home, env, credentialSource) {
+  let config
+  try {
+    const contents = readCredentialFile(path.join(home, '.opencodereview', 'config.json'))
+    if (!contents) return null
+    config = JSON.parse(contents)
+  } catch { return { state: 'unknown', source: 'unverified' } }
+  const provider = typeof config?.provider === 'string' ? config.provider.trim() : ''
+  if (!provider) return null
+  const nativeKey = provider === 'openai' || provider === 'openai-responses' ? 'OPENAI_API_KEY'
+    : provider === 'anthropic' ? 'ANTHROPIC_API_KEY' : ''
+  const selected = config.providers?.[provider] || (!nativeKey && config.custom_providers?.[provider])
+  const configured = credentialLiteral(selected?.api_key)
+  const command = typeof selected?.api_key_cmd === 'string' && selected.api_key_cmd.trim()
+  const inherited = !command && nativeKey && credentialLiteral(env[nativeKey])
+  return configured || inherited
+    ? { state: 'ready', source: inherited && credentialSource === 'native-shell' ? 'native-shell' : 'native-credential' }
+    : { state: 'unknown', source: 'unverified' }
+}
+
 function openCodeAuthContainsCredential(filename) {
   try {
     const contents = readCredentialFile(filename)
@@ -707,6 +727,10 @@ function nativeCredentialState(kind, options = {}) {
   const env = options.env || process.env
   const configuredUserHome = (options.platform || process.platform) === 'win32' ? env.USERPROFILE : env.HOME
   const effectiveUserHome = typeof configuredUserHome === 'string' && configuredUserHome.trim() ? configuredUserHome.trim() : home
+  if (kind === 'opencodereview') {
+    const selected = openCodeReviewSelectedCredential(effectiveUserHome, env, options.credentialSource)
+    if (selected) return selected
+  }
   const codexHome = env.CODEX_HOME || path.join(home, '.codex')
   const claudeHome = env.CLAUDE_CONFIG_DIR || path.join(home, '.claude')
   const geminiHome = env.GEMINI_CLI_HOME

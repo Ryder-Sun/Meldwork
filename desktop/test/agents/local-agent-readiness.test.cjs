@@ -52,6 +52,28 @@ test('OpenCodeReview readiness reads the selected native home', t => {
   assert.equal(nativeCredentialState('opencodereview', { home, env: {} }).state, 'unknown')
 })
 
+test('OpenCodeReview does not treat another provider credential as the selected provider', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-ocr-provider-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const root = path.join(home, '.opencodereview')
+  fs.mkdirSync(root)
+  const file = path.join(root, 'config.json')
+  const config = { provider: 'selected-gateway', model: 'test', custom_providers: {
+    'selected-gateway': { url: 'https://example.invalid/v1', protocol: 'openai' },
+    'other-gateway': { url: 'https://example.invalid/v1', protocol: 'openai', api_key: 'synthetic-other' },
+  } }
+  fs.writeFileSync(file, JSON.stringify(config))
+  assert.equal(nativeCredentialState('opencodereview', { home, env: { OPENAI_API_KEY: 'synthetic-unrelated' } }).state, 'unknown')
+  config.custom_providers['selected-gateway'].api_key = 'synthetic-selected'
+  fs.writeFileSync(file, JSON.stringify(config))
+  assert.equal(nativeCredentialState('opencodereview', { home, env: {} }).state, 'ready')
+  config.provider = 'openai'
+  config.custom_providers.openai = { api_key: 'synthetic-shadow' }
+  fs.writeFileSync(file, JSON.stringify(config))
+  assert.equal(nativeCredentialState('opencodereview', { home, env: {} }).state, 'unknown')
+  assert.equal(nativeCredentialState('opencodereview', { home, env: { OPENAI_API_KEY: 'synthetic-openai' } }).state, 'ready')
+})
+
 test('Hermes receives native Bedrock and Vertex environment for discovery and execution', async () => {
   const env = { AWS_PROFILE: 'research', AWS_REGION: 'us-east-1', AWS_ACCESS_KEY_ID: 'native-access',
     AWS_SECRET_ACCESS_KEY: 'native-secret', GOOGLE_APPLICATION_CREDENTIALS: '/native/google.json',
