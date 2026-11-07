@@ -670,6 +670,33 @@ test('a project credential change during execution cannot verify the replacement
     routingMode: 'automatic' }), { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
 })
 
+test('an authentication failure cannot block credentials changed during the run', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const { nativeEnvironmentIdentity } = require('../../src/agents/native-config-directory.cjs')
+  const { agentRuntimeError } = require('../../src/agents/agent-runtime-contract.cjs')
+  const started = deferred()
+  const release = deferred()
+  let secret = 'first-synthetic-secret'
+  options.detectAgents = async () => [{ kind: 'mimo', name: 'MiMo', executable: '/tmp/mimo', version: '1' }]
+  options.resolveProjectEnvironmentIdentities = async () => ({ mimo: nativeEnvironmentIdentity({ CUSTOM_KEY: secret }) })
+  options.runAgent = async () => {
+    started.resolve()
+    await release.promise
+    throw agentRuntimeError('LOCAL_AGENT_AUTH_REQUIRED', 'HTTP 401: expired test token')
+  }
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Project', agentKinds: ['mimo'], workdir: directory })
+  const run = workspace.sendMessage({ groupId: group.id, text: 'Verify', targetKinds: ['mimo'] })
+  await started.promise
+  secret = 'replacement-synthetic-secret'
+  release.resolve()
+  await run
+  assert.equal(workspace.agentCatalog.isProjectAuthBlocked('mimo', directory), false)
+  assert.equal(workspace.state.agentRuntime.mimo?.projectFailures?.length || 0, 0)
+})
+
 test('automatic routing rejects a busy group before recapturing its environment', async t => {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

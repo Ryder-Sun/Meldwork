@@ -1429,12 +1429,13 @@ class LocalWorkspaceAgentInvocation {
       }
       // Only an explicit sign-in failure changes readiness. Network, quota and
       // provider refusals stay run-scoped so a healthy Agent remains usable.
-      if (error?.code === 'LOCAL_AGENT_AUTH_REQUIRED'
-          && context.deferCredentialFailure !== true) {
+      if (error?.code === 'LOCAL_AGENT_AUTH_REQUIRED') {
         watchdog.pause()
         try {
           await awaitProjectEnvironment(this.refreshProjectEnvironment, group.workdir, kind, [signal, agentController.signal])
-          this.markRuntimeCredential(kind, 'missing', { verificationIdentity, workdir: group.workdir, projectIdentity })
+          if (context.deferCredentialFailure !== true) {
+            this.markRuntimeCredential(kind, 'missing', { verificationIdentity, workdir: group.workdir, projectIdentity })
+          }
         } catch (refreshError) {
           stop = resolveInvocationStop({
             caughtError: refreshError, signal, parentAbortObserved, activeRun, agentController, watchdog,
