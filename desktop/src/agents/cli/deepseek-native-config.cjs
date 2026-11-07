@@ -39,6 +39,7 @@ function deepseekNativeConfig(options = {}) {
   const files = [path.join(root, 'profiles', 'acp', 'cordis.patch.yml'), path.join(root, 'cordis.patch.yml')]
   const keys = []
   let explicitModel = false
+  let provider = ''
   for (const filename of files) {
     let document
     try {
@@ -55,12 +56,15 @@ function deepseekNativeConfig(options = {}) {
       const node = pending.pop()
       if (!node || typeof node !== 'object' || seen.has(node)) continue
       seen.add(node)
-      if (node.id === 'acp' && node.config && typeof node.config === 'object'
-          && ['provider', 'model'].some(key => typeof node.config[key] === 'string' && node.config[key].trim())) explicitModel = true
+      if (node.id === 'acp' && node.config && typeof node.config === 'object') {
+        if (['provider', 'model'].some(key => typeof node.config[key] === 'string' && node.config[key].trim())) explicitModel = true
+        if (typeof node.config.provider === 'string' && node.config.provider.trim()) provider = node.config.provider.trim()
+      }
       if (typeof node.apiKeyEnv === 'string') keys.push(node.apiKeyEnv)
-      pending.push(...Object.values(node))
+      pending.push(...Object.values(node).reverse())
     }
   }
+  if (explicitModel && (!provider || provider === 'deepseek-official')) keys.push('DEEPSEEK_API_KEY')
   return { explicitModel, credentialKeys: nativeSecretEnvKeys(keys) }
 }
 

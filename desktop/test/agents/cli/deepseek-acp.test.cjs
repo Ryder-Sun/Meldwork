@@ -122,6 +122,26 @@ test('DeepSeek uses the default model only without an explicit native selection'
   assert.equal(invocation('deepseek', '/bin/dsh', '/tmp', '', options).args.some(arg => /deepseek-zgci\.yml$/.test(arg)), false)
 })
 
+test('DeepSeek native official provider retains its bundled API key declaration', t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-dsh-official-'))
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+  const { deepseekNativeConfig } = require('../../../src/agents/cli/deepseek-native-config.cjs')
+  const { nativeCredentialEnvironment } = require('../../../src/agents/agent-native-environment.cjs')
+  const env = { DSH_HOME: root, DEEPSEEK_API_KEY: 'official-secret', ZGCI_API_KEY: 'other-secret' }
+  for (const patch of ['- id: acp\n  config:\n    provider: deepseek-official\n',
+    '- id: acp\n  config:\n    model: deepseek-v4-flash\n']) {
+    fs.writeFileSync(path.join(root, 'cordis.patch.yml'), patch)
+    const native = deepseekNativeConfig({ env })
+    assert.deepEqual(native.credentialKeys, ['DEEPSEEK_API_KEY'])
+    assert.deepEqual(nativeCredentialEnvironment('deepseek', env, native.credentialKeys),
+      { DSH_HOME: root, DEEPSEEK_API_KEY: 'official-secret' })
+  }
+  fs.mkdirSync(path.join(root, 'profiles', 'acp'), { recursive: true })
+  fs.writeFileSync(path.join(root, 'profiles', 'acp', 'cordis.patch.yml'), '- id: acp\n  config:\n    provider: custom\n')
+  fs.writeFileSync(path.join(root, 'cordis.patch.yml'), '- id: acp\n  config:\n    model: custom-model\n')
+  assert.deepEqual(deepseekNativeConfig({ env }).credentialKeys, [])
+})
+
 test('DeepSeek ACP uses the native selected provider in both permission modes', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-dsh-native-acp-'))
   fs.mkdirSync(path.join(directory, 'profiles', 'acp'), { recursive: true })

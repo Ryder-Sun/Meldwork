@@ -933,7 +933,8 @@ test('DeepSeek native provider credentials reach detection and execution without
   let detected
   const { harness } = loadMain(directory, {
     nativeShellEnvironment: input => ({ env: { DSH_HOME: native, ZGCI_API_KEY: 'unrelated',
-      ...(input.extraEnvKeys?.includes('CUSTOM_DSH_KEY') ? { CUSTOM_DSH_KEY: 'native-secret' } : {}) }, source: 'native-shell' }),
+      ...(input.extraEnvKeys?.includes('CUSTOM_DSH_KEY') ? { CUSTOM_DSH_KEY: 'native-secret' } : {}),
+      ...(input.extraEnvKeys?.includes('DEEPSEEK_API_KEY') ? { DEEPSEEK_API_KEY: 'official-secret' } : {}) }, source: 'native-shell' }),
     nativeEnvironment: (...args) => actualNativeEnvironment(...args),
     detectAgents: input => { detected = input.nativeEnvironmentForKind('deepseek'); return [] },
   })
@@ -947,6 +948,10 @@ test('DeepSeek native provider credentials reach detection and execution without
   assert.equal(options.env.CUSTOM_DSH_KEY, 'native-secret')
   assert.equal(options.env.ZGCI_API_KEY, undefined)
   assert.deepEqual(options.nativeCredentialKeys, ['CUSTOM_DSH_KEY'])
+  fs.writeFileSync(path.join(native, 'profiles', 'acp', 'cordis.patch.yml'), '- id: acp\n  config:\n    provider: deepseek-official\n')
+  await harness.installerInstances[0].input.detectAgents()
+  assert.equal(detected.DEEPSEEK_API_KEY, 'official-secret')
+  assert.equal(detected.ZGCI_API_KEY, undefined)
 })
 
 test('DeepSeek shared Skill directory follows the native shell and invalidates its cache', async t => {
