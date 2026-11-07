@@ -35,7 +35,23 @@ function hermesConfiguredProvider(options = {}) {
   } catch (error) {
     if (error.code !== 'ENOENT') return ''
   }
-  const value = hermesProviderFromConfig(config, env)
+  let providerEnv = env
+  if (!Object.hasOwn(env, 'HERMES_INFERENCE_PROVIDER')) {
+    try {
+      const file = path.join(root, '.env')
+      const stat = fs.statSync(file)
+      if (stat.isFile() && stat.size <= 1024 * 1024) {
+        let provider = ''
+        for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
+          if (!/^\s*(?:export\s+)?HERMES_INFERENCE_PROVIDER\s*=/.test(line)) continue
+          const match = line.match(/^\s*(?:export\s+)?HERMES_INFERENCE_PROVIDER\s*=\s*(?:"([A-Za-z0-9._:-]+)"|'([A-Za-z0-9._:-]+)'|([A-Za-z0-9._:-]+))\s*(?:#.*)?$/)
+          provider = match ? match[1] || match[2] || match[3] : ''
+        }
+        if (provider) providerEnv = { ...env, HERMES_INFERENCE_PROVIDER: provider }
+      }
+    } catch { /* No readable native environment file. */ }
+  }
+  const value = hermesProviderFromConfig(config, providerEnv)
   return /^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/.test(value) && redactSecrets(value) === value ? value : ''
 }
 

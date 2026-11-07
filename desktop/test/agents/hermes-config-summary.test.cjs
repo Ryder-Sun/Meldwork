@@ -24,3 +24,13 @@ test('Hermes configuration summary reads the selected provider without exposing 
   fs.writeFileSync(file, 'invalid: [')
   assert.equal(hermesConfiguredProvider({ home, env: { HERMES_HOME: root, HERMES_INFERENCE_PROVIDER: 'other' } }), '')
 })
+
+test('Hermes summary reads the selected native environment provider without exposing other values', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-env-summary-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  fs.writeFileSync(path.join(home, '.env'), 'API_KEY=synthetic-secret\nexport HERMES_INFERENCE_PROVIDER="openrouter"\n')
+  assert.equal(hermesConfiguredProvider({ home, env: { HERMES_HOME: home } }), 'openrouter')
+  assert.equal(hermesConfiguredProvider({ home, env: { HERMES_HOME: home, HERMES_INFERENCE_PROVIDER: 'custom' } }), 'custom')
+  fs.writeFileSync(path.join(home, 'config.yaml'), 'model:\n  provider: anthropic\n')
+  assert.equal(hermesConfiguredProvider({ home, env: { HERMES_HOME: home } }), 'anthropic')
+})
