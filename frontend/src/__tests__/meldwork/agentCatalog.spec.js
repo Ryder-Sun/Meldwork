@@ -280,6 +280,14 @@ describe('Agent compatibility state', () => {
     expect(state.label).toBe('Detection timed out; retry')
   })
 
+  it('shows sign-in guidance when a capability probe requires authentication', () => {
+    setLocale('en')
+    const state = catalogFor({ kind: 'workbuddy', installed: true, available: false, credentialState: 'unknown',
+      compatibilityState: 'unknown', incompatibilityReason: 'LOCAL_AGENT_AUTH_REQUIRED' })
+    expect(state.label).toBe(t('agent.needsLogin'))
+    expect(state.tone).toBe('warning')
+  })
+
   describe('explaining why an installed Agent is unavailable', () => {
     function noteFor(agent) {
       setLocale('en')

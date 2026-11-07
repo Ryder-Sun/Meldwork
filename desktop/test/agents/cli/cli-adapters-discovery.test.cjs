@@ -1194,10 +1194,24 @@ test('Agent detection probes capabilities when the product version is unrecogniz
     versionIdentified: false,
     resolvedVersion: '',
     supportedVersionRange: '0.19.2..0.32.0',
-    compatibilityState: 'incompatible',
-    incompatibilityReason: 'LOCAL_AGENT_REQUIRED_CAPABILITY_MISSING',
+    compatibilityState: 'unknown',
+    incompatibilityReason: 'LOCAL_AGENT_AUTH_REQUIRED',
     incompatibilityProbe: 'kimi-stream',
   }])
+})
+
+test('authentication errors in capability probes do not imply protocol incompatibility', async () => {
+  const result = await probeAgentCapabilities('workbuddy', '/test/auth-workbuddy', {
+    env: {},
+    execFileFn: async () => { throw Object.assign(new Error('Please log in first'), { code: 1 }) },
+  })
+  assert.equal(result.compatibilityState, 'unknown')
+  assert.equal(result.incompatibilityReason, 'LOCAL_AGENT_AUTH_REQUIRED')
+  const help = await probeAgentCapabilities('workbuddy', '/test/auth-help-workbuddy', {
+    env: {},
+    execFileFn: async () => ({ stdout: '--print --output-format --permission-mode --max-turns --resume json plan acceptEdits\nPlease log in first' }),
+  })
+  assert.equal(help.compatibilityState, 'compatible')
 })
 
 test('Agent detection accepts ambiguous product versions after successful capability probes', async () => {

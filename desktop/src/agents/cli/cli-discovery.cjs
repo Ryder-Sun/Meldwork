@@ -9,6 +9,7 @@ const { SECRET_ENV_KEYS, nativeSecretEnvKeys } = require('./native-secret-enviro
 const { NATIVE_CONFIG_DIRECTORIES } = require('../native-config-directory.cjs')
 const { nativeCredentialEnvironment } = require('../agent-native-environment.cjs')
 const { redactChildSecrets } = require('./cli-runtime-event-sanitizer.cjs')
+const { authFailureCertainty } = require('../../runs/failure-signals.cjs')
 const {
   assessAgentVersion,
   capabilityProbes,
@@ -425,20 +426,32 @@ async function probeAgentCapabilities(kind, executable, options = {}) {
         })
         if (probe.id === 'pi-json') execution.child?.stdin?.end()
         const result = await execution
-        return { probe, output: `${result.stdout || ''}\n${result.stderr || ''}` }
+        const output = `${result.stdout || ''}\n${result.stderr || ''}`
+        const missingCapabilities = probe.requiredText.some(value => !output.includes(value))
+          || (probe.validateOutput && !probe.validateOutput(output))
+        return { probe, output, authRequired: missingCapabilities && authFailureCertainty(output) === 'definitive' }
       } catch (error) {
         const timedOut = error?.killed === true || error?.code === 'ETIMEDOUT'
         if (timedOut && timeout === 8000) continue
-        return { probe, error: true, timedOut }
+        const diagnostic = `${error?.stdout || ''}\n${error?.stderr || ''}\n${error?.message || ''}`
+        return { probe, error: true, timedOut, authRequired: authFailureCertainty(diagnostic) === 'definitive' }
       }
     }
   }))
-  const failed = results.find(result => !result.timedOut && (result.error
+  const failed = results.find(result => !result.timedOut && !result.authRequired && (result.error
     || result.probe.requiredText.some(value => !result.output.includes(value))
     || (result.probe.validateOutput && !result.probe.validateOutput(result.output))))
   if (failed) capabilityCache.delete(cacheKey)
   for (const result of results) {
     const { probe } = result
+    if (result.authRequired && !failed) {
+      return {
+        compatibilityState: 'unknown',
+        incompatibilityReason: 'LOCAL_AGENT_AUTH_REQUIRED',
+        incompatibilityProbe: probe.id,
+      }
+    }
+    if (result.authRequired) continue
     if (result.timedOut && !failed) {
       if (recentCompatible) continue
       return {

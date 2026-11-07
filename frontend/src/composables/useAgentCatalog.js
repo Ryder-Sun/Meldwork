@@ -164,7 +164,9 @@ export function useAgentCatalog({
       })[agent.incompatibilityReason] || 'agent.incompatible'
       return { label: t(reasonKey), tone: 'warning', icon: WarningOutline }
     }
-    if (agent.credentialState === 'missing') return { label: t('agent.needsLogin'), tone: 'warning', icon: WarningOutline }
+    if (agent.credentialState === 'missing' || agent.incompatibilityReason === 'LOCAL_AGENT_AUTH_REQUIRED') {
+      return { label: t('agent.needsLogin'), tone: 'warning', icon: WarningOutline }
+    }
     return { label: t('agent.unverified'), tone: 'neutral', icon: WarningOutline }
   }
 
@@ -193,7 +195,7 @@ export function useAgentCatalog({
       })[agent.incompatibilityReason] || 'agent.note.versionUnsupported'
       return `${t(key, params)}${verified}`
     }
-    if (agent.credentialState === 'missing') {
+    if (agent.credentialState === 'missing' || agent.incompatibilityReason === 'LOCAL_AGENT_AUTH_REQUIRED') {
       // A cloud Agent runs on the connected server, so that is where it signs in.
       return t(agent.cloud ? 'agent.note.needsLoginCloud' : 'agent.note.needsLogin')
     }
