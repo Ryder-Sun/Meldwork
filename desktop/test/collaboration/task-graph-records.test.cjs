@@ -86,6 +86,24 @@ test('new Agent nodes require an acceptance criterion while legacy graphs remain
   assert.deepEqual(parseTaskGraph(graph), graph)
 })
 
+test('new task graphs reject credentials and control characters in public decision fields', () => {
+  const human = node({ nodeId: 'human', role: 'human', agentKind: null, terminal: true, parallel: false,
+    acceptance: { requireConclusion: false, minArtifactRefs: 0, minEvidenceRefs: 0 },
+    decisionOptions: [{ optionId: 'approve', name: 'Approve', kind: 'allow_once' },
+      { optionId: 'reject', name: 'Reject', kind: 'reject_once' }] })
+  const secret = `sk-${'a'.repeat(32)}`
+  for (const candidate of [
+    { ...human, nodeId: secret },
+    { ...human, decisionOptions: [{ ...human.decisionOptions[0], optionId: secret }, human.decisionOptions[1]] },
+    { ...human, decisionOptions: [{ ...human.decisionOptions[0], name: secret }, human.decisionOptions[1]] },
+    { ...human, decisionOptions: [{ ...human.decisionOptions[0], name: 'Approve\nnow' }, human.decisionOptions[1]] },
+  ]) {
+    assert.throws(() => createTaskGraph({ template: 'task-graph', nodes: [candidate] }),
+      { message: 'TASK_GRAPH_SCHEMA_INVALID' })
+  }
+  assert.doesNotThrow(() => createTaskGraph({ template: 'task-graph', nodes: [human] }))
+})
+
 test('restored task graphs enforce the same decision and terminal constraints as new graphs', () => {
   const graph = createTaskGraph(workflow())
   const signed = nodes => {

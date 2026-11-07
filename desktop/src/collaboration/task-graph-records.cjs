@@ -158,6 +158,11 @@ function createTaskGraph(input, targetKinds = null) {
       && !node.acceptance.minEvidenceRefs)) {
     fail('TASK_GRAPH_SCHEMA_INVALID')
   }
+  if (parsed.data.nodes.some(node => redactSecrets(node.nodeId) !== node.nodeId
+      || node.decisionOptions.some(option => redactSecrets(option.optionId) !== option.optionId
+        || redactSecrets(option.name) !== option.name || /[\u0000-\u001f\u007f]/u.test(option.name)))) {
+    fail('TASK_GRAPH_SCHEMA_INVALID')
+  }
   if (parsed.data.nodes.some(node => node.role === 'human'
       && (!node.decisionOptions.some(option => option.kind === 'allow_once')
         || !node.decisionOptions.some(option => option.kind === 'reject_once')))) {
