@@ -19,21 +19,19 @@ function hermesProviderFromConfig(config, env = {}) {
 }
 
 function hermesProviderEnvironment(root, env = {}) {
-  if (!Object.hasOwn(env, 'HERMES_INFERENCE_PROVIDER')) {
-    try {
-      const file = path.join(root, '.env')
-      const stat = fs.statSync(file)
-      if (stat.isFile() && stat.size <= 1024 * 1024) {
-        let provider = ''
-        for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
-          if (!/^\s*(?:export\s+)?HERMES_INFERENCE_PROVIDER\s*=/.test(line)) continue
-          const match = line.match(/^\s*(?:export\s+)?HERMES_INFERENCE_PROVIDER\s*=\s*(?:"([A-Za-z0-9._:-]+)"|'([A-Za-z0-9._:-]+)'|([A-Za-z0-9._:-]+))\s*(?:#.*)?$/)
-          provider = match ? match[1] || match[2] || match[3] : ''
-        }
-        if (provider) return { ...env, HERMES_INFERENCE_PROVIDER: provider }
+  try {
+    const file = path.join(root, '.env')
+    const stat = fs.statSync(file)
+    if (stat.isFile() && stat.size <= 1024 * 1024) {
+      let provider
+      for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
+        if (!/^\s*(?:export\s+)?HERMES_INFERENCE_PROVIDER\s*=/.test(line)) continue
+        const match = line.match(/^\s*(?:export\s+)?HERMES_INFERENCE_PROVIDER\s*=\s*(?:"([A-Za-z0-9._:-]*)"|'([A-Za-z0-9._:-]*)'|([A-Za-z0-9._:-]*))\s*(?:#.*)?$/)
+        provider = match ? match[1] ?? match[2] ?? match[3] : ''
       }
-    } catch { /* No readable native environment file. */ }
-  }
+      if (provider !== undefined) return { ...env, HERMES_INFERENCE_PROVIDER: provider }
+    }
+  } catch { /* No readable native environment file. */ }
   return env
 }
 
