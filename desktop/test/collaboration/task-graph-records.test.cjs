@@ -54,6 +54,21 @@ function workflow() {
   }
 }
 
+test('new task graphs reject human decision summaries that cannot be displayed', () => {
+  const human = node({ nodeId: 'human', role: 'human', agentKind: null, terminal: true, parallel: false,
+    acceptance: { requireConclusion: false, minArtifactRefs: 0, minEvidenceRefs: 0 },
+    decisionOptions: [{ optionId: 'approve', name: 'Approve', kind: 'allow_once' },
+      { optionId: 'reject', name: 'Reject', kind: 'reject_once' }] })
+  for (const expectedOutput of [' '.repeat(8), 'x'.repeat(501)]) {
+    assert.throws(() => createTaskGraph({ template: 'task-graph', nodes: [{ ...human, expectedOutput }] }),
+      { message: 'TASK_GRAPH_SCHEMA_INVALID' })
+  }
+  const valid = createTaskGraph({ template: 'task-graph', nodes: [{ ...human, expectedOutput: 'x'.repeat(500) }] })
+  const { graphId, ...body } = { ...valid, nodes: [{ ...valid.nodes[0], expectedOutput: 'x'.repeat(501) }] }
+  const legacy = { ...body, graphId: `task-graph-${createHash('sha256').update(canonicalJson(body)).digest('hex')}` }
+  assert.deepEqual(parseTaskGraph(legacy), legacy)
+})
+
 test('restored task graphs enforce the same decision and terminal constraints as new graphs', () => {
   const graph = createTaskGraph(workflow())
   const signed = nodes => {

@@ -39,6 +39,7 @@ export default {
     'skillTrust.revoke': '撤销授权',
     'skillTrust.confirm': '确定撤销此授权？',
     'error.workflowProtocolUnsupported': '当前任务图暂不支持 V4 讨论协议，请选择兼容的工作流。',
+    'error.workflowInvalid': '任务图无效，请检查依赖关系，并将每个人工决策说明控制在 500 个字符以内。',
     'error.workflowInputUnavailable': '决策所需的信息不可用或不在所选输入中，请加入相关结果后重试。',
     'connectorPackages.title': 'Connector 管理',
     'connectorPackages.sessionInvalid': 'Connector 的会话引用无效，请开始新对话或检查其配置。',

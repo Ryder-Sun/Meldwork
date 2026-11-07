@@ -423,6 +423,23 @@ test('task graph rejects duplicate human decision IDs before creating a message'
   assert.equal(workspace.activeRuns.has(group.id), false)
 })
 
+test('task graph rejects an undisplayable human decision before creating a message', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Invalid decision summary', agentKinds: ['codex'], workdir: directory })
+  const human = graphNode({ nodeId: 'human', role: 'human', agentKind: null, terminal: true,
+    expectedOutput: 'x'.repeat(501), acceptance: { requireConclusion: false, minArtifactRefs: 0, minEvidenceRefs: 0 },
+    decisionOptions: [{ optionId: 'approve', name: 'Approve', kind: 'allow_once' },
+      { optionId: 'reject', name: 'Reject', kind: 'reject_once' }] })
+  await assert.rejects(workspace.sendMessage({ groupId: group.id, text: 'Review', mode: 'auto',
+    targetKinds: ['codex'], workflow: { template: 'task-graph', nodes: [human] } }),
+  { message: 'LOCAL_WORKFLOW_INVALID' })
+  assert.equal(workspace.snapshot().messages.filter(message => message.groupId === group.id).length, 0)
+  assert.equal(workspace.activeRuns.has(group.id), false)
+})
+
 test('task graph does not accept a truncated required conclusion', () => {
   const node = graphNode({ acceptance: { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 } })
   const result = { message: { content: 'Partial conclusion', trace: { status: 'completed', truncated: true } } }

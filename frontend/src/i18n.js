@@ -56,6 +56,7 @@ export const DESKTOP_ERROR_MESSAGE_KEYS = Object.freeze({
   AGENT_CONNECTOR_SESSION_INVALID: 'connectorPackages.sessionInvalid',
   AGENT_CONNECTOR_UPSTREAM_INCOMPATIBLE: 'connectorPackages.upstreamIncompatible',
   LOCAL_WORKFLOW_PROTOCOL_UNSUPPORTED: 'error.workflowProtocolUnsupported',
+  LOCAL_WORKFLOW_INVALID: 'error.workflowInvalid',
   LOCAL_WORKFLOW_INPUT_UNAVAILABLE: 'error.workflowInputUnavailable',
   AGENT_CONNECTOR_INSTANCE_IN_USE: 'connectorPackages.instanceInUse',
   LOCAL_DELIVERY_INVALID: 'delivery.error.invalid',

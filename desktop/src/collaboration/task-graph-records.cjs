@@ -3,6 +3,7 @@ const { z } = require('zod')
 
 const { canonicalJson } = require('./context-pack-records.cjs')
 const { redactSecrets } = require('../security/secret-redaction.cjs')
+const { normalizeSummary } = require('../gates/human-gate-records.cjs')
 
 const TASK_GRAPH_VERSION = 1
 const TASK_GRAPH_CURSOR_VERSION = 1
@@ -156,6 +157,10 @@ function createTaskGraph(input, targetKinds = null) {
       && (!node.decisionOptions.some(option => option.kind === 'allow_once')
         || !node.decisionOptions.some(option => option.kind === 'reject_once')))) {
     fail('TASK_GRAPH_SCHEMA_INVALID')
+  }
+  for (const node of parsed.data.nodes) {
+    if (node.role !== 'human') continue
+    try { normalizeSummary(node.expectedOutput) } catch { fail('TASK_GRAPH_SCHEMA_INVALID') }
   }
   const body = {
     version: TASK_GRAPH_VERSION,

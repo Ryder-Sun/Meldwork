@@ -196,6 +196,7 @@ module.exports = {
   SYSTEM_REJECT_OPTION_ID,
   createHumanGateRecord,
   decideHumanGateRecord,
+  normalizeSummary,
   parseHumanGateRecord,
   publicHumanGate,
 }
