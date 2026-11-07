@@ -57,7 +57,12 @@ const v4DeliveryMethods = {
     for (const record of receiptRecords) {
       const receipt = record?.receipt
       if (receipt?.phase !== 'work' || !dependencies.has(receipt.workItemId)) continue
+      const source = coordinationPlan.assignments.find(item => item.taskId === receipt.workItemId)
+      if (!source || source.ownerKind !== receipt.agentKind) throw new Error('LOCAL_RUN_V4_REFERENCE_INVALID')
       latestDependencies.set(receipt.workItemId, record)
+    }
+    if ([...dependencies].some(id => !latestDependencies.has(id))) {
+      throw new Error('LOCAL_RUN_V4_REFERENCE_INVALID')
     }
     const dependencyArtifacts = [...latestDependencies.values()]
       .sort((left, right) => String(left.receipt.workItemId)

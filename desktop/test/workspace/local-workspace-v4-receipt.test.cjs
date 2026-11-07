@@ -170,6 +170,25 @@ test('V4 downstream Artifact context includes every Artifact from a work receipt
   assert.match(first, /THIRD_WORK_ARTIFACT_BODY/)
 })
 
+test('V4 work assignment rejects missing or foreign dependency receipts', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const workspace = new LocalWorkspace(options)
+  const artifact = storeTextArtifact(workspace, 'UPSTREAM_RESULT', 'Upstream result')
+  const plan = { planHash: 'a'.repeat(64), assignments: [
+    { taskId: 'upstream', ownerKind: 'codex', dependsOn: [] },
+    { taskId: 'downstream', ownerKind: 'hermes', role: 'integrator', objective: 'Integrate',
+      expectedOutput: 'Result', inputRefs: [], artifactIds: [], dependsOn: ['upstream'] },
+  ] }
+  const snapshot = { messageId: 'root', taskText: 'Task', history: [] }
+  const context = records => workspace.autoRunner.v4WorkAssignmentText(plan, 'hermes', 'downstream', snapshot, 6000, records)
+  assert.throws(() => context([]), { message: 'LOCAL_RUN_V4_REFERENCE_INVALID' })
+  assert.throws(() => context([{ receipt: { phase: 'work', workItemId: 'upstream',
+    agentKind: 'workbuddy', artifactIds: [artifact.artifactId] } }]), { message: 'LOCAL_RUN_V4_REFERENCE_INVALID' })
+  assert.match(context([{ receipt: { phase: 'work', workItemId: 'upstream',
+    agentKind: 'codex', artifactIds: [artifact.artifactId] } }]), /UPSTREAM_RESULT/)
+})
+
 test('V4 names every Artifact whose body is omitted by the delivery budget', async (t) => {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

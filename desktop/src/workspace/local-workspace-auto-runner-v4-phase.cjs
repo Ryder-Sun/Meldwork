@@ -271,7 +271,7 @@ const v4PhaseMethods = {
           workAssignmentsByKind.get(kind)?.taskId,
           snapshot,
           workContextLimit,
-          deliveryReceiptRecords,
+          workReceipts.map(receipt => ({ receipt: receipt.collaborationReceipt })),
         )
       : (phase === 'challenge' ? phaseInput.coordinationText || '' : '')
     let synthesisRecovery = phaseInput.synthesisRecovery || null
