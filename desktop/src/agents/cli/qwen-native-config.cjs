@@ -4,7 +4,7 @@ const os = require('node:os')
 const JSON5 = require('json5')
 const { nativeSecretEnvKeys } = require('./native-secret-environment.cjs')
 
-function qwenCredentialSelection(options = {}) {
+function qwenNativeSelection(options = {}) {
   const env = options.env || process.env
   const platform = options.platform || process.platform
   const configuredHome = platform === 'win32' ? env.USERPROFILE : env.HOME
@@ -66,22 +66,31 @@ function qwenCredentialSelection(options = {}) {
       }
     }
     auth ||= typeof env.QWEN_DEFAULT_AUTH_TYPE === 'string' ? env.QWEN_DEFAULT_AUTH_TYPE : ''
-    if (!auth) return { keys: [], unsupported: false }
+    if (!auth) return { keys: [], unsupported: false, authType: '' }
     const selected = model ? (providers.get(auth) || []).filter(entry => entry?.id === model) : []
-    if (selected.length > 1) return { keys: [], unsupported: true }
+    if (selected.length > 1) return { keys: [], unsupported: true, authType: auth }
     if (selected[0]?.envKey) {
       const keys = nativeSecretEnvKeys([selected[0].envKey])
-      return { keys, unsupported: keys.length === 0 }
+      return { keys, unsupported: keys.length === 0, authType: auth }
     }
-    if (typeof inlineCredential === 'string' && inlineCredential.trim()) return { keys: [], unsupported: false }
+    if (typeof inlineCredential === 'string' && inlineCredential.trim()) return { keys: [], unsupported: false, authType: auth }
     const defaultKeys = { openai: 'OPENAI_API_KEY', anthropic: 'ANTHROPIC_API_KEY',
       gemini: 'GEMINI_API_KEY', 'vertex-ai': 'GOOGLE_API_KEY' }
-    return { keys: nativeSecretEnvKeys([defaultKeys[auth]]), unsupported: false }
+    return { keys: nativeSecretEnvKeys([defaultKeys[auth]]), unsupported: false, authType: auth }
   } catch { return { keys: [], unsupported: true } }
+}
+
+function qwenCredentialSelection(options = {}) {
+  const { keys, unsupported } = qwenNativeSelection(options)
+  return { keys, unsupported }
+}
+
+function qwenConfiguredAuth(options = {}) {
+  return qwenNativeSelection(options).authType || ''
 }
 
 function qwenDeclaredCredentialKeys(options = {}) {
   return qwenCredentialSelection(options).keys
 }
 
-module.exports = { qwenCredentialSelection, qwenDeclaredCredentialKeys }
+module.exports = { qwenCredentialSelection, qwenDeclaredCredentialKeys, qwenConfiguredAuth }
