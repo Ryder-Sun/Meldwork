@@ -918,8 +918,9 @@ test('Auto V4 checkpoints each concurrent work receipt before the dependency wav
   )
 })
 
+for (const phaseToStop of ['work', 'synthesis', 'verification']) {
 for (const [reason, expected] of [['user', 'stopped'], ['shutdown', 'interrupted'], ['hard_budget', 'budget-exhausted']]) {
-test(`Auto V4 rejects late work and preserves ${reason} status`, async (t) => {
+test(`Auto V4 rejects late ${phaseToStop} and preserves ${reason} status`, async (t) => {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
   const ledger = new RunLedger({ storagePath: path.join(directory, 'run-ledger-late-work.json') })
@@ -934,7 +935,7 @@ test(`Auto V4 rejects late work and preserves ${reason} status`, async (t) => {
   options.runAgent = async (agent, prompt, _workdir, runOptions) => {
     const phase = prompt.match(/^Phase: ([a-z-]+)$/m)?.[1] || ''
     const workItemId = prompt.match(/^Work item: ([A-Za-z0-9._:-]+)$/m)?.[1] || ''
-    if (phase === 'work') {
+    if (phase === phaseToStop) {
       workStarted.resolve()
       await lateWork.promise
     }
@@ -978,11 +979,14 @@ test(`Auto V4 rejects late work and preserves ${reason} status`, async (t) => {
   const final = ledger.get(controller.runId)
   assert.equal(runnerStatus, expected)
   assert.equal(final.status, expected)
-  assert.deepEqual(final.orchestration.workReceipts, [])
-  assert.equal(final.orchestration.slots.some(slot => (
-    slot.resultRefs?.workflowOutcomeRefs?.some(item => item.receipt?.phase === 'work')
-  )), false)
+  if (phaseToStop === 'work') {
+    assert.deepEqual(final.orchestration.workReceipts, [])
+    assert.equal(final.orchestration.slots.some(slot => (
+      slot.resultRefs?.workflowOutcomeRefs?.some(item => item.receipt?.phase === 'work')
+    )), false)
+  }
 })
+}
 }
 
 for (const corruption of ['missing', 'tampered']) {
