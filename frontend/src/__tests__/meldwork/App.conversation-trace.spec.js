@@ -1287,13 +1287,13 @@ describe('Meldwork workbench', () => {
     })
 
     await wrapper.get('.direct-session-open').trigger('click')
-    await wrapper.get('.human-gate-input input').setValue('  stable  ')
+    await wrapper.get('.human-gate-input textarea').setValue('  stable\n  indented  ')
     await wrapper.get('.human-gate-input').trigger('submit')
     await flushPromises()
 
     expect(bridge.localWorkspace.decideHumanGate).toHaveBeenCalledWith(
       gateId,
-      { optionId: 'submit-input', response: '  stable  ' },
+      { optionId: 'submit-input', response: '  stable\n  indented  ' },
     )
     wrapper.unmount()
   })

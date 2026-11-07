@@ -616,14 +616,14 @@
               class="human-gate-input"
               @submit.prevent="submitHumanGateInput(gate)"
             >
-              <input
+              <textarea
                 v-model="humanGateResponses[gate.gateId]"
-                type="text"
+                rows="3"
                 maxlength="32768"
                 :placeholder="t('humanGate.inputPlaceholder')"
                 :aria-label="t('humanGate.inputLabel')"
                 :disabled="humanGateDecisionPending(gate.gateId)"
-              />
+              ></textarea>
               <div class="human-gate-options">
                 <button
                   class="compact primary-button"
@@ -1312,9 +1312,17 @@ function formatBudgetNumber(value) {
   gap: 10px;
 }
 
-.human-gate-input input {
+.human-gate-input textarea {
   width: 100%;
   min-width: 0;
+  box-sizing: border-box;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--text);
+  line-height: 1.5;
+  resize: vertical;
 }
 
 .human-gate-options button svg {

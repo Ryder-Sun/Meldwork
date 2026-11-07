@@ -45,6 +45,22 @@ afterEach(() => {
 })
 
 describe('Meldwork workbench', () => {
+  it('submits multiline group input without changing whitespace', async () => {
+    const gateId = `human-gate-${'e'.repeat(64)}`
+    const wrapper = mount(RunTracePanel, { props: {
+      open: true,
+      items: [{ runId: 'run-1', agentRunId: 'agent-1', agentKind: 'codex', status: 'waiting', events: [] }],
+      selectedAgentRunId: 'agent-1',
+      humanGates: [{ gateId, type: 'input', status: 'pending', summary: 'Provide input',
+        options: [{ optionId: 'submit', name: 'Submit', kind: 'respond' }] }],
+    } })
+    await wrapper.get('.trace-human-gate-input textarea').setValue('first\n  second')
+    await wrapper.get('.trace-human-gate-input').trigger('submit')
+    expect(wrapper.emitted('decide-human-gate')[0][0]).toEqual({
+      gateId, optionId: 'submit', response: 'first\n  second',
+    })
+    wrapper.unmount()
+  })
   it.each(['failed', 'stopped', 'completed', 'running'])('shows the actual empty reply state for %s', async status => {
     const { wrapper } = await mountApp(({ state }) => {
       state.groups.push({
