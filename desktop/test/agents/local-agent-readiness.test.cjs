@@ -420,7 +420,7 @@ test('Hermes fallback readiness ignores unrelated credentials', t => {
   const root = path.join(home, '.hermes')
   fs.mkdirSync(root)
   fs.writeFileSync(path.join(root, 'config.yaml'), [
-    'model:', '  provider: openrouter', 'fallback_providers:', '  - provider: anthropic',
+    'model:', '  provider: openrouter', 'fallback_providers:', '  - provider: anthropic', '    model: example',
   ].join('\n'))
   const unrelated = { OPENAI_API_KEY: 'other-account' }
   assert.deepEqual(nativeCredentialState('hermes', { home, env: unrelated }), { state: 'unknown', source: 'unverified' })
@@ -436,6 +436,16 @@ test('Hermes fallback readiness ignores unrelated credentials', t => {
   fs.writeFileSync(auth, JSON.stringify({ providers: { anthropic: { access_token: 'fallback-token' } } }))
   assert.equal(nativeCredentialState('hermes', { home, env: {} }).state, 'ready')
   fs.writeFileSync(auth, JSON.stringify({ credential_pool: { openrouter: [{ access_token: 'primary-token' }] } }))
+  assert.equal(nativeCredentialState('hermes', { home, env: {} }).state, 'ready')
+  fs.rmSync(auth)
+  fs.writeFileSync(path.join(root, 'config.yaml'), [
+    'model:', '  provider: openrouter', 'fallback_providers:', '  - provider: anthropic',
+    '    key_env: INVALID_TOKEN',
+  ].join('\n'))
+  assert.equal(nativeCredentialState('hermes', { home, env: { ANTHROPIC_API_KEY: 'unused', INVALID_TOKEN: 'unused' } }).state, 'unknown')
+  fs.appendFileSync(path.join(root, 'config.yaml'), '\n  - provider: openai\n    model: example\n')
+  assert.equal(nativeCredentialState('hermes', { home, env: { INVALID_TOKEN: 'unused' } }).state, 'unknown')
+  fs.appendFileSync(path.join(root, 'config.yaml'), '    api_key: synthetic-fallback-key\n')
   assert.equal(nativeCredentialState('hermes', { home, env: {} }).state, 'ready')
 })
 
@@ -990,7 +1000,7 @@ test('Hermes environment readiness follows its selected native provider', t => {
   assert.deepEqual(nativeCredentialState('hermes', { home, env: {} }), { state: 'unknown', source: 'unverified' })
   fs.writeFileSync(filename, 'model:\n  provider: openrouter\nproviders:\n  openrouter:\n    api_key: selected-secret\n')
   assert.deepEqual(nativeCredentialState('hermes', { home, env: {} }), { state: 'ready', source: 'native-credential' })
-  fs.writeFileSync(filename, 'model:\n  provider: openrouter\nfallback_providers:\n  - provider: openai\n')
+  fs.writeFileSync(filename, 'model:\n  provider: openrouter\nfallback_providers:\n  - provider: openai\n    model: example\n')
   assert.equal(nativeCredentialState('hermes', { home, env }).state, 'ready')
   fs.rmSync(filename)
   assert.deepEqual(nativeCredentialState('hermes', { home, env: { ...env, HERMES_INFERENCE_PROVIDER: 'anthropic' } }),

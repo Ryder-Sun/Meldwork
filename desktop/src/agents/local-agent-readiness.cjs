@@ -221,7 +221,7 @@ function hermesDeclaredCredentialKeys(options = {}) {
       ? config.model : {}
     const fallbacks = [config.fallback_providers, config.fallback_model]
       .flatMap(value => Array.isArray(value) ? value : [value])
-      .filter(entry => entry && typeof entry === 'object' && !Array.isArray(entry)).slice(0, 32)
+      .filter(entry => entry && typeof entry === 'object' && !Array.isArray(entry) && entry.provider && entry.model).slice(0, 32)
     const currentProvider = (hermesProviderFromConfig(config, hermesProviderEnvironment(root, env)) || 'auto').toLowerCase()
     const configuredProviders = config.providers && typeof config.providers === 'object' && !Array.isArray(config.providers)
       ? config.providers : {}
@@ -449,16 +449,16 @@ function hermesSelectedProvider(root, env, home) {
     const content = readCredentialFile(path.join(root, 'config.yaml'))
     const config = content ? yaml.load(content) : {}
     if (!config || typeof config !== 'object' || Array.isArray(config)) return null
-    if ([config.fallback_providers, config.fallback_model].some(value =>
-      Array.isArray(value) ? value.length > 0 : value && typeof value === 'object')) {
-      const fallbacks = [config.fallback_providers, config.fallback_model]
-        .flatMap(value => Array.isArray(value) ? value : [value])
+    const fallbacks = [config.fallback_providers, config.fallback_model]
+      .flatMap(value => Array.isArray(value) ? value : [value])
+      .filter(value => value && typeof value === 'object' && !Array.isArray(value) && value.provider && value.model)
+    if (fallbacks.length) {
       const providers = [hermesProviderFromConfig(config, hermesProviderEnvironment(root, env)),
         ...fallbacks.map(value => value?.provider)]
         .filter(value => typeof value === 'string')
         .map(value => value.trim().toLowerCase())
         .filter(value => ['openai', 'openrouter', 'anthropic'].includes(value))
-      return { provider: '', authProviders: [...new Set(providers)], config,
+      return { provider: '', authProviders: [...new Set(providers)], fallbackEntries: fallbacks, config,
         keys: hermesDeclaredCredentialKeys({ home, env: { ...env, HERMES_HOME: root } }) }
     }
     const model = config.model && typeof config.model === 'object' && !Array.isArray(config.model) ? config.model : {}
@@ -513,6 +513,7 @@ function hermesAuthContainsCredential(filename, provider) {
 function hermesConfigContainsCredential(selection) {
   const { config, provider, selected } = selection
   return containsCredential(config.model) || containsCredential(selected || config.providers?.[provider])
+    || (selection.fallbackEntries || []).some(entry => credentialLiteral(entry.api_key))
 }
 
 
