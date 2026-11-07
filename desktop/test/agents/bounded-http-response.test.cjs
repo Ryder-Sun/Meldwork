@@ -30,6 +30,18 @@ test('an aborted stream cancels its reader without waiting for cancellation to f
   assert.equal(cancelled, true)
 })
 
+test('a failed response read cancels the stream without masking the original error', async () => {
+  let cancelled = 0
+  let released = false
+  const error = new Error('read failed')
+  const reader = { read: async () => { throw error }, cancel: () => { cancelled += 1; return new Promise(() => {}) },
+    releaseLock: () => { released = true } }
+  await assert.rejects(boundedHttpResponseText({ body: { getReader: () => reader } }, 16, 'TOO_LARGE'),
+    failure => failure === error)
+  assert.equal(cancelled, 1)
+  assert.equal(released, true)
+})
+
 test('a response arriving after abort has its body discarded', async () => {
   let resolveResponse
   let cancelled = false

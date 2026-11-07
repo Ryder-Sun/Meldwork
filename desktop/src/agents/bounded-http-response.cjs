@@ -34,11 +34,14 @@ async function boundedHttpResponseText(response, limit, errorCode, signal) {
     return text
   }
   const reader = response.body.getReader()
-  const onAbort = () => {
+  let cancelled = false
+  const cancelReader = () => {
+    if (cancelled) return
+    cancelled = true
     try { Promise.resolve(reader.cancel()).catch(() => {}) } catch { /* already closed */ }
   }
-  signal?.addEventListener('abort', onAbort, { once: true })
-  if (signal?.aborted) onAbort()
+  signal?.addEventListener('abort', cancelReader, { once: true })
+  if (signal?.aborted) cancelReader()
   const chunks = []
   let total = 0
   try {
@@ -47,14 +50,14 @@ async function boundedHttpResponseText(response, limit, errorCode, signal) {
       if (done) break
       const chunk = Buffer.from(value)
       total += chunk.length
-      if (total > limit) {
-        try { Promise.resolve(reader.cancel()).catch(() => {}) } catch { /* response may already be closed */ }
-        invalid()
-      }
+      if (total > limit) invalid()
       chunks.push(chunk)
     }
+  } catch (error) {
+    cancelReader()
+    throw error
   } finally {
-    signal?.removeEventListener('abort', onAbort)
+    signal?.removeEventListener('abort', cancelReader)
     reader.releaseLock()
   }
   return Buffer.concat(chunks, total).toString('utf8')
