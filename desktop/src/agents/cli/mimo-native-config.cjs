@@ -155,4 +155,24 @@ function mimoConfiguredProvider(options = {}) {
   })
 }
 
-module.exports = { mimoConfigurationFingerprint, mimoConfiguredProvider, mimoDeclaredCredentialKeys }
+function mimoConfigSecrets(options = {}) {
+  const configs = mimoConfigLayers(options)
+  if (!configs) return []
+  const secrets = new Set()
+  const pending = configs.map(value => [value, 0])
+  while (pending.length && secrets.size < 128) {
+    const [value, depth] = pending.pop()
+    if (!value || typeof value !== 'object' || depth > 32) continue
+    for (const [key, item] of Object.entries(value)) {
+      if (/(?:api[_-]?key|access[_-]?key|token|secret|password|authorization)$/i.test(key)
+          && typeof item === 'string' && item && item.length <= 8192 && !/^\{(?:env|file):[^}]+\}$/.test(item)) {
+        secrets.add(item)
+        const bearer = item.match(/^Bearer\s+(\S+)$/i)
+        if (bearer) secrets.add(bearer[1])
+      } else if (item && typeof item === 'object') pending.push([item, depth + 1])
+    }
+  }
+  return [...secrets]
+}
+
+module.exports = { mimoConfigurationFingerprint, mimoConfiguredProvider, mimoDeclaredCredentialKeys, mimoConfigSecrets }

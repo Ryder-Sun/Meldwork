@@ -6,6 +6,7 @@ const { networkEnvironment } = require('./cli-network-environment.cjs')
 const { CONFIG_DIRECTORY_ENV_KEYS } = require('./cli-config-directories.cjs')
 const { SECRET_ENV_KEYS, nativeSecretEnvKeys } = require('./native-secret-environment.cjs')
 const { nativeCredentialEnvironment } = require('../agent-native-environment.cjs')
+const { mimoConfigSecrets } = require('./mimo-native-config.cjs')
 const { redactChildSecrets } = require('./cli-runtime-events.cjs')
 const {
   agentRuntimeError,
@@ -221,6 +222,11 @@ function childEnvironment(agent, workdir, options, platform) {
     PATH: searchPath({ platform, env: source }),
   }
   Object.defineProperty(childEnv, SECRET_ENV_KEYS, { value: nativeKeys })
+  if (agent.kind === 'mimo') {
+    const home = platform === 'win32' ? (childEnv.USERPROFILE || childEnv.HOME) : childEnv.HOME
+    const secrets = mimoConfigSecrets({ home, env: childEnv, workdir })
+    Object.defineProperty(childEnv, Symbol.for('meldwork.project-secret-values'), { value: secrets })
+  }
   if (agent.kind === 'claude' && typeof workdir === 'string' && path.isAbsolute(workdir)) {
     const secrets = new Set()
     const home = platform === 'win32' ? (childEnv.USERPROFILE || childEnv.HOME) : childEnv.HOME

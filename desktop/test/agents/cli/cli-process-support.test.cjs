@@ -39,6 +39,22 @@ test('Claude project credentials are redacted from final and split streaming out
   assert.doesNotMatch(JSON.stringify(events), /project-private-value|local-private-value/)
 })
 
+test('MiMo native provider credentials are redacted from split streaming output', t => {
+  const workdir = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-mimo-project-secret-'))
+  t.after(() => fs.rmSync(workdir, { recursive: true, force: true }))
+  fs.writeFileSync(path.join(workdir, 'mimocode.json'), JSON.stringify({
+    model: 'custom/model', provider: { custom: { options: { apiKey: 'mimo-private-value' } } },
+  }))
+  const child = childEnvironment({ kind: 'mimo' }, workdir, { env: { XDG_CONFIG_HOME: workdir } }, process.platform)
+  assert.equal(redactChildSecrets('mimo-private-value', child), '[redacted]')
+  const events = []
+  const emitter = createRuntimeEventEmitter({ onEvent: event => events.push(event) }, child)
+  emitter.emit({ type: 'answer_delta', delta: 'mimo-private-' })
+  emitter.emit({ type: 'answer_delta', delta: 'value' })
+  emitter.finalize({ text: 'mimo-private-value', status: 'completed' })
+  assert.doesNotMatch(JSON.stringify(events), /mimo-private-value/)
+})
+
 test('Zcode receives its selected native home without changing other Agent homes', () => {
   const options = { env: { HOME: '/selected-zcode', USERPROFILE: 'C:\\selected-zcode' } }
   const unix = childEnvironment({ kind: 'zcode' }, '/tmp', options, 'darwin')
