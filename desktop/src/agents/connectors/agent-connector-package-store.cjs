@@ -52,8 +52,9 @@ function safeTextSchema(max) {
 const httpsEndpointSchema = z.string().min(9).max(2048).superRefine((value, context) => {
   try {
     const parsed = new URL(value)
+    const decodedPath = decodeURIComponent(parsed.pathname)
     if (parsed.protocol !== 'https:' || parsed.username || parsed.password
-        || parsed.search || parsed.hash) {
+        || parsed.search || parsed.hash || redactSecrets(decodedPath) !== decodedPath) {
       context.addIssue({ code: 'custom', message: 'HTTPS endpoint required' })
     }
   } catch {

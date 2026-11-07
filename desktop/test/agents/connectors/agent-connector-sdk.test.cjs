@@ -100,6 +100,21 @@ function httpPackage(sessionOverrides = {}) {
   })
 }
 
+test('HTTP connector packages reject recognizable credentials in endpoint paths', () => {
+  const pkg = httpPackage()
+  const create = endpoint => createAgentConnectorPackage({
+    publisher: pkg.publisher,
+    provider: { ...pkg.provider, config: { ...pkg.provider.config, endpoint } },
+    manifest: pkg.manifest,
+  })
+  const token = `sk-${'a'.repeat(32)}`
+  assert.throws(() => create(`https://connector.example.com/v1/${token}`),
+    { message: 'AGENT_CONNECTOR_PACKAGE_SCHEMA_INVALID' })
+  assert.throws(() => create(`https://connector.example.com/v1/%73%6b%2d${'a'.repeat(32)}`),
+    { message: 'AGENT_CONNECTOR_PACKAGE_SCHEMA_INVALID' })
+  assert.doesNotThrow(() => create('https://connector.example.com/v1/run'))
+})
+
 test('concurrent HTTP Connector accounts use only their own credentials at the transport boundary', async t => {
   const requests = []
   const previous = process.env.OPENAI_API_KEY
