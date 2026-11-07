@@ -42,6 +42,12 @@ test('Gemini readiness checks credentials for its selected auth mode', t => {
   assert.deepEqual(nativeCredentialState('gemini', { home, env }), { state: 'unknown', source: 'unverified' })
   fs.writeFileSync(path.join(root, 'oauth_creds.json'), JSON.stringify({ refresh_token: 'oauth-token' }))
   assert.deepEqual(nativeCredentialState('gemini', { home, env }), { state: 'ready', source: 'native-credential' })
+  fs.writeFileSync(path.join(root, 'oauth_creds.json'), JSON.stringify({ access_token: 'expired', expiry_date: Date.now() - 1000 }))
+  assert.deepEqual(nativeCredentialState('gemini', { home, env }), { state: 'unknown', source: 'unverified' })
+  fs.writeFileSync(path.join(root, 'oauth_creds.json'), JSON.stringify({ access_token: 'fresh', expiry_date: Date.now() + 10 * 60 * 1000 }))
+  assert.deepEqual(nativeCredentialState('gemini', { home, env }), { state: 'ready', source: 'native-credential' })
+  fs.writeFileSync(path.join(root, 'oauth_creds.json'), JSON.stringify({ access_token: 'expired', refresh_token: 'refresh', expiry_date: Date.now() - 1000 }))
+  assert.deepEqual(nativeCredentialState('gemini', { home, env }), { state: 'ready', source: 'native-credential' })
   env.GEMINI_CLI_AUTH_OVERRIDE = 'gemini-api-key'
   assert.deepEqual(nativeCredentialState('gemini', { home, env }), { state: 'ready', source: 'native-credential' })
   env.GEMINI_CLI_AUTH_OVERRIDE = 'vertex-ai'

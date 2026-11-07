@@ -115,8 +115,12 @@ function geminiOAuthCredentialsPresent(filename) {
     const contents = readCredentialFile(filename)
     if (!contents) return false
     const credentials = JSON.parse(contents)
-    return Boolean(credentials && typeof credentials === 'object' && !Array.isArray(credentials)
-      && (credentialLiteral(credentials.access_token) || credentialLiteral(credentials.refresh_token)))
+    if (!credentials || typeof credentials !== 'object' || Array.isArray(credentials)) return false
+    if (credentialLiteral(credentials.refresh_token)) return true
+    if (!credentialLiteral(credentials.access_token)) return false
+    if (credentials.expiry_date == null || credentials.expiry_date === 0) return true
+    return typeof credentials.expiry_date === 'number' && Number.isFinite(credentials.expiry_date)
+      && credentials.expiry_date > Date.now() + 5 * 60 * 1000
   } catch { return false }
 }
 
