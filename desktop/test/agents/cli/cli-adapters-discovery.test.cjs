@@ -1249,6 +1249,25 @@ test('Agent detection skips a capability-incompatible Codex before the compatibl
   assert.equal(found[0].compatibilityState, 'compatible')
 })
 
+test('Agent detection skips an unidentified Codex before an identified compatible bundle', async () => {
+  const first = '/tools/codex'
+  const bundled = '/Applications/ChatGPT.app/Contents/Resources/codex'
+  const found = await detectAgents({
+    platform: 'darwin', home: '/Users/ryder', env: { PATH: '/tools' },
+    accessFn: async candidate => {
+      if (![first, bundled].includes(candidate)) throw Object.assign(new Error('missing'), { code: 'ENOENT' })
+    },
+    execFileFn: async (command, args) => {
+      if (args[0] === '--version') return { stdout: command === first ? 'unknown version' : 'codex-cli 0.146.0', stderr: '' }
+      if (args.includes('resume')) return { stdout: '--json --skip-git-repo-check', stderr: '' }
+      return { stdout: '--json --sandbox --skip-git-repo-check --image read-only workspace-write', stderr: '' }
+    },
+  })
+  assert.equal(found.length, 1)
+  assert.equal(found[0].executable, bundled)
+  assert.equal(found[0].resolvedVersion, '0.146.0')
+})
+
 test('Agent detection retains the first capability-incompatible Codex when no candidate works', async () => {
   const first = '/tools/codex'
   const bundled = '/Applications/ChatGPT.app/Contents/Resources/codex'

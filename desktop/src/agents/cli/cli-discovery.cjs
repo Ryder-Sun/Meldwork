@@ -618,7 +618,7 @@ async function detectAgentKind(kind, options, childEnv) {
   for await (const executable of candidates) {
     const candidate = await inspectAgentCandidate(kind, executable, options, childEnv)
     if (!candidate) continue
-    if (candidate.compatibilityState === 'compatible') return candidate
+    if (candidate.compatibilityState === 'compatible' && candidate.versionIdentified !== false) return candidate
     firstIncompatible ||= candidate
   }
   return firstIncompatible
