@@ -69,7 +69,7 @@ function projectVerificationIdentity(kind, workdir, agent = null, environmentIde
     zcode: ['zcode.json', '.zcode/config.json'],
     opencode: ['opencode.json', 'opencode.jsonc', '.opencode/opencode.json', '.opencode/opencode.jsonc'],
     mimo: ['mimocode.json', 'mimocode.jsonc', '.mimocode/mimocode.json', '.mimocode/mimocode.jsonc'],
-    gemini: ['.gemini/settings.json'],
+    gemini: ['.gemini/settings.json', '.gemini/.env', '.env'],
     qwen: ['.qwen/settings.json', '.qwen/.env', '.env'],
     pi: [],
   }[kind]
@@ -90,7 +90,7 @@ function projectVerificationIdentity(kind, workdir, agent = null, environmentIde
   let current = root
   for (;;) {
     entries.push([current, ...(files || []).map(file => [file, fileIdentity(path.join(current, file))])])
-    if (kind !== 'qwen' && fs.existsSync(path.join(current, '.git'))) break
+    if (kind !== 'qwen' && kind !== 'gemini' && fs.existsSync(path.join(current, '.git'))) break
     const parent = path.dirname(current)
     if (parent === current) break
     current = parent

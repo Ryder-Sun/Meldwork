@@ -275,18 +275,18 @@ test('Gemini authentication identity includes explicitly selected system and clo
   const credentials = path.join(home, 'cloud', 'credentials.json')
   assert.deepEqual(nativeAuthIdentityFiles('gemini', {
     GEMINI_CLI_SYSTEM_SETTINGS_PATH: settings, GOOGLE_APPLICATION_CREDENTIALS: credentials,
-  }, home), [settings, path.join(home, 'system', 'system-defaults.json'), credentials])
+  }, home), [settings, path.join(home, 'system', 'system-defaults.json'), credentials, path.join(home, '.env')])
   assert.deepEqual(nativeAuthIdentityFiles('gemini', {
     GEMINI_CLI_SYSTEM_SETTINGS_PATH: 'relative', GOOGLE_APPLICATION_CREDENTIALS: 'relative',
-  }, home), [])
+  }, home), [path.join(home, '.env')])
   assert.deepEqual(nativeAuthIdentityFiles('gemini', {}, home, 'darwin'), [
     '/Library/Application Support/GeminiCli/settings.json',
     '/Library/Application Support/GeminiCli/system-defaults.json',
-    path.join(home, '.config', 'gcloud', 'application_default_credentials.json'),
+    path.join(home, '.config', 'gcloud', 'application_default_credentials.json'), path.join(home, '.env'),
   ])
   assert.deepEqual(nativeAuthIdentityFiles('gemini', { APPDATA: 'C:\\Users\\User\\AppData\\Roaming' }, 'C:\\Users\\User', 'win32'), [
     'C:\\ProgramData\\gemini-cli\\settings.json', 'C:\\ProgramData\\gemini-cli\\system-defaults.json',
-    'C:\\Users\\User\\AppData\\Roaming\\gcloud\\application_default_credentials.json',
+    'C:\\Users\\User\\AppData\\Roaming\\gcloud\\application_default_credentials.json', 'C:\\Users\\User\\.env',
   ])
 })
 
@@ -299,7 +299,7 @@ test('Qwen authentication identity tracks its native user and system settings', 
   ])
 })
 
-test('Qwen project verification tracks environment files above the Git root', t => {
+test('Qwen and Gemini project verification track environment files above the Git root', t => {
   const { projectVerificationIdentity } = require('../../src/workspace/agent-verification-identity.cjs')
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-qwen-project-'))
   t.after(() => fs.rmSync(root, { recursive: true, force: true }))
@@ -307,11 +307,14 @@ test('Qwen project verification tracks environment files above the Git root', t 
   const workdir = path.join(repository, 'nested')
   fs.mkdirSync(path.join(repository, '.git'), { recursive: true })
   fs.mkdirSync(workdir)
-  for (const filename of [path.join(root, '.env'), path.join(repository, '.qwen', '.env')]) {
-    fs.mkdirSync(path.dirname(filename), { recursive: true })
-    const before = projectVerificationIdentity('qwen', workdir)
-    fs.writeFileSync(filename, 'DASHSCOPE_API_KEY=changed\n')
-    assert.notEqual(projectVerificationIdentity('qwen', workdir), before, filename)
+  for (const kind of ['qwen', 'gemini']) {
+    for (const target of [path.join(root, '.env'), path.join(repository, `.${kind}`, '.env')]) {
+      fs.rmSync(target, { force: true })
+      fs.mkdirSync(path.dirname(target), { recursive: true })
+      const before = projectVerificationIdentity(kind, workdir)
+      fs.writeFileSync(target, 'API_KEY=changed\n')
+      assert.notEqual(projectVerificationIdentity(kind, workdir), before, target)
+    }
   }
 })
 

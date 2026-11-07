@@ -89,7 +89,8 @@ function nativeAuthIdentityFiles(kind, env, home, platform = process.platform) {
     const credentials = env?.GOOGLE_APPLICATION_CREDENTIALS
       || (typeof cloudRoot === 'string' && paths.isAbsolute(cloudRoot)
         ? paths.join(cloudRoot, 'gcloud', 'application_default_credentials.json') : '')
-    return [settings, defaults, credentials]
+    return [settings, defaults, credentials,
+      ...(typeof home === 'string' && paths.isAbsolute(home) ? [paths.join(home, '.env')] : [])]
       .filter(filename => typeof filename === 'string' && paths.isAbsolute(filename))
   }
   if (kind === 'zcode') {
