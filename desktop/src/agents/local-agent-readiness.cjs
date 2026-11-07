@@ -7,7 +7,7 @@ const { promisify } = require('node:util')
 const yaml = require('js-yaml')
 const JSON5 = require('json5')
 const toml = require('@iarna/toml')
-const { nativeSecretEnvKeys } = require('./cli/native-secret-environment.cjs')
+const { nativeSecretEnvKeys, credentialLiteral } = require('./cli/native-secret-environment.cjs')
 const { OCR_PROVIDER_KEYS } = require('./cli/ocr-provider-environment.cjs')
 const { deepseekNativeConfig } = require('./cli/deepseek-native-config.cjs')
 const { hermesProviderFromConfig, hermesProviderEnvironment } = require('./hermes-config-summary.cjs')
@@ -77,16 +77,6 @@ function containsCredential(value) {
     if (CREDENTIAL_FIELD.test(key) && credentialLiteral(child)) return true
     return child && typeof child === 'object' && containsCredential(child)
   })
-}
-
-function credentialLiteral(value) {
-  if (typeof value !== 'string') return false
-  const candidate = value.trim()
-  if (!candidate) return false
-  if (/^(?:null|none|undefined|true|false|~)$/i.test(candidate)) return false
-  if (/^\$(?:[A-Z_][A-Z0-9_]*|\{[A-Z_][A-Z0-9_]*\})$/i.test(candidate)) return false
-  if (/^(?:env|secretref-env|__env__):[A-Z_][A-Z0-9_]*$/i.test(candidate)) return false
-  return !/^[A-Z_][A-Z0-9_]*(?:API_KEY|TOKEN|CREDENTIAL)$/i.test(candidate)
 }
 
 function jsonContainsCredential(filename) {

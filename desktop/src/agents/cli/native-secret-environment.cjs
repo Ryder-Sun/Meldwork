@@ -7,4 +7,14 @@ function nativeSecretEnvKeys(input) {
     && /^[A-Za-z_][A-Za-z0-9_]{0,127}$/.test(key) && !UNSAFE.test(key)))].slice(0, 128).sort()
 }
 
-module.exports = { SECRET_ENV_KEYS, nativeSecretEnvKeys }
+function credentialLiteral(value) {
+  if (typeof value !== 'string') return false
+  const candidate = value.trim()
+  if (!candidate) return false
+  if (/^(?:null|none|undefined|true|false|~)$/i.test(candidate)) return false
+  if (/^\$(?:[A-Z_][A-Z0-9_]*|\{[A-Z_][A-Z0-9_]*\})$/i.test(candidate)) return false
+  if (/^(?:env|secretref-env|__env__):[A-Z_][A-Z0-9_]*$/i.test(candidate)) return false
+  return !/^[A-Z_][A-Z0-9_]*(?:API_KEY|TOKEN|CREDENTIAL)$/i.test(candidate)
+}
+
+module.exports = { SECRET_ENV_KEYS, nativeSecretEnvKeys, credentialLiteral }

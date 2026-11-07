@@ -18,6 +18,9 @@ test('Gemini verification identity changes when an unrefreshable OAuth token exp
   fs.writeFileSync(filename, JSON.stringify({ access_token: 'synthetic', expiry_date: 1_000_000 }))
   assert.notEqual(agentVerificationIdentity(agent, {}, { now: 600_000 }),
     agentVerificationIdentity(agent, {}, { now: 700_000 }))
+  fs.writeFileSync(filename, JSON.stringify({ access_token: 'synthetic', refresh_token: '${REFRESH_TOKEN}', expiry_date: 1_000_000 }))
+  assert.notEqual(agentVerificationIdentity(agent, {}, { now: 600_000 }),
+    agentVerificationIdentity(agent, {}, { now: 700_000 }))
   fs.writeFileSync(filename, JSON.stringify({ access_token: 'synthetic', refresh_token: 'refresh', expiry_date: 1_000_000 }))
   assert.equal(agentVerificationIdentity(agent, {}, { now: 600_000 }),
     agentVerificationIdentity(agent, {}, { now: 700_000 }))

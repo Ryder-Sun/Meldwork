@@ -2,6 +2,7 @@ const { createHash, randomBytes } = require('node:crypto')
 const fs = require('node:fs')
 const path = require('node:path')
 const { npmShimTarget } = require('../agents/cli/cli-discovery.cjs')
+const { credentialLiteral } = require('../agents/cli/native-secret-environment.cjs')
 const { NATIVE_CONFIG_DIRECTORIES, NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_ENVIRONMENT_IDENTITY, NATIVE_AUTH_IDENTITY_FILES, NATIVE_PROJECT_CONFIG_PATHS } = require('../agents/native-config-directory.cjs')
 
 function fileIdentity(filename) {
@@ -47,8 +48,8 @@ function geminiAccessTokenExpired(agent, preferences, now) {
     const stat = fs.statSync(filename)
     if (!stat.isFile() || stat.size > 1024 * 1024) return false
     const value = JSON.parse(fs.readFileSync(filename, 'utf8'))
-    if (typeof value?.refresh_token === 'string' && value.refresh_token.trim()) return false
-    return typeof value?.access_token === 'string' && Boolean(value.access_token.trim())
+    if (credentialLiteral(value?.refresh_token)) return false
+    return credentialLiteral(value?.access_token)
       && typeof value.expiry_date === 'number' && Number.isFinite(value.expiry_date)
       && value.expiry_date > 0 && value.expiry_date <= now + 5 * 60 * 1000
   } catch { return false }
