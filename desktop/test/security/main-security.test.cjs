@@ -1024,6 +1024,35 @@ test('DeepSeek native provider credentials reach detection and execution without
   assert.equal(detected.ZGCI_API_KEY, undefined)
 })
 
+test('DeepSeek project verification identity follows its selected native credential', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-dsh-project-identity-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const native = path.join(directory, 'dsh-home')
+  fs.mkdirSync(path.join(native, 'profiles', 'acp'), { recursive: true })
+  fs.writeFileSync(path.join(native, 'profiles', 'acp', 'cordis.patch.yml'), [
+    '- id: llm-pi-ai', '  config:', '    providers:', '      custom:', '        apiKeyEnv: CUSTOM_DSH_KEY',
+    '- id: acp', '  config:', '    provider: custom', '    model: chosen-model',
+  ].join('\n'))
+  const { nativeCredentialEnvironment } = require('../../src/agents/agent-native-environment.cjs')
+  let secret = 'first-synthetic-secret'
+  const { harness } = loadMain(directory, {
+    nativeEnvironment: nativeCredentialEnvironment,
+    nativeShellEnvironment: input => ({ source: 'native-shell', env: {
+      DSH_HOME: native,
+      ...(input.extraEnvKeys?.includes('CUSTOM_DSH_KEY') ? { CUSTOM_DSH_KEY: secret } : {}),
+    } }),
+  })
+  await harness.ready()
+  const resolve = harness.workspaceInstances[0].input.resolveProjectEnvironmentIdentities
+  const first = await resolve(directory, ['deepseek', 'codex'])
+  secret = 'second-synthetic-secret'
+  const second = await resolve(directory, ['deepseek', 'codex'])
+  assert.match(first.deepseek, /^[a-f0-9]{64}$/)
+  assert.notEqual(first.deepseek, second.deepseek)
+  assert.equal(first.codex, second.codex)
+  assert.doesNotMatch(JSON.stringify([first, second]), /synthetic-secret|CUSTOM_DSH_KEY/)
+})
+
 test('DeepSeek shared Skill directory follows the native shell and invalidates its cache', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-dsh-shared-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
