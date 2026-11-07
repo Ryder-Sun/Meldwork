@@ -90,6 +90,28 @@ test('OpenCode default discovery retains provider names beyond the first 128 ent
   assert.ok(keys.includes('PROVIDER_179_API_KEY'))
 })
 
+test('OpenCode respects unambiguous native provider enablement when discovering credentials', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-opencode-enabled-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const config = path.join(home, '.config', 'opencode')
+  const cache = path.join(home, '.cache', 'opencode')
+  fs.mkdirSync(config, { recursive: true })
+  fs.mkdirSync(cache, { recursive: true })
+  fs.writeFileSync(path.join(cache, 'models.json'), JSON.stringify({
+    deepseek: { env: ['DEEPSEEK_API_KEY'] }, groq: { env: ['GROQ_API_KEY'] },
+  }))
+  const file = path.join(config, 'opencode.json')
+  fs.writeFileSync(file, JSON.stringify({ enabled_providers: ['deepseek'],
+    provider: { groq: { options: { apiKey: '{env:GROQ_CUSTOM_KEY}' } } } }))
+  assert.deepEqual(opencodeDeclaredCredentialKeys({ home, env: {} }), ['DEEPSEEK_API_KEY'])
+  fs.writeFileSync(file, JSON.stringify({ disabled_providers: ['deepseek'] }))
+  assert.deepEqual(opencodeDeclaredCredentialKeys({ home, env: {} }), ['GROQ_API_KEY'])
+  fs.writeFileSync(file, JSON.stringify({ enabled_providers: ['{env:ENABLED_PROVIDER}'] }))
+  assert.deepEqual(opencodeDeclaredCredentialKeys({ home, env: {} }), ['DEEPSEEK_API_KEY', 'ENABLED_PROVIDER', 'GROQ_API_KEY'])
+  assert.deepEqual(opencodeDeclaredCredentialKeys({ home, env: { ENABLED_PROVIDER: 'deepseek' } }),
+    ['DEEPSEEK_API_KEY', 'ENABLED_PROVIDER'])
+})
+
 test('OpenCode resolves an env-selected native model to its provider credential name', t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-opencode-model-env-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))

@@ -41,6 +41,16 @@ function opencodeDeclaredCredentialKeys(options = {}) {
       && Buffer.byteLength(env.OPENCODE_CONFIG_CONTENT) <= 2 * 1024 * 1024) {
     try { configs.push(JSON5.parse(env.OPENCODE_CONFIG_CONTENT)) } catch { /* Native CLI reports invalid content. */ }
   }
+  const unambiguousProviderList = name => {
+    const lists = configs.filter(config => Array.isArray(config?.[name])).map(config => config[name])
+    if (lists.length !== 1 || !lists[0].every(value => typeof value === 'string')) return null
+    const resolved = lists[0].map(value => value.replace(/\{env:([A-Za-z_][A-Za-z0-9_]*)\}/g,
+      (_match, key) => env[key] || ''))
+    return resolved.every(Boolean) ? new Set(resolved) : null
+  }
+  const enabled = unambiguousProviderList('enabled_providers')
+  const disabled = unambiguousProviderList('disabled_providers')
+  const providerAllowed = provider => (!enabled || enabled.has(provider)) && !disabled?.has(provider)
   const keys = []
   const visit = (value, depth = 0) => {
     if (depth > 32) return
@@ -51,10 +61,16 @@ function opencodeDeclaredCredentialKeys(options = {}) {
     }
   }
   for (const config of configs) {
-    visit(config?.provider)
-    visit(config?.providers)
+    for (const collection of [config?.provider, config?.providers]) {
+      if (Array.isArray(collection)) visit(collection)
+      else if (collection && typeof collection === 'object') {
+        for (const [provider, value] of Object.entries(collection)) if (providerAllowed(provider)) visit(value)
+      }
+    }
     visit(config?.model)
     visit(config?.small_model)
+    visit(config?.enabled_providers)
+    visit(config?.disabled_providers)
   }
   const resolveModel = model => typeof model === 'string'
     ? model.replace(/\{env:([A-Za-z_][A-Za-z0-9_]*)\}/g, (_match, name) => env[name] || '') : model
@@ -87,6 +103,7 @@ function opencodeDeclaredCredentialKeys(options = {}) {
         const metadata = JSON.parse(fs.readFileSync(filename, 'utf8'))
         const candidates = hasConfiguredModel ? [...providers] : Object.keys(metadata).slice(0, 1024)
         for (const provider of candidates) {
+          if (!providerAllowed(provider)) continue
           const declared = Object.hasOwn(metadata, provider) ? metadata[provider]?.env : null
           if (Array.isArray(declared)) keys.push(...declared.slice(0, 128))
           if (keys.length >= 1024) break

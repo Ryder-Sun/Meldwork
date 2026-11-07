@@ -327,6 +327,31 @@ test('OpenCode default model discovery captures only present native provider cre
   assert.equal(harness.runAgentCalls.at(-1)[3].env.PROVIDER_179_API_KEY, undefined)
 })
 
+test('OpenCode does not forward credentials for providers disabled by a resolved environment setting', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-opencode-enabled-main-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const cache = path.join(directory, 'cache', 'opencode')
+  fs.mkdirSync(cache, { recursive: true })
+  fs.writeFileSync(path.join(cache, 'models.json'), JSON.stringify({
+    deepseek: { env: ['DEEPSEEK_API_KEY'] }, groq: { env: ['GROQ_API_KEY'] },
+  }))
+  fs.writeFileSync(path.join(directory, 'opencode.json'), JSON.stringify({ enabled_providers: ['{env:ENABLED_PROVIDER}'] }))
+  const readiness = require('../../src/agents/local-agent-readiness.cjs')
+  const values = { ENABLED_PROVIDER: 'deepseek', DEEPSEEK_API_KEY: 'deepseek-secret', GROQ_API_KEY: 'groq-secret' }
+  const { harness } = loadMain(directory, {
+    nativeShellEnvironment: input => ({ env: { XDG_CACHE_HOME: path.dirname(cache),
+      ...Object.fromEntries((input.extraEnvKeys || []).filter(key => Object.hasOwn(values, key)).map(key => [key, values[key]])) },
+    source: 'native-shell' }),
+    nativeEnvironment: readiness.nativeCredentialEnvironment,
+  })
+  await harness.ready()
+  const workspace = harness.workspaceInstances[0]
+  await workspace.input.runAgent({ kind: 'opencode', executable: '/tmp/opencode' }, 'hello', directory, {})
+  const options = harness.runAgentCalls.at(-1)[3]
+  assert.equal(options.env.DEEPSEEK_API_KEY, 'deepseek-secret')
+  assert.equal(options.env.GROQ_API_KEY, undefined)
+})
+
 test('selected OpenCode configuration supplies its declared credentials to execution', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-opencode-selected-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

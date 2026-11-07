@@ -291,10 +291,9 @@ async function nativeShellEnvironment(options = {}) {
       for (const key of resolved.unsetKeys || []) delete enriched[key]
       const nextEnv = nativeConfigEnvironment('opencode', workspace?.state.agentPreferences, enriched)
       const nextKeys = opencodeDeclaredCredentialKeys({ home, env: nextEnv, workdir: options.workdir })
-      if (nextKeys.some(key => !opencodeCredentialKeys.includes(key))) {
-        opencodeCredentialKeys = nextKeys
-        continue
-      }
+      const needsAnotherPass = nextKeys.some(key => !opencodeCredentialKeys.includes(key))
+      opencodeCredentialKeys = nextKeys
+      if (needsAnotherPass) continue
     }
     break
   }
