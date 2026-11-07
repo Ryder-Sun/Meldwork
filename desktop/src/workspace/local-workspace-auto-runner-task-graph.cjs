@@ -167,6 +167,35 @@ const taskGraphMethods = {
     ].join('\n')
   },
 
+  taskGraphReviewOutcomeText(entries) {
+    const lines = []
+    let remaining = 24000
+    for (const entry of entries) {
+      if (!['artifact-ref', 'evidence-ref'].includes(entry.entryType)) continue
+      const id = entry.refs?.[0]
+      let label
+      let raw
+      if (entry.entryType === 'artifact-ref') {
+        const identity = this.v4ArtifactIdentity(id)
+        label = `Artifact ${id}`
+        raw = identity.artifact.contentRef?.mediaType === 'text/plain'
+          ? identity.content : '[Non-text artifact; content unavailable in this handoff.]'
+      } else {
+        const evidence = this.v4EvidenceRecord(id)
+        label = `Evidence ${id} (${evidence.kind}, ${evidence.level})`
+        raw = evidence.summary
+      }
+      const limit = Math.max(0, Math.min(6000, remaining))
+      if (!limit) { lines.push('[Additional outcome content truncated.]'); break }
+      const content = publicCollaborationText(raw || '', limit + 1)
+      const truncated = content.length > limit
+      const shown = content.slice(0, limit)
+      lines.push(`${label}: ${shown}${truncated ? ' [Content truncated.]' : ''}`)
+      remaining -= shown.length
+    }
+    return lines.length ? `Verified outcome content:\n${lines.join('\n')}\nDo not assume truncated or unavailable content was reviewed.` : ''
+  },
+
   checkpointTaskGraph(group, controller, cursorInput, options = {}) {
     let taskGraph = parseTaskGraphCursor(cursorInput)
     taskGraph = parseTaskGraphCursor({
@@ -453,6 +482,10 @@ const taskGraphMethods = {
       throw new Error('LOCAL_WORKFLOW_INPUT_UNAVAILABLE')
     }
     const isolated = ['reviewer', 'arbiter'].includes(node.role)
+    if (isolated) {
+      const outcomes = this.taskGraphReviewOutcomeText(collaborationPackage.entries)
+      if (outcomes) collaborationPackage.text += `\n${outcomes}`
+    }
     const attachments = node.role === 'primary'
       && !controller.orchestration.attachmentRecipients.includes(node.agentKind)
       ? context.rootAttachments.map(attachment => attachment.path)

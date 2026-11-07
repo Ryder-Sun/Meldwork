@@ -342,6 +342,29 @@ test('task graph includes outcome references for both sides of a conflict', () =
   for (const ref of refs) assert.ok(handoff.text.includes(ref))
 })
 
+test('task graph review materializes bounded verified outcome content without exposing secrets', () => {
+  const runner = { ...taskGraphMethods,
+    v4ArtifactIdentity: id => {
+      assert.equal(id, 'artifact-one')
+      return { artifact: { contentRef: { mediaType: 'text/plain' } }, content: `Result sk-test-12345678901234567890 ${'x'.repeat(7000)}` }
+    },
+    v4EvidenceRecord: id => {
+      assert.equal(id, 'evidence-one')
+      return { kind: 'test-result', level: 'observed', summary: 'Verification succeeded' }
+    },
+  }
+  const text = runner.taskGraphReviewOutcomeText([
+    { entryType: 'artifact-ref', refs: ['artifact-one'] },
+    { entryType: 'evidence-ref', refs: ['evidence-one'] },
+  ])
+  assert.match(text, /Result/)
+  assert.match(text, /Verification succeeded/)
+  assert.match(text, /truncated/i)
+  assert.doesNotMatch(text, /sk-test-12345678901234567890/)
+  assert.ok(text.length < 10000)
+  assert.throws(() => runner.taskGraphReviewOutcomeText([{ entryType: 'artifact-ref', refs: ['missing'] }]))
+})
+
 test('task graph cannot accept an empty arbitration while conflicts remain', () => {
   const node = graphNode({ role: 'arbiter', agentKind: 'codex', terminal: true,
     acceptance: { requireConclusion: false, minArtifactRefs: 0, minEvidenceRefs: 0 } })
@@ -1381,6 +1404,8 @@ test('automatic Primary Reviewer Arbiter flow uses selective typed collaboration
   assert.match(calls[0].prompt, /Role: primary/)
   assert.match(calls[0].prompt, /Selected blackboard entries: \(none\)/)
   assert.match(calls[1].prompt, /Role: reviewer/)
+  assert.match(calls[1].prompt, /Verified outcome content:/)
+  assert.match(calls[1].prompt, /Evidence .*\(.*\)/)
   assert.match(calls[1].prompt, /The release is ready after tests\./)
   assert.match(calls[2].prompt, /Role: arbiter/)
   assert.match(calls[2].prompt, /\[conflict\]/)
