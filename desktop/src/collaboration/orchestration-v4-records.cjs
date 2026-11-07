@@ -1580,6 +1580,9 @@ function validateV4Relations(orchestration, targetKinds) {
       taskIds.add(workReceipt.taskId)
       operationIds.add(workReceipt.operationId)
     }
+    if (orchestration.coordinationPlan.assignments.some(assignment => (
+      taskIds.has(assignment.taskId) && assignment.dependsOn.some(id => !taskIds.has(id))
+    ))) fail('ORCHESTRATION_V4_WORK_RECEIPT_INVALID')
   }
   const assignmentsBySlot = new Map(orchestration.plan.assignments.map(item => [item.slotId, item]))
   for (const slot of orchestration.slots) {

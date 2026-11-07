@@ -36,6 +36,9 @@ const v4OutcomeMethods = {
       }
       completed.set(assignment.taskId, exactReceipt)
     }
+    if (coordinationPlan.assignments.some(assignment => (
+      completed.has(assignment.taskId) && assignment.dependsOn.some(id => !completed.has(id))
+    ))) throw new Error('LOCAL_RUN_V4_WORK_RECEIPT_INVALID')
     const pending = coordinationPlan.assignments.filter(assignment => !completed.has(assignment.taskId))
     const ready = pending.filter(assignment => (
       assignment.dependsOn.every(taskId => completed.has(taskId))

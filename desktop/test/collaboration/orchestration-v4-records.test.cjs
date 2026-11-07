@@ -744,6 +744,16 @@ test('round-trips exact work receipts bound to the active plan, snapshot, operat
   assert.deepEqual(parseOrchestrationV4(record, { targetKinds }), record)
   assert.deepEqual(appendWorkReceipt([workReceipt], workReceipt), [workReceipt])
 
+  const dependentPlan = createCoordinationPlan({
+    ...coordinationPlan, targetKinds,
+    assignments: coordinationPlan.assignments.map(assignment => assignment.taskId === 'codex-work'
+      ? { ...assignment, dependsOn: ['hermes-work'] } : assignment),
+  })
+  const prematureReceipt = createWorkReceipt({ ...workReceipt, planHash: dependentPlan.planHash,
+    workReceiptId: undefined, resultHash: undefined })
+  assert.throws(() => parseOrchestrationV4({ ...record, coordinationPlan: dependentPlan,
+    workReceipts: [prematureReceipt] }, { targetKinds }), { code: 'ORCHESTRATION_V4_WORK_RECEIPT_INVALID' })
+
   const conflictingReceipt = createCollaborationReceipt({
     ...receipt,
     summary: 'Different canonical result for the same operation.',

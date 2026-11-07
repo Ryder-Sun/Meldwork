@@ -5,6 +5,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const { runAgent: runCliAgent } = require('../../src/agents/cli/cli-adapters.cjs')
 const { LocalWorkspace } = require('../../src/workspace/local-workspace.cjs')
+const { v4OutcomeMethods } = require('../../src/workspace/local-workspace-auto-runner-v4-outcomes.cjs')
 const { parseV4CollaborationReceipt } = require('../../src/collaboration/collaboration-receipt.cjs')
 const { v4Prompt } = require('../../src/workspace/local-workspace-context.cjs')
 const {
@@ -14,6 +15,20 @@ const {
 const { RunLedger } = require('../../src/runs/run-ledger.cjs')
 const { executable } = require('../support/cli-adapters-test-helpers.cjs')
 const { fixture } = require('../support/local-workspace-test-helpers.cjs')
+
+test('V4 work recovery rejects a completed task whose dependency is missing', () => {
+  const plan = { planHash: 'plan', assignments: [
+    { taskId: 'upstream', ownerKind: 'codex', dependsOn: [] },
+    { taskId: 'downstream', ownerKind: 'hermes', dependsOn: ['upstream'] },
+  ] }
+  const receipt = (taskId, ownerKind) => ({ planHash: 'plan', taskId, ownerKind,
+    collaborationReceipt: {}, artifacts: [] })
+  const runner = { ...v4OutcomeMethods, v4ReceiptReferencesComplete: () => true }
+  assert.throws(() => runner.v4WorkState([receipt('downstream', 'hermes')], plan),
+    { message: 'LOCAL_RUN_V4_WORK_RECEIPT_INVALID' })
+  const state = runner.v4WorkState([receipt('upstream', 'codex'), receipt('downstream', 'hermes')], plan)
+  assert.equal(state.completed.size, 2)
+})
 
 function receiptFor(phase, summary) {
   if (phase === 'proposal') {
