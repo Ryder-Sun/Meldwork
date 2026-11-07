@@ -256,6 +256,26 @@ test('Pi native configuration declarations reach discovery and execution', async
   assert.deepEqual(options.nativeCredentialKeys, ['CUSTOM_TOKEN'])
 })
 
+test('caller cannot add native credential declarations to an Agent subprocess', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-env-untrusted-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const { harness } = loadMain(directory, {
+    nativeShellEnvironment: () => ({ env: {}, source: 'native-shell' }),
+  })
+  await harness.ready()
+  const agent = { kind: 'pi', executable: '/tmp/pi' }
+  await harness.workspaceInstances[0].input.runAgent(agent, 'hello', directory, {
+    nativeCredentialKeys: ['UNTRUSTED_TOKEN', 'NODE_OPTIONS'],
+    env: { UNTRUSTED_TOKEN: 'synthetic-secret', NODE_OPTIONS: '--require evil' },
+  })
+  const options = harness.runAgentCalls.at(-1)[3]
+  assert.equal(options.nativeCredentialKeys.includes('UNTRUSTED_TOKEN'), false)
+  const { childEnvironment } = require('../../src/agents/cli/cli-process-support.cjs')
+  const child = childEnvironment(agent, directory, options, process.platform)
+  assert.equal(child.UNTRUSTED_TOKEN, undefined)
+  assert.equal(child.NODE_OPTIONS, undefined)
+})
+
 test('OpenCode project provider references reach its execution without leaking to other Agents', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-opencode-env-main-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
