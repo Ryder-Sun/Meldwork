@@ -17,6 +17,25 @@ function hermesProviderFromConfig(config, env = {}) {
   return provider || (typeof env.HERMES_INFERENCE_PROVIDER === 'string' ? env.HERMES_INFERENCE_PROVIDER.trim() : '')
 }
 
+function hermesProviderEnvironment(root, env = {}) {
+  if (!Object.hasOwn(env, 'HERMES_INFERENCE_PROVIDER')) {
+    try {
+      const file = path.join(root, '.env')
+      const stat = fs.statSync(file)
+      if (stat.isFile() && stat.size <= 1024 * 1024) {
+        let provider = ''
+        for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
+          if (!/^\s*(?:export\s+)?HERMES_INFERENCE_PROVIDER\s*=/.test(line)) continue
+          const match = line.match(/^\s*(?:export\s+)?HERMES_INFERENCE_PROVIDER\s*=\s*(?:"([A-Za-z0-9._:-]+)"|'([A-Za-z0-9._:-]+)'|([A-Za-z0-9._:-]+))\s*(?:#.*)?$/)
+          provider = match ? match[1] || match[2] || match[3] : ''
+        }
+        if (provider) return { ...env, HERMES_INFERENCE_PROVIDER: provider }
+      }
+    } catch { /* No readable native environment file. */ }
+  }
+  return env
+}
+
 function hermesConfiguredProvider(options = {}) {
   const env = options.env || process.env
   const home = options.home || os.homedir()
@@ -35,24 +54,8 @@ function hermesConfiguredProvider(options = {}) {
   } catch (error) {
     if (error.code !== 'ENOENT') return ''
   }
-  let providerEnv = env
-  if (!Object.hasOwn(env, 'HERMES_INFERENCE_PROVIDER')) {
-    try {
-      const file = path.join(root, '.env')
-      const stat = fs.statSync(file)
-      if (stat.isFile() && stat.size <= 1024 * 1024) {
-        let provider = ''
-        for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
-          if (!/^\s*(?:export\s+)?HERMES_INFERENCE_PROVIDER\s*=/.test(line)) continue
-          const match = line.match(/^\s*(?:export\s+)?HERMES_INFERENCE_PROVIDER\s*=\s*(?:"([A-Za-z0-9._:-]+)"|'([A-Za-z0-9._:-]+)'|([A-Za-z0-9._:-]+))\s*(?:#.*)?$/)
-          provider = match ? match[1] || match[2] || match[3] : ''
-        }
-        if (provider) providerEnv = { ...env, HERMES_INFERENCE_PROVIDER: provider }
-      }
-    } catch { /* No readable native environment file. */ }
-  }
-  const value = hermesProviderFromConfig(config, providerEnv)
+  const value = hermesProviderFromConfig(config, hermesProviderEnvironment(root, env))
   return /^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/.test(value) && redactSecrets(value) === value ? value : ''
 }
 
-module.exports = { hermesConfiguredProvider, hermesProviderFromConfig }
+module.exports = { hermesConfiguredProvider, hermesProviderFromConfig, hermesProviderEnvironment }

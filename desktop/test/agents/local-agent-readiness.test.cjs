@@ -884,6 +884,19 @@ test('OpenRouter credentials loaded from the native shell mark Hermes ready', as
   assert.deepEqual(result, { state: 'ready', source: 'native-shell' })
 })
 
+test('Hermes readiness and credential discovery follow the provider in its native environment file', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-env-provider-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const root = path.join(home, '.hermes')
+  fs.mkdirSync(root)
+  fs.writeFileSync(path.join(root, 'config.yaml'), 'providers:\n  work:\n    base_url: https://example.invalid/v1\n    key_env: WORK_TOKEN\n')
+  fs.writeFileSync(path.join(root, '.env'), 'HERMES_INFERENCE_PROVIDER=custom:work\nOPENAI_API_KEY=other-account\n')
+  assert.ok(hermesDeclaredCredentialKeys({ home, env: {} }).includes('WORK_TOKEN'))
+  assert.deepEqual(nativeCredentialState('hermes', { home, env: {} }), { state: 'unknown', source: 'unverified' })
+  assert.deepEqual(nativeCredentialState('hermes', { home, env: { WORK_TOKEN: 'selected' } }),
+    { state: 'ready', source: 'native-credential' })
+})
+
 test('Hermes environment readiness follows its selected native provider', t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-selected-provider-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))
