@@ -149,8 +149,12 @@ test('discovers and runs an approved external Connector with trusted durable pro
   }])
 })
 
-test('Connector attachment limits match workspace submission', async () => {
+test('Connector attachment limits match workspace submission', async t => {
   const { MAX_MESSAGE_ATTACHMENTS } = require('../../../src/workspace/local-workspace-message-records.cjs')
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-connector-files-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const filename = path.join(directory, 'file.pdf')
+  fs.writeFileSync(filename, '%PDF-1.7\n')
   let executed = 0
   const { runtime } = runtimeFixture(async input => {
     executed += 1
@@ -159,8 +163,8 @@ test('Connector attachment limits match workspace submission', async () => {
     return { text: 'done', outcome: 'completed' }
   })
   const agent = runtime.detectAgents()[0]
-  const attachments = Array.from({ length: MAX_MESSAGE_ATTACHMENTS }, (_, i) => ({
-    path: `/tmp/${i}.pdf`, mimeType: 'application/pdf',
+  const attachments = Array.from({ length: MAX_MESSAGE_ATTACHMENTS }, () => ({
+    path: filename, mimeType: 'application/pdf',
   }))
   const options = { runId: 'run-files', agentRunId: 'agent-files', sandbox: 'read-only' }
   assert.equal((await runtime.run(agent, 'Review', '/tmp/workspace', { ...options, attachments })).outcome, 'completed')
@@ -440,6 +444,31 @@ test('an image-only Connector rejects non-image path inputs before running', asy
   }
   assert.equal((await runtime.run(agent, 'Review', directory, { ...options, attachments: [image] })).outcome, 'completed')
   assert.equal(calls, 1)
+})
+
+test('Connector file objects cannot disguise media or claim a different media type', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-connector-mime-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const image = path.join(directory, 'image.png')
+  const pdf = path.join(directory, 'document.pdf')
+  fs.writeFileSync(image, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+  fs.writeFileSync(pdf, '%PDF-1.7\n')
+  let calls = 0
+  const { runtime } = runtimeFixture(async () => {
+    calls += 1
+    return { text: 'unexpected', outcome: 'completed' }
+  }, { inputTypes: ['text', 'image', 'audio', 'video', 'file'] })
+  const agent = runtime.detectAgents()[0]
+  const options = { runId: 'run-mime', agentRunId: 'agent-mime', sandbox: 'read-only' }
+  for (const attachment of [
+    { path: pdf, mimeType: 'image/png' }, { path: image, mimeType: 'image/jpeg' },
+    { path: image, mimeType: 'application/pdf' }, { path: pdf, mimeType: 'audio/mpeg' },
+    { path: pdf, mimeType: 'video/mp4' },
+  ]) {
+    await assert.rejects(runtime.run(agent, 'Review', directory, { ...options, attachments: [attachment] }),
+      { message: 'AGENT_CONNECTOR_ATTACHMENTS_INVALID' })
+  }
+  assert.equal(calls, 0)
 })
 
 test('explicit structured data without file MIME retains its declared capability', async () => {

@@ -432,6 +432,7 @@ module.exports = {
   MAX_METADATA_BYTES,
   attachmentError,
   createAttachmentRecord,
+  detectAttachmentType,
   fail,
   isAttachmentError,
   normalizeDiscardReferences,

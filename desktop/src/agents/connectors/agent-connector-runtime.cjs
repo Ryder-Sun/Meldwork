@@ -1,6 +1,7 @@
 const crypto = require('node:crypto')
 const fs = require('node:fs')
 const path = require('node:path')
+const { detectAttachmentType } = require('../../attachments/attachment-records.cjs')
 const { automaticPermissionResponse, READ_ONLY_SAFE_TOOL_KINDS } = require('../agent-permission-policy.cjs')
 const { SDK_HTTP_JSON_RECIPE_ID } = require('./agent-connector-package-store.cjs')
 const { normalizeSessionRef } = require('../../runs/session-reference.cjs')
@@ -37,25 +38,26 @@ function clone(value) {
   return JSON.parse(canonicalJson(value))
 }
 
+function attachmentFileType(filename) {
+  if (typeof filename !== 'string' || filename.length > 4096 || !path.isAbsolute(filename)
+      || /[\u0000-\u001f\u007f]/.test(filename)) return null
+  let fd
+  try {
+    const initial = fs.lstatSync(filename)
+    if (initial.isSymbolicLink() || !initial.isFile()) return null
+    fd = fs.openSync(filename, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0))
+    const stat = fs.fstatSync(fd)
+    if (!stat.isFile() || stat.dev !== initial.dev || stat.ino !== initial.ino || stat.size > 128 * 1024 * 1024) return null
+    const bytes = Buffer.alloc(Math.min(stat.size, 512))
+    const size = fs.readSync(fd, bytes, 0, bytes.length, 0)
+    return { size: stat.size, detected: detectAttachmentType(bytes.subarray(0, size)) }
+  } catch { return null } finally { if (fd !== undefined) fs.closeSync(fd) }
+}
+
 function attachmentInputType(attachment) {
   if (typeof attachment === 'string') {
-    if (attachment.length > 4096 || !path.isAbsolute(attachment) || /[\u0000-\u001f\u007f]/.test(attachment)) return ''
-    let fd
-    try {
-      const initial = fs.lstatSync(attachment)
-      if (initial.isSymbolicLink() || !initial.isFile()) return ''
-      fd = fs.openSync(attachment, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0))
-      const stat = fs.fstatSync(fd)
-      if (!stat.isFile() || stat.dev !== initial.dev || stat.ino !== initial.ino || stat.size > 8 * 1024 * 1024) return ''
-      const bytes = Buffer.alloc(12)
-      const size = fs.readSync(fd, bytes, 0, bytes.length, 0)
-      if ((size >= 8 && bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])))
-          || (size >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff)
-          || (size >= 6 && ['GIF87a', 'GIF89a'].includes(bytes.subarray(0, 6).toString('ascii')))
-          || (size >= 12 && bytes.subarray(0, 4).toString('ascii') === 'RIFF'
-            && bytes.subarray(8, 12).toString('ascii') === 'WEBP')) return 'image'
-      return ''
-    } catch { return '' } finally { if (fd !== undefined) fs.closeSync(fd) }
+    const file = attachmentFileType(attachment)
+    return file && file.size <= 8 * 1024 * 1024 && file.detected?.mimeType.startsWith('image/') ? 'image' : ''
   }
   if (!attachment || typeof attachment !== 'object' || Array.isArray(attachment)) return ''
   const mimeType = String(attachment.mimeType || attachment.mediaType || '').toLowerCase()
@@ -85,6 +87,17 @@ function validatedAttachments(value, capabilities) {
     if (!inputType) fail('AGENT_CONNECTOR_ATTACHMENTS_INVALID')
     if (!capabilities.inputTypes.includes(inputType)) {
       fail('AGENT_CONNECTOR_ATTACHMENT_UNSUPPORTED')
+    }
+    if (attachment && typeof attachment === 'object' && inputType !== 'structured-data'
+        && !Object.hasOwn(attachment, 'path')) fail('AGENT_CONNECTOR_ATTACHMENTS_INVALID')
+    if (attachment && typeof attachment === 'object' && Object.hasOwn(attachment, 'path')) {
+      const file = attachmentFileType(attachment.path)
+      const declared = String(attachment.mimeType || attachment.mediaType || '').toLowerCase()
+      if (!file || (['image', 'audio', 'video'].includes(inputType)
+          && (file.detected?.mimeType !== declared || file.size > file.detected.maxBytes))
+          || (inputType === 'file' && /^(?:image|audio|video)\//.test(file.detected?.mimeType || ''))) {
+        fail('AGENT_CONNECTOR_ATTACHMENTS_INVALID')
+      }
     }
   }
   return attachments
