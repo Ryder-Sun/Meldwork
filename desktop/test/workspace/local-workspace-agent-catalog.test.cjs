@@ -9,6 +9,20 @@ const { agentVerificationIdentity, projectVerificationIdentity } = require('../.
 const { NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_ENVIRONMENT_IDENTITY, NATIVE_AUTH_IDENTITY_FILES, NATIVE_PROJECT_CONFIG_PATHS, nativeEnvironmentIdentity, nativeAuthIdentityFiles, nativeProjectConfigPaths } = require('../../src/agents/native-config-directory.cjs')
 const { LocalWorkspaceAgentCatalog } = catalogApi
 
+test('Gemini verification identity changes when an unrefreshable OAuth token expires', t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-gemini-expiry-identity-'))
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+  const agent = { kind: 'gemini' }
+  Object.defineProperty(agent, NATIVE_CONFIG_IDENTITY_DIRECTORY, { value: root })
+  const filename = path.join(root, 'oauth_creds.json')
+  fs.writeFileSync(filename, JSON.stringify({ access_token: 'synthetic', expiry_date: 1_000_000 }))
+  assert.notEqual(agentVerificationIdentity(agent, {}, { now: 600_000 }),
+    agentVerificationIdentity(agent, {}, { now: 700_000 }))
+  fs.writeFileSync(filename, JSON.stringify({ access_token: 'synthetic', refresh_token: 'refresh', expiry_date: 1_000_000 }))
+  assert.equal(agentVerificationIdentity(agent, {}, { now: 600_000 }),
+    agentVerificationIdentity(agent, {}, { now: 700_000 }))
+})
+
 test('Gemini trust changes invalidate default, absolute and relative configuration identities', t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-gemini-trust-identity-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))

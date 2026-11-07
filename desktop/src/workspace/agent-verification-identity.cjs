@@ -39,6 +39,21 @@ function selectedConfigurationIdentity(agent, preferences) {
   return entries
 }
 
+function geminiAccessTokenExpired(agent, preferences, now) {
+  const directory = preferences?.gemini?.nativeConfigDirectory || agent[NATIVE_CONFIG_IDENTITY_DIRECTORY]
+  if (typeof directory !== 'string' || !path.isAbsolute(directory)) return false
+  try {
+    const filename = path.join(directory, 'oauth_creds.json')
+    const stat = fs.statSync(filename)
+    if (!stat.isFile() || stat.size > 1024 * 1024) return false
+    const value = JSON.parse(fs.readFileSync(filename, 'utf8'))
+    if (typeof value?.refresh_token === 'string' && value.refresh_token.trim()) return false
+    return typeof value?.access_token === 'string' && Boolean(value.access_token.trim())
+      && typeof value.expiry_date === 'number' && Number.isFinite(value.expiry_date)
+      && value.expiry_date > 0 && value.expiry_date <= now + 5 * 60 * 1000
+  } catch { return false }
+}
+
 function agentVerificationIdentity(agent, preferences = {}, options = {}) {
   if (!agent?.kind) return ''
   let executableStat = null
@@ -65,6 +80,9 @@ function agentVerificationIdentity(agent, preferences = {}, options = {}) {
   }
   const configuration = selectedConfigurationIdentity(agent, preferences)
   if (configuration !== null) identity.push(configuration)
+  if (agent.kind === 'gemini' && geminiAccessTokenExpired(agent, preferences, options.now ?? Date.now())) {
+    identity.push(['oauth-access-token-expired'])
+  }
   if (Array.isArray(agent[NATIVE_AUTH_IDENTITY_FILES])) {
     identity.push(agent[NATIVE_AUTH_IDENTITY_FILES].filter(filename => typeof filename === 'string' && path.isAbsolute(filename))
       .map(filename => [filename, fileIdentity(filename)]))
