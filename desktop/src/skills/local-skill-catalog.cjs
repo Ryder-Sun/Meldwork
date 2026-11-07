@@ -165,7 +165,7 @@ function directoryEntryKind(entry, filename) {
 }
 
 function globalRoots(kind, home, configDirectory = '', sharedDirectory = '') {
-  return (AGENT_SKILL_ROOTS[kind] || []).map(parts => {
+  const roots = (AGENT_SKILL_ROOTS[kind] || []).map(parts => {
     if (kind === 'deepseek' && parts[0] === '.agents' && sharedDirectory) {
       const directory = path.join(sharedDirectory, ...parts.slice(1))
       return { directory, boundary: directory, namespace: 'global' }
@@ -175,10 +175,19 @@ function globalRoots(kind, home, configDirectory = '', sharedDirectory = '') {
       : (['codex', 'hermes', 'claude', 'workbuddy'].includes(kind) && parts[0] === `.${kind}`)
         || (kind === 'deepseek' && parts[0] === '.dsh')
         || (kind === 'kimi' && parts[0] === '.kimi-code') ? parts.slice(1) : null
-    const directory = configDirectory && nativeParts
-      ? path.join(configDirectory, ...nativeParts) : path.join(home, ...parts)
+    const directory = configDirectory && kind === 'gemini'
+      ? path.join(configDirectory, ...parts)
+      : configDirectory && nativeParts
+        ? path.join(configDirectory, ...nativeParts) : path.join(home, ...parts)
     return { directory, boundary: directory, namespace: 'global' }
   })
+  if (kind === 'opencode' && configDirectory) {
+    for (const name of ['skills', 'skill']) {
+      const directory = path.join(configDirectory, name)
+      roots.push({ directory, boundary: directory, namespace: 'global' })
+    }
+  }
+  return roots
 }
 
 function safePluginRoot(installLocation, ...parts) {

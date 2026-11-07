@@ -92,6 +92,28 @@ test('selected native directories control Skill discovery and Codex plugin looku
   assert.throws(() => catalog.resolveSelections('hermes', [skill]), { message: 'LOCAL_SKILL_SELECTION_INVALID' })
 })
 
+test('Gemini and OpenCode discover skills in configured native locations', t => {
+  const home = fixture(t)
+  const geminiHome = path.join(home, 'gemini-home')
+  const openCodeConfig = path.join(home, 'opencode-config')
+  writeSkill(path.join(home, '.gemini', 'skills'), 'old-gemini')
+  writeSkill(path.join(geminiHome, '.gemini', 'skills'), 'selected-gemini')
+  writeSkill(path.join(home, '.config', 'opencode', 'skills'), 'global-opencode')
+  writeSkill(path.join(openCodeConfig, 'skills'), 'selected-opencode')
+  writeSkill(path.join(openCodeConfig, 'skill'), 'selected-opencode-singular')
+  const selected = { gemini: geminiHome, opencode: openCodeConfig }
+  const catalog = new LocalSkillCatalog({ home, configDirectoryForKind: kind => selected[kind] || '' })
+  assert.deepEqual(catalog.list('gemini').skills.map(skill => skill.slug), ['selected-gemini'])
+  assert.deepEqual(catalog.list('opencode').skills.map(skill => skill.slug).sort(),
+    ['global-opencode', 'selected-opencode', 'selected-opencode-singular'])
+  const skill = catalog.list('gemini').skills[0]
+  assert.ok(catalog.resolveSelections('gemini', [skill])[0].sourceDirectory.startsWith(fs.realpathSync(geminiHome)))
+  selected.gemini = ''
+  catalog.invalidate('gemini')
+  assert.deepEqual(catalog.list('gemini').skills.map(item => item.slug), ['old-gemini'])
+  assert.throws(() => catalog.resolveSelections('gemini', [skill]), { message: 'LOCAL_SKILL_SELECTION_INVALID' })
+})
+
 test('WorkBuddy plugin settings follow its selected native directory', t => {
   const home = fixture(t)
   const selected = path.join(home, 'selected-workbuddy')
