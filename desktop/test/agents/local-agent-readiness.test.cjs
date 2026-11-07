@@ -220,6 +220,7 @@ test('Gemini uses its shell-selected native home for readiness and execution', a
   assert.deepEqual(native, { GEMINI_CLI_HOME: selected })
   assert.equal(nativeCredentialState('gemini', { home, env: native }).state, 'unknown')
   fs.writeFileSync(path.join(selectedConfig, 'oauth_creds.json'), JSON.stringify({ refresh_token: 'selected-secret' }))
+  fs.writeFileSync(path.join(selectedConfig, 'settings.json'), JSON.stringify({ security: { auth: { selectedType: 'oauth-personal' } } }))
   assert.equal(nativeCredentialState('gemini', { home, env: native }).state, 'ready')
   assert.equal(childEnvironment({ kind: 'gemini' }, home, { env: native }, 'darwin').GEMINI_CLI_HOME, selected)
   assert.deepEqual(nativeCredentialEnvironment('codex', captured.env), {})
@@ -1319,6 +1320,9 @@ test('native readiness recognizes credential files for every supported CLI', () 
       fs.mkdirSync(path.dirname(filename), { recursive: true })
       fs.writeFileSync(filename, JSON.stringify(value))
     }
+    fs.writeFileSync(path.join(home, '.gemini', 'settings.json'), JSON.stringify({
+      security: { auth: { selectedType: 'oauth-personal' } },
+    }))
     for (const [kind] of fixtures) {
       assert.deepEqual(nativeCredentialState(kind, { home, env: {} }), {
         state: 'ready', source: 'native-credential',

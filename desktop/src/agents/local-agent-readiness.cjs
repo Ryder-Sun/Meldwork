@@ -817,7 +817,7 @@ function nativeCredentialState(kind, options = {}) {
       return found ? { state: 'ready', source: options.credentialSource === 'native-shell' ? 'native-shell' : 'native-credential' }
         : { state: 'unknown', source: 'unverified' }
     }
-    if (selection.authType) return { state: 'unknown', source: 'unverified' }
+    return { state: 'unknown', source: 'unverified' }
   }
   const expandHome = value => String(value).replace(/^~(?=$|[\\/])/, home)
   const piHome = env.PI_CODING_AGENT_DIR ? expandHome(env.PI_CODING_AGENT_DIR) : path.join(home, '.pi', 'agent')
