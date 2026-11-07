@@ -1,5 +1,16 @@
 const { parseLenientTaskDecision } = require('../collaboration/task-decision.cjs')
 
+function explicitReviewRejection(text) {
+  let inCodeBlock = false
+  return String(text || '').split(/\r?\n/).some(rawLine => {
+    const line = rawLine.trim()
+    if (/^(?:```|~~~)/.test(line)) { inCodeBlock = !inCodeBlock; return false }
+    if (inCodeBlock || line.startsWith('>')) return false
+    return /(?:^|[.!?;；。！？])\s*(?:do not|don't)\s+approve\b/i.test(line)
+      || /(?:^|[.!?;；。！？])\s*(?:不要|不能|不应|不予)批准/u.test(line)
+  })
+}
+
 function explicitTaskFailure(text) {
   let inCodeBlock = false
   return String(text || '').split(/\r?\n/).some(rawLine => {
@@ -301,4 +312,4 @@ const v4NaturalDecisionMethods = {
   },
 }
 
-module.exports = { v4NaturalDecisionMethods, explicitTaskFailure }
+module.exports = { v4NaturalDecisionMethods, explicitTaskFailure, explicitReviewRejection }

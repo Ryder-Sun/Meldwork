@@ -18,6 +18,34 @@ const {
 } = require('../../src/collaboration/orchestration-v4-records.cjs')
 const { RunLedger } = require('../../src/runs/run-ledger.cjs')
 const { RunScheduler } = require('../../src/runs/run-scheduler.cjs')
+
+test('task graph rejects an explicit reviewer objection despite a completed run', () => {
+  const node = { role: 'reviewer', acceptance: { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 } }
+  const result = { message: { content: 'The required tests fail; do not approve.', trace: { status: 'completed' } } }
+  const refs = { artifactIds: [], evidenceIds: [] }
+  assert.equal(taskGraphMethods.taskGraphResultAccepted(node, result, {}, refs), false)
+  result.message.content = '> Do not approve.\nThat old instruction is superseded; the result is acceptable.'
+  assert.equal(taskGraphMethods.taskGraphResultAccepted(node, result, {}, refs), true)
+})
+
+test('task graph recovery refuses a previously accepted reviewer objection', () => {
+  const node = graphNode({ role: 'reviewer', terminal: true })
+  const graph = createTaskGraph({ template: 'task-graph', nodes: [node] })
+  const controller = { runId: 'run', taskId: 'task', currentRound: 1, completedKinds: [], failedKinds: [],
+    orchestration: { taskGraph: createTaskGraphCursor(graph), collaboration: emptyCollaborationState(), activeKinds: ['codex'] } }
+  const runner = { ...collaborationMethods, ...taskGraphMethods,
+    taskGraphVerifiedOutcomeRefs: () => ({ artifactIds: ['artifact-one'], evidenceIds: ['evidence-one'] }),
+    checkpointOrchestration: (_group, target, updates) => Object.assign(target.orchestration, updates),
+    checkpointTaskGraph: (_group, target, next) => { target.orchestration.taskGraph = next; return next },
+  }
+  const result = { message: { content: 'Review passed.', trace: { status: 'completed', agentRunId: 'agent-run' } },
+    outcomeRefs: { artifactIds: ['artifact-one'], evidenceIds: ['evidence-one'] } }
+  assert.equal(runner.applyTaskGraphAgentResult({}, controller, node, result), true)
+  const text = 'The required tests fail; do not approve.'
+  controller.orchestration.collaboration.entries.find(entry => entry.entryType === 'claim').statement = text
+  controller.orchestration.taskGraph.nodeStates[0].conclusionHash = createHash('sha256').update(text).digest('hex')
+  assert.throws(() => runner.validateTaskGraphRecoveredResults(controller), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
+})
 const { v4Snapshot } = require('../../src/workspace/local-workspace-context.cjs')
 const { deferred, fixture } = require('../support/local-workspace-test-helpers.cjs')
 
