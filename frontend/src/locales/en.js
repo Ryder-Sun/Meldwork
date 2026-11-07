@@ -36,6 +36,7 @@ export default {
     'connectorPackages.import': 'Import Connector',
     'connectorPackages.empty': 'No Connectors imported.',
     'connectorPackages.approve': 'Review and approve',
+    'connectorPackages.changedDuringApproval': 'This Connector changed while approval was open. Review it again.',
     'connectorPackages.confirmApproval': 'Approve Connector',
     'connectorPackages.identity': 'Connector identity',
     'connectorPackages.publisher': 'Publisher',

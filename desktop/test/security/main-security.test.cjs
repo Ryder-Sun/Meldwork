@@ -1438,6 +1438,28 @@ test('Agent Connector package IPC keeps paths private and requires native approv
   assert.equal((await invoke('remove')(harness.event(), packageId)).state, 'removed')
 })
 
+test('Connector approval rejects a package reimported while confirmation is open', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-connector-approval-race-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const packagePath = path.join(directory, 'sample.connector.json')
+  fs.writeFileSync(packagePath, serializeAgentConnectorPackage(SAMPLE_LOCAL_ECHO_AGENT_CONNECTOR_PACKAGE))
+  const decision = deferred()
+  const { harness } = loadMain(directory, {
+    dialogResult: { canceled: false, filePaths: [packagePath] }, messageBoxResult: decision.promise,
+  })
+  await harness.ready()
+  const invoke = name => harness.ipcHandlers.get(`local-agent-connector:${name}`)
+  const packageId = SAMPLE_LOCAL_ECHO_AGENT_CONNECTOR_PACKAGE.packageId
+  await invoke('import')(harness.event())
+  const approval = invoke('approve')(harness.event(), packageId)
+  await waitFor(() => harness.dialogCalls.length >= 2)
+  await invoke('remove')(harness.event(), packageId)
+  await invoke('import')(harness.event())
+  decision.resolve({ response: 0 })
+  await assert.rejects(approval, { message: 'AGENT_CONNECTOR_PACKAGE_CHANGED' })
+  assert.equal((await invoke('inspect')(harness.event(), packageId)).state, 'imported')
+})
+
 test('Connector credentials can be read from the native shell only after native confirmation', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-connector-env-ipc-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

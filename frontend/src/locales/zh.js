@@ -36,6 +36,7 @@ export default {
     'connectorPackages.import': '导入 Connector',
     'connectorPackages.empty': '尚未导入 Connector。',
     'connectorPackages.approve': '查看并批准',
+    'connectorPackages.changedDuringApproval': 'Connector 在确认期间发生变化，请重新查看。',
     'connectorPackages.confirmApproval': '批准此 Connector',
     'connectorPackages.identity': 'Connector 标识',
     'connectorPackages.publisher': '发布者',

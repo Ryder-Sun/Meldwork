@@ -619,6 +619,7 @@ function registerDesktopIpc(options) {
     const connectors = getAgentConnectors?.()
     if (!connectors) throw new Error('AGENT_CONNECTOR_RUNTIME_UNAVAILABLE')
     const inspected = connectors.inspectPackage(args[0])
+    const auditEventId = connectors.auditPackage(args[0]).at(-1)?.eventId
     const manifest = inspected.manifest
     const locale = String(app.getLocale?.() || '').toLowerCase()
     const slots = manifest.credentials.slots.map(slot => (
@@ -664,6 +665,10 @@ function registerDesktopIpc(options) {
       noLink: true,
     })
     if (decision.response !== 0) return { canceled: true }
+    if (!auditEventId || getAgentConnectors?.() !== connectors
+        || connectors.auditPackage(args[0]).at(-1)?.eventId !== auditEventId) {
+      throw new Error('AGENT_CONNECTOR_PACKAGE_CHANGED')
+    }
     return { canceled: false, package: connectors.approvePackage(args[0]) }
   })
   for (const [channel, method] of [

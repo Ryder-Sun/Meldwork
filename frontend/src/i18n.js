@@ -51,6 +51,7 @@ export function messageKeys(language) {
 export const DESKTOP_ERROR_MESSAGE_KEYS = Object.freeze({
   LOCAL_NATIVE_CONFIG_INVALID: 'nativeConfig.invalid',
   AGENT_CONNECTOR_CREDENTIAL_ENV_MISSING: 'connectorPackages.environmentMissing',
+  AGENT_CONNECTOR_PACKAGE_CHANGED: 'connectorPackages.changedDuringApproval',
   AGENT_CONNECTOR_SESSION_INVALID: 'connectorPackages.sessionInvalid',
   AGENT_CONNECTOR_UPSTREAM_INCOMPATIBLE: 'connectorPackages.upstreamIncompatible',
   LOCAL_WORKFLOW_PROTOCOL_UNSUPPORTED: 'error.workflowProtocolUnsupported',
