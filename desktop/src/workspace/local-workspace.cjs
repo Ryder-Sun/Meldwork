@@ -2795,6 +2795,18 @@ class LocalWorkspace extends EventEmitter {
         })
         refs.artifactIds.push(artifact.artifactId)
         refs.evidenceIds.push(evidence.evidenceId)
+        if (descriptor.locationRef?.kind === 'workspace-relative'
+            && artifact.contentRef && descriptor.contentHash === artifact.contentHash) {
+          const fileHash = this.outcomeStore.putEvidence({
+            kind: 'file-hash',
+            level: 'observed',
+            subject: { type: 'artifact', artifactId: artifact.artifactId },
+            summary: 'Meldwork captured and hashed the workspace output file.',
+            recordedBy: OUTCOME_RECORDER,
+            refs: [...evidenceRefs, { type: 'location', locationRef: descriptor.locationRef, contentHash: artifact.contentHash }],
+          })
+          refs.evidenceIds.push(fileHash.evidenceId)
+        }
       } catch { /* invalid or unavailable outcome capture must not discard the Agent reply */ }
     }
     return normalizeOutcomeRefs(refs)

@@ -1231,6 +1231,38 @@ test('terminal conclusions and explicit outputs become durable observed Outcomes
   }), {})
 })
 
+test('workspace file capture produces system-recorded hash Evidence for the captured bytes', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const { captureArtifactOutputState, captureAgentOutcomeDescriptors } = require('../../src/agents/agent-output-importer.cjs')
+  options.captureArtifactOutputs = captureArtifactOutputState
+  options.captureAgentOutcomeDescriptors = captureAgentOutcomeDescriptors
+  options.runAgent = async () => {
+    const output = path.join(directory, '.meldwork-output')
+    fs.mkdirSync(output, { recursive: true })
+    fs.writeFileSync(path.join(output, 'result.txt'), 'captured result')
+    return { text: 'Done.', sessionRef: 'codex-session', outcome: 'completed' }
+  }
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Hash evidence', agentKinds: ['codex'], workdir: directory, allowWrite: true })
+  await workspace.sendMessage({ groupId: group.id, text: 'Write a file', targetKinds: ['codex'] })
+  const message = workspace.snapshot().messages.find(item => item.role === 'agent')
+  const evidence = message.trace.context.outcomeRefs.evidenceIds.map(id => workspace.outcomeStore.getEvidence(id))
+  const hashes = evidence.filter(item => item.kind === 'file-hash')
+  assert.equal(hashes.length, 1)
+  assert.deepEqual(hashes[0].recordedBy, { kind: 'system', actorId: 'meldwork-main' })
+  const expectedHash = require('node:crypto').createHash('sha256').update('captured result').digest('hex')
+  assert.ok(hashes[0].refs.some(ref => ref.type === 'blob' && ref.contentHash === expectedHash))
+  assert.ok(hashes[0].refs.some(ref => ref.type === 'location' && ref.contentHash === expectedHash))
+  const refs = message.trace.context.outcomeRefs
+  const acceptance = { acceptance: { minArtifactRefs: 1, minEvidenceRefs: 1, requiredEvidenceKinds: ['file-hash'] } }
+  assert.equal(workspace.autoRunner.v4WorkAcceptanceSatisfied(acceptance, refs), true)
+  assert.equal(workspace.autoRunner.v4WorkAcceptanceSatisfied(acceptance, {
+    artifactIds: refs.artifactIds, evidenceIds: evidence.filter(item => item.kind !== 'file-hash').map(item => item.evidenceId),
+  }), false)
+})
+
 test('terminal Agent traces hand compact partial evidence to the next Agent only', async (t) => {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
