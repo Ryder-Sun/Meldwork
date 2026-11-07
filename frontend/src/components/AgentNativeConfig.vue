@@ -21,7 +21,7 @@ const api = desktopApi().localAgentNativeConfig
 const directory = ref(null)
 const directoryMissing = ref(false)
 const provider = ref('')
-const busy = ref(false)
+const busy = ref(true)
 const error = ref('')
 const invalid = ref(false)
 async function load() {
@@ -57,7 +57,9 @@ async function update(action) {
     await load()
   } finally { busy.value = false }
 }
-onMounted(load)
+onMounted(async () => {
+  try { await load() } finally { busy.value = false }
+})
 </script>
 
 <style scoped>

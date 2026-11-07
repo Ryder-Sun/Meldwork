@@ -5,6 +5,22 @@ import { t } from '../../i18n.js'
 
 afterEach(() => { delete window.meldworkDesktop })
 
+it('waits for the initial directory read before allowing a new selection', async () => {
+  let resolveRead
+  const get = vi.fn(() => new Promise(resolve => { resolveRead = resolve }))
+  const choose = vi.fn()
+  window.meldworkDesktop = { localAgentNativeConfig: { get, choose } }
+  const wrapper = mount(AgentNativeConfig, { props: { kind: 'hermes' } })
+  const button = wrapper.findAll('button').find(item => item.text() === t('nativeConfig.choose'))
+  expect(button.attributes('disabled')).toBeDefined()
+  await button.trigger('click')
+  expect(choose).not.toHaveBeenCalled()
+  resolveRead({ directory: '' })
+  await flushPromises()
+  expect(button.attributes('disabled')).toBeUndefined()
+  wrapper.unmount()
+})
+
 it('warns when a previously selected native directory is no longer valid', async () => {
   window.meldworkDesktop = { localAgentNativeConfig: {
     get: vi.fn().mockResolvedValue({ directory: '/native/hermes', directoryMissing: true }),
