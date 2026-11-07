@@ -1,7 +1,7 @@
 const { createHash, randomBytes } = require('node:crypto')
 const fs = require('node:fs')
 const path = require('node:path')
-const { NATIVE_CONFIG_DIRECTORIES, NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_ENVIRONMENT_IDENTITY, NATIVE_AUTH_IDENTITY_FILES } = require('../agents/native-config-directory.cjs')
+const { NATIVE_CONFIG_DIRECTORIES, NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_ENVIRONMENT_IDENTITY, NATIVE_AUTH_IDENTITY_FILES, NATIVE_PROJECT_CONFIG_PATHS } = require('../agents/native-config-directory.cjs')
 
 function fileIdentity(filename) {
   try {
@@ -59,7 +59,7 @@ function agentVerificationIdentity(agent, preferences = {}) {
   return createHash('sha256').update(JSON.stringify(identity)).digest('hex')
 }
 
-function projectVerificationIdentity(kind, workdir) {
+function projectVerificationIdentity(kind, workdir, agent = null) {
   const files = {
     codex: ['.codex/config.toml'],
     claude: ['.claude/settings.json', '.claude/settings.local.json'],
@@ -73,6 +73,12 @@ function projectVerificationIdentity(kind, workdir) {
   if (typeof workdir !== 'string' || !path.isAbsolute(workdir)) return null
   const root = path.resolve(workdir)
   const entries = [kind, root]
+  for (const item of agent?.[NATIVE_PROJECT_CONFIG_PATHS] || []) {
+    if (!item || typeof item.value !== 'string' || path.isAbsolute(item.value)) continue
+    const target = path.resolve(root, item.value)
+    const names = kind === 'opencode' ? ['opencode.json', 'opencode.jsonc'] : ['mimocode.json', 'mimocode.jsonc']
+    entries.push([target, item.directory ? names.map(name => [name, fileIdentity(path.join(target, name))]) : fileIdentity(target)])
+  }
   let current = root
   for (let depth = 0; depth < 64; depth += 1) {
     entries.push([current, ...files.map(file => [file, fileIdentity(path.join(current, file))])])

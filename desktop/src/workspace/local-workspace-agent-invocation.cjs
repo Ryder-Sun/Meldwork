@@ -315,7 +315,7 @@ class LocalWorkspaceAgentInvocation {
     const candidate = detected.find(item => item.kind === kind)
     const snapshotKey = `${group.id}:${activeRun?.runId || 'active'}:${kind}`
     const runtime = this.state()?.agentRuntime?.[kind]
-    const projectIdentity = projectVerificationIdentity(kind, group.workdir)
+    const projectIdentity = projectVerificationIdentity(kind, group.workdir, candidate || this.activeAgentSnapshots.get(snapshotKey))
     const runtimeBlocked = runtime?.credentialState === 'missing'
       || this.isProjectAuthBlocked(kind, group.workdir)
     const usable = item => item.installed !== false && item.invocable !== false

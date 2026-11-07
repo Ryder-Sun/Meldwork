@@ -4,8 +4,8 @@ const fs = require('node:fs')
 const path = require('node:path')
 const { redactSecrets } = require('./security/secret-redaction.cjs')
 const { ensurePrivateDirectory } = require('./security/private-file.cjs')
-const { NATIVE_CONFIG_DIRECTORIES, NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_ENVIRONMENT_IDENTITY, NATIVE_AUTH_IDENTITY_FILES,
-  nativeConfigEnvironment, nativeIdentityDirectory, nativeEnvironmentIdentity, nativeAuthIdentityFiles } = require('./agents/native-config-directory.cjs')
+const { NATIVE_CONFIG_DIRECTORIES, NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_ENVIRONMENT_IDENTITY, NATIVE_AUTH_IDENTITY_FILES, NATIVE_PROJECT_CONFIG_PATHS,
+  nativeConfigEnvironment, nativeIdentityDirectory, nativeEnvironmentIdentity, nativeAuthIdentityFiles, nativeProjectConfigPaths } = require('./agents/native-config-directory.cjs')
 const { AttachmentStore } = require('./attachments/attachment-store.cjs')
 const { ContentBlobStore } = require('./attachments/content-blob-store.cjs')
 const { ContextPackStore } = require('./collaboration/context-pack-store.cjs')
@@ -332,6 +332,8 @@ async function detectLocalAgents() {
     if (authFiles.length) Object.defineProperty(result, NATIVE_AUTH_IDENTITY_FILES, { value: authFiles })
     if (agent.kind !== 'openclaw') {
       const env = nativeConfigEnvironment(agent.kind, workspace?.state.agentPreferences, shellEnvironment.env)
+      const projectPaths = nativeProjectConfigPaths(agent.kind, env)
+      if (projectPaths.length) Object.defineProperty(result, NATIVE_PROJECT_CONFIG_PATHS, { value: projectPaths, enumerable: true })
       const keys = agent.kind === 'codex' ? shellEnvironment.codexCredentialKeys : agent.kind === 'hermes' ? shellEnvironment.hermesCredentialKeys
         : agent.kind === 'zcode' ? shellEnvironment.zcodeCredentialKeys
           : agent.kind === 'pi' ? shellEnvironment.piCredentialKeys : agent.kind === 'opencode' ? shellEnvironment.opencodeCredentialKeys

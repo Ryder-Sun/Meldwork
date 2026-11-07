@@ -619,6 +619,27 @@ test('Qwen automatic routing is bound to its project settings', async t => {
   assert.equal(calls.length, 2)
 })
 
+test('OpenCode routing notices changes to a relative native configuration file', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const file = path.join(directory, 'custom.json')
+  fs.writeFileSync(file, '{"model":"first"}')
+  const { NATIVE_PROJECT_CONFIG_PATHS } = require('../../src/agents/native-config-directory.cjs')
+  options.detectAgents = async () => {
+    const agent = { kind: 'opencode', name: 'OpenCode', executable: '/tmp/opencode', version: '1' }
+    Object.defineProperty(agent, NATIVE_PROJECT_CONFIG_PATHS, { value: [{ value: 'custom.json', directory: false }], enumerable: true })
+    return [agent]
+  }
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Project', agentKinds: ['opencode'], workdir: directory })
+  await workspace.sendMessage({ groupId: group.id, text: 'Verify', targetKinds: ['opencode'] })
+  await workspace.sendMessage({ groupId: group.id, text: 'Route', targetKinds: [], routingMode: 'automatic' })
+  fs.writeFileSync(file, '{"model":"replacement"}')
+  await assert.rejects(workspace.sendMessage({ groupId: group.id, text: 'Route again',
+    targetKinds: [], routingMode: 'automatic' }), { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
+})
+
 for (const [kind, config] of [['codex', '.codex/config.toml'], ['claude', '.claude/settings.local.json']]) {
   test(`${kind} automatic routing is bound to its project settings`, async t => {
     const { directory, calls, options } = fixture()

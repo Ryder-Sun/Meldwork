@@ -6,7 +6,7 @@ const path = require('node:path')
 
 const catalogApi = require('../../src/workspace/local-workspace-agent-catalog.cjs')
 const { agentVerificationIdentity, projectVerificationIdentity } = require('../../src/workspace/agent-verification-identity.cjs')
-const { NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_ENVIRONMENT_IDENTITY, NATIVE_AUTH_IDENTITY_FILES, nativeEnvironmentIdentity } = require('../../src/agents/native-config-directory.cjs')
+const { NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_ENVIRONMENT_IDENTITY, NATIVE_AUTH_IDENTITY_FILES, NATIVE_PROJECT_CONFIG_PATHS, nativeEnvironmentIdentity } = require('../../src/agents/native-config-directory.cjs')
 const { LocalWorkspaceAgentCatalog } = catalogApi
 
 test('Agent verification identity changes when the executable is replaced', t => {
@@ -85,6 +85,31 @@ for (const [kind, config] of [['codex', '.codex/config.toml'], ['claude', '.clau
     assert.equal(catalog.isRecentlyVerified(kind, first), false)
     catalog.markRuntimeCredential(kind, 'ready', { verificationIdentity, projectIdentity, workdir: first })
     assert.equal(catalog.isRecentlyVerified(kind, first), false)
+  })
+}
+
+for (const [kind, relative, directory, filename] of [
+  ['opencode', 'custom/settings.json', false, 'custom/settings.json'],
+  ['opencode', 'custom', true, 'custom/opencode.jsonc'],
+  ['mimo', 'custom/settings.json', false, 'custom/settings.json'],
+  ['mimo', 'custom', true, 'custom/mimocode.jsonc'],
+]) {
+  test(`${kind} relative native configuration invalidates project verification`, t => {
+    const workdir = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-relative-config-'))
+    t.after(() => fs.rmSync(workdir, { recursive: true, force: true }))
+    const file = path.join(workdir, filename)
+    fs.mkdirSync(path.dirname(file), { recursive: true })
+    fs.writeFileSync(file, '{"model":"first"}')
+    const agent = { kind, executable: '/tmp/agent', version: '1', available: true, compatibilityState: 'compatible' }
+    Object.defineProperty(agent, NATIVE_PROJECT_CONFIG_PATHS, { value: [{ value: relative, directory }], enumerable: true })
+    assert.equal(Object.getOwnPropertySymbols(structuredClone(agent)).length, 0)
+    const { catalog, state } = fixture({ initialAgents: [agent] })
+    const projectIdentity = projectVerificationIdentity(kind, workdir, agent)
+    catalog.markRuntimeCredential(kind, 'ready', { workdir, projectIdentity })
+    assert.equal(catalog.isRecentlyVerified(kind, workdir), true)
+    fs.writeFileSync(file, '{"model":"replacement"}')
+    assert.equal(catalog.isRecentlyVerified(kind, workdir), false)
+    assert.doesNotMatch(JSON.stringify(state.agentRuntime), /relative-config|custom/)
   })
 }
 

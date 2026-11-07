@@ -92,7 +92,7 @@ class LocalWorkspaceAgentCatalog {
     const agent = this.detectedAgents().find(item => item.kind === kind)
     if (workdir === undefined) return matchesRecentVerification(runtime, agent, this.now(), this.state().agentPreferences)
     if (this.isProjectAuthBlocked(kind, workdir)) return false
-    const projectIdentity = projectVerificationIdentity(kind, workdir)
+    const projectIdentity = projectVerificationIdentity(kind, workdir, agent)
     if (projectIdentity === '') return matchesRecentVerification(runtime, agent, this.now(), this.state().agentPreferences)
     if (!projectIdentity || runtime?.credentialState === 'missing') return false
     const identity = agentVerificationIdentity(agent, this.state().agentPreferences)
@@ -107,7 +107,7 @@ class LocalWorkspaceAgentCatalog {
   isProjectAuthBlocked(kind, workdir) {
     const runtime = this.state().agentRuntime[kind]
     const agent = this.detectedAgents().find(item => item.kind === kind)
-    const identity = projectVerificationIdentity(kind, workdir)
+    const identity = projectVerificationIdentity(kind, workdir, agent)
     const agentIdentity = agentVerificationIdentity(agent, this.state().agentPreferences)
     const failure = Array.isArray(runtime?.projectFailures)
       ? runtime.projectFailures.find(item => item?.projectIdentity === identity && item.verificationIdentity === agentIdentity)
@@ -318,7 +318,7 @@ class LocalWorkspaceAgentCatalog {
     const state = this.state()
     const agent = this.detectedAgents().find(item => item.kind === kind)
     if (verificationIdentity && (!agent || verificationIdentity !== agentVerificationIdentity(agent, state.agentPreferences))) return
-    if (projectIdentity !== undefined && projectIdentity !== projectVerificationIdentity(kind, workdir)) return
+    if (projectIdentity !== undefined && projectIdentity !== projectVerificationIdentity(kind, workdir, agent)) return
     const identity = verificationIdentity || agentVerificationIdentity(agent, state.agentPreferences)
     const projectFailure = credentialState === 'missing' && typeof projectIdentity === 'string' && Boolean(projectIdentity)
     const previous = state.agentRuntime[kind]

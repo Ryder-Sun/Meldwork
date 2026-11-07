@@ -3,7 +3,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
-const { nativeAuthIdentityFiles, nativeConfigEnvironment, nativeIdentityDirectory, validateNativeConfigDirectory } = require('../../src/agents/native-config-directory.cjs')
+const { nativeAuthIdentityFiles, nativeConfigEnvironment, nativeIdentityDirectory, nativeProjectConfigPaths, validateNativeConfigDirectory } = require('../../src/agents/native-config-directory.cjs')
 const { nativeCredentialState } = require('../../src/agents/local-agent-readiness.cjs')
 const { loadWorkspaceState, saveWorkspaceState } = require('../../src/workspace/local-workspace-state.cjs')
 
@@ -66,6 +66,19 @@ test('MiMo identity tracks its explicit and user configuration files', () => {
     path.join(home, '.mimocode', 'mimocode.jsonc'),
     path.join(home, '.config', 'mimocode', 'mimocode.json'), path.join(home, '.config', 'mimocode', 'mimocode.jsonc'),
   ])
+})
+
+test('project config identities retain only relative CLI paths', () => {
+  assert.deepEqual(nativeProjectConfigPaths('opencode', { OPENCODE_CONFIG: 'custom.json', OPENCODE_CONFIG_DIR: 'config' }), [
+    { value: 'custom.json', directory: false }, { value: 'config', directory: true },
+  ])
+  assert.deepEqual(nativeProjectConfigPaths('mimo', { MIMOCODE_CONFIG: '/absolute.json', MIMOCODE_CONFIG_DIR: 'config' }), [
+    { value: 'config', directory: true },
+  ])
+  assert.deepEqual(nativeProjectConfigPaths('mimo', { MIMOCODE_CONFIG: '~/config.json' }), [
+    { value: '~/config.json', directory: false },
+  ])
+  assert.deepEqual(nativeProjectConfigPaths('codex', { OPENCODE_CONFIG: 'custom.json' }), [])
 })
 
 test('Gemini authentication identity includes explicitly selected system and cloud files', () => {
