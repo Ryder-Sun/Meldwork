@@ -199,6 +199,25 @@ test('only unchanged recently verified executables survive inconclusive capabili
   assert.equal((await probeAgentCapabilities('workbuddy', executable, options)).compatibilityState, 'unknown')
 })
 
+test('capability probe cache expires when the system clock moves backwards', async t => {
+  let now = 10_000
+  t.mock.method(Date, 'now', () => now)
+  let timeout = false
+  const options = {
+    env: {}, version: '2.115.0',
+    statFn: () => ({ dev: 1, ino: 1, size: 100, mtimeMs: 1, ctimeMs: 1 }),
+    execFileFn: async () => {
+      if (timeout) throw Object.assign(new Error('timeout'), { code: 'ETIMEDOUT' })
+      return { stdout: '--print --output-format --permission-mode --max-turns --resume json plan acceptEdits' }
+    },
+  }
+  const executable = '/test/cached-clock-workbuddy'
+  assert.equal((await probeAgentCapabilities('workbuddy', executable, options)).compatibilityState, 'compatible')
+  timeout = true
+  now -= 1000
+  assert.equal((await probeAgentCapabilities('workbuddy', executable, options)).compatibilityState, 'unknown')
+})
+
 test('capability probe cache does not cross native configuration or credential environments', async () => {
   let timeout = false
   const options = {

@@ -434,8 +434,9 @@ async function probeAgentCapabilities(kind, executable, options = {}) {
   } catch { /* caching requires a verifiable executable identity */ }
   const cacheKey = `${kind}:${executable}`
   const prior = capabilityCache.get(cacheKey)
+  const now = Date.now()
   const recentCompatible = identity && prior?.identity === identity
-    && Date.now() - prior.checkedAt < CAPABILITY_CACHE_TTL_MS
+    && now >= prior.checkedAt && now - prior.checkedAt < CAPABILITY_CACHE_TTL_MS
   const results = await Promise.all(capabilityProbes(kind).map(async (probe) => {
     for (const timeout of probe.timeout ? [probe.timeout] : [8000, 16000]) {
       try {
