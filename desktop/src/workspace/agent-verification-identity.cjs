@@ -101,6 +101,7 @@ function projectVerificationIdentity(kind, workdir, agent = null, environmentIde
     mimo: ['mimocode.json', 'mimocode.jsonc', '.mimocode/mimocode.json', '.mimocode/mimocode.jsonc'],
     gemini: ['.gemini/settings.json', '.gemini/.env', '.env'],
     qwen: ['.qwen/settings.json', '.qwen/.env', '.env'],
+    deepseek: ['.env'],
     pi: [],
   }[kind]
   if (!files && !environmentIdentity) return ''
@@ -120,6 +121,7 @@ function projectVerificationIdentity(kind, workdir, agent = null, environmentIde
   let current = root
   for (;;) {
     entries.push([current, ...(files || []).map(file => [file, fileIdentity(path.join(current, file))])])
+    if (kind === 'deepseek') break
     if (kind !== 'qwen' && kind !== 'gemini' && fs.existsSync(path.join(current, '.git'))) break
     const parent = path.dirname(current)
     if (parent === current) break

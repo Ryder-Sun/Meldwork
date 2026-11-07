@@ -557,6 +557,27 @@ test('Qwen and Gemini project verification track environment files above the Git
   }
 })
 
+test('DeepSeek verification tracks its native and working-directory dotenv files', t => {
+  const { agentVerificationIdentity, projectVerificationIdentity } = require('../../src/workspace/agent-verification-identity.cjs')
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-dsh-verification-'))
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+  const native = path.join(root, 'native')
+  const workdir = path.join(root, 'work')
+  fs.mkdirSync(native)
+  fs.mkdirSync(workdir)
+  const agent = { kind: 'deepseek' }
+  const preferences = { deepseek: { nativeConfigDirectory: native } }
+  const beforeNative = agentVerificationIdentity(agent, preferences)
+  const beforeProject = projectVerificationIdentity('deepseek', workdir)
+  fs.writeFileSync(path.join(native, '.env'), 'ZGCI_API_KEY=synthetic-one\n')
+  fs.writeFileSync(path.join(workdir, '.env'), 'ZGCI_API_KEY=synthetic-two\n')
+  assert.notEqual(agentVerificationIdentity(agent, preferences), beforeNative)
+  assert.notEqual(projectVerificationIdentity('deepseek', workdir), beforeProject)
+  const current = projectVerificationIdentity('deepseek', workdir)
+  fs.writeFileSync(path.join(root, '.env'), 'ZGCI_API_KEY=unrelated-parent\n')
+  assert.equal(projectVerificationIdentity('deepseek', workdir), current)
+})
+
 test('Qwen verification identity changes when its native environment file changes', t => {
   const { NATIVE_AUTH_IDENTITY_FILES } = require('../../src/agents/native-config-directory.cjs')
   const { agentVerificationIdentity } = require('../../src/workspace/agent-verification-identity.cjs')

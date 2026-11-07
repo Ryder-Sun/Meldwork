@@ -162,7 +162,7 @@ const NATIVE_CONFIG_DIRECTORIES = Object.freeze({
   gemini: { key: 'GEMINI_CLI_HOME', files: ['oauth_creds.json', 'gemini-credentials.json', 'google_accounts.json', 'settings.json', '.env'], identityFiles: ['trustedFolders.json'] },
   kimi: { key: 'KIMI_CODE_HOME', files: ['config.toml'], identityFiles: ['.env'], directories: ['credentials'] },
   mimo: { key: 'MIMOCODE_CONFIG_DIR', files: ['mimocode.json', 'mimocode.jsonc'] },
-  deepseek: { key: 'DSH_HOME', files: ['cordis.patch.yml', '.credentials.yaml'], directories: ['profiles'] },
+  deepseek: { key: 'DSH_HOME', files: ['cordis.patch.yml', '.credentials.yaml'], identityFiles: ['.env'], directories: ['profiles'] },
   workbuddy: { key: 'CODEBUDDY_CONFIG_DIR', files: ['models.json', 'settings.json', '.credentials.json'] },
   zcode: { key: 'HOME', files: ['config.json'] },
   qwen: { key: 'HOME', files: ['settings.json', 'oauth_creds.json', '.env'], identityFiles: ['trustedFolders.json'] },

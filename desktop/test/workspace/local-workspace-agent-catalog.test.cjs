@@ -202,6 +202,29 @@ test('project credential changes do not invalidate another project', async t => 
   assert.equal(catalog.isRecentlyVerified('zcode', second), true)
 })
 
+test('DeepSeek dotenv changes invalidate only the affected project verification', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-dsh-project-identity-'))
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+  const native = path.join(root, 'native')
+  const first = path.join(root, 'first')
+  const second = path.join(root, 'second')
+  for (const dir of [native, first, second]) fs.mkdirSync(dir)
+  const agent = { kind: 'deepseek', version: '1', available: true, compatibilityState: 'compatible' }
+  const { catalog, state } = fixture({ initialAgents: [agent] })
+  state.agentPreferences.deepseek = { nativeConfigDirectory: native }
+  for (const workdir of [first, second]) {
+    catalog.markRuntimeCredential('deepseek', 'ready', { workdir,
+      projectIdentity: catalog.projectIdentity('deepseek', workdir, agent) })
+  }
+  assert.equal(catalog.isRecentlyVerified('deepseek', first), true)
+  assert.equal(catalog.isRecentlyVerified('deepseek', second), true)
+  fs.writeFileSync(path.join(first, '.env'), 'MODEL=changed\n')
+  assert.equal(catalog.isRecentlyVerified('deepseek', first), false)
+  assert.equal(catalog.isRecentlyVerified('deepseek', second), true)
+  fs.writeFileSync(path.join(native, '.env'), 'MODEL=changed\n')
+  assert.equal(catalog.isRecentlyVerified('deepseek', second), false)
+})
+
 test('failed project environment capture prevents reusing or recording verification', async t => {
   const workdir = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-project-env-failed-'))
   t.after(() => fs.rmSync(workdir, { recursive: true, force: true }))
