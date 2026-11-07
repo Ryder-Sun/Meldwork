@@ -272,6 +272,24 @@ test('identical concurrent successful probes both remain compatible', async () =
   assert.equal((await first).compatibilityState, 'compatible')
 })
 
+test('the oldest overlapping probe follows the latest of three results', async () => {
+  let release
+  const pending = new Promise(resolve => { release = resolve })
+  const options = { env: {}, version: '2.115.0',
+    statFn: () => ({ dev: 1, ino: 1, size: 100, mtimeMs: 1, ctimeMs: 1 }) }
+  const executable = '/test/three-overlapping-probes'
+  const help = '--print --output-format --permission-mode --max-turns --resume json plan acceptEdits'
+  const first = probeAgentCapabilities('workbuddy', executable, { ...options,
+    execFileFn: async () => { await pending; return { stdout: help } } })
+  assert.equal((await probeAgentCapabilities('workbuddy', executable, { ...options,
+    execFileFn: async () => ({ stdout: help }) })).compatibilityState, 'compatible')
+  assert.equal((await probeAgentCapabilities('workbuddy', executable, { ...options,
+    execFileFn: async () => { throw Object.assign(new Error('permission denied'), { code: 'EACCES' }) },
+  })).compatibilityState, 'unknown')
+  release()
+  assert.equal((await first).compatibilityState, 'unknown')
+})
+
 test('a superseded probe does not reuse a newer executable identity', async () => {
   let release
   const pending = new Promise(resolve => { release = resolve })

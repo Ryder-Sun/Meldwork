@@ -444,10 +444,11 @@ async function probeAgentCapabilities(kind, executable, options = {}) {
   } catch { /* caching requires a verifiable executable identity */ }
   const cacheKey = `${kind}:${executable}`
   let resolveCompletion
-  const record = { identity, next: null, completion: new Promise(resolve => { resolveCompletion = resolve }) }
-  const previousProbe = activeCapabilityProbes.get(cacheKey)
-  if (previousProbe) previousProbe.next = record
-  activeCapabilityProbes.set(cacheKey, record)
+  const record = { identity, completion: new Promise(resolve => { resolveCompletion = resolve }) }
+  const group = activeCapabilityProbes.get(cacheKey) || { latest: null, active: 0 }
+  group.latest = record
+  group.active += 1
+  activeCapabilityProbes.set(cacheKey, group)
   try {
     const outcome = await (async () => {
       const prior = capabilityCache.get(cacheKey)
@@ -478,15 +479,17 @@ async function probeAgentCapabilities(kind, executable, options = {}) {
           }
         }
       }))
-      if (record.next) {
-        const newer = await record.next.completion
-        return identity && identity === record.next.identity
+      while (group.latest !== record) {
+        const latest = group.latest
+        const newer = await latest.completion
+        if (group.latest !== latest) continue
+        return identity && identity === latest.identity
           ? newer : { compatibilityState: 'unknown', incompatibilityReason: '', incompatibilityProbe: '' }
       }
       const failed = results.find(result => !result.timedOut && !result.systemError && !result.authRequired && (result.error
         || result.probe.requiredText.some(value => !result.output.includes(value))
         || (result.probe.validateOutput && !result.probe.validateOutput(result.output))))
-      if (activeCapabilityProbes.get(cacheKey) === record
+      if (group.latest === record
           && (failed || results.some(result => result.systemError || result.authRequired))) capabilityCache.delete(cacheKey)
       for (const result of results) {
         const { probe } = result
@@ -530,7 +533,7 @@ async function probeAgentCapabilities(kind, executable, options = {}) {
           }
         }
       }
-      if (activeCapabilityProbes.get(cacheKey) === record && identity && !results.some(result => result.timedOut)) {
+      if (group.latest === record && identity && !results.some(result => result.timedOut)) {
         capabilityCache.set(cacheKey, { identity, checkedAt: Date.now() })
       }
       return {
@@ -547,7 +550,8 @@ async function probeAgentCapabilities(kind, executable, options = {}) {
     resolveCompletion({ compatibilityState: 'unknown', incompatibilityReason: '', incompatibilityProbe: '' })
     throw error
   } finally {
-    if (activeCapabilityProbes.get(cacheKey) === record) activeCapabilityProbes.delete(cacheKey)
+    group.active -= 1
+    if (!group.active && activeCapabilityProbes.get(cacheKey) === group) activeCapabilityProbes.delete(cacheKey)
   }
 }
 
