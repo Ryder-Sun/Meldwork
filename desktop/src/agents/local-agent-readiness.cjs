@@ -464,6 +464,11 @@ function hermesSelectedProvider(root, env) {
       }
       return { unavailable: true }
     }
+    // Bare names may resolve to a built-in, a plugin, or a named endpoint.
+    // Without asking Hermes to resolve them, another provider's key is not proof.
+    if (provider && provider !== 'auto' && provider !== 'custom' && !Object.hasOwn(canonical, provider)) {
+      return { unavailable: true }
+    }
     if (!Object.hasOwn(canonical, provider)) return null
     return { provider, config, keys: nativeSecretEnvKeys([canonical[provider], model.key_env, model.api_key_env,
       config.providers?.[provider]?.key_env, config.providers?.[provider]?.api_key_env]) }

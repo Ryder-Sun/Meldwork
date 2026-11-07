@@ -866,8 +866,11 @@ test('shell discovery failure falls back to allowlisted process Provider values'
   })
 })
 
-test('OpenRouter credentials loaded from the native shell mark Hermes ready', async () => {
+test('OpenRouter credentials loaded from the native shell mark Hermes ready', async t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-shell-readiness-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
   const result = await resolveNativeCredentialState('hermes', {
+    home,
     env: {
       OPENROUTER_API_KEY: 'openrouter-key',
       OPENAI_BASE_URL: 'https://openrouter.ai/api/v1',
@@ -999,6 +1002,19 @@ test('Hermes named provider readiness resolves native display aliases and skips 
     { state: 'unknown', source: 'unverified' })
   assert.deepEqual(nativeCredentialState('hermes', { home, env: { WORK_TOKEN: 'selected-secret' } }),
     { state: 'ready', source: 'native-credential' })
+})
+
+test('Hermes does not infer named-provider readiness from unrelated credentials', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-ambiguous-provider-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const root = path.join(home, '.hermes')
+  fs.mkdirSync(root)
+  fs.writeFileSync(path.join(root, 'config.yaml'), [
+    'model:', '  provider: work', 'providers:', '  work:',
+    '    base_url: https://example.invalid/v1', '    key_env: WORK_TOKEN',
+  ].join('\n'))
+  assert.equal(nativeCredentialState('hermes', { home, env: { OPENAI_API_KEY: 'other-account' } }).state, 'unknown')
+  assert.deepEqual(hermesDeclaredCredentialKeys({ home, env: {} }), ['WORK_API_KEY', 'WORK_TOKEN'])
 })
 
 test('WorkBuddy readiness requires a selected model and never exposes configured keys', () => {
