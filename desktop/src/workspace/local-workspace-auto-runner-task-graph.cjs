@@ -49,7 +49,9 @@ const taskGraphMethods = {
       if (!state.entryIds.length && !node.acceptance.requireConclusion
           && !node.acceptance.minArtifactRefs && !node.acceptance.minEvidenceRefs) continue
       const selected = state.entryIds.map(id => entries.find(entry => entry.entryId === id))
-      if (selected.some(entry => !entry)) throw new Error('LOCAL_RUN_CONTINUATION_INVALID')
+      if (selected.some(entry => !entry || entry.lifecycle?.state !== 'active')) {
+        throw new Error('LOCAL_RUN_CONTINUATION_INVALID')
+      }
       const claims = selected.filter(entry => ['claim', 'decision'].includes(entry.entryType)
         && entry.owner?.type === 'agent' && entry.owner.agentKind === node.agentKind
         && entry.provenance?.runId === controller.runId && entry.provenance.taskId === controller.taskId)

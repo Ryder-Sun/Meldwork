@@ -1,6 +1,7 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const { createHash } = require('node:crypto')
+const { canonicalJson } = require('../../src/collaboration/context-pack-records.cjs')
 const fs = require('node:fs')
 const path = require('node:path')
 const { agentRuntimeError } = require('../../src/agents/agent-runtime-contract.cjs')
@@ -9,7 +10,7 @@ const { LocalWorkspace } = require('../../src/workspace/local-workspace.cjs')
 const { taskGraphMethods } = require('../../src/workspace/local-workspace-auto-runner-task-graph.cjs')
 const { collaborationMethods } = require('../../src/workspace/local-workspace-auto-runner-collaboration.cjs')
 const { createTaskGraph, createTaskGraphCursor, updateTaskGraphCursor } = require('../../src/collaboration/task-graph-records.cjs')
-const { appendBlackboardEntry, emptyCollaborationState } = require('../../src/collaboration/collaboration-records.cjs')
+const { appendBlackboardEntry, emptyCollaborationState, parseCollaborationState } = require('../../src/collaboration/collaboration-records.cjs')
 const {
   createCollaborationReceipt,
   createOrchestrationV4,
@@ -19,6 +20,18 @@ const { RunLedger } = require('../../src/runs/run-ledger.cjs')
 const { RunScheduler } = require('../../src/runs/run-scheduler.cjs')
 const { v4Snapshot } = require('../../src/workspace/local-workspace-context.cjs')
 const { deferred, fixture } = require('../support/local-workspace-test-helpers.cjs')
+
+function supersedeRecordedEntry(controller, type) {
+  const entry = controller.orchestration.collaboration.entries.find(item => item.entryType === type)
+  const previousId = entry.entryId
+  entry.lifecycle.state = 'superseded'
+  const { entryId, ...body } = entry
+  entry.entryId = `blackboard-entry-${createHash('sha256').update(canonicalJson(body)).digest('hex')}`
+  for (const state of controller.orchestration.taskGraph.nodeStates) {
+    state.entryIds = state.entryIds.map(id => id === previousId ? entry.entryId : id)
+  }
+  parseCollaborationState(controller.orchestration.collaboration)
+}
 
 function pendingHumanGate(workspace, timeoutMs = 2000) {
   const current = workspace.listHumanGates({ pendingOnly: true })[0]
@@ -105,6 +118,11 @@ test('task graph recovery rechecks accepted evidence and rejects missing or chan
   const altered = { ...controller, orchestration: structuredClone(controller.orchestration) }
   altered.orchestration.collaboration.entries.find(entry => entry.entryType === 'claim').subject = 'another-task'
   assert.throws(() => runner.validateTaskGraphRecoveredResults(altered), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
+  for (const type of ['claim', 'artifact-ref', 'evidence-ref']) {
+    const revoked = { ...controller, orchestration: structuredClone(controller.orchestration) }
+    supersedeRecordedEntry(revoked, type)
+    assert.throws(() => runner.validateTaskGraphRecoveredResults(revoked), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
+  }
   available = false
   assert.throws(() => runner.validateTaskGraphRecoveredResults(controller), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
 })
@@ -236,13 +254,13 @@ test('task graph resumes a human decision after its blackboard checkpoint withou
     collaboration: emptyCollaborationState() } }
   assert.throws(() => runner.validateTaskGraphRecoveredResults(missing), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
   const revoked = structuredClone(resumed)
-  revoked.orchestration.collaboration.entries[0].lifecycle.state = 'retracted'
+  supersedeRecordedEntry(revoked, 'decision')
   assert.throws(() => runner.validateTaskGraphRecoveredResults(revoked), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
   const rejected = { ...controller, orchestration: { taskGraph: cursor, collaboration: emptyCollaborationState() } }
   assert.equal(runner.applyTaskGraphHumanDecision({}, rejected, node,
     { status: 'rejected', optionId: 'reject' }), false)
   assert.equal(runner.validateTaskGraphRecoveredResults(rejected), true)
-  rejected.orchestration.collaboration.entries[0].lifecycle.state = 'retracted'
+  supersedeRecordedEntry(rejected, 'decision')
   assert.throws(() => runner.validateTaskGraphRecoveredResults(rejected), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
   assert.throws(() => runner.applyTaskGraphHumanDecision({}, controller, node,
     { status: 'approved', optionId: 'reject' }), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
