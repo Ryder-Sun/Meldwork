@@ -4242,6 +4242,35 @@ test('V4 Auto recovery resumes completed proposal barriers at round-two challeng
   ), { message: 'LOCAL_RUN_V4_CHALLENGE_BINDING_REQUIRED' })
 })
 
+test('task graph reviewer does not resume the same Agent primary session', async t => {
+  const { directory, calls, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const ledger = new RunLedger({ storagePath: path.join(directory, 'run-ledger.json') })
+  options.runLedger = ledger
+  options.runAgent = async (agent, prompt, workdir, runOptions) => {
+    calls.push({ agent, prompt, workdir, runOptions })
+    return { text: 'A completed result.', sessionRef: 'primary-session' }
+  }
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Independent review', agentKinds: ['codex'], workdir: directory })
+  await workspace.sendMessage({
+    groupId: group.id, text: 'Produce and review the result.', mode: 'auto', targetKinds: ['codex'],
+    workflow: { template: 'task-graph', nodes: [
+      graphNode(),
+      graphNode({ nodeId: 'review', role: 'reviewer', dependsOn: ['primary-codex'],
+        inputNodeIds: ['primary-codex'], terminal: true }),
+    ] },
+  })
+  await workspace.activeRuns.get(group.id).promise
+  assert.equal(calls.length, 2)
+  assert.equal(calls[1].runOptions.sessionRef, '')
+  assert.match(calls[1].prompt, /MELDWORK_TASK_GRAPH_V1/)
+  assert.match(calls[1].prompt, /Role: reviewer/)
+  assert.match(calls[1].prompt, /A completed result/)
+  assert.equal(ledger.list(group.id)[0].orchestration.taskGraph.terminalState, 'accepted')
+})
+
 test('unlimited task graphs give isolated reviewers the adversarial review contract too', async (t) => {
   const { directory, calls, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
