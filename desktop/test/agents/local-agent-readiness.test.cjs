@@ -29,6 +29,19 @@ test('OpenCodeReview preserves native protocol and request settings without pass
   assert.deepEqual(nativeCredentialEnvironment('codex', captured.env), {})
 })
 
+test('OpenCodeReview receives its native Anthropic configuration without exposing it to other agents', async () => {
+  const env = { ANTHROPIC_BASE_URL: 'https://example.invalid', ANTHROPIC_MODEL: 'native-model',
+    ANTHROPIC_AUTH_TOKEN: 'synthetic-token', ANTHROPIC_API_KEY: 'synthetic-key' }
+  const captured = await resolveNativeShellEnvironment({ cache: false, platform: 'win32', env })
+  const native = nativeCredentialEnvironment('opencodereview', captured.env)
+  assert.deepEqual(native, env)
+  const child = childEnvironment({ kind: 'opencodereview' }, '/workspace', { env: native }, 'darwin')
+  for (const [key, value] of Object.entries(env)) assert.equal(child[key], value)
+  assert.deepEqual(nativeCredentialEnvironment('codex', captured.env), {})
+  const { redactChildSecrets } = require('../../src/agents/cli/cli-runtime-event-sanitizer.cjs')
+  assert.equal(redactChildSecrets('synthetic-token synthetic-key', child), '[redacted] [redacted]')
+})
+
 test('Hermes receives native Bedrock and Vertex environment for discovery and execution', async () => {
   const env = { AWS_PROFILE: 'research', AWS_REGION: 'us-east-1', AWS_ACCESS_KEY_ID: 'native-access',
     AWS_SECRET_ACCESS_KEY: 'native-secret', GOOGLE_APPLICATION_CREDENTIALS: '/native/google.json',
