@@ -114,6 +114,15 @@ test('Gemini and OpenCode discover skills in configured native locations', t => 
   assert.throws(() => catalog.resolveSelections('gemini', [skill]), { message: 'LOCAL_SKILL_SELECTION_INVALID' })
 })
 
+test('Qwen discovers skills from its selected native home', t => {
+  const home = fixture(t)
+  const selectedHome = path.join(home, 'selected-home')
+  writeSkill(path.join(home, '.qwen', 'skills'), 'old-qwen')
+  writeSkill(path.join(selectedHome, '.qwen', 'skills'), 'selected-qwen')
+  const catalog = new LocalSkillCatalog({ home, configDirectoryForKind: kind => kind === 'qwen' ? selectedHome : '' })
+  assert.deepEqual(catalog.list('qwen').skills.map(skill => skill.slug), ['selected-qwen'])
+})
+
 test('OpenCode skill discovery follows the XDG config root and refreshes when it changes', t => {
   const home = fixture(t)
   const first = path.join(home, 'xdg-one')

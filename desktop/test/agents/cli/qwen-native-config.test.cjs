@@ -9,6 +9,27 @@ const { childEnvironment } = require('../../../src/agents/cli/cli-process-suppor
 const { redactChildSecrets } = require('../../../src/agents/cli/cli-runtime-events.cjs')
 const { nativeCredentialState } = require('../../../src/agents/local-agent-readiness.cjs')
 
+test('Qwen resolves the selected home for its model credential and local .env', t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-qwen-selected-home-'))
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+  const selected = path.join(root, 'selected')
+  fs.mkdirSync(path.join(selected, '.qwen'), { recursive: true })
+  fs.writeFileSync(path.join(selected, '.qwen', 'settings.json'), JSON.stringify({
+    model: { name: 'chosen' }, security: { auth: { selectedType: 'openai' } },
+    modelProviders: { openai: [{ id: 'chosen', envKey: 'CHOSEN_TOKEN' }] },
+  }))
+  fs.writeFileSync(path.join(selected, '.qwen', '.env'), 'CHOSEN_TOKEN=synthetic-selected\n')
+  const env = { HOME: selected, QWEN_CODE_SYSTEM_SETTINGS_PATH: path.join(root, 'missing.json') }
+  const keys = qwenDeclaredCredentialKeys({ home: root, env })
+  assert.deepEqual(keys, ['CHOSEN_TOKEN'])
+  assert.equal(nativeCredentialState('qwen', { home: root, env, nativeCredentialKeys: keys }).state, 'ready')
+  const project = path.join(root, 'project')
+  fs.mkdirSync(path.join(project, '.qwen'), { recursive: true })
+  fs.writeFileSync(path.join(project, '.qwen', 'settings.json'), JSON.stringify({ model: { name: 'project' },
+    security: { auth: { selectedType: 'openai' } }, modelProviders: { openai: [{ id: 'project', envKey: 'PROJECT_TOKEN' }] } }))
+  assert.deepEqual(qwenDeclaredCredentialKeys({ home: root, env, workdir: project }), ['PROJECT_TOKEN'])
+})
+
 test('Qwen captures only the selected model credential and redacts it', t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-qwen-env-key-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))

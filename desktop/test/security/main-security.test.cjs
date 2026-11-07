@@ -638,6 +638,42 @@ test('Zcode selected native configuration controls detection, credentials and ex
   assert.equal(env.SELECTED_API_KEY, 'synthetic-selected')
 })
 
+test('Qwen selected native configuration controls credentials, execution and Skill home', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-qwen-config-main-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const home = path.join(directory, 'selected-home')
+  const selected = path.join(home, '.qwen')
+  fs.mkdirSync(selected, { recursive: true })
+  fs.writeFileSync(path.join(selected, 'settings.json'), JSON.stringify({ model: { name: 'chosen' },
+    security: { auth: { selectedType: 'openai' } },
+    modelProviders: { openai: [{ id: 'chosen', envKey: 'CHOSEN_TOKEN' }] } }))
+  const readiness = require('../../src/agents/local-agent-readiness.cjs')
+  let detected
+  const { harness } = loadMain(directory, {
+    dialogResult: { canceled: false, filePaths: [selected] },
+    nativeEnvironment: readiness.nativeCredentialEnvironment,
+    nativeShellEnvironment: input => ({ source: 'native-shell', env: input.extraEnvKeys?.includes('CHOSEN_TOKEN')
+      ? { CHOSEN_TOKEN: 'synthetic-selected' } : {} }),
+    detectAgents: input => { detected = input.nativeEnvironmentForKind('qwen'); return [] },
+  })
+  await harness.ready()
+  const workspace = harness.workspaceInstances[0]
+  workspace.state.agentPreferences = {}
+  workspace.state.agentRuntime = {}
+  workspace.activeRuns = new Map()
+  workspace.save = () => {}
+  const choice = await harness.ipcHandlers.get('local-agent-native-config:choose')(harness.event(), 'qwen')
+  assert.equal(choice.directory, path.resolve(selected))
+  await harness.installerInstances[0].input.detectAgents()
+  assert.equal(detected.HOME, path.resolve(home))
+  assert.equal(detected.CHOSEN_TOKEN, 'synthetic-selected')
+  await workspace.input.runAgent({ kind: 'qwen', executable: '/tmp/qwen' }, 'hello', directory, {})
+  const env = harness.runAgentCalls.at(-1)[3].env
+  assert.equal(env.HOME, path.resolve(home))
+  assert.equal(env.CHOSEN_TOKEN, 'synthetic-selected')
+  assert.equal(harness.skillCatalogInstances[0].input.configDirectoryForKind('qwen'), path.resolve(home))
+})
+
 test('Hermes selected config captures only its declared native credential for execution', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-env-main-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

@@ -79,15 +79,17 @@ function nativeAuthIdentityFiles(kind, env, home, platform = process.platform) {
   }
   if (kind === 'qwen') {
     const paths = platform === 'win32' ? path.win32 : path.posix
+    const configuredHome = platform === 'win32' ? env?.USERPROFILE : env?.HOME
+    const effectiveHome = typeof configuredHome === 'string' && configuredHome.trim() ? configuredHome.trim() : home
     const settings = env?.QWEN_CODE_SYSTEM_SETTINGS_PATH || (platform === 'darwin'
       ? '/Library/Application Support/QwenCode/settings.json' : platform === 'win32'
         ? 'C:\\ProgramData\\qwen-code\\settings.json' : '/etc/qwen-code/settings.json')
     const defaults = env?.QWEN_CODE_SYSTEM_DEFAULTS_PATH
       || (typeof settings === 'string' && paths.isAbsolute(settings) ? paths.join(paths.dirname(settings), 'system-defaults.json') : '')
-    const userRoot = typeof home === 'string' && paths.isAbsolute(home) ? paths.join(home, '.qwen') : ''
+    const userRoot = typeof effectiveHome === 'string' && paths.isAbsolute(effectiveHome) ? paths.join(effectiveHome, '.qwen') : ''
     return [settings, defaults, ...(userRoot ? ['settings.json', 'oauth_creds.json', '.env'].map(name => paths.join(userRoot, name)) : []),
       env?.GEMINI_CLI_TRUSTED_FOLDERS_PATH || (userRoot && paths.join(userRoot, 'trustedFolders.json')),
-      ...(typeof home === 'string' && paths.isAbsolute(home) ? [paths.join(home, '.env')] : [])]
+      ...(typeof effectiveHome === 'string' && paths.isAbsolute(effectiveHome) ? [paths.join(effectiveHome, '.env')] : [])]
       .filter(filename => typeof filename === 'string' && paths.isAbsolute(filename))
   }
   if (kind === 'gemini') {
@@ -155,8 +157,14 @@ const NATIVE_CONFIG_DIRECTORIES = Object.freeze({
   deepseek: { key: 'DSH_HOME', files: ['cordis.patch.yml', '.credentials.yaml'], directories: ['profiles'] },
   workbuddy: { key: 'CODEBUDDY_CONFIG_DIR', files: ['models.json', 'settings.json', '.credentials.json'] },
   zcode: { key: 'HOME', files: ['config.json'] },
+  qwen: { key: 'HOME', files: ['settings.json', 'oauth_creds.json', '.env'], identityFiles: ['trustedFolders.json'] },
 })
 function nativeIdentityDirectory(kind, env, home, platform = process.platform) {
+  if (kind === 'qwen') {
+    const paths = platform === 'win32' ? path.win32 : path.posix
+    const base = (platform === 'win32' ? env?.USERPROFILE : env?.HOME) || home
+    return typeof base === 'string' && paths.isAbsolute(base) ? paths.join(base, '.qwen') : ''
+  }
   if (kind === 'zcode') {
     const paths = platform === 'win32' ? path.win32 : path.posix
     const base = (platform === 'win32' ? env?.USERPROFILE : env?.HOME) || home
@@ -193,10 +201,19 @@ function nativeConfigEnvironment(kind, preferences, env = {}, platform = process
   if (typeof directory !== 'string' || directory.length > 4096
       || directory.includes('\u0000') || !path.isAbsolute(directory)) throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
   if (kind === 'gemini' && path.basename(path.resolve(directory)) !== '.gemini') throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
+  if (kind === 'qwen') {
+    const resolved = path.resolve(directory)
+    const name = path.basename(resolved)
+    if ((platform === 'win32' ? name.toLowerCase() : name) !== '.qwen') throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
+    const home = path.dirname(resolved)
+    return platform === 'win32' ? { ...env, HOME: home, USERPROFILE: home } : { ...env, HOME: home }
+  }
   if (kind === 'zcode') {
     const resolved = path.resolve(directory)
-    if (path.basename(resolved).toLowerCase() !== 'cli'
-        || path.basename(path.dirname(resolved)).toLowerCase() !== '.zcode') throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
+    const name = path.basename(resolved)
+    const parent = path.basename(path.dirname(resolved))
+    if ((platform === 'win32' ? name.toLowerCase() : name) !== 'cli'
+        || (platform === 'win32' ? parent.toLowerCase() : parent) !== '.zcode') throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
     const home = path.dirname(path.dirname(resolved))
     return platform === 'win32' ? { ...env, HOME: home, USERPROFILE: home } : { ...env, HOME: home }
   }
@@ -208,8 +225,10 @@ function validateNativeConfigDirectory(kind, directory) {
   if (!spec || typeof directory !== 'string' || directory.length > 4096
       || directory.includes('\u0000') || !path.isAbsolute(directory)) throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
   if (kind === 'gemini' && path.basename(path.resolve(directory)) !== '.gemini') throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
-  if (kind === 'zcode' && (path.basename(path.resolve(directory)).toLowerCase() !== 'cli'
-      || path.basename(path.dirname(path.resolve(directory))).toLowerCase() !== '.zcode')) throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
+  const caseName = value => process.platform === 'win32' ? value.toLowerCase() : value
+  if (kind === 'qwen' && caseName(path.basename(path.resolve(directory))) !== '.qwen') throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
+  if (kind === 'zcode' && (caseName(path.basename(path.resolve(directory))) !== 'cli'
+      || caseName(path.basename(path.dirname(path.resolve(directory)))) !== '.zcode')) throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
   let resolved
   try {
     resolved = fs.realpathSync(directory)
@@ -220,7 +239,7 @@ function validateNativeConfigDirectory(kind, directory) {
           try { return fs.statSync(path.join(resolved, name)).isDirectory() } catch { return false }
         }))) throw new Error('invalid directory')
   } catch { throw new Error('LOCAL_NATIVE_CONFIG_INVALID') }
-  return ['gemini', 'zcode'].includes(kind) ? path.resolve(directory) : resolved
+  return ['gemini', 'zcode', 'qwen'].includes(kind) ? path.resolve(directory) : resolved
 }
 
 module.exports = { NATIVE_CONFIG_DIRECTORIES, NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_ENVIRONMENT_IDENTITY, NATIVE_AUTH_IDENTITY_FILES, NATIVE_PROJECT_CONFIG_PATHS,

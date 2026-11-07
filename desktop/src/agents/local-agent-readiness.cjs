@@ -705,6 +705,8 @@ function nativeCredentialState(kind, options = {}) {
   }
   const home = options.home || os.homedir()
   const env = options.env || process.env
+  const configuredQwenHome = (options.platform || process.platform) === 'win32' ? env.USERPROFILE : env.HOME
+  const qwenHome = typeof configuredQwenHome === 'string' && configuredQwenHome.trim() ? configuredQwenHome.trim() : home
   const codexHome = env.CODEX_HOME || path.join(home, '.codex')
   const claudeHome = env.CLAUDE_CONFIG_DIR || path.join(home, '.claude')
   const geminiHome = env.GEMINI_CLI_HOME
@@ -736,7 +738,7 @@ function nativeCredentialState(kind, options = {}) {
     const [key] = nativeSecretEnvKeys(options.nativeCredentialKeys)
     const inherited = key && Object.hasOwn(env, key)
     const envFile = !inherited && key
-      ? [path.join(home, '.qwen', '.env'), path.join(home, '.env')].find(file => fs.existsSync(file)) : ''
+      ? [path.join(qwenHome, '.qwen', '.env'), path.join(qwenHome, '.env')].find(file => fs.existsSync(file)) : ''
     const configured = inherited ? typeof env[key] === 'string' && env[key].trim()
       : envFile && dotenvContainsCredential(envFile, key)
     return configured
@@ -785,7 +787,7 @@ function nativeCredentialState(kind, options = {}) {
       path.join(claudeHome, 'settings.json'),
       path.join(claudeHome, 'settings.local.json'),
     ],
-    qwen: [path.join(home, '.qwen', 'oauth_creds.json'), path.join(home, '.qwen', 'settings.json')],
+    qwen: [path.join(qwenHome, '.qwen', 'oauth_creds.json'), path.join(qwenHome, '.qwen', 'settings.json')],
     gemini: geminiHome ? [path.join(geminiHome, 'oauth_creds.json'), path.join(geminiHome, 'settings.json')] : [],
     opencode: [openCodeAuth],
     opencodereview: [path.join(home, '.opencodereview', 'config.json')],
@@ -818,7 +820,7 @@ function nativeCredentialState(kind, options = {}) {
     ],
     mimo: [path.join(home, '.mimo', '.env'), path.join(home, '.mimocode', '.env')],
     claude: [path.join(claudeHome, '.env')],
-    qwen: [path.join(home, '.qwen', '.env')],
+    qwen: [path.join(qwenHome, '.qwen', '.env')],
     gemini: geminiHome ? [path.join(geminiHome, '.env')] : [],
     opencode: [
       path.join(home, '.opencode', '.env'),

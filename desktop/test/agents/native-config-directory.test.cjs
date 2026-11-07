@@ -21,12 +21,44 @@ test('Zcode selects only a native .zcode/cli directory and derives its process h
     'C:\\Users\\Selected\\.zcode\\cli')
   assert.throws(() => nativeConfigEnvironment('zcode', { zcode: { nativeConfigDirectory: home } }), { message: 'LOCAL_NATIVE_CONFIG_INVALID' })
   if (process.platform !== 'win32') {
+    assert.throws(() => nativeConfigEnvironment('zcode', { zcode: { nativeConfigDirectory: path.join(home, '.ZCODE', 'cli') } }),
+      { message: 'LOCAL_NATIVE_CONFIG_INVALID' })
     const aliasHome = path.join(home, 'alias')
     fs.mkdirSync(path.join(aliasHome, '.zcode'), { recursive: true })
     const linked = path.join(aliasHome, '.zcode', 'cli')
     fs.symlinkSync(selected, linked, 'dir')
     assert.equal(validateNativeConfigDirectory('zcode', linked), path.resolve(linked))
     assert.equal(nativeConfigEnvironment('zcode', { zcode: { nativeConfigDirectory: linked } }).HOME, aliasHome)
+  }
+})
+
+test('Qwen selects a native .qwen directory and derives its process home', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-qwen-config-home-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const selected = path.join(home, '.qwen')
+  fs.mkdirSync(selected)
+  assert.throws(() => validateNativeConfigDirectory('qwen', selected), { message: 'LOCAL_NATIVE_CONFIG_INVALID' })
+  fs.writeFileSync(path.join(selected, 'settings.json'), '{}')
+  const directory = validateNativeConfigDirectory('qwen', selected)
+  const preferences = { qwen: { nativeConfigDirectory: directory } }
+  assert.equal(nativeConfigEnvironment('qwen', preferences, { HOME: '/old' }).HOME, path.resolve(home))
+  assert.deepEqual(nativeConfigEnvironment('qwen', preferences, {}, 'win32'), { HOME: path.resolve(home), USERPROFILE: path.resolve(home) })
+  assert.equal(nativeIdentityDirectory('qwen', { HOME: path.resolve(home) }, '/other', 'linux'), directory)
+  const identityFiles = nativeAuthIdentityFiles('qwen', { HOME: path.resolve(home) }, '/other', 'linux')
+  assert.ok(identityFiles.includes(path.join(directory, 'settings.json')))
+  assert.equal(identityFiles.includes('/other/.qwen/settings.json'), false)
+  assert.equal(nativeIdentityDirectory('qwen', { USERPROFILE: 'C:\\Users\\Selected' }, 'C:\\Other', 'win32'),
+    'C:\\Users\\Selected\\.qwen')
+  assert.throws(() => nativeConfigEnvironment('qwen', { qwen: { nativeConfigDirectory: home } }), { message: 'LOCAL_NATIVE_CONFIG_INVALID' })
+  if (process.platform !== 'win32') {
+    assert.throws(() => nativeConfigEnvironment('qwen', { qwen: { nativeConfigDirectory: path.join(home, '.QWEN') } }),
+      { message: 'LOCAL_NATIVE_CONFIG_INVALID' })
+    const aliasHome = path.join(home, 'alias')
+    fs.mkdirSync(aliasHome)
+    const linked = path.join(aliasHome, '.qwen')
+    fs.symlinkSync(selected, linked, 'dir')
+    assert.equal(validateNativeConfigDirectory('qwen', linked), path.resolve(linked))
+    assert.equal(nativeConfigEnvironment('qwen', { qwen: { nativeConfigDirectory: linked } }).HOME, aliasHome)
   }
 })
 

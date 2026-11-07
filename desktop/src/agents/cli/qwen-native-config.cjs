@@ -6,8 +6,9 @@ const { nativeSecretEnvKeys } = require('./native-secret-environment.cjs')
 
 function qwenCredentialSelection(options = {}) {
   const env = options.env || process.env
-  const home = options.home || os.homedir()
   const platform = options.platform || process.platform
+  const configuredHome = platform === 'win32' ? env.USERPROFILE : env.HOME
+  const home = typeof configuredHome === 'string' && configuredHome.trim() ? configuredHome.trim() : (options.home || os.homedir())
   const system = env.QWEN_CODE_SYSTEM_SETTINGS_PATH || (platform === 'darwin'
     ? '/Library/Application Support/QwenCode/settings.json' : platform === 'win32'
       ? 'C:\\ProgramData\\qwen-code\\settings.json' : '/etc/qwen-code/settings.json')

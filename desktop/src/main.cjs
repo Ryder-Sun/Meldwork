@@ -268,7 +268,8 @@ async function nativeShellEnvironment(options = {}) {
   const deepseekCredentialKeys = deepseekNativeConfig({ home, env: deepseekEnv }).credentialKeys
   const zcodeEnv = nativeConfigEnvironment('zcode', workspace?.state.agentPreferences, initialEnv)
   const zcodeCredentialKeys = zcodeDeclaredCredentialKeys({ home, workdir: options.workdir, env: zcodeEnv })
-  const qwenCredentialKeys = qwenDeclaredCredentialKeys({ home, workdir: options.workdir, env: initialEnv })
+  const qwenEnv = nativeConfigEnvironment('qwen', workspace?.state.agentPreferences, initialEnv)
+  const qwenCredentialKeys = qwenDeclaredCredentialKeys({ home, workdir: options.workdir, env: qwenEnv })
   const piEnv = nativeConfigEnvironment('pi', workspace?.state.agentPreferences, initialEnv)
   const piCredentialKeys = piDeclaredCredentialKeys({ home, env: piEnv })
   const opencodeEnv = nativeConfigEnvironment('opencode', workspace?.state.agentPreferences, initialEnv)
@@ -315,6 +316,12 @@ async function nativeShellEnvironment(options = {}) {
   opencodeCredentialKeys = opencodeCredentialKeys.filter(key => typeof env[key] === 'string' && env[key].length > 0)
   for (const [kind, { key }] of Object.entries(NATIVE_CONFIG_DIRECTORIES)) {
     if (kind === 'zcode') continue
+    if (kind === 'qwen') {
+      const directory = (process.platform === 'win32' ? env.USERPROFILE : env.HOME) || ''
+      if (Object.hasOwn(nativeSkillDirectories, key) && nativeSkillDirectories[key] !== directory) skillCatalog?.invalidate(kind)
+      nativeSkillDirectories[key] = directory
+      continue
+    }
     const directory = typeof env[key] === 'string' ? env[key] : ''
     if ((nativeSkillDirectories[key] || '') !== directory) skillCatalog?.invalidate(kind)
     nativeSkillDirectories[key] = directory

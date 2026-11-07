@@ -21,6 +21,13 @@ test('Zcode receives its selected native home without changing other Agent homes
   assert.equal(codex.HOME, process.env.HOME || os.homedir())
 })
 
+test('Qwen receives its selected native home without changing other Agent homes', () => {
+  const options = { env: { HOME: '/selected-qwen', USERPROFILE: 'C:\\selected-qwen' } }
+  assert.equal(childEnvironment({ kind: 'qwen' }, '/tmp', options, 'darwin').HOME, '/selected-qwen')
+  assert.equal(childEnvironment({ kind: 'qwen' }, 'C:\\work', options, 'win32').USERPROFILE, 'C:\\selected-qwen')
+  assert.equal(childEnvironment({ kind: 'codex' }, '/tmp', options, 'darwin').HOME, process.env.HOME || os.homedir())
+})
+
 test('Windows termination requires successful taskkill and observed child exit', async () => {
   const child = new EventEmitter()
   child.pid = 4321

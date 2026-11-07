@@ -177,7 +177,7 @@ function globalRoots(kind, home, configDirectory = '', sharedDirectory = '') {
         || (kind === 'kimi' && parts[0] === '.kimi-code') ? parts.slice(1) : null
     const directory = sharedDirectory && kind === 'opencode'
       ? path.join(sharedDirectory, ...parts.slice(1))
-      : configDirectory && kind === 'gemini'
+      : configDirectory && ['gemini', 'qwen'].includes(kind)
       ? path.join(configDirectory, ...parts)
       : configDirectory && nativeParts
         ? path.join(configDirectory, ...nativeParts) : path.join(home, ...parts)
