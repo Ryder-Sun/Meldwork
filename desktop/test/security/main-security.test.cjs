@@ -85,6 +85,47 @@ test('product data migration failure stops ready initialization before stores or
   ]])
 })
 
+test('a corrupt run ledger opens a recovery page without changing the history', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-ledger-startup-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const filename = path.join(directory, 'meldwork-run-ledger.json')
+  const original = '{invalid ledger'
+  fs.writeFileSync(filename, original)
+  class WorkspaceWithLedger {
+    constructor(input) { input.runLedger.reconcileContextPacks(() => null) }
+  }
+  const { harness } = loadMain(directory, {
+    moduleMocks: { './workspace/local-workspace.cjs': { LocalWorkspace: WorkspaceWithLedger } },
+  })
+  await harness.ready()
+  assert.equal(fs.readFileSync(filename, 'utf8'), original)
+  assert.equal(harness.windows.length, 1)
+  assert.match(harness.windows[0].loads[0].filename, /offline\.html$/)
+  assert.deepEqual(harness.windows[0].loads[0].options, { query: { code: 'RUN_LEDGER_LOAD_FAILED' } })
+  assert.equal(harness.ipcHandlers.has('local-workspace:send-message'), false)
+  harness.windows[0].windowListeners.get('closed')()
+  harness.appListeners.get('second-instance')()
+  assert.equal(harness.windows.length, 2)
+  assert.match(harness.windows[1].loads[0].filename, /offline\.html$/)
+  assert.deepEqual(harness.windows[1].loads[0].options, { query: { code: 'RUN_LEDGER_LOAD_FAILED' } })
+  assert.equal(fs.readFileSync(filename, 'utf8'), original)
+})
+
+test('the ledger recovery page explains data preservation in Chinese and English', () => {
+  const html = fs.readFileSync(path.join(__dirname, '../../src/offline.html'), 'utf8')
+  const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1]
+  assert.ok(script)
+  for (const [language, expected] of [['zh-CN', '备份'], ['en-US', 'Back up']]) {
+    const elements = Object.fromEntries(['status', 'title', 'message', 'error-code'].map(id => [id, { textContent: '' }]))
+    const document = { documentElement: {}, querySelector: selector => elements[selector.slice(1)] }
+    require('node:vm').runInNewContext(script, {
+      navigator: { language }, document, location: { search: '?code=RUN_LEDGER_LOAD_FAILED' }, URLSearchParams,
+    })
+    assert.match(elements.message.textContent, new RegExp(expected))
+    assert.match(elements['error-code'].textContent, /RUN_LEDGER_LOAD_FAILED/)
+  }
+})
+
 test('desktop startup restricts existing application-owned data directories', async (t) => {
   if (process.platform === 'win32') return t.skip('POSIX permissions are not Windows ACLs')
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-private-startup-'))

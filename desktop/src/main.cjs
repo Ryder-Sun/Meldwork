@@ -112,6 +112,7 @@ function recordMainProcessFault(kind, detail) {
 process.on('unhandledRejection', reason => recordMainProcessFault('unhandledRejection', reason))
 process.on('uncaughtException', error => recordMainProcessFault('uncaughtException', error))
 let workspace = null
+let workspaceStartupError = ''
 let workspaceChangedListener = null
 let workspaceRunFinishedListener = null
 let workspaceRunEventListener = null
@@ -857,7 +858,7 @@ function initializeWorkspace() {
   return next
 }
 
-function createWindow() {
+function createWindow(startupError = workspaceStartupError) {
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 920,
@@ -915,8 +916,11 @@ function createWindow() {
   mainWindow.on('closed', () => {
     mainWindow = null
   })
-  loadFrontend()
-  flushPendingOpenGroup()
+  if (startupError) showOfflinePage(startupError)
+  else {
+    loadFrontend()
+    flushPendingOpenGroup()
+  }
   return mainWindow
 }
 
@@ -1075,7 +1079,17 @@ if (!hasSingleInstanceLock) {
         refreshLocalAgentState().catch(() => {})
       }
     })
-    initializeWorkspace()
+    try {
+      initializeWorkspace()
+    } catch (error) {
+      if (error?.message !== 'RUN_LEDGER_LOAD_FAILED') throw error
+      workspaceStartupError = 'RUN_LEDGER_LOAD_FAILED'
+      createWindow()
+      app.on('activate', () => {
+        if (!shutdownStarted && BrowserWindow.getAllWindows().length === 0) createWindow()
+      })
+      return
+    }
     if (attachmentStore && attachmentReferences) {
       try {
         attachmentStore.cleanup(attachmentReferences)

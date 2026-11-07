@@ -89,13 +89,18 @@
       },
     }
     const locale = navigator.language.toLowerCase().startsWith('zh') ? 'zh' : 'en'
-    const copy = messages[locale]
+    const errorCode = new URLSearchParams(location.search).get('code') || 'UNKNOWN'
+    const ledgerMessages = {
+      zh: { status: '本地运行记录无法读取', title: '无法打开 Meldwork', message: '为保护已有运行记录，应用已停止初始化。请备份应用数据并从有效备份恢复记录，之后重新启动。', code: '错误代码' },
+      en: { status: 'Local run history could not be read', title: 'Meldwork could not open', message: 'Initialization stopped to protect your existing run history. Back up the application data, restore the records from a valid backup, and restart.', code: 'Error code' },
+    }
+    const copy = errorCode === 'RUN_LEDGER_LOAD_FAILED' ? ledgerMessages[locale] : messages[locale]
     document.documentElement.lang = locale === 'zh' ? 'zh-CN' : 'en'
     document.title = copy.title
     document.querySelector('#status').textContent = copy.status
     document.querySelector('#title').textContent = copy.title
     document.querySelector('#message').textContent = copy.message
-    document.querySelector('#error-code').textContent = `${copy.code}: ${new URLSearchParams(location.search).get('code') || 'UNKNOWN'}`
+    document.querySelector('#error-code').textContent = `${copy.code}: ${errorCode}`
   </script>
 </body>
 </html>
