@@ -333,7 +333,7 @@ async function detectLocalAgents() {
     if (agent.kind !== 'openclaw') {
       const env = nativeConfigEnvironment(agent.kind, workspace?.state.agentPreferences, shellEnvironment.env)
       const projectPaths = nativeProjectConfigPaths(agent.kind, env)
-      if (projectPaths.length) Object.defineProperty(result, NATIVE_PROJECT_CONFIG_PATHS, { value: projectPaths, enumerable: true })
+      if (projectPaths.length) Object.defineProperty(result, NATIVE_PROJECT_CONFIG_PATHS, { value: projectPaths })
       const keys = agent.kind === 'codex' ? shellEnvironment.codexCredentialKeys : agent.kind === 'hermes' ? shellEnvironment.hermesCredentialKeys
         : agent.kind === 'zcode' ? shellEnvironment.zcodeCredentialKeys
           : agent.kind === 'pi' ? shellEnvironment.piCredentialKeys : agent.kind === 'opencode' ? shellEnvironment.opencodeCredentialKeys

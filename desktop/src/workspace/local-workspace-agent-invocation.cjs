@@ -1,6 +1,7 @@
 const { createHash, randomUUID } = require('node:crypto')
 const { taskPermissionGroup } = require('./run-permission-cap.cjs')
 const { agentVerificationIdentity, projectVerificationIdentity } = require('./agent-verification-identity.cjs')
+const { NATIVE_PROJECT_CONFIG_PATHS } = require('../agents/native-config-directory.cjs')
 const { workPreferencesPrompt } = require('./work-preferences.cjs')
 const {
   assertResumedPermissionBinding,
@@ -322,7 +323,13 @@ class LocalWorkspaceAgentInvocation {
       && item.runtimePrerequisitesReady !== false && !item.runtimeBlockSource
       && item.compatibilityState !== 'incompatible' && item.credentialState !== 'missing'
       && !['runtime-auth-failure', 'none'].includes(item.availabilitySource)
-    if (!runtimeBlocked && candidate && usable(candidate)) this.activeAgentSnapshots.set(snapshotKey, { ...candidate })
+    if (!runtimeBlocked && candidate && usable(candidate)) {
+      const snapshot = { ...candidate }
+      if (candidate[NATIVE_PROJECT_CONFIG_PATHS]) {
+        Object.defineProperty(snapshot, NATIVE_PROJECT_CONFIG_PATHS, { value: candidate[NATIVE_PROJECT_CONFIG_PATHS] })
+      }
+      this.activeAgentSnapshots.set(snapshotKey, snapshot)
+    }
     else if (candidate || runtimeBlocked) this.activeAgentSnapshots.delete(snapshotKey)
     const snapshot = this.activeAgentSnapshots.get(snapshotKey)
     const agent = !runtimeBlocked && (detected.find(item => item.kind === kind && item.available && usable(item))

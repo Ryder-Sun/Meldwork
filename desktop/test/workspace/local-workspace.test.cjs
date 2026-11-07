@@ -627,11 +627,12 @@ test('OpenCode routing notices changes to a relative native configuration file',
   const { NATIVE_PROJECT_CONFIG_PATHS } = require('../../src/agents/native-config-directory.cjs')
   options.detectAgents = async () => {
     const agent = { kind: 'opencode', name: 'OpenCode', executable: '/tmp/opencode', version: '1' }
-    Object.defineProperty(agent, NATIVE_PROJECT_CONFIG_PATHS, { value: [{ value: 'custom.json', directory: false }], enumerable: true })
+    Object.defineProperty(agent, NATIVE_PROJECT_CONFIG_PATHS, { value: [{ value: 'custom.json', directory: false }] })
     return [agent]
   }
   const workspace = new LocalWorkspace(options)
   await workspace.refreshAgents()
+  assert.equal(workspace.snapshot().agents[0][NATIVE_PROJECT_CONFIG_PATHS], undefined)
   const group = workspace.createGroup({ name: 'Project', agentKinds: ['opencode'], workdir: directory })
   await workspace.sendMessage({ groupId: group.id, text: 'Verify', targetKinds: ['opencode'] })
   await workspace.sendMessage({ groupId: group.id, text: 'Route', targetKinds: [], routingMode: 'automatic' })

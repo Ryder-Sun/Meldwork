@@ -101,7 +101,7 @@ for (const [kind, relative, directory, filename] of [
     fs.mkdirSync(path.dirname(file), { recursive: true })
     fs.writeFileSync(file, '{"model":"first"}')
     const agent = { kind, executable: '/tmp/agent', version: '1', available: true, compatibilityState: 'compatible' }
-    Object.defineProperty(agent, NATIVE_PROJECT_CONFIG_PATHS, { value: [{ value: relative, directory }], enumerable: true })
+    Object.defineProperty(agent, NATIVE_PROJECT_CONFIG_PATHS, { value: [{ value: relative, directory }] })
     assert.equal(Object.getOwnPropertySymbols(structuredClone(agent)).length, 0)
     const { catalog, state } = fixture({ initialAgents: [agent] })
     const projectIdentity = projectVerificationIdentity(kind, workdir, agent)

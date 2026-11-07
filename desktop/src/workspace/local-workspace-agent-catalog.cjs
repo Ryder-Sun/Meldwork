@@ -1,5 +1,5 @@
 const { agentVerificationIdentity, projectVerificationIdentity } = require('./agent-verification-identity.cjs')
-const { NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_AUTH_IDENTITY_FILES } = require('../agents/native-config-directory.cjs')
+const { NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_AUTH_IDENTITY_FILES, NATIVE_PROJECT_CONFIG_PATHS } = require('../agents/native-config-directory.cjs')
 const {
   agentRuntimeCapabilities,
 } = require('../agents/agent-runtime-contract.cjs')
@@ -269,6 +269,9 @@ class LocalWorkspaceAgentCatalog {
       }
       if (agent[NATIVE_AUTH_IDENTITY_FILES]) {
         Object.defineProperty(result, NATIVE_AUTH_IDENTITY_FILES, { value: agent[NATIVE_AUTH_IDENTITY_FILES] })
+      }
+      if (agent[NATIVE_PROJECT_CONFIG_PATHS]) {
+        Object.defineProperty(result, NATIVE_PROJECT_CONFIG_PATHS, { value: agent[NATIVE_PROJECT_CONFIG_PATHS] })
       }
       return result
     })
