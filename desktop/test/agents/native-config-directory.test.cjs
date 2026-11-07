@@ -49,6 +49,7 @@ test('OpenCode authentication identity follows its XDG data directory', () => {
   const home = path.resolve('test-home')
   const shared = ['opencode.json', 'opencode.jsonc'].map(name => path.join(home, '.config', 'opencode', name))
   const cloud = [path.join(home, '.local', 'state', 'opencode', 'model.json'),
+    path.join(home, '.cache', 'opencode', 'models.json'),
     path.join(home, '.aws', 'config'), path.join(home, '.aws', 'credentials')]
   assert.deepEqual(nativeAuthIdentityFiles('opencode', {}, home), [path.join(home, '.local', 'share', 'opencode', 'auth.json'), ...shared, ...cloud])
   assert.deepEqual(nativeAuthIdentityFiles('opencode', { XDG_DATA_HOME: path.join(home, 'data') }, home),
@@ -58,6 +59,9 @@ test('OpenCode authentication identity follows its XDG data directory', () => {
     [path.join(home, '.local', 'share', 'opencode', 'auth.json'), path.join(home, 'custom.json'), ...shared, ...cloud])
   assert.deepEqual(nativeAuthIdentityFiles('opencode', { OPENCODE_CONFIG: '~/custom.json' }, home),
     [path.join(home, '.local', 'share', 'opencode', 'auth.json'), path.join(home, 'custom.json'), ...shared, ...cloud])
+  const customCache = path.join(home, 'custom-cache')
+  assert.ok(nativeAuthIdentityFiles('opencode', { XDG_CACHE_HOME: customCache }, home)
+    .includes(path.join(customCache, 'opencode', 'models.json')))
   assert.deepEqual(nativeAuthIdentityFiles('codex', {}, home), [])
 })
 
@@ -135,7 +139,7 @@ test('default AWS credential updates change Pi and Claude verification identity'
   }
 })
 
-test('OpenCode recent model changes invalidate verification identity', t => {
+test('OpenCode recent models and provider metadata changes invalidate verification identity', t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-opencode-model-identity-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))
   const filename = path.join(home, '.local', 'state', 'opencode', 'model.json')
@@ -148,6 +152,11 @@ test('OpenCode recent model changes invalidate verification identity', t => {
   const before = agentVerificationIdentity(agent)
   fs.writeFileSync(filename, '{"recent":[{"providerID":"test","modelID":"model"}]}')
   assert.notEqual(agentVerificationIdentity(agent), before)
+  const afterRecent = agentVerificationIdentity(agent)
+  const metadata = path.join(home, '.cache', 'opencode', 'models.json')
+  fs.mkdirSync(path.dirname(metadata), { recursive: true })
+  fs.writeFileSync(metadata, '{"test":{"env":["API_KEY"]}}')
+  assert.notEqual(agentVerificationIdentity(agent), afterRecent)
 })
 
 test('Gemini authentication identity includes explicitly selected system and cloud files', () => {
