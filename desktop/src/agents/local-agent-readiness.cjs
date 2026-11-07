@@ -989,7 +989,8 @@ function claudeAuthState(output) {
       return { state: 'ready', source: 'native-credential' }
     }
     if (status?.loggedIn === true) return { state: 'ready', source: 'native-auth-status' }
-    if (status?.loggedIn === false) return { state: 'missing', source: 'native-auth-status' }
+    // The status command does not account for credentials in project settings.
+    if (status?.loggedIn === false) return { state: 'unknown', source: 'unverified' }
   } catch { /* keep the file-based result */ }
   return null
 }

@@ -1869,7 +1869,7 @@ test('MiMo readiness remains unknown for missing or malformed identity output', 
   }
 })
 
-test('Claude auth status overrides a stale credential file', async () => {
+test('Claude logged-out status does not make stale credentials or project settings verified', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-claude-stale-auth-'))
   const credentialPath = path.join(home, '.claude', '.credentials.json')
   fs.mkdirSync(path.dirname(credentialPath), { recursive: true })
@@ -1886,7 +1886,7 @@ test('Claude auth status overrides a stale credential file', async () => {
       },
     })
 
-    assert.deepEqual(result, { state: 'missing', source: 'native-auth-status' })
+    assert.deepEqual(result, { state: 'unknown', source: 'unverified' })
     assert.equal(calls, 1)
   } finally {
     fs.rmSync(home, { recursive: true, force: true })
@@ -1913,7 +1913,7 @@ test('Claude probes native auth with cloud configuration even when a direct API 
     },
   })
   assert.equal(calls, 1)
-  assert.deepEqual(result, { state: 'missing', source: 'native-auth-status' })
+  assert.deepEqual(result, { state: 'unknown', source: 'unverified' })
 })
 
 test('Claude API key status remains configuration evidence rather than verified authentication', async () => {
