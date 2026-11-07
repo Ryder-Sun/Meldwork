@@ -440,7 +440,7 @@ test('native Agent configuration selection is validated and used for execution',
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
   const native = path.join(directory, 'hermes-native')
   fs.mkdirSync(native)
-  fs.writeFileSync(path.join(native, 'config.yaml'), 'model: native\n')
+  fs.writeFileSync(path.join(native, 'config.yaml'), 'model:\n  provider: "custom:work"\n  api_key: synthetic-secret\n')
   const selection = { canceled: false, filePaths: [native] }
   let detectedEnvironment
   let credentialEnvironment
@@ -465,6 +465,9 @@ test('native Agent configuration selection is validated and used for execution',
   assert.equal(harness.skillCatalogInstances[0].invalidateCalls, invalidations + 1)
   assert.equal(chosen.directory, fs.realpathSync(native))
   assert.equal((await get(harness.event(), 'hermes')).directory, chosen.directory)
+  const summary = await get(harness.event(), 'hermes')
+  assert.equal(summary.provider, 'custom:work')
+  assert.doesNotMatch(JSON.stringify(summary), /synthetic-secret/)
   await harness.installerInstances[0].input.detectAgents()
   assert.equal(detectedEnvironment.HERMES_HOME, chosen.directory)
   await workspace.input.credentialState('hermes', { executable: '/tmp/hermes' })

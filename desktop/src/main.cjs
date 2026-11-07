@@ -50,6 +50,7 @@ const { ChannelIngressRuntime } = require('./channels/channel-ingress-runtime.cj
 const { CustomAgentStore } = require('./agents/custom-agent-store.cjs')
 const { configDirectoryEnvironment } = require('./agents/cli/cli-config-directories.cjs')
 const { deepseekNativeConfig } = require('./agents/cli/deepseek-native-config.cjs')
+const { hermesConfiguredProvider } = require('./agents/hermes-config-summary.cjs')
 const {
   codexDeclaredCredentialKeys,
   hermesDeclaredCredentialKeys,
@@ -946,6 +947,12 @@ function registerIpc() {
     getCloudAgentBridges: () => cloudAgentBridges,
     getMainWindow: () => mainWindow,
     getWorkspace: () => workspace,
+    getNativeConfigSummary: async (kind, currentWorkspace) => {
+      if (kind !== 'hermes') return null
+      const shell = await nativeShellEnvironment()
+      const env = nativeConfigEnvironment(kind, currentWorkspace.state.agentPreferences, shell.env)
+      return { provider: hermesConfiguredProvider({ home: shell.home, env }) }
+    },
     getWorkBuddySettings: async () => {
       const shell = await nativeShellEnvironment()
       return workBuddySettings({ ...shell,

@@ -2,6 +2,7 @@
   <section class="agent-detail-section">
     <h3>{{ t('nativeConfig.title') }}</h3>
     <p v-if="directory !== null">{{ directory || t('nativeConfig.automatic') }}</p>
+    <p v-if="kind === 'hermes' && directory !== null">{{ t('nativeConfig.configuredProvider') }}: {{ provider || t('nativeConfig.providerUnknown') }}</p>
     <p v-if="error" class="form-error" role="alert">{{ error }} <template v-if="invalid">{{ t(`nativeConfig.expected.${kind}`) }}</template></p>
     <button type="button" class="secondary-button" :disabled="busy" @click="update('choose')">{{ t('nativeConfig.choose') }}</button>
     <button v-if="directory" type="button" class="secondary-button" :disabled="busy" @click="update('clear')">{{ t('nativeConfig.clear') }}</button>
@@ -16,11 +17,16 @@ import { t, translateError } from '../i18n.js'
 const props = defineProps({ kind: { type: String, required: true } })
 const api = desktopApi().localAgentNativeConfig
 const directory = ref(null)
+const provider = ref('')
 const busy = ref(false)
 const error = ref('')
 const invalid = ref(false)
 async function load() {
-  try { directory.value = (await api.get(props.kind)).directory }
+  try {
+    const result = await api.get(props.kind)
+    directory.value = result.directory
+    provider.value = result.provider || ''
+  }
   catch (caught) { error.value = translateError(caught) }
 }
 async function update(action) {
@@ -29,7 +35,14 @@ async function update(action) {
   invalid.value = false
   try {
     const result = await api[action](props.kind)
-    if (!result.canceled) directory.value = result.directory
+    if (!result.canceled) {
+      directory.value = result.directory
+      provider.value = ''
+      if (props.kind === 'hermes') {
+        const details = await api.get(props.kind)
+        if (details.directory === result.directory) provider.value = details.provider || ''
+      }
+    }
   } catch (caught) {
     error.value = translateError(caught)
     invalid.value = errorCode(caught).includes('LOCAL_NATIVE_CONFIG_INVALID')

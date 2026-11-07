@@ -183,6 +183,7 @@ function registerDesktopIpc(options) {
     getCloudAgentBridges,
     getKnowledgeConnectors,
     getMainWindow,
+    getNativeConfigSummary,
     getOutcomeStore,
     getSkillTrustStore,
     getWorkspace,
@@ -427,11 +428,16 @@ function registerDesktopIpc(options) {
   })
   registerTrustedHandle('local-workspace:default-directory', () => app.getPath('documents'))
   registerTrustedHandle('local-agent-installer:catalog', async () => localAgentCatalog())
-  registerTrustedHandle('local-agent-native-config:get', (...args) => {
+  registerTrustedHandle('local-agent-native-config:get', async (...args) => {
     if (args.length !== 1 || typeof args[0] !== 'string' || !Object.hasOwn(NATIVE_CONFIG_DIRECTORIES, args[0])) throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
     const workspace = getWorkspace()
     if (!workspace) throw new Error('LOCAL_WORKSPACE_UNAVAILABLE')
-    return { directory: workspace.state.agentPreferences[args[0]]?.nativeConfigDirectory || '' }
+    const directory = workspace.state.agentPreferences[args[0]]?.nativeConfigDirectory || ''
+    const summary = typeof getNativeConfigSummary === 'function' ? await getNativeConfigSummary(args[0], workspace) : null
+    if (getWorkspace() !== workspace || (workspace.state.agentPreferences[args[0]]?.nativeConfigDirectory || '') !== directory) {
+      throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
+    }
+    return { directory, ...(summary ? { provider: summary.provider || '' } : {}) }
   })
   for (const action of ['choose', 'clear']) {
     registerTrustedHandle(`local-agent-native-config:${action}`, async (...args) => {

@@ -1,5 +1,7 @@
 export default {
     'nativeConfig.title': '原生配置目录',
+    'nativeConfig.configuredProvider': '配置中的 Provider',
+    'nativeConfig.providerUnknown': '未指定或无法读取',
     'nativeConfig.automatic': '未手动指定目录；将自动发现 CLI 的原生配置。',
     'nativeConfig.choose': '选择目录',
     'nativeConfig.clear': '恢复自动发现',

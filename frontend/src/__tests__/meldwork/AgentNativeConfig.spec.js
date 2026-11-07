@@ -47,6 +47,21 @@ it('selects and clears the native configuration directory', async () => {
   wrapper.unmount()
 })
 
+it('shows the configured Hermes provider and refreshes it after selecting a directory', async () => {
+  const api = { get: vi.fn().mockResolvedValueOnce({ directory: '', provider: 'auto' })
+    .mockResolvedValueOnce({ directory: '/native/hermes', provider: 'custom:work' }),
+  choose: vi.fn().mockResolvedValue({ canceled: false, directory: '/native/hermes' }) }
+  window.meldworkDesktop = { localAgentNativeConfig: api }
+  const wrapper = mount(AgentNativeConfig, { props: { kind: 'hermes' } })
+  await flushPromises()
+  expect(wrapper.text()).toContain('auto')
+  await wrapper.findAll('button').find(button => button.text() === t('nativeConfig.choose')).trigger('click')
+  await flushPromises()
+  expect(wrapper.text()).toContain('custom:work')
+  expect(wrapper.text()).toContain(t('nativeConfig.configuredProvider'))
+  wrapper.unmount()
+})
+
 it('shows expected configuration files when the selected directory is invalid', async () => {
   const api = { get: vi.fn().mockResolvedValue({ directory: '/previous' }),
     choose: vi.fn().mockRejectedValue(new Error('LOCAL_NATIVE_CONFIG_INVALID')) }

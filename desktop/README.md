@@ -78,6 +78,10 @@ CLI 解锁；可在 Meldwork 中选择桌面配置里已有且已配置鉴权的
 Meldwork 仅保存模型标识，运行时由主进程读取原生配置，不向渲染层返回密钥。
 Zcode 沿用默认配置；若其默认 Provider 缺少 API Key，需要先修复本机原生配置。
 
+Hermes 的原生配置目录设置会显示 `config.yaml` 中显式指定的 Provider，或配置中没有指定时的
+`HERMES_INFERENCE_PROVIDER`。显示 `auto` 表示交由 Hermes 自动选择，并不代表已经确认最终路由；
+无法读取或没有明确配置时显示未指定。此摘要不返回凭据。
+
 DeepSeek Harness 使用 `dsh` 的 ACP profile，未指定原生 ACP Provider 或模型时默认连接 ZGCI 的 `smart-router-v2`；
 若 ACP profile 或 DSH home 的 `cordis.patch.yml` 已指定 Provider 或模型，则沿用原生配置及其声明的凭据环境变量。
 可在 DeepSeek Harness
