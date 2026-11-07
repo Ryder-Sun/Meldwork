@@ -465,11 +465,12 @@ async function probeAgentCapabilities(kind, executable, options = {}) {
         const timedOut = error?.killed === true || error?.code === 'ETIMEDOUT'
         if (timedOut && timeout === 8000) continue
         const diagnostic = `${error?.stdout || ''}\n${error?.stderr || ''}\n${error?.message || ''}`
-        return { probe, error: true, timedOut, authRequired: authFailureCertainty(diagnostic) === 'definitive' }
+        return { probe, error: true, timedOut, systemError: typeof error?.code === 'string' && !timedOut,
+          authRequired: authFailureCertainty(diagnostic) === 'definitive' }
       }
     }
   }))
-  const failed = results.find(result => !result.timedOut && !result.authRequired && (result.error
+  const failed = results.find(result => !result.timedOut && !result.systemError && !result.authRequired && (result.error
     || result.probe.requiredText.some(value => !result.output.includes(value))
     || (result.probe.validateOutput && !result.probe.validateOutput(result.output))))
   if (failed) capabilityCache.delete(cacheKey)
@@ -492,6 +493,11 @@ async function probeAgentCapabilities(kind, executable, options = {}) {
       }
     }
     if (result.timedOut) continue
+    if (result.systemError && !failed) {
+      return { compatibilityState: 'unknown', incompatibilityReason: 'LOCAL_AGENT_CAPABILITY_PROBE_FAILED',
+        incompatibilityProbe: probe.id }
+    }
+    if (result.systemError) continue
     if (result.error) {
       return {
         compatibilityState: 'incompatible',

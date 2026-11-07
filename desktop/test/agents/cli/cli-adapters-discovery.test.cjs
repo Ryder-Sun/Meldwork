@@ -164,6 +164,16 @@ test('capability timeouts retry once and remain inconclusive when both attempts 
   }
 })
 
+test('capability probes do not treat operating system spawn failures as missing features', async () => {
+  for (const code of ['EACCES', 'ENOENT', 'EAGAIN']) {
+    const result = await probeAgentCapabilities('workbuddy', '/test/unavailable-workbuddy', {
+      env: {}, execFileFn: async () => { throw Object.assign(new Error('spawn failed'), { code }) },
+    })
+    assert.equal(result.compatibilityState, 'unknown', code)
+    assert.equal(result.incompatibilityReason, 'LOCAL_AGENT_CAPABILITY_PROBE_FAILED', code)
+  }
+})
+
 function argsForProbe(_command, args) {
   return args.includes('--mode')
     ? '{"type":"session","version":3,"id":"probe-session"}'
