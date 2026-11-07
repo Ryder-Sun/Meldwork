@@ -38,7 +38,7 @@ test('Gemini readiness checks credentials for its selected auth mode', t => {
   const noSelection = { GEMINI_CLI_SYSTEM_SETTINGS_PATH: path.join(home, 'system.json'), GOOGLE_API_KEY: 'unrelated' }
   assert.deepEqual(nativeCredentialState('gemini', { home, env: noSelection }), { state: 'unknown', source: 'unverified' })
   const env = { GEMINI_CLI_SYSTEM_SETTINGS_PATH: path.join(home, 'system.json'), GEMINI_CLI_AUTH_OVERRIDE: 'oauth-personal', GEMINI_API_KEY: 'unrelated' }
-  fs.unlinkSync(path.join(root, 'oauth_creds.json'))
+  fs.writeFileSync(path.join(root, 'oauth_creds.json'), JSON.stringify({ api_key: 'unrelated' }))
   assert.deepEqual(nativeCredentialState('gemini', { home, env }), { state: 'unknown', source: 'unverified' })
   fs.writeFileSync(path.join(root, 'oauth_creds.json'), JSON.stringify({ refresh_token: 'oauth-token' }))
   assert.deepEqual(nativeCredentialState('gemini', { home, env }), { state: 'ready', source: 'native-credential' })

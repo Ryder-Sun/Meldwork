@@ -110,6 +110,16 @@ function qwenOAuthCredentialsPresent(filename) {
   } catch { return false }
 }
 
+function geminiOAuthCredentialsPresent(filename) {
+  try {
+    const contents = readCredentialFile(filename)
+    if (!contents) return false
+    const credentials = JSON.parse(contents)
+    return Boolean(credentials && typeof credentials === 'object' && !Array.isArray(credentials)
+      && (credentialLiteral(credentials.access_token) || credentialLiteral(credentials.refresh_token)))
+  } catch { return false }
+}
+
 function openCodeReviewSelectedCredential(home, env, credentialSource, presetProviders) {
   let config
   try {
@@ -808,7 +818,7 @@ function nativeCredentialState(kind, options = {}) {
     const selection = geminiNativeAuth({ home, env, workdir: options.workdir, platform: options.platform })
     if (selection.uncertain) return { state: 'unknown', source: 'unverified' }
     if (selection.authType === 'oauth-personal') {
-      return jsonContainsCredential(path.join(selection.root, 'oauth_creds.json'))
+      return geminiOAuthCredentialsPresent(path.join(selection.root, 'oauth_creds.json'))
         ? { state: 'ready', source: 'native-credential' }
         : { state: 'unknown', source: 'unverified' }
     }
