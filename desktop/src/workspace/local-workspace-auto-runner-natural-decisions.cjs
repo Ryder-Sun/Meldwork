@@ -6,8 +6,8 @@ function explicitReviewRejection(text) {
     const line = rawLine.trim()
     if (/^(?:```|~~~)/.test(line)) { inCodeBlock = !inCodeBlock; return false }
     if (inCodeBlock || line.startsWith('>')) return false
-    return /(?:^|[.!?;；。！？])\s*(?:do not|don't)\s+approve\b/i.test(line)
-      || /(?:^|[.!?;；。！？])\s*(?:不要|不能|不应|不予)批准/u.test(line)
+    return /(?:^|[.!?;；。！？])\s*(?:(?:i|we)\s+)?(?:do not|don't|cannot|can't)\s+approve\b/i.test(line)
+      || /(?:^|[.!?;；。！？])\s*(?:我|我们)?(?:不|不要|不能|不应|不予|无法)批准/u.test(line)
   })
 }
 

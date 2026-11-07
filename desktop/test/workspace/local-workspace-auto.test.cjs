@@ -24,6 +24,10 @@ test('task graph rejects an explicit reviewer objection despite a completed run'
   const result = { message: { content: 'The required tests fail; do not approve.', trace: { status: 'completed' } } }
   const refs = { artifactIds: [], evidenceIds: [] }
   assert.equal(taskGraphMethods.taskGraphResultAccepted(node, result, {}, refs), false)
+  result.message.content = 'I cannot approve this result.'
+  assert.equal(taskGraphMethods.taskGraphResultAccepted(node, result, {}, refs), false)
+  result.message.content = '我们不批准这份结果。'
+  assert.equal(taskGraphMethods.taskGraphResultAccepted(node, result, {}, refs), false)
   result.message.content = '> Do not approve.\nThat old instruction is superseded; the result is acceptable.'
   assert.equal(taskGraphMethods.taskGraphResultAccepted(node, result, {}, refs), true)
 })

@@ -269,6 +269,10 @@ test('an explicit reviewer rejection cannot approve the candidate through a cont
   assert.equal(runner.v4NaturalConsensus(group, { runId: 'run' }, 'task'), null)
   messages[1].content = '测试未通过；不予批准。'
   assert.equal(runner.v4NaturalConsensus(group, { runId: 'run' }, 'task'), null)
+  messages[1].content = 'I cannot approve this candidate.'
+  assert.equal(runner.v4NaturalConsensus(group, { runId: 'run' }, 'task'), null)
+  messages[1].content = '我们不批准这份结果。'
+  assert.equal(runner.v4NaturalConsensus(group, { runId: 'run' }, 'task'), null)
   messages[1].content = '> Do not approve.\nThe quoted instruction is outdated; I approve the candidate.'
   assert.equal(runner.v4NaturalConsensus(group, { runId: 'run' }, 'task').approvedKinds.size, 2)
   messages[1].content = '```\nDo not approve.\n```\nThe example is outdated; I approve the candidate.'
