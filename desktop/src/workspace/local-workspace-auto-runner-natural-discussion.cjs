@@ -90,6 +90,12 @@ const naturalDiscussionMethods = {
     return packNaturalDiscussionTranscript(this.v4NaturalThreadEntries(group, threadRootId, options))
   },
 
+  v4NaturalFailureStatus(group, controller, threadRootId, result) {
+    const hasEarlierResult = this.v4NaturalThreadEntries(group, threadRootId, { controller })
+      .some(entry => !entry.partial && entry.text.trim())
+    return result.phasePendingMessages?.length || hasEarlierResult ? 'partial' : 'failed'
+  },
+
   v4NaturalDeliveryPrompt(group, controller, threadRootId, kind, slot, binding, promptBuilder) {
     const entries = this.v4NaturalThreadEntries(group, threadRootId, { controller })
     const previousEntries = binding.hasSession && !binding.sessionRotated
@@ -345,7 +351,7 @@ const naturalDiscussionMethods = {
           const failedKinds = removePhaseFailures(dispatch)
           activeKinds = activeKinds.filter(agentKind => !failedKinds.includes(agentKind))
           if (!activeKinds.length) {
-            return dispatch.phasePendingMessages?.length ? 'partial' : 'failed'
+            return this.v4NaturalFailureStatus(group, controller, threadRootId, dispatch)
           }
         }
         pendingKinds = remainingKinds.filter(agentKind => activeKinds.includes(agentKind))
@@ -381,7 +387,7 @@ const naturalDiscussionMethods = {
         const failedKinds = removePhaseFailures(proposal)
         activeKinds = activeKinds.filter(kind => !failedKinds.includes(kind))
         checkpointPhase('proposal', [], slots, null)
-        if (!activeKinds.length) return proposal.phasePendingMessages?.length ? 'partial' : 'failed'
+        if (!activeKinds.length) return this.v4NaturalFailureStatus(group, controller, threadRootId, proposal)
       }
     }
     const proposalComplete = activeKinds.every(kind => Boolean(latestFor('proposal', kind)))
@@ -463,7 +469,7 @@ const naturalDiscussionMethods = {
         if (controller.signal.aborted) return terminalRunStatusForReason(controller.stopReason)
         const failedKinds = removePhaseFailures(dispatch)
         activeKinds = activeKinds.filter(kind => !failedKinds.includes(kind))
-        if (!activeKinds.length) return dispatch.phasePendingMessages?.length ? 'partial' : 'failed'
+        if (!activeKinds.length) return this.v4NaturalFailureStatus(group, controller, threadRootId, dispatch)
       }
       if (this.v4NaturalStopRepeatingDiscussion(
         group, controller, threadRootId, round, activeKinds,

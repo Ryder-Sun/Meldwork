@@ -322,6 +322,25 @@ function naturalPhase(prompt) {
   return ''
 }
 
+test('a failed follow-up preserves completed proposal as partial after restart', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const ledger = new RunLedger({ storagePath: path.join(directory, 'run-ledger.json') })
+  const workspace = new LocalWorkspace({
+    ...options, runLedger: ledger, naturalAgentResponses: true,
+    runAgent: async (_agent, prompt) => {
+      if (naturalPhase(prompt) === 'proposal') return { outcome: 'completed', text: 'Useful initial result.' }
+      throw new Error('LOCAL_AGENT_EXECUTION_FAILED')
+    },
+  })
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Failed follow-up', agentKinds: ['codex'], workdir: directory })
+  const controller = await runDiscussion(workspace, group, { discussionStyle: 'agent-led', maxRounds: 4 })
+  assert.equal(ledger.get(controller.runId).status, 'partial')
+  const reopened = new LocalWorkspace({ ...options, runLedger: new RunLedger({ storagePath: ledger.storagePath }) })
+  assert.ok(reopened.snapshot().messages.some(message => message.content.includes('Useful initial result.')))
+})
+
 for (const nextKinds of [undefined, []]) {
   test(`Natural discussion does not dispatch prose mentions with ${nextKinds ? 'empty' : 'legacy missing'} recipients`, async (t) => {
     const { directory, options } = fixture()
