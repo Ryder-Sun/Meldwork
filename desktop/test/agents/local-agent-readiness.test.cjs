@@ -1558,6 +1558,25 @@ test('OpenClaw native runtime accepts a selected state root but rejects agents o
   { message: 'OPENCLAW_NATIVE_RUNTIME_UNAVAILABLE' })
 })
 
+test('OpenClaw runtime probe respects the native home override and tilde state path', async t => {
+  const home = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-openclaw-home-probe-')))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const selectedHome = path.join(home, 'selected-home')
+  const agentDir = path.join(selectedHome, 'state', 'agents', 'main', 'agent')
+  fs.mkdirSync(agentDir, { recursive: true })
+  fs.writeFileSync(path.join(agentDir, 'models.json'), openClawModelsCatalog('synthetic-key'))
+  const runtime = await resolveNativeOpenClawRuntime({ home, executable: '/tmp/openclaw',
+    env: { OPENCLAW_HOME: selectedHome, OPENCLAW_STATE_DIR: '~/state' },
+    execFileFn: async (_command, _args, child) => {
+      assert.equal(child.env.OPENCLAW_HOME, selectedHome)
+      assert.equal(child.env.OPENCLAW_STATE_DIR, '~/state')
+      return { stdout: JSON.stringify({ resolvedDefault: 'provider/model', agentDir,
+        auth: { missingProvidersInUse: [] } }) }
+    },
+  })
+  assert.equal(runtime.provider.apiKey, 'synthetic-key')
+})
+
 test('OpenClaw native runtime rejects every structured and string SecretRef marker', async (t) => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-openclaw-secretrefs-'))
   const agentDir = path.join(home, '.openclaw', 'agents', 'main', 'agent')

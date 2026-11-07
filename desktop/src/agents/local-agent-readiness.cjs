@@ -19,6 +19,7 @@ const { NETWORK_ENV_KEYS, networkEnvironment } = require('./cli/cli-network-envi
 const { CONFIG_DIRECTORY_ENV_KEYS } = require('./cli/cli-config-directories.cjs')
 const { workBuddyCredentialState } = require('./cli/workbuddy-runtime.cjs')
 const { mimoConfiguredProvider } = require('./cli/mimo-native-config.cjs')
+const { openClawNativeRoot } = require('./native-config-directory.cjs')
 const { PI_PROVIDER_CREDENTIAL_KEYS } = require('./cli/pi-provider-environment.cjs')
 const { CREDENTIAL_ENV_KEYS, RUNTIME_ENV_KEYS, VERTEX_MODEL_REGION_KEY, nativeCredentialEnvironment } = require('./agent-native-environment.cjs')
 
@@ -1083,9 +1084,8 @@ function parseOpenClawStatus(output, options = {}) {
       return { credentialState: { state: 'unknown', source: 'native-runtime-unavailable' } }
     }
     const resolvedHome = fs.realpathSync(path.resolve(options.home || os.homedir()))
-    const configuredRoot = options.env?.OPENCLAW_STATE_DIR
-    if (configuredRoot && !path.isAbsolute(configuredRoot)) return null
-    const nativeRoot = configuredRoot ? path.resolve(configuredRoot) : path.join(resolvedHome, '.openclaw')
+    const nativeRoot = openClawNativeRoot(options.env, resolvedHome, options.platform)
+    if (!nativeRoot) return null
     const nativeRootIdentity = openClawDirectoryIdentity(nativeRoot)
     const agentDir = fs.realpathSync(requestedAgentDir)
     if (!fs.statSync(agentDir).isDirectory() || !pathInside(nativeRoot, agentDir)) {

@@ -17,6 +17,21 @@ test('OpenClaw selects its native state directory without changing other Agents'
   assert.equal(nativeConfigEnvironment('hermes', preferences, {}).OPENCLAW_STATE_DIR, undefined)
 })
 
+test('OpenClaw native root follows home and state overrides and legacy fallback', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-openclaw-home-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const customHome = path.join(home, 'other-home')
+  fs.mkdirSync(customHome)
+  const env = { OPENCLAW_HOME: customHome }
+  assert.equal(nativeIdentityDirectory('openclaw', env, home), path.join(customHome, '.openclaw'))
+  assert.equal(nativeIdentityDirectory('openclaw', { ...env, OPENCLAW_STATE_DIR: '~/state' }, home), path.join(customHome, 'state'))
+  fs.mkdirSync(path.join(customHome, '.clawdbot'))
+  assert.equal(nativeIdentityDirectory('openclaw', env, home), path.join(customHome, '.clawdbot'))
+  fs.mkdirSync(path.join(customHome, '.openclaw'))
+  assert.equal(nativeIdentityDirectory('openclaw', env, home), path.join(customHome, '.openclaw'))
+  assert.equal(nativeIdentityDirectory('openclaw', { OPENCLAW_HOME: 'relative' }, home), '')
+})
+
 test('OpenCodeReview selects its native configuration directory and parent home', t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-ocr-config-home-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))

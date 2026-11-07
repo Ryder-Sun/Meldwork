@@ -168,7 +168,26 @@ const NATIVE_CONFIG_DIRECTORIES = Object.freeze({
   qwen: { key: 'HOME', files: ['settings.json', 'oauth_creds.json', '.env'], identityFiles: ['trustedFolders.json'] },
   opencodereview: { key: 'HOME', files: ['config.json'], identityFiles: ['.env'] },
 })
+
+function openClawNativeRoot(env = {}, home, platform = process.platform) {
+  const paths = platform === 'win32' ? path.win32 : path.posix
+  if (typeof home !== 'string' || !paths.isAbsolute(home)) return ''
+  const expand = (value, base) => value.replace(/^~(?=$|[\\/])/, () => base)
+  const selectedHome = typeof env.OPENCLAW_HOME === 'string' && env.OPENCLAW_HOME.trim()
+    ? expand(env.OPENCLAW_HOME.trim(), home) : home
+  if (!paths.isAbsolute(selectedHome)) return ''
+  const state = typeof env.OPENCLAW_STATE_DIR === 'string' ? env.OPENCLAW_STATE_DIR.trim() : ''
+  if (state) {
+    const root = expand(state, selectedHome)
+    return paths.isAbsolute(root) ? paths.resolve(root) : ''
+  }
+  const current = paths.join(selectedHome, '.openclaw')
+  const legacy = paths.join(selectedHome, '.clawdbot')
+  return !fs.existsSync(current) && fs.existsSync(legacy) ? legacy : current
+}
+
 function nativeIdentityDirectory(kind, env, home, platform = process.platform) {
+  if (kind === 'openclaw') return openClawNativeRoot(env, home, platform)
   if (kind === 'qwen' || kind === 'opencodereview') {
     const paths = platform === 'win32' ? path.win32 : path.posix
     const base = (platform === 'win32' ? env?.USERPROFILE : env?.HOME) || home
@@ -252,7 +271,7 @@ function validateNativeConfigDirectory(kind, directory) {
   return ['gemini', 'zcode', 'qwen', 'opencodereview'].includes(kind) ? path.resolve(directory) : resolved
 }
 
-module.exports = { NATIVE_CONFIG_DIRECTORIES, NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_ENVIRONMENT_IDENTITY, NATIVE_AUTH_IDENTITY_FILES, NATIVE_PROJECT_CONFIG_PATHS,
+module.exports = { NATIVE_CONFIG_DIRECTORIES, NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_ENVIRONMENT_IDENTITY, NATIVE_AUTH_IDENTITY_FILES, NATIVE_PROJECT_CONFIG_PATHS, openClawNativeRoot,
   nativeProjectConfigPaths, nativeNetworkIdentityFiles,
   nativeEnvironmentIdentity, nativeAuthIdentityFiles, nativeConfigEnvironment,
   nativeIdentityDirectory, validateNativeConfigDirectory }
