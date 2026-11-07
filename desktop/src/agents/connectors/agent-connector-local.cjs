@@ -3,6 +3,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const { abortableHttpOperation, boundedHttpResponseText, discardHttpResponse, discardLateHttpResponse } = require('../bounded-http-response.cjs')
 const { createHttpOutboundPayload } = require('../../collaboration/outbound-payload.cjs')
+const { canonicalJson } = require('../../collaboration/outcome-records.cjs')
 
 const {
   createAgentConnectorManifest,
@@ -349,6 +350,25 @@ class LocalAgentConnectors {
   }
 
   refresh(detectedAgents = []) {
+    if (this.packageStore && typeof this.packageStore.audit === 'function'
+        && typeof this.packageStore.inspect === 'function'
+        && typeof this.instanceStore.migrateManifest === 'function') {
+      for (const installed of this.packageStore.installedPackages()) {
+        const events = this.packageStore.audit(installed.packageId)
+        let upgrade = null
+        for (const event of [...events].reverse()) {
+          if (event.action === 'imported') break
+          if (event.action === 'upgraded') { upgrade = event; break }
+        }
+        if (!upgrade) continue
+        try {
+          const previous = this.packageStore.inspect(upgrade.details.fromPackageId)
+          if (this.compatibleInstanceUpgrade(previous, installed)) {
+            this.instanceStore.migrateManifest(previous.manifest, installed.manifest)
+          }
+        } catch { /* Unmigrated instances remain unavailable and can be retried. */ }
+      }
+    }
     const registry = this.createRegistry()
     let diagnostics = []
     try {
@@ -558,9 +578,17 @@ class LocalAgentConnectors {
     return this.requirePackageStore().audit(String(packageId || ''))
   }
 
+  compatibleInstanceUpgrade(previous, target) {
+    return previous.publisher.id === target.publisher.id
+      && previous.manifest.connectorId === target.manifest.connectorId
+      && previous.provider.id === target.provider.id
+      && canonicalJson(previous.manifest.credentials) === canonicalJson(target.manifest.credentials)
+  }
+
   packageTransition(action, packageId) {
     const store = this.requirePackageStore()
     const normalizedId = String(packageId || '')
+    let replacedManifestId = ''
     if (action === 'upgrade') {
       const target = store.inspect(normalizedId)
       const replaced = store.list().find(item => (
@@ -568,9 +596,15 @@ class LocalAgentConnectors {
         && item.connectorId === target.manifest.connectorId
         && item.packageId !== normalizedId
       ))
-      if (replaced && this.instanceStore.listRecords().some(item => (
-        item.manifestId === replaced.manifestId
-      ))) fail('AGENT_CONNECTOR_PACKAGE_IN_USE')
+      if (replaced && [...this.httpRequests].some(request => request.packageId === replaced.packageId)) {
+        fail('AGENT_CONNECTOR_PACKAGE_IN_USE')
+      }
+      if (replaced && this.instanceStore.listRecords().some(item => item.manifestId === replaced.manifestId)
+          && (typeof this.instanceStore.migrateManifest !== 'function'
+            || !this.compatibleInstanceUpgrade(store.inspect(replaced.packageId), target))) {
+        fail('AGENT_CONNECTOR_PACKAGE_IN_USE')
+      }
+      replacedManifestId = replaced?.manifestId || ''
     }
     if (action === 'remove') {
       const manifestId = store.inspect(normalizedId).manifest.manifestId
@@ -588,6 +622,9 @@ class LocalAgentConnectors {
       }
     }
     this.refresh(this.detectedUpstreams)
+    if (replacedManifestId && this.instanceStore.listRecords().some(item => item.manifestId === replacedManifestId)) {
+      fail('AGENT_CONNECTOR_INSTANCE_STORE_UNAVAILABLE')
+    }
     return result
   }
 

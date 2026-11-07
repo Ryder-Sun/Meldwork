@@ -279,6 +279,25 @@ class AgentConnectorInstanceStore {
     return this.readInstanceDocument().instances.map(frozenClone)
   }
 
+  migrateManifest(previous, next) {
+    if (!previous || !next || !MANIFEST_ID.test(previous.manifestId || '')
+        || !MANIFEST_ID.test(next.manifestId || '') || previous.connectorId !== next.connectorId
+        || !PUBLIC_ID.test(next.connectorId || '') || !isSemanticVersion(next.connectorVersion)) {
+      fail('AGENT_CONNECTOR_INSTANCE_INVALID')
+    }
+    const document = this.readInstanceDocument()
+    let changed = false
+    for (const instance of document.instances) {
+      if (instance.manifestId !== previous.manifestId) continue
+      if (instance.connectorId !== previous.connectorId
+          || instance.connectorVersion !== previous.connectorVersion) fail('AGENT_CONNECTOR_INSTANCE_STORE_UNAVAILABLE')
+      instance.manifestId = next.manifestId
+      instance.connectorVersion = next.connectorVersion
+      changed = true
+    }
+    if (changed) this.writeInstanceDocument(document)
+  }
+
   resolveCredential(credentialRef) {
     const normalizedRef = String(credentialRef || '')
     if (!CREDENTIAL_REF.test(normalizedRef)) fail('AGENT_CONNECTOR_CREDENTIAL_UNAVAILABLE')

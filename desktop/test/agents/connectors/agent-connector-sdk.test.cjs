@@ -131,6 +131,118 @@ test('concurrent HTTP Connector accounts use only their own credentials at the t
   assert.doesNotMatch(JSON.stringify(results), /account-[ab]-secret|unrelated-global-provider-secret/)
 })
 
+test('upgrading a compatible Connector preserves existing account instances and credentials', async t => {
+  const authorizations = []
+  const { connectors, directory, packageStore } = fixture(t, async (_url, options) => {
+    authorizations.push(options.headers.authorization)
+    return { ok: true, text: async () => JSON.stringify({ text: 'upgraded' }) }
+  })
+  const first = httpPackage()
+  install(packageStore, first)
+  connectors.refresh([])
+  const configured = connectors.configure({ manifestId: first.manifest.manifestId, label: 'Account',
+    credentials: { 'access-token': 'account-secret' } })
+  const manifest = { ...first.manifest, connectorVersion: '1.1.0' }
+  delete manifest.manifestId
+  delete manifest.recordType
+  delete manifest.schemaVersion
+  const next = createAgentConnectorPackage({ publisher: first.publisher, provider: first.provider,
+    manifest: createAgentConnectorManifest(manifest) })
+  packageStore.import(serializeAgentConnectorPackage(next), 'next.json')
+  packageStore.approve(next.packageId)
+  assert.equal(connectors.upgradePackage(next.packageId).state, 'installed')
+  const agent = connectors.detectAgents().find(item => item.kind === configured.instanceId)
+  assert.ok(agent)
+  assert.equal((await connectors.run(agent, 'hello', directory, {
+    runId: 'upgrade-run', agentRunId: 'upgrade-agent', sandbox: 'read-only',
+  })).text, 'upgraded')
+  assert.deepEqual(authorizations, ['Bearer account-secret'])
+})
+
+test('an interrupted compatible upgrade recovers existing accounts after restart', t => {
+  const { connectors, directory, packageStore } = fixture(t)
+  const first = httpPackage()
+  install(packageStore, first)
+  connectors.refresh([])
+  const configured = connectors.configure({ manifestId: first.manifest.manifestId, label: 'Account',
+    credentials: { 'access-token': 'account-secret' } })
+  const manifest = { ...first.manifest, connectorVersion: '1.1.0' }
+  delete manifest.manifestId
+  delete manifest.recordType
+  delete manifest.schemaVersion
+  const next = createAgentConnectorPackage({ publisher: first.publisher, provider: first.provider,
+    manifest: createAgentConnectorManifest(manifest) })
+  packageStore.import(serializeAgentConnectorPackage(next), 'next.json')
+  packageStore.approve(next.packageId)
+  const write = connectors.instanceStore.writeInstanceDocument.bind(connectors.instanceStore)
+  connectors.instanceStore.writeInstanceDocument = () => { throw new Error('simulated failure') }
+  assert.throws(() => connectors.upgradePackage(next.packageId), { message: 'AGENT_CONNECTOR_INSTANCE_STORE_UNAVAILABLE' })
+  assert.equal(packageStore.inspect(next.packageId).state, 'installed')
+  assert.equal(connectors.detectAgents().length, 0)
+  connectors.instanceStore.writeInstanceDocument = write
+  const restarted = new LocalAgentConnectors({
+    manifestDirectory: path.join(directory, 'manifests'),
+    packageStore: new AgentConnectorPackageStore({ rootPath: path.join(directory, 'private', 'packages') }),
+    instanceStore: new AgentConnectorInstanceStore({ instanceStoragePath: path.join(directory, 'instances.json'),
+      credentialStoragePath: path.join(directory, 'private', 'credentials.json'), safeStorage: fakeSafeStorage() }),
+    runAgent: async () => ({}),
+  })
+  restarted.refresh([])
+  assert.equal(restarted.detectAgents()[0].kind, configured.instanceId)
+  assert.equal(restarted.instanceStore.resolveCredential(restarted.instanceStore.listRecords()[0].credentialRef)['access-token'], 'account-secret')
+})
+
+test('an upgrade cannot reuse an account with a different credential declaration', t => {
+  const { connectors, packageStore } = fixture(t)
+  const first = httpPackage()
+  install(packageStore, first)
+  connectors.refresh([])
+  connectors.configure({ manifestId: first.manifest.manifestId, label: 'Account',
+    credentials: { 'access-token': 'account-secret' } })
+  const manifest = { ...first.manifest, connectorVersion: '1.1.0',
+    credentials: { mode: 'none', slots: [] } }
+  delete manifest.manifestId
+  delete manifest.recordType
+  delete manifest.schemaVersion
+  const next = createAgentConnectorPackage({ publisher: first.publisher,
+    provider: { ...first.provider, config: { ...first.provider.config, authSlotId: null } },
+    manifest: createAgentConnectorManifest(manifest) })
+  packageStore.import(serializeAgentConnectorPackage(next), 'next.json')
+  packageStore.approve(next.packageId)
+  assert.throws(() => connectors.upgradePackage(next.packageId), { message: 'AGENT_CONNECTOR_PACKAGE_IN_USE' })
+  assert.equal(packageStore.inspect(first.packageId).state, 'installed')
+  assert.equal(packageStore.inspect(next.packageId).state, 'approved')
+})
+
+test('an active Connector request prevents its package from being upgraded', async t => {
+  let started
+  let finish
+  const entered = new Promise(resolve => { started = resolve })
+  const { connectors, directory, packageStore } = fixture(t, () => new Promise(resolve => { finish = resolve; started() }))
+  const first = httpPackage()
+  install(packageStore, first)
+  connectors.refresh([])
+  connectors.configure({ manifestId: first.manifest.manifestId, label: 'Account',
+    credentials: { 'access-token': 'account-secret' } })
+  const manifest = { ...first.manifest, connectorVersion: '1.1.0' }
+  delete manifest.manifestId
+  delete manifest.recordType
+  delete manifest.schemaVersion
+  const next = createAgentConnectorPackage({ publisher: first.publisher, provider: first.provider,
+    manifest: createAgentConnectorManifest(manifest) })
+  packageStore.import(serializeAgentConnectorPackage(next), 'next.json')
+  packageStore.approve(next.packageId)
+  const running = connectors.run(connectors.detectAgents()[0], 'hello', directory, {
+    runId: 'active-run', agentRunId: 'active-agent', sandbox: 'read-only',
+  })
+  await entered
+  assert.throws(() => connectors.upgradePackage(next.packageId), { message: 'AGENT_CONNECTOR_PACKAGE_IN_USE' })
+  assert.equal(packageStore.inspect(first.packageId).state, 'installed')
+  finish({ ok: true, text: async () => JSON.stringify({ text: 'done' }) })
+  assert.equal((await running).text, 'done')
+  assert.equal(connectors.upgradePackage(next.packageId).state, 'installed')
+})
+
 test('HTTP transport timeout starts after outbound recording', async t => {
   let requestSignal
   const { connectors, directory, packageStore } = fixture(t, async (_url, { signal }) => {
