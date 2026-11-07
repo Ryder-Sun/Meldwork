@@ -60,6 +60,21 @@ test('creates content-addressed pending gates without public request references'
   assert.equal(JSON.stringify(publicRecord).includes('write_file'), false)
 })
 
+test('new gates reject secrets and control characters in public option fields', t => {
+  const { contentBlobStore } = fixture(t)
+  const secret = `sk-${'a'.repeat(32)}`
+  for (const option of [
+    { optionId: secret, name: 'Allow', kind: 'allow_once' },
+    { optionId: 'allow', name: 'Allow', kind: secret },
+    { optionId: 'allow', name: secret, kind: 'allow_once' },
+    { optionId: 'allow', name: 'Allow\nnow', kind: 'allow_once' },
+  ]) {
+    assert.throws(() => createHumanGateRecord(gateInput(contentBlobStore, { options: [option] })),
+      { message: 'HUMAN_GATE_SCHEMA_INVALID' })
+  }
+  assert.doesNotThrow(() => createHumanGateRecord(gateInput(contentBlobStore)))
+})
+
 test('projects only bounded public task graph decision context', t => {
   const { store } = fixture(t)
   const graphId = `task-graph-${'a'.repeat(64)}`

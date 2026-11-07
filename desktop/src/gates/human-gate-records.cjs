@@ -117,6 +117,11 @@ function createHumanGateRecord(input) {
     ...input,
     summary: normalizeSummary(input?.summary),
   })
+  if (normalized.options.some(option => redactSecrets(option.optionId) !== option.optionId
+      || redactSecrets(option.kind) !== option.kind
+      || redactSecrets(option.name) !== option.name || /[\u0000-\u001f\u007f]/u.test(option.name))) {
+    fail('HUMAN_GATE_SCHEMA_INVALID')
+  }
   if (normalized.requestHash !== normalized.requestRef.hash) fail('HUMAN_GATE_SCHEMA_INVALID')
   const body = {
     version: HUMAN_GATE_VERSION,
