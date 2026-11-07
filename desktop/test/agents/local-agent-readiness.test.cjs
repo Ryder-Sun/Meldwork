@@ -85,6 +85,25 @@ test('OpenCodeReview does not treat another provider credential as the selected 
   assert.equal(nativeCredentialState('opencodereview', { home, env: { OPENAI_API_KEY: 'synthetic-openai' } }).state, 'ready')
 })
 
+test('OpenCodeReview uses the native Responses API key independently of the Chat Completions key', async t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-ocr-responses-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const root = path.join(home, '.opencodereview')
+  fs.mkdirSync(root)
+  fs.writeFileSync(path.join(root, 'config.json'), JSON.stringify({ provider: 'openai-responses', model: 'test-model' }))
+  const env = { OPENAI_API_KEY: 'synthetic-unrelated', OPENAI_RESPONSES_API_KEY: 'synthetic-responses' }
+  assert.equal(nativeCredentialState('opencodereview', { home, env: { OPENAI_API_KEY: env.OPENAI_API_KEY } }).state, 'unknown')
+  assert.equal(nativeCredentialState('opencodereview', { home, env }).state, 'ready')
+  const captured = await resolveNativeShellEnvironment({ cache: false, platform: 'win32', env })
+  const native = nativeCredentialEnvironment('opencodereview', captured.env)
+  assert.equal(native.OPENAI_RESPONSES_API_KEY, env.OPENAI_RESPONSES_API_KEY)
+  const child = childEnvironment({ kind: 'opencodereview' }, home, { env: native }, 'darwin')
+  assert.equal(child.OPENAI_RESPONSES_API_KEY, env.OPENAI_RESPONSES_API_KEY)
+  assert.equal(nativeCredentialEnvironment('codex', captured.env).OPENAI_RESPONSES_API_KEY, undefined)
+  const { redactChildSecrets } = require('../../src/agents/cli/cli-runtime-event-sanitizer.cjs')
+  assert.equal(redactChildSecrets('synthetic-responses', child), '[redacted]')
+})
+
 test('OpenCodeReview probes native provider names before trusting a custom credential', async t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-ocr-provider-list-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))
