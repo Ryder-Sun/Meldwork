@@ -435,8 +435,8 @@ function zcodeSelectedCredentialState(options = {}) {
   } catch (error) {
     return { state: 'unknown', source: 'unverified' }
   }
-  if (!found) return null
   const envModel = typeof env.ZCODE_MODEL === 'string' ? env.ZCODE_MODEL.trim() : ''
+  if (!found && !envModel) return null
   const model = envModel ? { provider: envModel.includes('/') ? envModel.split('/')[0] : 'anthropic', kind: 'anthropic' }
     : typeof config?.model?.main === 'string' ? { provider: config.model.main.includes('/')
       ? config.model.main.split('/')[0] : 'anthropic' }

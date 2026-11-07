@@ -18,11 +18,15 @@ function nativeUserConfigSummary(kind, options = {}) {
     let value
     if (kind === 'qwen') value = qwenConfiguredAuth(options)
     else {
-      const file = path.join(home, '.zcode', 'cli', 'config.json')
-      const stat = fs.statSync(file)
-      if (!stat.isFile() || stat.size > 1024 * 1024) return empty
-      const model = JSON.parse(fs.readFileSync(file, 'utf8'))?.model?.main
-      value = typeof model === 'string' && model.includes('/') ? model.split('/')[0] : model?.provider
+      const envModel = typeof env.ZCODE_MODEL === 'string' ? env.ZCODE_MODEL.trim() : ''
+      if (envModel) value = envModel.includes('/') ? envModel.split('/')[0] : 'anthropic'
+      else {
+        const file = path.join(home, '.zcode', 'cli', 'config.json')
+        const stat = fs.statSync(file)
+        if (!stat.isFile() || stat.size > 1024 * 1024) return empty
+        const model = JSON.parse(fs.readFileSync(file, 'utf8'))?.model?.main
+        value = typeof model === 'string' ? (model.includes('/') ? model.split('/')[0] : 'anthropic') : model?.provider
+      }
     }
     if (typeof value !== 'string') return empty
     const text = value.trim()

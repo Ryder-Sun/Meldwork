@@ -451,6 +451,16 @@ test('Zcode readiness checks only the selected native provider', t => {
     { state: 'ready', source: 'native-credential' })
 })
 
+test('Zcode checks the selected environment model without a configuration file', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-zcode-env-only-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const options = { home, env: { HOME: home, ZCODE_MODEL: 'selected/model', OTHER_API_KEY: 'unrelated' },
+    nativeCredentialKeys: ['OTHER_API_KEY'] }
+  assert.deepEqual(nativeCredentialState('zcode', options), { state: 'unknown', source: 'unverified' })
+  options.env.SELECTED_API_KEY = 'selected'
+  assert.deepEqual(nativeCredentialState('zcode', options), { state: 'ready', source: 'native-credential' })
+})
+
 test('Zcode discovers native project model overrides and their credentials', t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-zcode-project-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))

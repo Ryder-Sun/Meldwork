@@ -20,10 +20,13 @@ test('native summaries expose only the selected user configuration field', t => 
     QWEN_CODE_SYSTEM_DEFAULTS_PATH: path.join(root, 'defaults.json') }, platform: 'darwin' }
   assert.deepEqual(nativeUserConfigSummary('qwen', options), { authType: 'openai' })
   assert.deepEqual(nativeUserConfigSummary('zcode', options), { provider: 'custom' })
+  assert.deepEqual(nativeUserConfigSummary('zcode', { ...options, env: { ...options.env, ZCODE_MODEL: 'alternate/model' } }), { provider: 'alternate' })
+  assert.deepEqual(nativeUserConfigSummary('zcode', { ...options, env: { ...options.env, ZCODE_MODEL: 'claude-model' } }), { provider: 'anthropic' })
   assert.doesNotMatch(JSON.stringify([nativeUserConfigSummary('qwen', options), nativeUserConfigSummary('zcode', options)]), /private-secret/)
   assert.deepEqual(nativeUserConfigSummary('zcode', { home: root, env: {}, platform: 'darwin' }), { provider: '' })
   fs.writeFileSync(path.join(selected, '.zcode', 'cli', 'config.json'), '{bad')
   assert.deepEqual(nativeUserConfigSummary('zcode', options), { provider: '' })
+  assert.deepEqual(nativeUserConfigSummary('zcode', { ...options, env: { ...options.env, ZCODE_MODEL: 'alternate/model' } }), { provider: 'alternate' })
   fs.writeFileSync(path.join(selected, '.qwen', 'settings.json'), "{security:{auth:{selectedType:'unsafe secret'}}}")
   assert.deepEqual(nativeUserConfigSummary('qwen', options), { authType: '' })
 })
