@@ -66,3 +66,14 @@ test('Gemini auth inference and overrides follow native CLI precedence', t => {
     assert.deepEqual(nativeCredentialState('gemini', { home, env: selected }), { state: 'unknown', source: 'unverified' })
   }
 })
+
+test('Gemini readiness rejects a selected mode that violates enforced authentication', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-gemini-enforced-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const system = path.join(home, 'system.json')
+  const env = { GEMINI_CLI_SYSTEM_SETTINGS_PATH: system, GEMINI_API_KEY: 'synthetic' }
+  fs.writeFileSync(system, JSON.stringify({ security: { auth: { enforcedType: 'oauth-personal' } } }))
+  assert.deepEqual(nativeCredentialState('gemini', { home, env }), { state: 'unknown', source: 'unverified' })
+  fs.writeFileSync(system, JSON.stringify({ security: { auth: { enforcedType: 'gemini-api-key' } } }))
+  assert.deepEqual(nativeCredentialState('gemini', { home, env }), { state: 'ready', source: 'native-credential' })
+})

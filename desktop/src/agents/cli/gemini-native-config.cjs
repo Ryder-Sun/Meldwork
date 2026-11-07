@@ -33,6 +33,7 @@ function geminiNativeAuth(options = {}) {
     const validOverrides = ['oauth-personal', 'gemini-api-key', 'vertex-ai', 'cloud-shell', 'compute-default-credentials', 'gateway']
     const override = validOverrides.includes(env.GEMINI_CLI_AUTH_OVERRIDE) ? env.GEMINI_CLI_AUTH_OVERRIDE : ''
     let authType = override || (layers[1].security?.auth?.selectedType ?? layers[0].security?.auth?.selectedType ?? '')
+    let enforcedType = layers[1].security?.auth?.enforcedType ?? layers[0].security?.auth?.enforcedType ?? ''
     const workdir = typeof options.workdir === 'string' && path.isAbsolute(options.workdir) ? options.workdir : ''
     if (workdir && path.resolve(workdir) !== path.resolve(base)) {
       let trusted = env.GEMINI_CLI_TRUST_WORKSPACE === 'true'
@@ -60,9 +61,14 @@ function geminiNativeAuth(options = {}) {
           }
         }
       }
-      if (trusted) authType = readSettings(path.join(workdir, '.gemini', 'settings.json')).security?.auth?.selectedType ?? authType
+      if (trusted) {
+        const workspaceAuth = readSettings(path.join(workdir, '.gemini', 'settings.json')).security?.auth
+        authType = workspaceAuth?.selectedType ?? authType
+        enforcedType = workspaceAuth?.enforcedType ?? enforcedType
+      }
     }
     authType = systemSettings.security?.auth?.selectedType ?? authType
+    enforcedType = systemSettings.security?.auth?.enforcedType ?? enforcedType
     if (!authType) {
       if (env.GOOGLE_GENAI_USE_GCA === 'true') authType = 'oauth-personal'
       else if (env.GOOGLE_GENAI_USE_VERTEXAI === 'true') authType = 'vertex-ai'
@@ -70,6 +76,7 @@ function geminiNativeAuth(options = {}) {
       else if (env.GEMINI_API_KEY) authType = 'gemini-api-key'
       else if (env.CLOUD_SHELL === 'true' || env.GEMINI_CLI_USE_COMPUTE_ADC === 'true') authType = 'compute-default-credentials'
     }
+    if (enforcedType && enforcedType !== authType) return { uncertain: true }
     return { authType: typeof authType === 'string' ? authType : '', root }
   } catch { return { uncertain: true } }
 }
