@@ -39,7 +39,7 @@ async function boundedHttpResponseText(response, limit, errorCode, signal) {
   let total = 0
   try {
     while (true) {
-      const { done, value } = await reader.read()
+      const { done, value } = await abortableHttpOperation(reader.read(), signal)
       if (done) break
       const chunk = Buffer.from(value)
       total += chunk.length

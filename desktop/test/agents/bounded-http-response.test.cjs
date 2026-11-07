@@ -2,6 +2,22 @@ const assert = require('node:assert/strict')
 const test = require('node:test')
 const { abortableHttpOperation, boundedHttpResponseText, discardLateHttpResponse } = require('../../src/agents/bounded-http-response.cjs')
 
+test('aborted reads release the reader even when the underlying stream never settles', async () => {
+  const controller = new AbortController()
+  let cancelled = false
+  let released = false
+  const reader = {
+    read: () => new Promise(() => {}),
+    cancel: () => { cancelled = true; return new Promise(() => {}) },
+    releaseLock: () => { released = true },
+  }
+  const pending = boundedHttpResponseText({ body: { getReader: () => reader } }, 16, 'TOO_LARGE', controller.signal)
+  controller.abort()
+  await assert.rejects(pending, { name: 'AbortError' })
+  assert.equal(cancelled, true)
+  assert.equal(released, true)
+})
+
 test('an aborted stream cancels its reader without waiting for cancellation to finish', async () => {
   let cancelled = false
   const controller = new AbortController()
