@@ -75,8 +75,13 @@ test('Qwen system configuration takes precedence and unsafe credential names are
   assert.deepEqual(qwenDeclaredCredentialKeys({ home, workdir, env }), ['SYSTEM_KEY'])
   fs.writeFileSync(system, JSON.stringify(config('NODE_OPTIONS')))
   assert.deepEqual(qwenDeclaredCredentialKeys({ home, workdir, env }), [])
+  assert.deepEqual(nativeCredentialState('qwen', { home, workdir,
+    env: { ...env, OPENAI_API_KEY: 'unrelated' } }), { state: 'unknown', source: 'unverified' })
   fs.writeFileSync(system, JSON.stringify({ modelProviders: { anthropic: [{ id: 'other', envKey: 'OTHER_KEY' }] } }))
   assert.deepEqual(qwenDeclaredCredentialKeys({ home, workdir, env }), ['OPENAI_API_KEY'])
+  fs.writeFileSync(system, '{ malformed')
+  assert.deepEqual(nativeCredentialState('qwen', { home, workdir,
+    env: { ...env, OPENAI_API_KEY: 'unrelated' } }), { state: 'unknown', source: 'unverified' })
 })
 
 test('Qwen readiness follows the selected standard provider credential', t => {

@@ -4,7 +4,7 @@ const os = require('node:os')
 const JSON5 = require('json5')
 const { nativeSecretEnvKeys } = require('./native-secret-environment.cjs')
 
-function qwenDeclaredCredentialKeys(options = {}) {
+function qwenCredentialSelection(options = {}) {
   const env = options.env || process.env
   const home = options.home || os.homedir()
   const platform = options.platform || process.platform
@@ -25,12 +25,12 @@ function qwenDeclaredCredentialKeys(options = {}) {
     const configs = new Map()
     for (const entry of [defaults, user, project, system].filter(Boolean)) {
       const file = resolveFile(entry)
-      if (!file) return []
+      if (!file) return { keys: [], unsupported: true }
       let stat
       try { stat = fs.statSync(file) } catch (error) { if (error.code === 'ENOENT') continue; throw error }
-      if (!stat.isFile() || stat.size > 1024 * 1024) return []
+      if (!stat.isFile() || stat.size > 1024 * 1024) return { keys: [], unsupported: true }
       const settings = JSON5.parse(fs.readFileSync(file, 'utf8'))
-      if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return []
+      if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return { keys: [], unsupported: true }
       configs.set(entry, settings)
     }
     const trustEnabled = configs.get(system)?.security?.folderTrust?.enabled
@@ -65,15 +65,22 @@ function qwenDeclaredCredentialKeys(options = {}) {
       }
     }
     auth ||= typeof env.QWEN_DEFAULT_AUTH_TYPE === 'string' ? env.QWEN_DEFAULT_AUTH_TYPE : ''
-    if (!auth) return []
+    if (!auth) return { keys: [], unsupported: false }
     const selected = model ? (providers.get(auth) || []).filter(entry => entry?.id === model) : []
-    if (selected.length > 1) return []
-    if (selected[0]?.envKey) return nativeSecretEnvKeys([selected[0].envKey])
-    if (typeof inlineCredential === 'string' && inlineCredential.trim()) return []
+    if (selected.length > 1) return { keys: [], unsupported: true }
+    if (selected[0]?.envKey) {
+      const keys = nativeSecretEnvKeys([selected[0].envKey])
+      return { keys, unsupported: keys.length === 0 }
+    }
+    if (typeof inlineCredential === 'string' && inlineCredential.trim()) return { keys: [], unsupported: false }
     const defaultKeys = { openai: 'OPENAI_API_KEY', anthropic: 'ANTHROPIC_API_KEY',
       gemini: 'GEMINI_API_KEY', 'vertex-ai': 'GOOGLE_API_KEY' }
-    return nativeSecretEnvKeys([defaultKeys[auth]])
-  } catch { return [] }
+    return { keys: nativeSecretEnvKeys([defaultKeys[auth]]), unsupported: false }
+  } catch { return { keys: [], unsupported: true } }
 }
 
-module.exports = { qwenDeclaredCredentialKeys }
+function qwenDeclaredCredentialKeys(options = {}) {
+  return qwenCredentialSelection(options).keys
+}
+
+module.exports = { qwenCredentialSelection, qwenDeclaredCredentialKeys }
