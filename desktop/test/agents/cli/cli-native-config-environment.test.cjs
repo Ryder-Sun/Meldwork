@@ -199,6 +199,23 @@ test('MiMo captures embedded key and header references for only the selected pro
   assert.equal(child.OTHER_KEY, undefined)
 })
 
+test('MiMo discovers the recent native model provider when no model is configured', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-mimo-recent-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const state = path.join(home, 'state', 'mimocode')
+  fs.mkdirSync(state, { recursive: true })
+  fs.writeFileSync(path.join(state, 'model.json'), JSON.stringify({ recent: [{ providerID: 'custom', modelID: 'example' }] }))
+  fs.writeFileSync(path.join(home, 'mimocode.json'), JSON.stringify({ provider: {
+    custom: { options: { apiKey: '{env:CUSTOM_KEY}' } }, other: { options: { apiKey: '{env:OTHER_KEY}' } },
+  } }))
+  const { mimoDeclaredCredentialKeys, mimoConfiguredProvider } = require('../../../src/agents/cli/mimo-native-config.cjs')
+  const env = { XDG_STATE_HOME: path.dirname(state), CUSTOM_KEY: 'synthetic', OTHER_KEY: 'unrelated' }
+  assert.deepEqual(mimoDeclaredCredentialKeys({ home, workdir: home, env }), ['CUSTOM_KEY'])
+  assert.equal(mimoConfiguredProvider({ home, workdir: home, env }), true)
+  fs.writeFileSync(path.join(state, 'model.json'), '{bad')
+  assert.deepEqual(mimoDeclaredCredentialKeys({ home, workdir: home, env }), [])
+})
+
 test('inline native provider credentials are redacted in complete and streamed output', () => {
   for (const kind of ['mimo', 'opencode']) {
     const key = kind === 'mimo' ? 'MIMOCODE_CONFIG_CONTENT' : 'OPENCODE_CONFIG_CONTENT'

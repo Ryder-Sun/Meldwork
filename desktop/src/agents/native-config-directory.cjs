@@ -89,8 +89,10 @@ function nativeAuthIdentityFiles(kind, env, home, platform = process.platform) {
     const userRoot = typeof home === 'string' && path.isAbsolute(home) ? path.join(home, '.mimocode') : ''
     const configRoot = env?.XDG_CONFIG_HOME || (home && path.join(home, '.config'))
     const sharedRoot = typeof configRoot === 'string' && path.isAbsolute(configRoot) ? path.join(configRoot, 'mimocode') : ''
+    const stateRoot = env?.XDG_STATE_HOME || (home && path.join(home, '.local', 'state'))
     return [explicit, ...[userRoot, sharedRoot].filter(Boolean)
-      .flatMap(root => ['mimocode.json', 'mimocode.jsonc'].map(name => path.join(root, name)))]
+      .flatMap(root => ['mimocode.json', 'mimocode.jsonc'].map(name => path.join(root, name))),
+      typeof stateRoot === 'string' && path.isAbsolute(stateRoot) ? path.join(stateRoot, 'mimocode', 'model.json') : '']
       .filter(filename => typeof filename === 'string' && path.isAbsolute(filename))
   }
   if (kind !== 'opencode') return []

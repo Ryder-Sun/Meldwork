@@ -67,8 +67,21 @@ function mimoModel(configs) {
   return configs.reduce((model, config) => typeof config?.model === 'string' ? config.model : model, '')
 }
 
-function mimoProviderId(configs, env) {
-  const model = mimoModel(configs).replace(/\{env:([A-Za-z_][A-Za-z0-9_]*)\}/g,
+function mimoProviderId(configs, env, home) {
+  const configuredModel = mimoModel(configs)
+  if (!configuredModel) {
+    const stateRoot = env.XDG_STATE_HOME || path.join(home, '.local', 'state')
+    try {
+      const filename = path.join(stateRoot, 'mimocode', 'model.json')
+      const stat = fs.statSync(filename)
+      if (!stat.isFile() || stat.size > 2 * 1024 * 1024) return ''
+      const recent = JSON.parse(fs.readFileSync(filename, 'utf8'))?.recent
+      const selected = Array.isArray(recent) ? recent[0] : null
+      return typeof selected?.providerID === 'string' && /^[A-Za-z0-9._-]+$/.test(selected.providerID)
+        && typeof selected.modelID === 'string' && selected.modelID ? selected.providerID : ''
+    } catch { return '' }
+  }
+  const model = configuredModel.replace(/\{env:([A-Za-z_][A-Za-z0-9_]*)\}/g,
     (_match, name) => nativeSecretEnvKeys([name]).length ? env[name] || '' : '')
   return model.includes('/') ? model.split('/')[0] : ''
 }
@@ -76,7 +89,7 @@ function mimoProviderId(configs, env) {
 function mimoProviderKey(options = {}, configs = mimoConfigLayers(options)) {
   if (!configs) return ''
   try {
-    const providerId = mimoProviderId(configs, options.env || process.env)
+    const providerId = mimoProviderId(configs, options.env || process.env, options.home || os.homedir())
     if (!providerId) return ''
     let key
     for (const config of configs) {
@@ -101,7 +114,7 @@ function mimoDeclaredCredentialKeys(options = {}) {
     }
   }
   visit(mimoModel(configs))
-  const providerId = mimoProviderId(configs, options.env || process.env)
+  const providerId = mimoProviderId(configs, options.env || process.env, options.home || os.homedir())
   if (providerId) {
     const merge = (current, incoming, depth = 0) => {
       if (depth > 32 || !incoming || typeof incoming !== 'object' || Array.isArray(incoming)) return incoming

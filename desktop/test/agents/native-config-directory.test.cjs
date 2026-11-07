@@ -72,6 +72,7 @@ test('MiMo identity tracks its explicit and user configuration files', () => {
     path.join(home, 'custom.json'), path.join(home, '.mimocode', 'mimocode.json'),
     path.join(home, '.mimocode', 'mimocode.jsonc'),
     path.join(home, '.config', 'mimocode', 'mimocode.json'), path.join(home, '.config', 'mimocode', 'mimocode.jsonc'),
+    path.join(home, '.local', 'state', 'mimocode', 'model.json'),
   ])
 })
 
@@ -138,6 +139,21 @@ test('default AWS credential updates change Pi and Claude verification identity'
   for (let index = 0; index < agents.length; index += 1) {
     assert.notEqual(agentVerificationIdentity(agents[index]), before[index])
   }
+})
+
+test('MiMo recent model changes invalidate verification identity', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-mimo-model-identity-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const filename = path.join(home, '.local', 'state', 'mimocode', 'model.json')
+  fs.mkdirSync(path.dirname(filename), { recursive: true })
+  fs.writeFileSync(filename, '{"recent":[]}')
+  const { NATIVE_AUTH_IDENTITY_FILES } = require('../../src/agents/native-config-directory.cjs')
+  const { agentVerificationIdentity } = require('../../src/workspace/agent-verification-identity.cjs')
+  const agent = { kind: 'mimo' }
+  Object.defineProperty(agent, NATIVE_AUTH_IDENTITY_FILES, { value: nativeAuthIdentityFiles('mimo', {}, home) })
+  const before = agentVerificationIdentity(agent)
+  fs.writeFileSync(filename, '{"recent":[{"providerID":"test","modelID":"model"}]}')
+  assert.notEqual(agentVerificationIdentity(agent), before)
 })
 
 test('OpenCode recent models and provider metadata changes invalidate verification identity', t => {
