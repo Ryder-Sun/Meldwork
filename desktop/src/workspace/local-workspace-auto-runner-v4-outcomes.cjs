@@ -48,6 +48,14 @@ const v4OutcomeMethods = {
     if (coordinationPlan.assignments.some(assignment => (
       completed.has(assignment.taskId) && assignment.dependsOn.some(id => !completed.has(id))
     ))) throw new Error('LOCAL_RUN_V4_WORK_RECEIPT_INVALID')
+    for (const assignment of coordinationPlan.assignments) {
+      const receipt = completed.get(assignment.taskId)
+      if (!receipt || !Object.hasOwn(receipt, 'dependencyWorkReceiptIds')) continue
+      const dependencies = assignment.dependsOn.map(id => completed.get(id).workReceiptId).sort()
+      if (canonicalJson(receipt.dependencyWorkReceiptIds) !== canonicalJson(dependencies)) {
+        throw new Error('LOCAL_RUN_V4_WORK_RECEIPT_INVALID')
+      }
+    }
     const pending = coordinationPlan.assignments.filter(assignment => !completed.has(assignment.taskId))
     const ready = pending.filter(assignment => (
       assignment.dependsOn.every(taskId => completed.has(taskId))
@@ -264,7 +272,7 @@ const v4OutcomeMethods = {
   },
 
   v4ExactWorkReceipt(receiptRecord, assignment, slot, snapshotRecord, snapshotHash,
-    coordinationPlan) {
+    coordinationPlan, workReceipts) {
     const receipt = receiptRecord?.receipt
     if (!receipt || !assignment || !slot || !snapshotRecord?.bodyHash
         || !snapshotRecord?.contentRef || !coordinationPlan?.planHash) {
@@ -278,6 +286,11 @@ const v4OutcomeMethods = {
         contentRef: artifact.contentRef,
       }
     })
+    const dependencyWorkReceiptIds = assignment.dependsOn.map(taskId => {
+      const dependency = workReceipts?.find(item => item.taskId === taskId && item.planHash === coordinationPlan.planHash)
+      if (!dependency?.workReceiptId) throw new Error('LOCAL_RUN_V4_WORK_RECEIPT_INVALID')
+      return dependency.workReceiptId
+    })
     return createWorkReceipt({
       snapshotHash,
       snapshotBodyHash: snapshotRecord.bodyHash,
@@ -289,6 +302,7 @@ const v4OutcomeMethods = {
       operationId: slot.operationId,
       collaborationReceipt: receipt,
       artifacts,
+      dependencyWorkReceiptIds,
     })
   },
 

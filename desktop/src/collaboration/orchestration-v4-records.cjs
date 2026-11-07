@@ -517,6 +517,16 @@ function createWorkReceipt(input = {}) {
         !== canonicalJson(collaborationReceipt.artifactIds)) {
     fail('ORCHESTRATION_V4_WORK_RECEIPT_INVALID')
   }
+  let dependencyWorkReceiptIds
+  if (Object.hasOwn(input, 'dependencyWorkReceiptIds')) {
+    if (!Array.isArray(input.dependencyWorkReceiptIds)
+        || input.dependencyWorkReceiptIds.length > MAX_V4_ASSIGNMENTS
+        || input.dependencyWorkReceiptIds.some(id => typeof id !== 'string' || !WORK_RECEIPT_ID.test(id))
+        || new Set(input.dependencyWorkReceiptIds).size !== input.dependencyWorkReceiptIds.length) {
+      fail('ORCHESTRATION_V4_WORK_RECEIPT_INVALID')
+    }
+    dependencyWorkReceiptIds = [...input.dependencyWorkReceiptIds].sort()
+  }
   const resultHash = hashValue({ collaborationReceipt, artifacts })
   const body = {
     version: 1,
@@ -531,6 +541,7 @@ function createWorkReceipt(input = {}) {
     collaborationReceipt,
     resultHash,
     artifacts,
+    ...(dependencyWorkReceiptIds ? { dependencyWorkReceiptIds } : {}),
   }
   return {
     ...body,
@@ -542,7 +553,7 @@ function normalizeWorkReceipt(input) {
   if (!isRecord(input) || !exactFields(input, [
     'version', 'workReceiptId', 'snapshotHash', 'snapshotBodyHash',
     'snapshotContentRef', 'planHash', 'taskId', 'ownerKind', 'slotId',
-    'operationId', 'collaborationReceipt', 'resultHash', 'artifacts',
+    'operationId', 'collaborationReceipt', 'resultHash', 'artifacts', 'dependencyWorkReceiptIds',
   ]) || input.version !== 1 || !WORK_RECEIPT_ID.test(String(input.workReceiptId || ''))) {
     fail('ORCHESTRATION_V4_WORK_RECEIPT_INVALID')
   }
@@ -1583,6 +1594,16 @@ function validateV4Relations(orchestration, targetKinds) {
     if (orchestration.coordinationPlan.assignments.some(assignment => (
       taskIds.has(assignment.taskId) && assignment.dependsOn.some(id => !taskIds.has(id))
     ))) fail('ORCHESTRATION_V4_WORK_RECEIPT_INVALID')
+    for (const receipt of orchestration.workReceipts) {
+      if (!Object.hasOwn(receipt, 'dependencyWorkReceiptIds')) continue
+      const assignment = orchestration.coordinationPlan.assignments.find(item => item.taskId === receipt.taskId)
+      const dependencies = assignment.dependsOn.map(id => (
+        orchestration.workReceipts.find(item => item.taskId === id)?.workReceiptId
+      )).sort()
+      if (canonicalJson(receipt.dependencyWorkReceiptIds) !== canonicalJson(dependencies)) {
+        fail('ORCHESTRATION_V4_WORK_RECEIPT_INVALID')
+      }
+    }
   }
   const assignmentsBySlot = new Map(orchestration.plan.assignments.map(item => [item.slotId, item]))
   for (const slot of orchestration.slots) {

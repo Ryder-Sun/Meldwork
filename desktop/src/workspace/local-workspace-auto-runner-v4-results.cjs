@@ -531,12 +531,12 @@ const v4ResultMethods = {
           })) {
         throw new Error('LOCAL_RUN_V4_WORK_RECEIPT_INVALID')
       }
-      const exactReceipt = this.v4ExactWorkReceipt(
-        receiptRecord, assignment, slot, snapshotRecord, snapshotHash, coordinationPlan,
-      )
       const durableReceipts = Array.isArray(controller.orchestration?.workReceipts)
         ? controller.orchestration.workReceipts
         : input.workReceipts
+      const exactReceipt = this.v4ExactWorkReceipt(
+        receiptRecord, assignment, slot, snapshotRecord, snapshotHash, coordinationPlan, durableReceipts,
+      )
       const appended = appendWorkReceipt(durableReceipts, exactReceipt)
       const assignmentOrder = new Map(coordinationPlan.assignments.map((candidate, index) => (
         [candidate.taskId, index]

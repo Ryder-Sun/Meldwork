@@ -33,6 +33,11 @@ test('V4 work recovery rejects a completed task whose dependency is missing', ()
   const parallel = runner.v4WorkState([receipt('independent', 'workbuddy'),
     receipt('upstream', 'codex'), receipt('downstream', 'hermes')], plan)
   assert.equal(parallel.completed.size, 3)
+  const upstream = { ...receipt('upstream', 'codex'), workReceiptId: `work-receipt-${'a'.repeat(64)}` }
+  const bound = { ...receipt('downstream', 'hermes'), dependencyWorkReceiptIds: [upstream.workReceiptId] }
+  assert.equal(runner.v4WorkState([bound, upstream], plan).completed.size, 2)
+  assert.throws(() => runner.v4WorkState([{ ...bound, dependencyWorkReceiptIds: [`work-receipt-${'b'.repeat(64)}`] }, upstream], plan),
+    { message: 'LOCAL_RUN_V4_WORK_RECEIPT_INVALID' })
 })
 
 test('V4 work recovery rejects artifacts and evidence from another run or Agent', () => {

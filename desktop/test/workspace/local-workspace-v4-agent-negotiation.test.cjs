@@ -1310,6 +1310,12 @@ test('V4 lets Agents negotiate responsibilities, execute every work package, and
   assert.deepEqual(persistedGraph, preferredPlan)
   assert.equal(supportReceiptIds.length, 3)
   assert.deepEqual(supportReceiptIds, [...supportReceiptIds].sort())
+  const workReceipts = controller.orchestration.workReceipts
+  for (const assignment of preferredPlan.assignments) {
+    const receipt = workReceipts.find(item => item.taskId === assignment.taskId)
+    const dependencies = assignment.dependsOn.map(id => workReceipts.find(item => item.taskId === id).workReceiptId).sort()
+    assert.deepEqual(receipt.dependencyWorkReceiptIds, dependencies)
+  }
   assert.deepEqual(
     calls.filter(call => call.phase === 'work').map(call => call.kind).sort(),
     ['codex', 'hermes', 'hermes', 'workbuddy'],

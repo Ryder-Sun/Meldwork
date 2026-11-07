@@ -778,6 +778,15 @@ test('round-trips exact work receipts bound to the active plan, snapshot, operat
   assert.deepEqual(parseOrchestrationV4(dependencyRecord, { targetKinds }), dependencyRecord)
   const reordered = { ...dependencyRecord, workReceipts: [prematureReceipt, dependencyWork] }
   assert.deepEqual(parseOrchestrationV4(reordered, { targetKinds }), reordered)
+  const boundReceipt = createWorkReceipt({ ...prematureReceipt,
+    dependencyWorkReceiptIds: [dependencyWork.workReceiptId] })
+  const boundRecord = { ...dependencyRecord, workReceipts: [boundReceipt, dependencyWork] }
+  assert.deepEqual(parseOrchestrationV4(boundRecord, { targetKinds }), boundRecord)
+  const wrongDependency = createWorkReceipt({ ...prematureReceipt,
+    dependencyWorkReceiptIds: [`work-receipt-${'f'.repeat(64)}`] })
+  assert.throws(() => parseOrchestrationV4({ ...dependencyRecord,
+    workReceipts: [wrongDependency, dependencyWork] }, { targetKinds }),
+  { code: 'ORCHESTRATION_V4_WORK_RECEIPT_INVALID' })
 
   const conflictingReceipt = createCollaborationReceipt({
     ...receipt,
