@@ -139,6 +139,14 @@ const taskGraphMethods = {
     if (['reviewer', 'arbiter'].includes(node.role)) {
       for (const conflict of this.unresolvedTaskGraphConflicts(controller.orchestration.collaboration)) {
         selected.push(conflict.entryId, ...conflict.refs)
+        for (const state of cursor.nodeStates) {
+          if (state.status === 'accepted' && state.entryIds.some(id => conflict.refs.includes(id))) {
+            const outcomes = controller.orchestration.collaboration.entries.filter(entry => (
+              state.entryIds.includes(entry.entryId) && ['artifact-ref', 'evidence-ref'].includes(entry.entryType)
+            ))
+            selected.push(...outcomes.map(entry => entry.entryId))
+          }
+        }
       }
     }
     return [...new Set(selected)]
