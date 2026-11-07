@@ -25,3 +25,31 @@ test('OpenCode discovers native provider references in global, explicit, inline 
     ['GLOBAL_SECRET', 'INLINE_SECRET', 'MODEL_CHOICE', 'PROJECT_SECRET'])
   assert.deepEqual(opencodeDeclaredCredentialKeys({ home, env }), ['GLOBAL_SECRET', 'INLINE_SECRET', 'MODEL_CHOICE'])
 })
+
+test('OpenCode discovers env names for selected native model providers only', async t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-opencode-providers-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const config = path.join(home, 'config', 'opencode')
+  const cache = path.join(home, 'cache', 'opencode')
+  fs.mkdirSync(config, { recursive: true })
+  fs.mkdirSync(cache, { recursive: true })
+  fs.writeFileSync(path.join(config, 'opencode.json'), JSON.stringify({ model: 'deepseek/model', small_model: 'groq/fast' }))
+  fs.writeFileSync(path.join(cache, 'models.json'), JSON.stringify({
+    deepseek: { env: ['DEEPSEEK_API_KEY', 'NODE_OPTIONS'] }, groq: { env: ['GROQ_API_KEY'] },
+    unrelated: { env: ['UNRELATED_API_KEY'] },
+  }))
+  const env = { XDG_CONFIG_HOME: path.dirname(config), XDG_CACHE_HOME: path.dirname(cache),
+    DEEPSEEK_API_KEY: 'deepseek-test', GROQ_API_KEY: 'groq-test', UNRELATED_API_KEY: 'unrelated-test' }
+  const keys = opencodeDeclaredCredentialKeys({ home, env })
+  assert.deepEqual(keys, ['DEEPSEEK_API_KEY', 'GROQ_API_KEY'])
+  const { resolveNativeShellEnvironment, nativeCredentialEnvironment } = require('../../../src/agents/local-agent-readiness.cjs')
+  const { childEnvironment } = require('../../../src/agents/cli/cli-process-support.cjs')
+  const captured = await resolveNativeShellEnvironment({ platform: 'win32', env, extraEnvKeys: keys, cache: false })
+  const selected = nativeCredentialEnvironment('opencode', captured.env, keys)
+  const child = childEnvironment({ kind: 'opencode' }, home, { env: selected, nativeCredentialKeys: keys }, 'darwin')
+  assert.equal(child.DEEPSEEK_API_KEY, 'deepseek-test')
+  assert.equal(child.GROQ_API_KEY, 'groq-test')
+  assert.equal(child.UNRELATED_API_KEY, undefined)
+  fs.writeFileSync(path.join(cache, 'models.json'), '{invalid')
+  assert.deepEqual(opencodeDeclaredCredentialKeys({ home, env }), [])
+})

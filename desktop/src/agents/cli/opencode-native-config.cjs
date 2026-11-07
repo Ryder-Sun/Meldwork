@@ -56,6 +56,23 @@ function opencodeDeclaredCredentialKeys(options = {}) {
     visit(config?.model)
     visit(config?.small_model)
   }
+  const providers = new Set(configs.flatMap(config => [config?.model, config?.small_model])
+    .filter(model => typeof model === 'string' && /^[A-Za-z0-9._-]+\/.+/.test(model))
+    .map(model => model.slice(0, model.indexOf('/'))))
+  if (providers.size) {
+    const cacheRoot = env.XDG_CACHE_HOME || path.join(home, '.cache')
+    const filename = path.join(cacheRoot, 'opencode', 'models.json')
+    try {
+      const stat = fs.statSync(filename)
+      if (stat.isFile() && stat.size <= 16 * 1024 * 1024) {
+        const metadata = JSON.parse(fs.readFileSync(filename, 'utf8'))
+        for (const provider of providers) {
+          const declared = Object.hasOwn(metadata, provider) ? metadata[provider]?.env : null
+          if (Array.isArray(declared)) keys.push(...declared.slice(0, 128))
+        }
+      }
+    } catch { /* Missing or invalid native metadata is handled by OpenCode. */ }
+  }
   return nativeSecretEnvKeys(keys)
 }
 
