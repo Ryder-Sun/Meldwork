@@ -252,6 +252,7 @@ class LocalWorkspaceAutoRunner {
       )
     }
     if (controller.orchestration?.version === 3) {
+      this.validateTaskGraphRecoveredResults(controller)
       const cursor = parseTaskGraphCursor(controller.orchestration.taskGraph)
       const runningNodeId = cursor.currentNodeIds.length === 1
         ? cursor.currentNodeIds[0]
@@ -285,6 +286,7 @@ class LocalWorkspaceAutoRunner {
   }
 
   async resumeDecision(group, durable, controller, decision) {
+    this.validateTaskGraphRecoveredResults(controller)
     const cursor = parseTaskGraphCursor(controller.orchestration?.taskGraph)
     const waiting = cursor.nodeStates.find(state => state.status === 'waiting')
     const node = cursor.graph.nodes.find(candidate => candidate.nodeId === waiting?.nodeId)

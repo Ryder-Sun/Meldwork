@@ -85,6 +85,30 @@ test('task graph fails closed when a required input is not visible', async () =>
     'task', {}, graphNode()), { message: 'LOCAL_WORKFLOW_INPUT_UNAVAILABLE' })
 })
 
+test('task graph recovery rechecks accepted evidence and rejects missing or changed outcomes', () => {
+  const node = graphNode({ terminal: true })
+  const graph = createTaskGraph({ template: 'task-graph', nodes: [node] })
+  const controller = { runId: 'run', taskId: 'task', currentRound: 1, completedKinds: [], failedKinds: [],
+    orchestration: { taskGraph: createTaskGraphCursor(graph), collaboration: emptyCollaborationState(), activeKinds: ['codex'] } }
+  let available = true
+  const runner = { ...collaborationMethods, ...taskGraphMethods,
+    taskGraphVerifiedOutcomeRefs: () => available
+      ? { artifactIds: ['artifact-one'], evidenceIds: ['evidence-one'] }
+      : { artifactIds: [], evidenceIds: [] },
+    checkpointOrchestration: (_group, target, updates) => Object.assign(target.orchestration, updates),
+    checkpointTaskGraph: (_group, target, next) => { target.orchestration.taskGraph = next; return next },
+  }
+  const result = { message: { content: 'Verified result.', trace: { status: 'completed', agentRunId: 'agent-run' } },
+    outcomeRefs: { artifactIds: ['artifact-one'], evidenceIds: ['evidence-one'] } }
+  assert.equal(runner.applyTaskGraphAgentResult({}, controller, node, result), true)
+  assert.equal(runner.validateTaskGraphRecoveredResults(controller), true)
+  const altered = { ...controller, orchestration: structuredClone(controller.orchestration) }
+  altered.orchestration.collaboration.entries.find(entry => entry.entryType === 'claim').subject = 'another-task'
+  assert.throws(() => runner.validateTaskGraphRecoveredResults(altered), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
+  available = false
+  assert.throws(() => runner.validateTaskGraphRecoveredResults(controller), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
+})
+
 test('task graph and V4 cannot be combined silently in either start path', async t => {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
@@ -158,6 +182,10 @@ test('task graph resumes a human decision after its blackboard checkpoint withou
   assert.equal(runner.applyTaskGraphHumanDecision({}, resumed, node, decision), true)
   assert.equal(resumed.orchestration.collaboration.entries.length, 1)
   assert.equal(resumed.orchestration.taskGraph.nodeStates[0].status, 'accepted')
+  assert.equal(runner.validateTaskGraphRecoveredResults(resumed), true)
+  const missing = { ...resumed, orchestration: { ...resumed.orchestration,
+    collaboration: emptyCollaborationState() } }
+  assert.throws(() => runner.validateTaskGraphRecoveredResults(missing), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
   assert.throws(() => runner.applyTaskGraphHumanDecision({}, controller, node,
     { status: 'approved', optionId: 'reject' }), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
   assert.throws(() => runner.applyTaskGraphHumanDecision({}, controller, node,

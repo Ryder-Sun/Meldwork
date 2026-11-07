@@ -553,6 +553,7 @@ class LocalWorkspace extends EventEmitter {
     controller.harness = new RunHarness({ runId: durable.runId, groupId: group.id,
       threadRootId: durable.threadRootId, targetKinds: durable.targetKinds, agentRuns: durable.agentRuns })
     if (durable.budget) controller.budget = new RunBudget({ ...durable.budget, now: Date.now })
+    this.autoRunner.validateTaskGraphRecoveredResults(controller)
     const completed = this.completedTaskGraphResults(durable)
     if (!completed) return false
     for (const { node, result } of completed) this.autoRunner.applyTaskGraphAgentResult(group, controller, node, result)

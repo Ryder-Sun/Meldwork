@@ -22,6 +22,61 @@ const {
 } = require('./local-workspace-auto-runner-support.cjs')
 
 const taskGraphMethods = {
+  validateTaskGraphRecoveredResults(controller) {
+    const cursor = parseTaskGraphCursor(controller.orchestration.taskGraph)
+    const entries = controller.orchestration.collaboration?.entries || []
+    for (const state of cursor.nodeStates) {
+      if (state.status !== 'accepted') continue
+      const node = cursor.graph.nodes.find(candidate => candidate.nodeId === state.nodeId)
+      if (node.role === 'human') {
+        const option = node.decisionOptions.find(candidate => candidate.optionId === state.decisionOptionId)
+        const decision = state.entryIds.length === 1
+          ? entries.find(entry => entry.entryId === state.entryIds[0]) : null
+        if (!option || option.kind !== 'allow_once' || decision?.entryType !== 'decision'
+            || decision.owner?.type !== 'harness' || decision.provenance?.runId !== controller.runId
+            || decision.provenance.taskId !== controller.taskId
+            || decision.provenance.agentRunId !== this.taskGraphDecisionAgentRunId(cursor.graph.graphId, node.nodeId)
+            || decision.subject !== `task:${controller.taskId}:node:${node.nodeId}`
+            || decision.statement !== `Human selected: ${option.name}`
+            || (decision.value !== option.optionId && !(decision.value === ''
+              && node.decisionOptions.filter(candidate => candidate.name === option.name).length === 1))) {
+          throw new Error('LOCAL_RUN_CONTINUATION_INVALID')
+        }
+        continue
+      }
+      if (!state.entryIds.length && !node.acceptance.requireConclusion
+          && !node.acceptance.minArtifactRefs && !node.acceptance.minEvidenceRefs) continue
+      const selected = state.entryIds.map(id => entries.find(entry => entry.entryId === id))
+      if (selected.some(entry => !entry)) throw new Error('LOCAL_RUN_CONTINUATION_INVALID')
+      const claims = selected.filter(entry => ['claim', 'decision'].includes(entry.entryType)
+        && entry.owner?.type === 'agent' && entry.owner.agentKind === node.agentKind
+        && entry.provenance?.runId === controller.runId && entry.provenance.taskId === controller.taskId)
+      if (claims.length !== 1 || !claims[0].provenance.agentRunId) throw new Error('LOCAL_RUN_CONTINUATION_INVALID')
+      const claim = claims[0]
+      const subject = node.role === 'primary'
+        ? (node.claimKey ? `task:${controller.taskId}:claim:${node.claimKey}` : `task:${controller.taskId}:conclusion`)
+        : `task:${controller.taskId}:node:${node.nodeId}`
+      const conclusionHash = claim.statement ? createHash('sha256').update(claim.statement).digest('hex') : ''
+      if (claim.owner.role !== node.role || claim.subject !== subject
+          || claim.entryType !== (node.role === 'arbiter' ? 'decision' : 'claim')
+          || state.conclusionHash !== conclusionHash
+          || canonicalJson(state.artifactIds) !== canonicalJson(claim.provenance.artifactIds)
+          || canonicalJson(state.evidenceIds) !== canonicalJson(claim.provenance.evidenceIds)) {
+        throw new Error('LOCAL_RUN_CONTINUATION_INVALID')
+      }
+      const result = { message: { content: claim.statement, trace: {
+        status: 'completed', agentRunId: claim.provenance.agentRunId,
+      } }, outcomeRefs: { artifactIds: state.artifactIds, evidenceIds: state.evidenceIds } }
+      const refs = this.taskGraphVerifiedOutcomeRefs(node, result, controller)
+      if (canonicalJson(refs.artifactIds) !== canonicalJson(state.artifactIds)
+          || canonicalJson(refs.evidenceIds) !== canonicalJson(state.evidenceIds)
+          || !this.taskGraphResultAccepted(node, result, controller, refs)) {
+        throw new Error('LOCAL_RUN_CONTINUATION_INVALID')
+      }
+    }
+    return true
+  },
+
   unresolvedTaskGraphConflicts(collaborationInput = null) {
     const collaboration = collaborationInput || emptyCollaborationState()
     const resolved = new Set(collaboration.entries
