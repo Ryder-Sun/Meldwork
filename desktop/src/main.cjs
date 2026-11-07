@@ -265,7 +265,7 @@ async function nativeShellEnvironment(options = {}) {
   const opencodeEnv = nativeConfigEnvironment('opencode', workspace?.state.agentPreferences, initialEnv)
   let opencodeCredentialKeys = opencodeDeclaredCredentialKeys({ home, env: opencodeEnv, workdir: options.workdir })
   const mimoEnv = nativeConfigEnvironment('mimo', workspace?.state.agentPreferences, initialEnv)
-  const mimoCredentialKeys = mimoDeclaredCredentialKeys({ home, env: mimoEnv, workdir: options.workdir })
+  let mimoCredentialKeys = mimoDeclaredCredentialKeys({ home, env: mimoEnv, workdir: options.workdir })
   for (let pass = 0; pass < 2; pass += 1) {
     const declaredKeys = [...new Set([...codexCredentialKeys, ...hermesCredentialKeys, ...zcodeCredentialKeys, ...piCredentialKeys,
       ...opencodeCredentialKeys, ...mimoCredentialKeys])]
@@ -291,8 +291,12 @@ async function nativeShellEnvironment(options = {}) {
       for (const key of resolved.unsetKeys || []) delete enriched[key]
       const nextEnv = nativeConfigEnvironment('opencode', workspace?.state.agentPreferences, enriched)
       const nextKeys = opencodeDeclaredCredentialKeys({ home, env: nextEnv, workdir: options.workdir })
+      const nextMimoEnv = nativeConfigEnvironment('mimo', workspace?.state.agentPreferences, enriched)
+      const nextMimoKeys = mimoDeclaredCredentialKeys({ home, env: nextMimoEnv, workdir: options.workdir })
       const needsAnotherPass = nextKeys.some(key => !opencodeCredentialKeys.includes(key))
+        || nextMimoKeys.some(key => !mimoCredentialKeys.includes(key))
       opencodeCredentialKeys = nextKeys
+      mimoCredentialKeys = nextMimoKeys
       if (needsAnotherPass) continue
     }
     break

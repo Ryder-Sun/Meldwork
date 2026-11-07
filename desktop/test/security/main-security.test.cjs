@@ -603,6 +603,28 @@ test('MiMo resolves project credentials for each chat working directory', async 
   }
 })
 
+test('MiMo captures an env-selected project model and only its provider credential', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-mimo-model-main-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  fs.writeFileSync(path.join(directory, 'mimocode.json'), JSON.stringify({ model: '{env:MODEL_CHOICE}',
+    provider: { custom: { options: { apiKey: '{env:CUSTOM_KEY}' } },
+      other: { options: { apiKey: '{env:OTHER_KEY}' } } } }))
+  const readiness = require('../../src/agents/local-agent-readiness.cjs')
+  const values = { MODEL_CHOICE: 'custom/model', CUSTOM_KEY: 'synthetic', OTHER_KEY: 'unrelated' }
+  const { harness } = loadMain(directory, {
+    nativeEnvironment: readiness.nativeCredentialEnvironment,
+    nativeShellEnvironment: input => ({ source: 'native-shell', env: Object.fromEntries(
+      (input.extraEnvKeys || []).filter(key => Object.hasOwn(values, key)).map(key => [key, values[key]]),
+    ) }),
+  })
+  await harness.ready()
+  await harness.workspaceInstances[0].input.runAgent({ kind: 'mimo', executable: '/tmp/mimo' }, 'hello', directory, {})
+  const options = harness.runAgentCalls.at(-1)[3]
+  assert.equal(options.env.MODEL_CHOICE, 'custom/model')
+  assert.equal(options.env.CUSTOM_KEY, 'synthetic')
+  assert.equal(options.env.OTHER_KEY, undefined)
+})
+
 test('Zcode receives only its native provider credential', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-zcode-env-main-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

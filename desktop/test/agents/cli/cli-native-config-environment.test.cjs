@@ -167,6 +167,19 @@ test('MiMo captures only the selected provider environment reference and redacts
   assert.equal(mimoConfiguredProvider({ env: { ...env, NODE_OPTIONS: 'unsafe' } }), false)
 })
 
+test('MiMo resolves the selected model from the native shell before finding its provider key', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-mimo-model-env-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  fs.writeFileSync(path.join(home, 'mimocode.json'), JSON.stringify({ model: '{env:MODEL_CHOICE}',
+    provider: { custom: { options: { apiKey: '{env:CUSTOM_KEY}' } },
+      other: { options: { apiKey: '{env:OTHER_KEY}' } } } }))
+  const { mimoDeclaredCredentialKeys, mimoConfiguredProvider } = require('../../../src/agents/cli/mimo-native-config.cjs')
+  assert.deepEqual(mimoDeclaredCredentialKeys({ home, workdir: home, env: {} }), ['MODEL_CHOICE'])
+  const env = { MODEL_CHOICE: 'custom/model', CUSTOM_KEY: 'synthetic' }
+  assert.deepEqual(mimoDeclaredCredentialKeys({ home, workdir: home, env }), ['CUSTOM_KEY', 'MODEL_CHOICE'])
+  assert.equal(mimoConfiguredProvider({ home, workdir: home, env }), true)
+})
+
 test('inline native provider credentials are redacted in complete and streamed output', () => {
   for (const kind of ['mimo', 'opencode']) {
     const key = kind === 'mimo' ? 'MIMOCODE_CONFIG_CONTENT' : 'OPENCODE_CONFIG_CONTENT'

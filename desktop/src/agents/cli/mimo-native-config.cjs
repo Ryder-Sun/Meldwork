@@ -63,14 +63,16 @@ function mimoConfigurationFingerprint(options = {}) {
   return configs === null ? null : createHash('sha256').update(JSON.stringify(configs)).digest('hex')
 }
 
-function mimoProviderKey(options = {}) {
-  const configs = mimoConfigLayers(options)
+function mimoModel(configs) {
+  return configs.reduce((model, config) => typeof config?.model === 'string' ? config.model : model, '')
+}
+
+function mimoProviderKey(options = {}, configs = mimoConfigLayers(options)) {
   if (!configs) return ''
   try {
-    let model = ''
-    for (const config of configs) {
-      if (typeof config?.model === 'string') model = config.model
-    }
+    const env = options.env || process.env
+    const model = mimoModel(configs).replace(/\{env:([A-Za-z_][A-Za-z0-9_]*)\}/g,
+      (_match, name) => nativeSecretEnvKeys([name]).length ? env[name] || '' : '')
     if (!model.includes('/')) return ''
     const providerId = model.split('/')[0]
     let key
@@ -84,8 +86,11 @@ function mimoProviderKey(options = {}) {
 }
 
 function mimoDeclaredCredentialKeys(options = {}) {
-  const reference = mimoProviderKey(options).match(/^\{env:([A-Za-z_][A-Za-z0-9_]*)\}$/)
-  return nativeSecretEnvKeys(reference ? [reference[1]] : [])
+  const configs = mimoConfigLayers(options)
+  if (!configs) return []
+  const modelKeys = [...mimoModel(configs).matchAll(/\{env:([A-Za-z_][A-Za-z0-9_]*)\}/g)].map(match => match[1])
+  const reference = mimoProviderKey(options, configs).match(/^\{env:([A-Za-z_][A-Za-z0-9_]*)\}$/)
+  return nativeSecretEnvKeys([...modelKeys, ...(reference ? [reference[1]] : [])])
 }
 
 function mimoConfiguredProvider(options = {}) {
