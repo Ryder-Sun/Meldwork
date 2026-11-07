@@ -1336,7 +1336,10 @@ async function resolveNativeCredentialState(kind, options = {}) {
     if (current.state === 'ready' || mimoConfiguredProvider(options)) {
       return { state: 'ready', source: 'native-credential' }
     }
-    return await queryMimoAuthState(options) || current
+    const identity = await queryMimoAuthState(options)
+    // `whoami` only checks MiMo's own login; project providers can use
+    // different credentials, so its logged-out result is not conclusive.
+    return identity?.state === 'missing' ? current : identity || current
   }
   if (kind === 'openclaw') {
     const status = await queryOpenClawStatus(options)

@@ -1830,7 +1830,7 @@ test('MiMo readiness uses the installed CLI identity without forwarding private 
   assert.equal(calls.every(call => call.env.MELDWORK_PRIVATE_VALUE === undefined), true)
 })
 
-test('MiMo readiness recognizes ANSI-colored logged-out output even when the CLI exits zero', async (t) => {
+test('MiMo official logout does not rule out a project provider', async (t) => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-mimo-auth-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))
   const result = await resolveNativeCredentialState('mimo', {
@@ -1842,7 +1842,7 @@ test('MiMo readiness recognizes ANSI-colored logged-out output even when the CLI
     }),
   })
 
-  assert.deepEqual(result, { state: 'missing', source: 'native-auth-status' })
+  assert.deepEqual(result, { state: 'unknown', source: 'unverified' })
 })
 
 test('MiMo readiness remains unknown for missing or malformed identity output', async (t) => {
