@@ -28,6 +28,18 @@ test('Hermes receives native Bedrock and Vertex environment for discovery and ex
   assert.deepEqual(nativeCredentialEnvironment('codex', captured.env), {})
 })
 
+test('Qwen receives native Anthropic, Gemini and Vertex model environment', async () => {
+  const env = { ANTHROPIC_API_KEY: 'native-anthropic', ANTHROPIC_BASE_URL: 'https://example.invalid',
+    ANTHROPIC_MODEL: 'anthropic-model', GEMINI_API_KEY: 'native-gemini', GEMINI_MODEL: 'gemini-model',
+    GOOGLE_API_KEY: 'native-google', GOOGLE_MODEL: 'vertex-model' }
+  const captured = await resolveNativeShellEnvironment({ cache: false, platform: 'win32', env })
+  const selected = nativeCredentialEnvironment('qwen', captured.env)
+  assert.deepEqual(selected, env)
+  const child = childEnvironment({ kind: 'qwen' }, '/workspace', { env: selected }, 'darwin')
+  for (const [key, value] of Object.entries(env)) assert.equal(child[key], value)
+  assert.deepEqual(nativeCredentialEnvironment('codex', captured.env), {})
+})
+
 test('Gemini uses its shell-selected native home for readiness and execution', async t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-gemini-native-home-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))
