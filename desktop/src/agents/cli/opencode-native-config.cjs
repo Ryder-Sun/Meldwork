@@ -4,7 +4,7 @@ const path = require('node:path')
 const JSON5 = require('json5')
 const { nativeSecretEnvKeys } = require('./native-secret-environment.cjs')
 
-function opencodeDeclaredCredentialKeys(options = {}) {
+function opencodeConfigLayers(options = {}) {
   const env = options.env || process.env
   const home = options.home || os.homedir()
   const workdir = typeof options.workdir === 'string' && path.isAbsolute(options.workdir)
@@ -50,6 +50,11 @@ function opencodeDeclaredCredentialKeys(options = {}) {
       && Buffer.byteLength(env.OPENCODE_CONFIG_CONTENT) <= 2 * 1024 * 1024) {
     try { configs.push(JSON5.parse(env.OPENCODE_CONFIG_CONTENT)) } catch { /* Native CLI reports invalid content. */ }
   }
+  return { configs, env, home }
+}
+
+function opencodeDeclaredCredentialKeys(options = {}) {
+  const { configs, env, home } = opencodeConfigLayers(options)
   const effectiveProviderList = name => {
     const lists = configs.filter(config => Array.isArray(config?.[name])).map(config => config[name])
     const selected = lists.at(-1)
@@ -130,4 +135,4 @@ function opencodeDeclaredCredentialKeys(options = {}) {
   return [...new Set(safeKeys)].sort()
 }
 
-module.exports = { opencodeDeclaredCredentialKeys }
+module.exports = { opencodeDeclaredCredentialKeys, opencodeConfigLayers }

@@ -4,9 +4,10 @@ const JSON5 = require('json5')
 const { launchEnvironment, searchPath, systemChildEnvironment } = require('./cli-discovery.cjs')
 const { networkEnvironment } = require('./cli-network-environment.cjs')
 const { CONFIG_DIRECTORY_ENV_KEYS } = require('./cli-config-directories.cjs')
-const { SECRET_ENV_KEYS, nativeSecretEnvKeys } = require('./native-secret-environment.cjs')
+const { SECRET_ENV_KEYS, nativeSecretEnvKeys, configSecrets } = require('./native-secret-environment.cjs')
 const { nativeCredentialEnvironment } = require('../agent-native-environment.cjs')
 const { mimoConfigSecrets } = require('./mimo-native-config.cjs')
+const { opencodeConfigLayers } = require('./opencode-native-config.cjs')
 const { redactChildSecrets } = require('./cli-runtime-events.cjs')
 const {
   agentRuntimeError,
@@ -226,6 +227,11 @@ function childEnvironment(agent, workdir, options, platform) {
     const home = platform === 'win32' ? (childEnv.USERPROFILE || childEnv.HOME) : childEnv.HOME
     const secrets = mimoConfigSecrets({ home, env: childEnv, workdir })
     Object.defineProperty(childEnv, Symbol.for('meldwork.project-secret-values'), { value: secrets })
+  }
+  if (agent.kind === 'opencode') {
+    const home = platform === 'win32' ? (childEnv.USERPROFILE || childEnv.HOME) : childEnv.HOME
+    const { configs } = opencodeConfigLayers({ home, env: childEnv, workdir })
+    Object.defineProperty(childEnv, Symbol.for('meldwork.project-secret-values'), { value: configSecrets(configs) })
   }
   if (agent.kind === 'claude' && typeof workdir === 'string' && path.isAbsolute(workdir)) {
     const secrets = new Set()
