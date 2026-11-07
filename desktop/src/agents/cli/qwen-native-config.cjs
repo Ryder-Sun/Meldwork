@@ -65,6 +65,13 @@ function qwenNativeSelection(options = {}) {
         }
       }
     }
+    if (!auth) {
+      if (env.QWEN_OAUTH) auth = 'qwen-oauth'
+      else if (env.OPENAI_API_KEY && env.OPENAI_MODEL && env.OPENAI_BASE_URL) auth = 'openai'
+      else if (env.GEMINI_API_KEY && env.GEMINI_MODEL) auth = 'gemini'
+      else if (env.GOOGLE_API_KEY && env.GOOGLE_MODEL) auth = 'vertex-ai'
+      else if (env.ANTHROPIC_API_KEY && env.ANTHROPIC_MODEL && env.ANTHROPIC_BASE_URL) auth = 'anthropic'
+    }
     auth ||= typeof env.QWEN_DEFAULT_AUTH_TYPE === 'string' ? env.QWEN_DEFAULT_AUTH_TYPE : ''
     if (!auth) return { keys: [], unsupported: false, authType: '' }
     const selected = model ? (providers.get(auth) || []).filter(entry => entry?.id === model) : []

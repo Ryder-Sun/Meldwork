@@ -135,3 +135,17 @@ test('Qwen OAuth readiness ignores unrelated provider keys', t => {
   fs.writeFileSync(path.join(root, 'oauth_creds.json'), JSON.stringify({ access_token: 'oauth-token' }))
   assert.deepEqual(nativeCredentialState('qwen', { home, env }), { state: 'ready', source: 'native-credential' })
 })
+
+test('Qwen infers native auth from complete environment combinations', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-qwen-env-auth-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const env = { HOME: home, QWEN_CODE_SYSTEM_SETTINGS_PATH: path.join(home, 'missing.json'),
+    OPENAI_API_KEY: 'unrelated', OPENAI_MODEL: 'model', OPENAI_BASE_URL: 'https://example.test' }
+  assert.deepEqual(qwenDeclaredCredentialKeys({ home, env }), ['OPENAI_API_KEY'])
+  const oauthEnv = { ...env, QWEN_OAUTH: '1' }
+  assert.deepEqual(qwenDeclaredCredentialKeys({ home, env: oauthEnv }), [])
+  assert.deepEqual(nativeCredentialState('qwen', { home, env: oauthEnv }), { state: 'unknown', source: 'unverified' })
+  fs.mkdirSync(path.join(home, '.qwen'))
+  fs.writeFileSync(path.join(home, '.qwen', 'settings.json'), JSON.stringify({ security: { auth: { selectedType: 'openai' } } }))
+  assert.deepEqual(qwenDeclaredCredentialKeys({ home, env: oauthEnv }), ['OPENAI_API_KEY'])
+})

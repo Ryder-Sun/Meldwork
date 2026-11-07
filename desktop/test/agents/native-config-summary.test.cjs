@@ -42,6 +42,7 @@ test('Qwen summary follows native system, user, default and environment preceden
     QWEN_CODE_SYSTEM_DEFAULTS_PATH: defaults, QWEN_DEFAULT_AUTH_TYPE: 'environment' } }
   const write = (file, selectedType) => fs.writeFileSync(file, JSON.stringify({ security: { auth: { selectedType } } }))
   assert.deepEqual(nativeUserConfigSummary('qwen', options), { authType: 'environment' })
+  assert.deepEqual(nativeUserConfigSummary('qwen', { ...options, env: { ...options.env, QWEN_OAUTH: '1' } }), { authType: 'qwen-oauth' })
   write(defaults, 'default')
   assert.deepEqual(nativeUserConfigSummary('qwen', options), { authType: 'default' })
   write(user, 'user')
