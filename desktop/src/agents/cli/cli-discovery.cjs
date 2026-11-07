@@ -222,6 +222,17 @@ function agentCommands(kind, options = {}) {
       .filter(value => typeof value === 'string' && pathApi.isAbsolute(value))
     for (const root of roots) commands.push(pathApi.join(root, '.hermes', 'bin', 'hermes'))
   }
+  if (kind === 'hermes' && platform === 'win32') {
+    const configuredHome = envValue(env, 'HERMES_HOME', platform)
+    const localAppData = envValue(env, 'LOCALAPPDATA', platform) || pathApi.join(home, 'AppData', 'Local')
+    const suffix = envValue(env, 'HERMES_DATA_DIR_SUFFIX', platform) || ''
+    const homes = [configuredHome, pathApi.join(localAppData, `hermes${suffix}`)]
+      .filter(value => typeof value === 'string' && pathApi.isAbsolute(value))
+    for (const root of homes) {
+      commands.push(pathApi.join(root, 'bin', 'hermes'))
+      commands.push(pathApi.join(root, 'hermes-agent', 'venv', 'Scripts', 'hermes'))
+    }
+  }
   if (kind === 'codex' && platform === 'darwin') {
     commands.push('/Applications/ChatGPT.app/Contents/Resources/codex')
     commands.push(pathApi.join(

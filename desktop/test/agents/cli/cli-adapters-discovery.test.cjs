@@ -528,6 +528,25 @@ test('Hermes detection uses the selected native home when locating its installat
   assert.equal(agents.find(agent => agent.kind === 'hermes')?.executable, expected)
 })
 
+test('Windows Hermes discovery falls back to its native launcher and legacy virtual environment', async () => {
+  const home = 'C:\\Users\\Ryder'
+  const root = 'C:\\Native Hermes'
+  const launcher = 'C:\\Native Hermes\\bin\\hermes.EXE'
+  const legacy = 'C:\\Native Hermes\\hermes-agent\\venv\\Scripts\\hermes.EXE'
+  const options = { platform: 'win32', home, env: { PATH: 'C:\\missing', HERMES_HOME: root, PATHEXT: '.EXE;.CMD' },
+    accessFn: async candidate => { if (candidate !== launcher) throw new Error('missing') },
+    execFileFn: async () => { throw new Error('missing') } }
+  assert.equal(await resolveExecutable('hermes', options), launcher)
+  options.accessFn = async candidate => { if (candidate !== legacy) throw new Error('missing') }
+  assert.equal(await resolveExecutable('hermes', options), legacy)
+  options.accessFn = async candidate => { if (candidate !== 'C:\\missing\\hermes.EXE') throw new Error('missing') }
+  assert.equal(await resolveExecutable('hermes', options), 'C:\\missing\\hermes.EXE')
+  options.env = { PATH: 'C:\\missing', LOCALAPPDATA: 'C:\\Users\\Ryder\\AppData\\Local', PATHEXT: '.EXE' }
+  const defaultLauncher = 'C:\\Users\\Ryder\\AppData\\Local\\hermes\\bin\\hermes.EXE'
+  options.accessFn = async candidate => { if (candidate !== defaultLauncher) throw new Error('missing') }
+  assert.equal(await resolveExecutable('hermes', options), defaultLauncher)
+})
+
 test('Windows executable resolution honors PATHEXT', async () => {
   const expected = 'C:\\Tools\\codex.CMD'
   const executable = await resolveExecutable('codex', {
