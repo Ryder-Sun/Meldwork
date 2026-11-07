@@ -307,13 +307,14 @@ for (const writer of [
     { code: 'LOCAL_AGENT_ROUTING_REQUIREMENTS_INVALID' })
 })
 
-test('automatic routing requires explicit invocability even for a recently verified Agent', () => {
+test('routing requires explicit invocability even for a recently verified Agent', () => {
   const router = new AgentRouter()
   const legacy = agent('codex', { invocable: undefined, available: true })
   const args = request({ agents: [legacy], group: { id: 'group-routing', agentKinds: ['codex'], allowWrite: false },
     input: { routingMode: 'automatic', targetKinds: [] } })
   assert.throws(() => router.route(args), { code: 'LOCAL_AGENT_ROUTING_NO_MATCH' })
-  assert.deepEqual(router.route({ ...args, input: { targetKinds: ['codex'] } }).selectedKinds, ['codex'])
+  assert.throws(() => router.route({ ...args, input: { targetKinds: ['codex'] } }),
+    { code: 'LOCAL_AGENT_UNAVAILABLE' })
 })
 
 test('frozen Eval Harness evidence influences routing without static brand preference', () => {

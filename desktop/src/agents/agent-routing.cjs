@@ -184,7 +184,7 @@ function evaluateCandidate(agent, requirements, options = {}) {
     attachmentSupport: options.attachmentSupport?.(agent.kind) || {},
   })
   const exclusions = []
-  if (!(options.requireVerified ? agent.invocable === true : (agent.invocable ?? agent.available))) exclusions.push('unavailable')
+  if (agent.invocable !== true) exclusions.push('unavailable')
   if (options.requireVerified && !options.isRecentlyVerified(agent)) exclusions.push('unverified')
   if (requirements.domains.some(domain => !capabilities.domains.includes(domain))) {
     exclusions.push('domain')
