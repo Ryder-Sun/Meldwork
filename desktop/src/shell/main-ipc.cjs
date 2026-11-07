@@ -439,10 +439,29 @@ function registerDesktopIpc(options) {
       throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
     }
     let directoryMissing = false
+    let configurationFiles = null
     if (directory) {
-      try { validateNativeConfigDirectory(args[0], directory) } catch { directoryMissing = true }
+      try {
+        validateNativeConfigDirectory(args[0], directory)
+        const spec = NATIVE_CONFIG_DIRECTORIES[args[0]]
+        const entries = [...spec.files.map(name => [name, false]), ...(spec.directories || []).map(name => [name, true])]
+        const present = []
+        const missing = []
+        for (const [name, isDirectory] of entries) {
+          let exists = false
+          try {
+            const stat = fs.statSync(path.join(directory, name))
+            exists = isDirectory ? stat.isDirectory() : stat.isFile()
+          } catch { /* The entry is absent or unreadable. */ }
+          if (exists) present.push(isDirectory ? `${name}/` : name)
+          else missing.push(isDirectory ? `${name}/` : name)
+        }
+        configurationFiles = { present, missing }
+        if (!present.length) directoryMissing = true
+      } catch { directoryMissing = true }
     }
     return { directory, ...(directoryMissing ? { directoryMissing: true } : {}),
+      ...(configurationFiles ? { configurationFiles } : {}),
       ...(summary && Object.hasOwn(summary, 'provider') ? { provider: summary.provider || '' } : {}),
       ...(summary && Object.hasOwn(summary, 'authType') ? { authType: summary.authType || '' } : {}) }
   })

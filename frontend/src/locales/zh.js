@@ -6,6 +6,8 @@ export default {
     'nativeConfig.providerUnknown': '未指定或无法读取',
     'nativeConfig.automatic': '未手动指定目录；将自动发现 CLI 的原生配置。',
     'nativeConfig.directoryMissing': '所选目录不可用，或其中已没有可识别的配置文件。',
+    'nativeConfig.foundFiles': '已找到',
+    'nativeConfig.otherFilesMissing': '未找到的其他配置（可能不需要）',
     'nativeConfig.choose': '选择目录',
     'nativeConfig.clear': '恢复自动发现',
     'nativeConfig.invalid': '所选目录没有找到此 Agent 的原生配置文件。',

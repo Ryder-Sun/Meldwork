@@ -33,6 +33,19 @@ it('warns when a previously selected native directory is no longer valid', async
   wrapper.unmount()
 })
 
+it('shows found and absent native configuration names without treating alternatives as errors', async () => {
+  window.meldworkDesktop = { localAgentNativeConfig: { get: vi.fn().mockResolvedValue({
+    directory: '/native/hermes', configurationFiles: { present: ['config.yaml'], missing: ['auth.json', '.env'] },
+  }) } }
+  const wrapper = mount(AgentNativeConfig, { props: { kind: 'hermes' } })
+  await flushPromises()
+  expect(wrapper.text()).toContain('config.yaml')
+  expect(wrapper.text()).toContain('auth.json')
+  expect(wrapper.text()).toContain(t('nativeConfig.otherFilesMissing'))
+  expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+  wrapper.unmount()
+})
+
 it('explains the Zcode home directory used by the selected configuration', async () => {
   window.meldworkDesktop = { localAgentNativeConfig: { get: vi.fn().mockResolvedValue({ directory: '' }) } }
   const wrapper = mount(AgentNativeConfig, { props: { kind: 'zcode' } })

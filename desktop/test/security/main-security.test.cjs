@@ -529,6 +529,7 @@ test('native Agent configuration selection is validated and used for execution',
   assert.equal((await get(harness.event(), 'hermes')).directory, chosen.directory)
   const summary = await get(harness.event(), 'hermes')
   assert.equal(summary.provider, 'custom:work')
+  assert.deepEqual(summary.configurationFiles, { present: ['config.yaml'], missing: ['auth.json', '.env'] })
   assert.doesNotMatch(JSON.stringify(summary), /synthetic-secret/)
   await harness.installerInstances[0].input.detectAgents()
   assert.equal(detectedEnvironment.HERMES_HOME, chosen.directory)

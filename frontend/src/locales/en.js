@@ -6,6 +6,8 @@ export default {
     'nativeConfig.providerUnknown': 'Not specified or unavailable',
     'nativeConfig.automatic': 'No directory selected; the CLI native configuration will be discovered automatically.',
     'nativeConfig.directoryMissing': 'The selected directory is unavailable or no longer contains a recognized configuration.',
+    'nativeConfig.foundFiles': 'Found',
+    'nativeConfig.otherFilesMissing': 'Other configurations not found (may not be needed)',
     'nativeConfig.choose': 'Choose directory',
     'nativeConfig.clear': 'Restore automatic discovery',
     'nativeConfig.invalid': 'The selected directory does not contain this Agent’s native configuration.',
