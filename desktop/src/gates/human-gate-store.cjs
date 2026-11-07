@@ -119,17 +119,22 @@ class HumanGateStore {
 
   create(input = {}) {
     const { request, ...recordInput } = input
-    const requestRef = this.contentBlobStore.put(canonicalPayload(request), {
+    const requestBytes = canonicalPayload(request)
+    const requestRef = {
+      algorithm: 'sha256',
+      hash: createHash('sha256').update(requestBytes).digest('hex'),
+      size: requestBytes.length,
       mediaType: 'application/json',
-    })
+    }
     const record = createHumanGateRecord({
       ...recordInput,
       requestRef,
       requestHash: requestRef.hash,
     })
     const existing = this.records.find(candidate => candidate.gateId === record.gateId)
+    if (!existing && this.records.length >= MAX_GATES) throw storeError('HUMAN_GATE_LIMIT')
+    this.contentBlobStore.put(requestBytes, { mediaType: 'application/json' })
     if (existing) return existing
-    if (this.records.length >= MAX_GATES) throw storeError('HUMAN_GATE_LIMIT')
     const next = [...this.records, record]
     this.save(next)
     this.records = next

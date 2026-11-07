@@ -75,6 +75,21 @@ test('new gates reject secrets and control characters in public option fields', 
   assert.doesNotThrow(() => createHumanGateRecord(gateInput(contentBlobStore)))
 })
 
+test('invalid gate records do not write request content', t => {
+  const { store, contentBlobStore } = fixture(t)
+  const put = contentBlobStore.put.bind(contentBlobStore)
+  let writes = 0
+  contentBlobStore.put = (...args) => { writes += 1; return put(...args) }
+  assert.throws(() => store.create({
+    type: 'permission', runId: 'run-1', agentRunId: 'agent-run-1', agentKind: 'codex',
+    summary: 'Review this request.',
+    options: [{ optionId: 'allow', name: `sk-${'a'.repeat(32)}`, kind: 'allow_once' }],
+    createdAt: '2026-08-04T00:00:00.000Z', request: { tool: 'write_file' },
+  }), { message: 'HUMAN_GATE_SCHEMA_INVALID' })
+  assert.equal(writes, 0)
+  assert.deepEqual(store.list(), [])
+})
+
 test('projects only bounded public task graph decision context', t => {
   const { store } = fixture(t)
   const graphId = `task-graph-${'a'.repeat(64)}`
