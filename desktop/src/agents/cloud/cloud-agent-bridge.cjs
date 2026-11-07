@@ -2,7 +2,7 @@ const crypto = require('node:crypto')
 const { spawn } = require('node:child_process')
 const fs = require('node:fs')
 const net = require('node:net')
-const { abortableHttpOperation, boundedHttpResponseText, discardLateHttpResponse } = require('../bounded-http-response.cjs')
+const { abortableHttpOperation, boundedHttpResponseText, discardHttpResponse, discardLateHttpResponse } = require('../bounded-http-response.cjs')
 
 const { canonicalJson } = require('../../collaboration/outcome-records.cjs')
 const { createHttpOutboundPayload, createSshOutboundPayload } = require('../../collaboration/outbound-payload.cjs')
@@ -314,7 +314,10 @@ class CloudAgentBridgeStore {
       discardLateHttpResponse(pendingResponse, controller.signal)
       const response = await abortableHttpOperation(pendingResponse, controller.signal)
       controller.signal.throwIfAborted()
-      if (!response?.ok) throw bridgeError(`CLOUD_AGENT_BRIDGE_HTTP_${response?.status || 'FAILED'}`)
+      if (!response?.ok) {
+        discardHttpResponse(response)
+        throw bridgeError(`CLOUD_AGENT_BRIDGE_HTTP_${response?.status || 'FAILED'}`)
+      }
       const text = await abortableHttpOperation(
         boundedHttpResponseText(response, MAX_RESPONSE_BYTES, 'CLOUD_AGENT_BRIDGE_RESPONSE_TOO_LARGE', controller.signal),
         controller.signal,

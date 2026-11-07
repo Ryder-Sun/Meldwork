@@ -14,11 +14,15 @@ async function abortableHttpOperation(operation, signal) {
   finally { signal.removeEventListener('abort', onAbort) }
 }
 
+function discardHttpResponse(response) {
+  if (typeof response?.body?.cancel === 'function') {
+    try { Promise.resolve(response.body.cancel()).catch(() => {}) } catch { /* already closed */ }
+  }
+}
+
 function discardLateHttpResponse(operation, signal) {
   Promise.resolve(operation).then(response => {
-    if (signal?.aborted && typeof response?.body?.cancel === 'function') {
-      try { Promise.resolve(response.body.cancel()).catch(() => {}) } catch { /* already closed */ }
-    }
+    if (signal?.aborted) discardHttpResponse(response)
   }, () => {})
 }
 
@@ -56,4 +60,4 @@ async function boundedHttpResponseText(response, limit, errorCode, signal) {
   return Buffer.concat(chunks, total).toString('utf8')
 }
 
-module.exports = { abortableHttpOperation, boundedHttpResponseText, discardLateHttpResponse }
+module.exports = { abortableHttpOperation, boundedHttpResponseText, discardHttpResponse, discardLateHttpResponse }

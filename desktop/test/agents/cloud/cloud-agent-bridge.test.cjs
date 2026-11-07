@@ -405,11 +405,14 @@ test('marks a persisted bridge unavailable after a failed refresh', async () => 
   })
   try {
     const connected = await store.connect({ address: 'https://198.51.100.12' })
-    store.fetch = async () => response({ error: 'offline' }, false, 503)
+    let cancelled = false
+    store.fetch = async () => ({ ok: false, status: 503,
+      body: { cancel: () => { cancelled = true; return new Promise(() => {}) } } })
     const [refreshed] = await store.refresh()
     assert.equal(refreshed.bridgeId, connected.bridgeId)
     assert.equal(refreshed.available, false)
     assert.equal(refreshed.lastError, 'CLOUD_AGENT_BRIDGE_HTTP_503')
+    assert.equal(cancelled, true)
     assert.deepEqual(store.connectorEntries(), [])
   } finally {
     fs.rmSync(directory, { recursive: true, force: true })

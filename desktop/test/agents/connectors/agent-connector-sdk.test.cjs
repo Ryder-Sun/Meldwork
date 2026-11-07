@@ -687,13 +687,16 @@ test('HTTP JSON provider enforces destinations, credentials, cancellation, and f
   assert.equal(rejected.outcome, 'failed')
   assert.equal(calls.length, 1)
 
-  connectors.fetch = async () => ({ ok: false, status: 503, text: async () => '' })
+  let failedResponseCancelled = false
+  connectors.fetch = async () => ({ ok: false, status: 503,
+    body: { cancel: () => { failedResponseCancelled = true; return new Promise(() => {}) } } })
   const failed = await connectors.run(agent, 'fail', directory, {
     runId: 'run-fail', agentRunId: 'agent-run-fail', sandbox: 'read-only',
   })
   assert.deepEqual(failed.failure, {
     code: 'AGENT_CONNECTOR_HTTP_FAILED', category: 'execution', retryable: true,
   })
+  assert.equal(failedResponseCancelled, true)
 
   let reads = 0
   let cancelledStream = false
