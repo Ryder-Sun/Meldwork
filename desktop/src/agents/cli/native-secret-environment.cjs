@@ -24,8 +24,9 @@ function configSecrets(configs) {
     const [value, depth] = pending.pop()
     if (!value || typeof value !== 'object' || depth > 32) continue
     for (const [key, item] of Object.entries(value)) {
-      if (/(?:api[_-]?key|access[_-]?key|token|secret|password|authorization)$/i.test(key)
-          && typeof item === 'string' && item && item.length <= 8192 && !/^\{(?:env|file):[^}]+\}$/.test(item)) {
+      if ((/(?:api[_-]?key|access[_-]?key|token|secret|password|authorization)$/i.test(key)
+          || (key === 'key' && value.type === 'api_key'))
+          && credentialLiteral(item) && item.length <= 8192 && !/^\{(?:env|file):[^}]+\}$/.test(item)) {
         secrets.add(item)
         const bearer = item.match(/^Bearer\s+(\S+)$/i)
         if (bearer) secrets.add(bearer[1])

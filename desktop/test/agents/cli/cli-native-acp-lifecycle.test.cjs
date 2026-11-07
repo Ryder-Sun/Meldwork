@@ -116,7 +116,7 @@ input.on('line', (line) => {
   const firstEvents = []
   const first = await adapters.runAgent(agent, 'first prompt', directory, {
     acpPersistenceKey: 'workspace:hermes:direct',
-    env: { MELDWORK_TEST_SPAWN_COUNT_FILE: spawnCountFile },
+    env: { HERMES_HOME: directory, MELDWORK_TEST_SPAWN_COUNT_FILE: spawnCountFile },
     onEvent: event => firstEvents.push(event),
   })
   const secondEvents = []
@@ -124,7 +124,7 @@ input.on('line', (line) => {
     acpPersistenceKey: 'workspace:hermes:direct',
     sessionRef: first.sessionRef,
     sessionTransport: 'acp',
-    env: { MELDWORK_TEST_SPAWN_COUNT_FILE: spawnCountFile },
+    env: { HERMES_HOME: directory, MELDWORK_TEST_SPAWN_COUNT_FILE: spawnCountFile },
     onEvent: event => secondEvents.push(event),
   })
 
@@ -182,6 +182,7 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
     send({ jsonrpc: '2.0', id: m.id, result: { stopReason: 'end_turn' } })
   }
 })
+
 `)
   t.after(async () => { await adapters.shutdownAcpSessionRuntime(); fs.rmSync(directory, { recursive: true, force: true }) })
   const agent = { kind: 'hermes', name: 'Hermes', executable: cli }
@@ -196,6 +197,45 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
     ...options, nativeCredentialKeys: ['OPENAI_BASE_URL'],
   })
   assert.equal(second.text, 'value=[redacted]')
+  assert.equal(fs.readFileSync(count, 'utf8'), '2')
+})
+
+test('Hermes ACP refreshes redaction when native configuration secrets change', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-native-secret-reuse-'))
+  const config = path.join(directory, 'config.yaml')
+  const count = path.join(directory, 'count')
+  const cli = executable(directory, 'hermes-acp.cjs', `
+const fs = require('node:fs'), readline = require('node:readline')
+const count = process.env.MELDWORK_TEST_SPAWN_COUNT_FILE
+fs.writeFileSync(count, String((fs.existsSync(count) ? Number(fs.readFileSync(count, 'utf8')) : 0) + 1))
+const send = value => process.stdout.write(JSON.stringify(value) + '\\n')
+readline.createInterface({ input: process.stdin }).on('line', line => {
+  const m = JSON.parse(line), sessionId = m.params?.sessionId || 'test-session'
+  if (m.method === 'initialize') send({ jsonrpc: '2.0', id: m.id, result: { protocolVersion: 1 } })
+  else if (m.method === 'session/new') send({ jsonrpc: '2.0', id: m.id, result: { sessionId } })
+  else if (m.method === 'session/resume' || m.method === 'session/set_mode') send({ jsonrpc: '2.0', id: m.id, result: {} })
+  else if (m.method === 'session/prompt') {
+    const token = fs.readFileSync(process.env.HERMES_HOME + '/config.yaml', 'utf8').trim().split(': ').at(-1)
+    send({ jsonrpc: '2.0', method: 'session/update', params: { sessionId, update: {
+      sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: token },
+    } } })
+    send({ jsonrpc: '2.0', id: m.id, result: { stopReason: 'end_turn' } })
+  }
+})
+`)
+  t.after(async () => { await adapters.shutdownAcpSessionRuntime(); fs.rmSync(directory, { recursive: true, force: true }) })
+  const agent = { kind: 'hermes', name: 'Hermes', executable: cli }
+  const options = { acpPersistenceKey: 'workspace:hermes:native-secret',
+    env: { HERMES_HOME: directory, MELDWORK_TEST_SPAWN_COUNT_FILE: count } }
+  fs.writeFileSync(config, 'api_key: first-private-value\n')
+  const first = await adapters.runAgent(agent, 'first', directory, options)
+  assert.equal(first.text, '[redacted]')
+  fs.writeFileSync(config, 'api_key: second-private-value\n')
+  await assert.rejects(adapters.runAgent(agent, 'second', directory, {
+    ...options, sessionRef: first.sessionRef, sessionTransport: 'acp',
+  }), { code: 'LOCAL_AGENT_SESSION_INVALID' })
+  const second = await adapters.runAgent(agent, 'second', directory, options)
+  assert.equal(second.text, '[redacted]')
   assert.equal(fs.readFileSync(count, 'utf8'), '2')
 })
 

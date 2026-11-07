@@ -638,6 +638,7 @@ function runtimeSignature(agent, workdir, spec, profile, childEnv) {
         : '',
     environment,
     secretEnvironmentKeys: nativeSecretEnvKeys(childEnv[SECRET_ENV_KEYS]),
+    redactionSecrets: childEnv[Symbol.for('meldwork.project-secret-values')] || [],
   })).digest('hex')
 }
 

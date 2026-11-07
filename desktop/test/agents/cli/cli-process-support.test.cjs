@@ -90,6 +90,27 @@ test('Qwen project credentials are redacted from split streaming output', t => {
   assert.doesNotMatch(JSON.stringify(events), /qwen-private-value/)
 })
 
+test('Hermes native configuration secrets are redacted without being added to child environment', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-config-secret-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  fs.writeFileSync(path.join(home, 'config.yaml'), 'model:\n  api_key: config-private-value\n  token: none\n')
+  fs.writeFileSync(path.join(home, 'auth.json'), JSON.stringify({ selected: { type: 'api_key', key: 'auth-private-value' } }))
+  fs.writeFileSync(path.join(home, '.env'), 'CUSTOM_PROVIDER_VALUE="dotenv-private-value"\n')
+  const child = childEnvironment({ kind: 'hermes' }, home, {
+    env: { HERMES_HOME: home }, nativeCredentialKeys: ['CUSTOM_PROVIDER_VALUE'],
+  }, process.platform)
+  assert.equal(child.CUSTOM_PROVIDER_VALUE, undefined)
+  assert.equal(redactChildSecrets('config-private-value auth-private-value dotenv-private-value', child),
+    '[redacted] [redacted] [redacted]')
+  assert.equal(redactChildSecrets('none', child), 'none')
+  const events = []
+  const emitter = createRuntimeEventEmitter({ onEvent: event => events.push(event) }, child)
+  emitter.emit({ type: 'answer_delta', delta: 'config-private-' })
+  emitter.emit({ type: 'answer_delta', delta: 'value' })
+  emitter.finalize({ text: 'config-private-value', status: 'completed' })
+  assert.doesNotMatch(JSON.stringify(events), /config-private-value/)
+})
+
 test('Zcode receives its selected native home without changing other Agent homes', () => {
   const options = { env: { HOME: '/selected-zcode', USERPROFILE: 'C:\\selected-zcode' } }
   const unix = childEnvironment({ kind: 'zcode' }, '/tmp', options, 'darwin')
