@@ -4,7 +4,7 @@ const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
 
-const { createAgentConnectorManifest } = require('../../../src/agents/connectors/agent-connector-manifest.cjs')
+const { createAgentConnectorManifest, RUN_EVENT_TYPES } = require('../../../src/agents/connectors/agent-connector-manifest.cjs')
 const { AgentConnectorRegistry } = require('../../../src/agents/connectors/agent-connector-registry.cjs')
 const { AgentConnectorRuntime } = require('../../../src/agents/connectors/agent-connector-runtime.cjs')
 const { recordReplyUsage } = require('../../../src/workspace/invocation-budget.cjs')
@@ -349,6 +349,23 @@ test('rejects every undeclared Connector capability before it crosses the recipe
       runId: 'run-session-result', agentRunId: 'agent-run-session-result', sandbox: 'read-only',
     },
   ), { message: 'AGENT_CONNECTOR_SESSION_UNSUPPORTED' })
+})
+
+test('each optional Connector event and usage field requires an explicit declaration', async () => {
+  const terminalTypes = ['Completed', 'Failed', 'Cancelled']
+  for (const type of RUN_EVENT_TYPES.filter(type => !terminalTypes.includes(type))) {
+    const { runtime } = runtimeFixture(input => input.emit({ type }), { eventTypes: terminalTypes })
+    await assert.rejects(runtime.run(runtime.detectAgents()[0], 'Review', '/tmp/workspace', {
+      runId: 'run-event-contract', agentRunId: 'agent-event-contract', sandbox: 'read-only',
+    }), { message: 'AGENT_CONNECTOR_EVENT_UNDECLARED' }, type)
+  }
+  for (const field of Object.keys(manifestInput().usage)) {
+    const usage = Object.fromEntries(Object.keys(manifestInput().usage).map(key => [key, false]))
+    const { runtime } = runtimeFixture(input => input.emit({ type: 'Usage', usage: { [field]: 1 } }), { usage })
+    await assert.rejects(runtime.run(runtime.detectAgents()[0], 'Review', '/tmp/workspace', {
+      runId: 'run-usage-contract', agentRunId: 'agent-usage-contract', sandbox: 'read-only',
+    }), { message: 'AGENT_CONNECTOR_USAGE_UNDECLARED' }, field)
+  }
 })
 
 test('non-legacy Connector results cannot bypass event declarations with raw progress', async () => {
