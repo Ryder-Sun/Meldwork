@@ -1,5 +1,5 @@
 const VERSION_PATTERN = /\bv?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z][0-9A-Za-z.-]*))?(?:\+[0-9A-Za-z][0-9A-Za-z.-]*)?\b/
-const ANSI_PATTERN = /\x1b\[[0-?]*[ -\/]*[@-~]/g
+const ANSI_PATTERN = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -\/]*[@-~]/g
 const AGENT_VERSION_IDENTITIES = Object.freeze({
   codex: [/\bcodex(?:-cli)?\b/i],
   hermes: [/\bhermes(?:\s+agent)?\b/i],

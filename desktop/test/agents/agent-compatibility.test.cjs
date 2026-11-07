@@ -70,6 +70,16 @@ test('identifies product versions without selecting unrelated warnings', () => {
   }), null)
 })
 
+test('ignores terminal title and hyperlink control sequences when identifying Agent versions', () => {
+  assert.deepEqual(identifyAgentVersion('kimi',
+    '\u001b]0;Kimi Code 99.0.0\u0007\u001b]8;;https://example.test/Kimi%20Code%2099.0.0\u001b\\Kimi Code 0.19.2\u001b]8;;\u001b\\',
+    { executable: '/tmp/kimi' }), { line: 'Kimi Code 0.19.2', resolvedVersion: '0.19.2' })
+  assert.deepEqual(identifyAgentVersion('kimi', '\u001b]0;terminal\u0007v0.19.2',
+    { executable: '/tmp/kimi' }), { line: 'v0.19.2', resolvedVersion: '0.19.2' })
+  assert.equal(identifyAgentVersion('kimi', '\u001b]0;Kimi Code 0.19.2\u0007Node.js 22.5.1',
+    { executable: '/tmp/kimi' }), null)
+})
+
 test('identifies Zcode CLI version without confusing its app and runtime versions', () => {
   assert.deepEqual(identifyAgentVersion('zcode', 'zcode-app-cli 3.7.5-11\nzcode-runtime 0.16.1', {
     executable: '/tmp/zcode',
