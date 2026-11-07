@@ -135,7 +135,7 @@ function nativeCredentialEnvironment(kind, env = process.env, declaredKeys = [],
   const keys = [...runtimeKeys, ...(kind === 'claude'
     ? sourceKeys.map(key => platform === 'win32' ? key.toUpperCase() : key)
       .filter(key => VERTEX_MODEL_REGION_KEY.test(key)) : []),
-    ...(['codex', 'hermes', 'zcode', 'mimo', 'pi', 'opencode', 'deepseek', 'qwen'].includes(kind) ? nativeSecretEnvKeys(declaredKeys) : [])]
+    ...nativeSecretEnvKeys(declaredKeys)]
   for (const key of keys) {
     const sourceKey = Object.hasOwn(env, key) ? key
       : platform === 'win32' ? sourceKeys.find(name => name.toUpperCase() === key.toUpperCase()) : undefined

@@ -4,6 +4,17 @@ const { nativeCredentialEnvironment } = require('../../../src/agents/local-agent
 const { childEnvironment } = require('../../../src/agents/cli/cli-process-support.cjs')
 const { createRuntimeEventEmitter, redactChildSecrets } = require('../../../src/agents/cli/cli-runtime-event-sanitizer.cjs')
 
+test('declared native credentials work for a future agent without passing unsafe or undeclared variables', () => {
+  const env = { FUTURE_PROVIDER_TOKEN: 'synthetic-future-secret', FUTURE_UNDECLARED_SECRET: 'private', NODE_OPTIONS: '--require evil' }
+  const keys = ['FUTURE_PROVIDER_TOKEN', 'NODE_OPTIONS']
+  const selected = nativeCredentialEnvironment('future-agent', env, keys)
+  const child = childEnvironment({ kind: 'future-agent' }, '/workspace', { env: selected, nativeCredentialKeys: keys }, 'darwin')
+  assert.equal(child.FUTURE_PROVIDER_TOKEN, 'synthetic-future-secret')
+  assert.equal(child.FUTURE_UNDECLARED_SECRET, undefined)
+  assert.equal(child.NODE_OPTIONS, undefined)
+  assert.equal(redactChildSecrets('token=synthetic-future-secret', child), 'token=[redacted]')
+})
+
 test('short native credentials are redacted without hiding unrelated configuration', () => {
   const env = { OPENAI_API_KEY: 'abc', AWS_SECRET_ACCESS_KEY: 'xy', AWS_SESSION_TOKEN: 'def', AWS_BEARER_TOKEN_BEDROCK: 'zz',
     AZURE_CLIENT_SECRET: 'gh', OPENAI_MODEL: 'model-name' }

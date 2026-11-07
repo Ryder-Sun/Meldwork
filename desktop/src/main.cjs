@@ -338,20 +338,25 @@ async function nativeShellEnvironment(options = {}) {
   }
 }
 
+function nativeDeclaredCredentialKeys(kind, captured) {
+  const properties = {
+    codex: 'codexCredentialKeys', hermes: 'hermesCredentialKeys', zcode: 'zcodeCredentialKeys',
+    pi: 'piCredentialKeys', opencode: 'opencodeCredentialKeys', mimo: 'mimoCredentialKeys',
+    deepseek: 'deepseekCredentialKeys', qwen: 'qwenCredentialKeys',
+  }
+  const keys = Object.hasOwn(properties, kind) ? captured?.[properties[kind]] || [] : []
+  return kind === 'codex' ? ['CODEX_API_KEY', ...keys] : keys
+}
+
 async function detectLocalAgents() {
   const shellEnvironment = await nativeShellEnvironment()
   const agents = await detectAgents({
     env: shellEnvironment.env,
     home: shellEnvironment.home,
-    nativeCredentialKeysForKind: kind => kind === 'codex' ? ['CODEX_API_KEY', ...shellEnvironment.codexCredentialKeys] : kind === 'hermes' ? shellEnvironment.hermesCredentialKeys
-      : kind === 'zcode' ? shellEnvironment.zcodeCredentialKeys : kind === 'pi' ? shellEnvironment.piCredentialKeys
-        : kind === 'opencode' ? shellEnvironment.opencodeCredentialKeys
-        : kind === 'mimo' ? shellEnvironment.mimoCredentialKeys : kind === 'deepseek' ? shellEnvironment.deepseekCredentialKeys : kind === 'qwen' ? shellEnvironment.qwenCredentialKeys : [],
+    nativeCredentialKeysForKind: kind => nativeDeclaredCredentialKeys(kind, shellEnvironment),
     nativeEnvironmentForKind: kind => kind === 'openclaw'
       ? {} : nativeCredentialEnvironment(kind, nativeConfigEnvironment(kind, workspace?.state.agentPreferences, shellEnvironment.env),
-        kind === 'codex' ? shellEnvironment.codexCredentialKeys : kind === 'hermes' ? shellEnvironment.hermesCredentialKeys : kind === 'zcode' ? shellEnvironment.zcodeCredentialKeys
-          : kind === 'pi' ? shellEnvironment.piCredentialKeys : kind === 'opencode' ? shellEnvironment.opencodeCredentialKeys
-            : kind === 'mimo' ? shellEnvironment.mimoCredentialKeys : kind === 'deepseek' ? shellEnvironment.deepseekCredentialKeys : kind === 'qwen' ? shellEnvironment.qwenCredentialKeys : []),
+        nativeDeclaredCredentialKeys(kind, shellEnvironment)),
   })
   return agents.map(agent => {
     const directory = nativeIdentityDirectory(agent.kind, shellEnvironment.env, shellEnvironment.home)
@@ -364,10 +369,7 @@ async function detectLocalAgents() {
     const projectPaths = nativeProjectConfigPaths(agent.kind, env)
     if (projectPaths.length) Object.defineProperty(result, NATIVE_PROJECT_CONFIG_PATHS, { value: projectPaths })
     if (agent.kind !== 'openclaw') {
-      const keys = agent.kind === 'codex' ? shellEnvironment.codexCredentialKeys : agent.kind === 'hermes' ? shellEnvironment.hermesCredentialKeys
-        : agent.kind === 'zcode' ? shellEnvironment.zcodeCredentialKeys
-          : agent.kind === 'pi' ? shellEnvironment.piCredentialKeys : agent.kind === 'opencode' ? shellEnvironment.opencodeCredentialKeys
-          : agent.kind === 'mimo' ? shellEnvironment.mimoCredentialKeys : agent.kind === 'deepseek' ? shellEnvironment.deepseekCredentialKeys : agent.kind === 'qwen' ? shellEnvironment.qwenCredentialKeys : []
+      const keys = nativeDeclaredCredentialKeys(agent.kind, shellEnvironment)
       const fingerprint = nativeEnvironmentIdentity({
         ...(env.PATH ? { PATH: env.PATH } : {}),
         ...networkEnvironment(env), ...configDirectoryEnvironment(env),
@@ -395,12 +397,7 @@ async function resolveProjectEnvironmentIdentities(workdir, kinds) {
       } catch { /* Fail closed for this Agent without blocking other kinds. */ }
       continue
     }
-    const keys = kind === 'codex' ? captured.codexCredentialKeys
-      : kind === 'hermes' ? captured.hermesCredentialKeys
-      : kind === 'zcode' ? captured.zcodeCredentialKeys
-      : kind === 'pi' ? captured.piCredentialKeys
-      : kind === 'mimo' ? captured.mimoCredentialKeys
-        : kind === 'opencode' ? captured.opencodeCredentialKeys : kind === 'qwen' ? captured.qwenCredentialKeys : []
+    const keys = nativeDeclaredCredentialKeys(kind, captured)
     const env = nativeConfigEnvironment(kind, workspace?.state.agentPreferences, captured.env)
     result[kind] = nativeEnvironmentIdentity({
       ...(env.PATH ? { PATH: env.PATH } : {}),
@@ -521,6 +518,8 @@ async function runCoreAgent(agent, prompt, workdir, options = {}) {
     }
   }
   const shellEnvironment = connectorCredentialIsolation ? null : await nativeShellEnvironment({ workdir })
+  const nativeKeys = connectorCredentialIsolation ? ['CODEX_API_KEY']
+    : nativeDeclaredCredentialKeys(agent.kind, shellEnvironment)
   if (!connectorCredentialIsolation) {
     const directory = workspace?.state.agentPreferences?.[agent.kind]?.nativeConfigDirectory
     if (directory) validateNativeConfigDirectory(agent.kind, directory)
@@ -550,10 +549,7 @@ async function runCoreAgent(agent, prompt, workdir, options = {}) {
     ? {}
     : {
         ...configDirectoryEnvironment(selectedNativeEnv),
-        ...nativeCredentialEnvironment(agent.kind, selectedNativeEnv,
-          agent.kind === 'codex' ? shellEnvironment.codexCredentialKeys : agent.kind === 'hermes' ? shellEnvironment.hermesCredentialKeys : agent.kind === 'zcode' ? shellEnvironment.zcodeCredentialKeys
-            : agent.kind === 'pi' ? shellEnvironment.piCredentialKeys : agent.kind === 'opencode' ? shellEnvironment.opencodeCredentialKeys
-              : agent.kind === 'mimo' ? shellEnvironment.mimoCredentialKeys : agent.kind === 'deepseek' ? shellEnvironment.deepseekCredentialKeys : agent.kind === 'qwen' ? shellEnvironment.qwenCredentialKeys : []),
+        ...nativeCredentialEnvironment(agent.kind, selectedNativeEnv, nativeKeys),
         ...(agent.kind === 'workbuddy' ? workBuddyEnvironment({
           env: selectedNativeEnv, home: shellEnvironment.home,
           modelId: workspace?.state.agentPreferences.workbuddy?.modelId,
@@ -566,12 +562,7 @@ async function runCoreAgent(agent, prompt, workdir, options = {}) {
   return runAgent(agent, prompt, workdir, {
     ...runOptions,
     ...(shellEnvironment?.unsetKeys ? { nativeUnsetKeys: shellEnvironment.unsetKeys } : {}),
-    ...(connectorCredentialIsolation ? { nativeCredentialKeys: ['CODEX_API_KEY'] }
-      : ['codex', 'hermes', 'zcode', 'mimo', 'pi', 'opencode', 'deepseek', 'qwen'].includes(agent.kind)
-        ? { nativeCredentialKeys: agent.kind === 'codex' ? ['CODEX_API_KEY', ...shellEnvironment.codexCredentialKeys]
-          : agent.kind === 'hermes' ? shellEnvironment.hermesCredentialKeys : agent.kind === 'zcode' ? shellEnvironment.zcodeCredentialKeys
-            : agent.kind === 'pi' ? shellEnvironment.piCredentialKeys : agent.kind === 'opencode' ? shellEnvironment.opencodeCredentialKeys
-              : agent.kind === 'deepseek' ? shellEnvironment.deepseekCredentialKeys : agent.kind === 'qwen' ? shellEnvironment.qwenCredentialKeys : shellEnvironment.mimoCredentialKeys } : {}),
+    nativeCredentialKeys: nativeKeys,
     ...injected,
     env: {
       ...networkEnvironment(shellEnvironment?.env),
@@ -759,9 +750,7 @@ function createWorkspace() {
         env: nativeConfigEnvironment(kind, workspace?.state.agentPreferences, shellEnvironment.env),
         home: shellEnvironment.home,
         credentialSource: shellEnvironment.source,
-        nativeCredentialKeys: kind === 'hermes' ? shellEnvironment.hermesCredentialKeys : kind === 'zcode' ? shellEnvironment.zcodeCredentialKeys
-          : kind === 'pi' ? shellEnvironment.piCredentialKeys : kind === 'opencode' ? shellEnvironment.opencodeCredentialKeys
-            : kind === 'deepseek' ? shellEnvironment.deepseekCredentialKeys : kind === 'qwen' ? shellEnvironment.qwenCredentialKeys : [],
+        nativeCredentialKeys: nativeDeclaredCredentialKeys(kind, shellEnvironment),
         ...(kind === 'workbuddy' ? { modelId: workspace?.state.agentPreferences.workbuddy?.modelId } : {}),
       })
     },
