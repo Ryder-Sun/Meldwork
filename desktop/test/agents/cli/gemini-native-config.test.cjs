@@ -17,7 +17,6 @@ test('Gemini resolves auth through native settings and workspace trust', t => {
   const system = path.join(home, 'system.json')
   const env = { GEMINI_CLI_SYSTEM_SETTINGS_PATH: system, GEMINI_CLI_SYSTEM_DEFAULTS_PATH: defaults }
   const write = (file, auth) => fs.writeFileSync(file, JSON.stringify({ security: { auth: { selectedType: auth } } }))
-  write(defaults, 'oauth-personal')
   write(path.join(root, 'settings.json'), 'gemini-api-key')
   write(path.join(project, '.gemini', 'settings.json'), 'vertex-ai')
   assert.equal(geminiNativeAuth({ home, env, workdir: project }).authType, 'gemini-api-key')
@@ -26,7 +25,8 @@ test('Gemini resolves auth through native settings and workspace trust', t => {
   assert.equal(geminiNativeAuth({ home, env: { ...env, GEMINI_RESTRICTED_MODE: 'true' }, workdir: project }).authType, 'gemini-api-key')
   assert.equal(geminiNativeAuth({ home, env: { ...env, GEMINI_CLI_AUTH_OVERRIDE: 'oauth-personal' } }).authType, 'oauth-personal')
   write(system, 'vertex-ai')
-  assert.equal(geminiNativeAuth({ home, env: { ...env, GEMINI_CLI_AUTH_OVERRIDE: 'oauth-personal' }, workdir: project }).authType, 'vertex-ai')
+  fs.chmodSync(system, 0o666)
+  assert.deepEqual(geminiNativeAuth({ home, env: { ...env, GEMINI_CLI_AUTH_OVERRIDE: 'oauth-personal' }, workdir: project }), { uncertain: true })
 })
 
 test('Gemini readiness checks credentials for its selected auth mode', t => {
@@ -73,8 +73,11 @@ test('Gemini readiness rejects a selected mode that violates enforced authentica
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))
   const system = path.join(home, 'system.json')
   const env = { GEMINI_CLI_SYSTEM_SETTINGS_PATH: system, GEMINI_API_KEY: 'synthetic' }
-  fs.writeFileSync(system, JSON.stringify({ security: { auth: { enforcedType: 'oauth-personal' } } }))
+  const root = path.join(home, '.gemini')
+  fs.mkdirSync(root)
+  const settings = path.join(root, 'settings.json')
+  fs.writeFileSync(settings, JSON.stringify({ security: { auth: { enforcedType: 'oauth-personal' } } }))
   assert.deepEqual(nativeCredentialState('gemini', { home, env }), { state: 'unknown', source: 'unverified' })
-  fs.writeFileSync(system, JSON.stringify({ security: { auth: { enforcedType: 'gemini-api-key' } } }))
+  fs.writeFileSync(settings, JSON.stringify({ security: { auth: { enforcedType: 'gemini-api-key' } } }))
   assert.deepEqual(nativeCredentialState('gemini', { home, env }), { state: 'ready', source: 'native-credential' })
 })

@@ -16,6 +16,29 @@ function readSettings(file) {
   }
 }
 
+function readSystemSettings(file, platform) {
+  try {
+    fs.lstatSync(file)
+  } catch (error) {
+    if (error.code === 'ENOENT') return {}
+    throw error
+  }
+  // Gemini requires root-owned, non-writable system paths on POSIX. Windows
+  // uses ACL checks that cannot be inferred from Node's mode bits.
+  if (platform === 'win32') throw new Error('unverified system settings')
+  let current = path.resolve(file)
+  for (;;) {
+    const stat = fs.lstatSync(current)
+    if (stat.isSymbolicLink() || stat.uid !== 0 || (stat.mode & 0o022) !== 0) {
+      throw new Error('unverified system settings')
+    }
+    const parent = path.dirname(current)
+    if (parent === current) break
+    current = parent
+  }
+  return readSettings(file)
+}
+
 function geminiNativeAuth(options = {}) {
   const env = options.env || process.env
   const platform = options.platform || process.platform
@@ -28,8 +51,8 @@ function geminiNativeAuth(options = {}) {
   if (![base, system, defaults].every(value => typeof value === 'string' && path.isAbsolute(value))) return { uncertain: true }
   const root = path.join(base, '.gemini')
   try {
-    const layers = [readSettings(defaults), readSettings(path.join(root, 'settings.json'))]
-    const systemSettings = readSettings(system)
+    const layers = [readSystemSettings(defaults, platform), readSettings(path.join(root, 'settings.json'))]
+    const systemSettings = readSystemSettings(system, platform)
     const validOverrides = ['oauth-personal', 'gemini-api-key', 'vertex-ai', 'cloud-shell', 'compute-default-credentials', 'gateway']
     const override = validOverrides.includes(env.GEMINI_CLI_AUTH_OVERRIDE) ? env.GEMINI_CLI_AUTH_OVERRIDE : ''
     let authType = override || (layers[1].security?.auth?.selectedType ?? layers[0].security?.auth?.selectedType ?? '')
