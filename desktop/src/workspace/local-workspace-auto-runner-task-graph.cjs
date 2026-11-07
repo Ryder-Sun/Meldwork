@@ -86,6 +86,15 @@ const taskGraphMethods = {
           || canonicalJson(state.evidenceIds) !== canonicalJson(anchor.provenance.evidenceIds)) {
         throw new Error('LOCAL_RUN_CONTINUATION_INVALID')
       }
+      for (const [type, ids] of [['artifact-ref', state.artifactIds], ['evidence-ref', state.evidenceIds]]) {
+        const references = selected.filter(entry => entry.entryType === type)
+        if (references.length > ids.length || references.some((entry, index) => (
+          entry.subject !== `task:${controller.taskId}:${type === 'artifact-ref' ? 'artifact' : 'evidence'}`
+          || entry.refs.length !== 1 || entry.refs[0] !== ids[index]
+          || canonicalJson(entry.provenance.artifactIds) !== canonicalJson(state.artifactIds)
+          || canonicalJson(entry.provenance.evidenceIds) !== canonicalJson(state.evidenceIds)
+        ))) throw new Error('LOCAL_RUN_CONTINUATION_INVALID')
+      }
       const result = { message: { content: claim?.statement || '', trace: {
         status: 'completed', agentRunId: anchor.provenance.agentRunId,
       } }, outcomeRefs: { artifactIds: state.artifactIds, evidenceIds: state.evidenceIds } }

@@ -126,6 +126,17 @@ test('task graph recovery rechecks accepted evidence and rejects missing or chan
   })
   foreign.orchestration.taskGraph.nodeStates[0].entryIds.push(foreign.orchestration.collaboration.entries.at(-1).entryId)
   assert.throws(() => runner.validateTaskGraphRecoveredResults(foreign), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
+  const wrongRef = { ...controller, orchestration: structuredClone(controller.orchestration) }
+  const original = wrongRef.orchestration.collaboration.entries.find(entry => entry.entryType === 'artifact-ref')
+  const { entryId, version, recordType, ...replacement } = original
+  wrongRef.orchestration.collaboration = appendBlackboardEntry(wrongRef.orchestration.collaboration, {
+    ...replacement, refs: ['another-artifact'],
+    lifecycle: { ...replacement.lifecycle, sequence: wrongRef.orchestration.collaboration.entries.at(-1).lifecycle.sequence + 1,
+      recordedAt: Date.now() },
+  })
+  const ids = wrongRef.orchestration.taskGraph.nodeStates[0].entryIds
+  ids[ids.indexOf(entryId)] = wrongRef.orchestration.collaboration.entries.at(-1).entryId
+  assert.throws(() => runner.validateTaskGraphRecoveredResults(wrongRef), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
   const altered = { ...controller, orchestration: structuredClone(controller.orchestration) }
   altered.orchestration.collaboration.entries.find(entry => entry.entryType === 'claim').subject = 'another-task'
   assert.throws(() => runner.validateTaskGraphRecoveredResults(altered), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
