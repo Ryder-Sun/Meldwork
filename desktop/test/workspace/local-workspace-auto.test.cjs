@@ -209,6 +209,18 @@ test('task graph exposes every verified artifact and evidence to dependent nodes
   assert.deepEqual(controller.orchestration.collaboration.entries.filter(entry => selected.has(entry.entryId))
     .flatMap(entry => entry.refs), [...refs.artifactIds, ...refs.evidenceIds])
   assert.equal(runner.validateTaskGraphRecoveredResults(controller), true)
+  const acceptedLegacy = { ...controller, completedKinds: ['codex'], failedKinds: [], orchestration: structuredClone(controller.orchestration) }
+  acceptedLegacy.orchestration.collaboration.entries = acceptedLegacy.orchestration.collaboration.entries.filter(entry => (
+    entry.refs[0] === 'artifact-one' || entry.refs[0] === 'evidence-one'
+  ))
+  acceptedLegacy.orchestration.taskGraph.nodeStates.find(state => state.nodeId === primary.nodeId).entryIds =
+    acceptedLegacy.orchestration.collaboration.entries.map(entry => entry.entryId)
+  runner.restoreTaskGraphOutcomeReferences({}, acceptedLegacy)
+  const restored = new Set(runner.taskGraphSelectedEntryIds(acceptedLegacy, reviewer))
+  assert.deepEqual(new Set(acceptedLegacy.orchestration.collaboration.entries.filter(entry => restored.has(entry.entryId))
+    .flatMap(entry => entry.refs)), new Set([...refs.artifactIds, ...refs.evidenceIds]))
+  runner.restoreTaskGraphOutcomeReferences({}, acceptedLegacy)
+  assert.equal(acceptedLegacy.orchestration.collaboration.entries.length, 4)
   const legacy = { ...controller, completedKinds: [], failedKinds: [], orchestration: structuredClone(controller.orchestration) }
   legacy.orchestration.taskGraph = createTaskGraphCursor(graph)
   legacy.orchestration.collaboration.entries = legacy.orchestration.collaboration.entries.filter(entry => (

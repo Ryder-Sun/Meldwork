@@ -87,6 +87,27 @@ const taskGraphMethods = {
     return true
   },
 
+  restoreTaskGraphOutcomeReferences(group, controller) {
+    this.validateTaskGraphRecoveredResults(controller)
+    const cursor = parseTaskGraphCursor(controller.orchestration.taskGraph)
+    for (const state of cursor.nodeStates) {
+      if (state.status !== 'accepted') continue
+      const node = cursor.graph.nodes.find(candidate => candidate.nodeId === state.nodeId)
+      if (node.role === 'human') continue
+      const entries = state.entryIds.map(id => controller.orchestration.collaboration.entries.find(entry => entry.entryId === id))
+      const artifacts = entries.filter(entry => entry.entryType === 'artifact-ref')
+      const evidence = entries.filter(entry => entry.entryType === 'evidence-ref')
+      if (artifacts.length === state.artifactIds.length && evidence.length === state.evidenceIds.length) continue
+      const claim = entries.find(entry => ['claim', 'decision'].includes(entry.entryType))
+      const anchor = claim || artifacts[0] || evidence[0]
+      if (!anchor?.provenance?.agentRunId) throw new Error('LOCAL_RUN_CONTINUATION_INVALID')
+      this.applyTaskGraphAgentResult(group, controller, node, {
+        message: { content: claim?.statement || '', trace: { status: 'completed', agentRunId: anchor.provenance.agentRunId } },
+        outcomeRefs: { artifactIds: state.artifactIds, evidenceIds: state.evidenceIds },
+      })
+    }
+  },
+
   unresolvedTaskGraphConflicts(collaborationInput = null) {
     const collaboration = collaborationInput || emptyCollaborationState()
     const resolved = new Set(collaboration.entries
@@ -514,7 +535,7 @@ const taskGraphMethods = {
 
   async runTaskGraph(group, controller, threadRootId, context) {
     while (!controller.signal.aborted) {
-      this.validateTaskGraphRecoveredResults(controller)
+      this.restoreTaskGraphOutcomeReferences(group, controller)
       let cursor = assertTaskGraphDependencies(controller.orchestration.taskGraph)
       const terminalState = terminalTaskGraphState(cursor)
       if (cursor.terminalState !== terminalState) {
