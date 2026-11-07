@@ -46,3 +46,19 @@ test('Gemini readiness checks credentials for its selected auth mode', t => {
   delete env.GEMINI_API_KEY
   assert.deepEqual(nativeCredentialState('gemini', { home, env }), { state: 'unknown', source: 'unverified' })
 })
+
+test('Gemini auth inference and overrides follow native CLI precedence', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-gemini-inferred-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const env = { GEMINI_CLI_SYSTEM_SETTINGS_PATH: path.join(home, 'missing.json'), GEMINI_API_KEY: 'unrelated' }
+  assert.equal(geminiNativeAuth({ home, env }).authType, 'gemini-api-key')
+  assert.equal(geminiNativeAuth({ home, env: { GEMINI_CLI_SYSTEM_SETTINGS_PATH: env.GEMINI_CLI_SYSTEM_SETTINGS_PATH,
+    CLOUD_SHELL: 'true' } }).authType, 'compute-default-credentials')
+  for (const [extra, expected] of [[{ GOOGLE_GENAI_USE_GCA: 'true' }, 'oauth-personal'],
+    [{ GOOGLE_GENAI_USE_VERTEXAI: 'true' }, 'vertex-ai'], [{ GOOGLE_GEMINI_BASE_URL: 'https://example.test' }, 'gateway'],
+    [{ GEMINI_CLI_AUTH_OVERRIDE: 'cloud-shell' }, 'cloud-shell'], [{ GEMINI_CLI_AUTH_OVERRIDE: 'gateway' }, 'gateway']]) {
+    const selected = { ...env, ...extra }
+    assert.equal(geminiNativeAuth({ home, env: selected }).authType, expected)
+    assert.deepEqual(nativeCredentialState('gemini', { home, env: selected }), { state: 'unknown', source: 'unverified' })
+  }
+})
