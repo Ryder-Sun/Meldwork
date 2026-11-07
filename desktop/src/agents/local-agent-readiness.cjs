@@ -9,7 +9,7 @@ const JSON5 = require('json5')
 const toml = require('@iarna/toml')
 const { nativeSecretEnvKeys, credentialLiteral } = require('./cli/native-secret-environment.cjs')
 const { OCR_PROVIDER_KEYS } = require('./cli/ocr-provider-environment.cjs')
-const { deepseekNativeConfig } = require('./cli/deepseek-native-config.cjs')
+const { deepseekNativeConfig, deepseekDefaultCredentialConfigured } = require('./cli/deepseek-native-config.cjs')
 const { hermesProviderFromConfig, hermesProviderEnvironment } = require('./hermes-config-summary.cjs')
 const { qwenCredentialSelection, qwenConfiguredAuth } = require('./cli/qwen-native-config.cjs')
 const { geminiNativeAuth } = require('./cli/gemini-native-config.cjs')
@@ -790,6 +790,9 @@ function nativeCredentialState(kind, options = {}) {
   if (kind === 'workbuddy') return workBuddyCredentialState(options)
   if (kind === 'deepseek' && deepseekNativeConfig(options).explicitModel) {
     return { state: 'unknown', source: 'unverified' }
+  }
+  if (kind === 'deepseek' && deepseekDefaultCredentialConfigured(options)) {
+    return { state: 'ready', source: 'native-credential' }
   }
   if (kind === 'zcode') {
     const selected = zcodeSelectedCredentialState(options)

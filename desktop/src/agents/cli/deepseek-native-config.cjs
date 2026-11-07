@@ -31,6 +31,51 @@ function deepseekConfigurationFingerprint(options = {}) {
   return createHash('sha256').update(JSON.stringify([root, entries])).digest('hex')
 }
 
+function deepseekDefaultCredentialConfigured(options = {}) {
+  const env = options.env || process.env
+  const home = options.home || os.homedir()
+  const root = typeof env.DSH_HOME === 'string' && env.DSH_HOME
+    ? env.DSH_HOME.replace(/^~(?=$|[\\/])/, home) : path.join(home, '.dsh')
+  if (!path.isAbsolute(root)) return false
+  const mapping = value => value && typeof value === 'object' && !Array.isArray(value)
+    && (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null)
+  const jsonValue = (value, seen = new Set(), depth = 0) => {
+    if (value === null || typeof value === 'string' || typeof value === 'boolean') return true
+    if (typeof value === 'number') return Number.isFinite(value)
+    if (depth > 32 || (!Array.isArray(value) && !mapping(value)) || seen.has(value)) return false
+    seen.add(value)
+    const valid = Object.values(value).every(item => jsonValue(item, seen, depth + 1))
+    seen.delete(value)
+    return valid
+  }
+  const validEnv = value => mapping(value) && Object.entries(value).every(([key, item]) => (
+    /^[A-Za-z_][A-Za-z0-9_]*$/.test(key) && typeof item === 'string' && item.length > 0
+  ))
+  try {
+    const filename = path.join(root, '.credentials.yaml')
+    const stat = fs.statSync(filename)
+    if (!stat.isFile() || stat.size > 1024 * 1024
+        || ((options.platform || process.platform) !== 'win32' && (stat.mode & 0o077))) return false
+    const document = yaml.load(fs.readFileSync(filename, 'utf8'))
+    if (!mapping(document) || document.version !== 1
+        || (document.refs !== undefined && !validEnv(document.refs))
+        || (document.records !== undefined && !mapping(document.records))) return false
+    for (const [key, record] of Object.entries(document.records || {})) {
+      if (!/^[a-z][a-z0-9-]*\/[a-z][a-z0-9-]*$/.test(key) || !mapping(record)) return false
+      if (record.kind === 'api-key') {
+        if (Object.keys(record).some(field => !['kind', 'key', 'env'].includes(field))
+            || (record.key !== undefined && (typeof record.key !== 'string' || !record.key.length))
+            || (record.env !== undefined && !validEnv(record.env))) return false
+      } else if (record.kind === 'grant') {
+        if (Object.keys(record).some(field => !['kind', 'payload'].includes(field))
+            || !Object.hasOwn(record, 'payload') || !jsonValue(record.payload)) return false
+      } else return false
+    }
+    const credential = document.refs?.ZGCI_API_KEY
+    return typeof credential === 'string' && /^[\x21-\x7e]+$/.test(credential)
+  } catch { return false }
+}
+
 function deepseekNativeConfig(options = {}) {
   const env = options.env || process.env
   const home = options.home || os.homedir()
@@ -68,4 +113,4 @@ function deepseekNativeConfig(options = {}) {
   return { explicitModel, credentialKeys: nativeSecretEnvKeys(keys) }
 }
 
-module.exports = { deepseekNativeConfig, deepseekConfigurationFingerprint }
+module.exports = { deepseekNativeConfig, deepseekConfigurationFingerprint, deepseekDefaultCredentialConfigured }

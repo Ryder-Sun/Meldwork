@@ -16,6 +16,30 @@ const {
   resolveNativeShellEnvironment,
 } = require('../../src/agents/local-agent-readiness.cjs')
 
+test('DeepSeek recognizes its native default-route credential without exposing it', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-dsh-ready-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const root = path.join(home, '.dsh')
+  fs.mkdirSync(root)
+  const file = path.join(root, '.credentials.yaml')
+  const write = text => { fs.writeFileSync(file, text, { mode: 0o600 }); fs.chmodSync(file, 0o600) }
+  const state = () => nativeCredentialState('deepseek', { home, env: {} })
+  write('version: 1\nrefs:\n  ZGCI_API_KEY: synthetic-key\nrecords:\n  other/provider:\n    kind: grant\n    payload:\n      token: value\n')
+  assert.deepEqual(state(), { state: 'ready', source: 'native-credential' })
+  write('version: 1\nrefs:\n  OTHER_API_KEY: synthetic-key\n')
+  assert.equal(state().state, 'unknown')
+  write('version: 1\nrefs:\n  ZGCI_API_KEY: synthetic-key\nrecords:\n  invalid: {}\n')
+  assert.equal(state().state, 'unknown')
+  write('version: 1\nrefs:\n  ZGCI_API_KEY: synthetic-key\n')
+  if (process.platform !== 'win32') {
+    fs.chmodSync(file, 0o644)
+    assert.equal(state().state, 'unknown')
+    fs.chmodSync(file, 0o600)
+  }
+  fs.writeFileSync(path.join(root, 'cordis.patch.yml'), '- id: acp\n  config:\n    provider: custom\n')
+  assert.equal(state().state, 'unknown')
+})
+
 test('OpenCodeReview preserves native protocol and request settings without passing extra headers', async () => {
   const env = { OCR_LLM_URL: 'https://example.invalid/v1', OCR_LLM_MODEL: 'model', OCR_LLM_TOKEN: 'synthetic-token',
     OCR_LLM_PROTOCOL: 'openai', OCR_LLM_AUTH_HEADER: 'authorization', OCR_LLM_TIMEOUT: '60',
