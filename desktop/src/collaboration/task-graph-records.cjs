@@ -123,9 +123,11 @@ function validateGraphRelations(graph, targetKinds = null) {
     fail('TASK_GRAPH_SCHEMA_INVALID')
   }
   const allowedKinds = targetKinds ? new Set(targetKinds) : null
+  const terminalIds = new Set(graph.nodes.filter(node => node.terminal).map(node => node.nodeId))
   for (const node of graph.nodes) {
     if (node.dependsOn.some(nodeId => !nodeIds.has(nodeId))
         || node.inputNodeIds.some(nodeId => !nodeIds.has(nodeId))
+        || new Set(node.decisionOptions.map(option => option.optionId)).size !== node.decisionOptions.length
         || (allowedKinds && node.agentKind && !allowedKinds.has(node.agentKind))) {
       fail('TASK_GRAPH_SCHEMA_INVALID')
     }
@@ -142,13 +144,14 @@ function validateGraphRelations(graph, targetKinds = null) {
     visited.add(nodeId)
   }
   for (const node of graph.nodes) visit(node.nodeId)
+  if (graph.nodes.some(node => !node.terminal && node.dependsOn.some(nodeId => terminalIds.has(nodeId)))) {
+    fail('TASK_GRAPH_SCHEMA_INVALID')
+  }
 }
 
 function createTaskGraph(input, targetKinds = null) {
   const parsed = graphInputSchema.safeParse(input)
   if (!parsed.success) fail('TASK_GRAPH_SCHEMA_INVALID')
-  if (parsed.data.nodes.some(node => new Set(node.decisionOptions.map(option => option.optionId)).size
-      !== node.decisionOptions.length)) fail('TASK_GRAPH_SCHEMA_INVALID')
   const body = {
     version: TASK_GRAPH_VERSION,
     recordType: 'task-graph',
@@ -156,10 +159,6 @@ function createTaskGraph(input, targetKinds = null) {
   }
   const graph = JSON.parse(canonicalJson({ graphId: deriveId('task-graph', body), ...body }))
   validateGraphRelations(graph, targetKinds)
-  const terminalIds = new Set(graph.nodes.filter(node => node.terminal).map(node => node.nodeId))
-  if (graph.nodes.some(node => !node.terminal && node.dependsOn.some(id => terminalIds.has(id)))) {
-    fail('TASK_GRAPH_SCHEMA_INVALID')
-  }
   return graph
 }
 

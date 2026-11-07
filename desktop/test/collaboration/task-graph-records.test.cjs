@@ -1,5 +1,7 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
+const { createHash } = require('node:crypto')
+const { canonicalJson } = require('../../src/collaboration/context-pack-records.cjs')
 const { taskGraphMethods } = require('../../src/workspace/local-workspace-auto-runner-task-graph.cjs')
 
 const {
@@ -51,6 +53,30 @@ function workflow() {
     ],
   }
 }
+
+test('restored task graphs enforce the same decision and terminal constraints as new graphs', () => {
+  const graph = createTaskGraph(workflow())
+  const signed = nodes => {
+    const { graphId, ...body } = { ...graph, nodes }
+    return { ...body, graphId: `task-graph-${createHash('sha256').update(canonicalJson(body)).digest('hex')}` }
+  }
+  const terminalDependency = signed([
+    { ...graph.nodes[0], dependsOn: ['review-hermes'] },
+    { ...graph.nodes[1], dependsOn: [], inputNodeIds: [] },
+  ])
+  const duplicateDecision = signed([
+    { ...graph.nodes[0], role: 'human', agentKind: null, parallel: false,
+      acceptance: { requireConclusion: false, minArtifactRefs: 0, minEvidenceRefs: 0 },
+      decisionOptions: [{ optionId: 'same', name: 'Yes', kind: 'allow_once' },
+        { optionId: 'same', name: 'No', kind: 'reject_once' }] },
+    graph.nodes[1],
+  ])
+  for (const invalid of [terminalDependency, duplicateDecision]) {
+    assert.throws(() => parseTaskGraph(invalid), { message: 'TASK_GRAPH_SCHEMA_INVALID' })
+    assert.throws(() => parseTaskGraphCursor({ ...createTaskGraphCursor(graph), graph: invalid }),
+      { message: 'TASK_GRAPH_SCHEMA_INVALID' })
+  }
+})
 
 test('creates content-addressed acyclic task graphs and durable cursors', () => {
   const graph = createTaskGraph(workflow(), ['codex', 'hermes'])
