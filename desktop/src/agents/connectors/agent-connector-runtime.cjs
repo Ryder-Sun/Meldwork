@@ -1,4 +1,6 @@
 const crypto = require('node:crypto')
+const fs = require('node:fs')
+const path = require('node:path')
 const { automaticPermissionResponse, READ_ONLY_SAFE_TOOL_KINDS } = require('../agent-permission-policy.cjs')
 const { SDK_HTTP_JSON_RECIPE_ID } = require('./agent-connector-package-store.cjs')
 const { normalizeSessionRef } = require('../../runs/session-reference.cjs')
@@ -36,13 +38,32 @@ function clone(value) {
 }
 
 function attachmentInputType(attachment) {
-  if (typeof attachment === 'string') return attachment ? 'image' : ''
+  if (typeof attachment === 'string') {
+    if (attachment.length > 4096 || !path.isAbsolute(attachment) || /[\u0000-\u001f\u007f]/.test(attachment)) return ''
+    let fd
+    try {
+      const initial = fs.lstatSync(attachment)
+      if (initial.isSymbolicLink() || !initial.isFile()) return ''
+      fd = fs.openSync(attachment, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0))
+      const stat = fs.fstatSync(fd)
+      if (!stat.isFile() || stat.dev !== initial.dev || stat.ino !== initial.ino || stat.size > 8 * 1024 * 1024) return ''
+      const bytes = Buffer.alloc(12)
+      const size = fs.readSync(fd, bytes, 0, bytes.length, 0)
+      if ((size >= 8 && bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])))
+          || (size >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff)
+          || (size >= 6 && ['GIF87a', 'GIF89a'].includes(bytes.subarray(0, 6).toString('ascii')))
+          || (size >= 12 && bytes.subarray(0, 4).toString('ascii') === 'RIFF'
+            && bytes.subarray(8, 12).toString('ascii') === 'WEBP')) return 'image'
+      return ''
+    } catch { return '' } finally { if (fd !== undefined) fs.closeSync(fd) }
+  }
   if (!attachment || typeof attachment !== 'object' || Array.isArray(attachment)) return ''
   const mimeType = String(attachment.mimeType || attachment.mediaType || '').toLowerCase()
   if (mimeType.startsWith('image/')) return 'image'
   if (mimeType.startsWith('audio/')) return 'audio'
   if (mimeType.startsWith('video/')) return 'video'
   if (mimeType) return 'file'
+  if (Object.hasOwn(attachment, 'path')) return ''
   const declared = String(attachment.inputType || attachment.type || '')
   if (['image', 'audio', 'video', 'file', 'structured-data'].includes(declared)) {
     return declared
@@ -57,6 +78,9 @@ function validatedAttachments(value, capabilities) {
   }
   const attachments = [...value]
   for (const attachment of attachments) {
+    if (typeof attachment === 'string' && !capabilities.inputTypes.includes('image')) {
+      fail('AGENT_CONNECTOR_ATTACHMENT_UNSUPPORTED')
+    }
     const inputType = attachmentInputType(attachment)
     if (!inputType) fail('AGENT_CONNECTOR_ATTACHMENTS_INVALID')
     if (!capabilities.inputTypes.includes(inputType)) {

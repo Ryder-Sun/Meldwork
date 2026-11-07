@@ -1,4 +1,7 @@
 const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const os = require('node:os')
+const path = require('node:path')
 const test = require('node:test')
 
 const { createAgentConnectorManifest } = require('../../../src/agents/connectors/agent-connector-manifest.cjs')
@@ -409,6 +412,34 @@ test('another input declaration cannot disguise an ordinary file', async () => {
       attachments: [{ inputType, mimeType: 'application/pdf' }],
     }), { message: 'AGENT_CONNECTOR_ATTACHMENT_UNSUPPORTED' })
   }
+})
+
+test('an image-only Connector rejects non-image path inputs before running', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-connector-image-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const image = path.join(directory, 'image.png')
+  const disguised = path.join(directory, 'disguised.png')
+  const link = path.join(directory, 'linked.png')
+  fs.writeFileSync(image, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+  fs.writeFileSync(disguised, '%PDF-1.7\n')
+  let symlinkAvailable = false
+  try { fs.symlinkSync(image, link); symlinkAvailable = true } catch { /* Windows may not permit symlinks. */ }
+  let calls = 0
+  const { runtime } = runtimeFixture(async input => {
+    calls += 1
+    assert.deepEqual(input.attachments, [image])
+    input.emit({ eventId: 'done', cursor: 'done', sequence: 1, type: 'Completed', outcome: 'completed' })
+    return { text: 'done', outcome: 'completed' }
+  }, { inputTypes: ['text', 'image', 'structured-data'] })
+  const agent = runtime.detectAgents()[0]
+  const options = { runId: 'run-image-path', agentRunId: 'agent-image-path', sandbox: 'read-only' }
+  for (const attachment of [disguised, path.join(directory, 'missing.png'), ...(symlinkAvailable ? [link] : []),
+    { inputType: 'structured-data', path: disguised }]) {
+    await assert.rejects(runtime.run(agent, 'Review', directory, { ...options, attachments: [attachment] }),
+      { message: 'AGENT_CONNECTOR_ATTACHMENTS_INVALID' })
+  }
+  assert.equal((await runtime.run(agent, 'Review', directory, { ...options, attachments: [image] })).outcome, 'completed')
+  assert.equal(calls, 1)
 })
 
 test('explicit structured data without file MIME retains its declared capability', async () => {
