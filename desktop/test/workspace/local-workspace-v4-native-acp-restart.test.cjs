@@ -545,7 +545,7 @@ test('Manual V4 native permission restart recovers a missing Session and preserv
   }
 })
 
-test('Auto V4 read-only native ACP permission restart resumes the persisted Session', async (t) => {
+async function createAutoPermissionRestart(t, beforeApproval = null) {
   const { directory, options } = fixture()
   const cli = hermesAcpExecutable(directory)
   const ledger = new RunLedger({
@@ -606,10 +606,15 @@ test('Auto V4 read-only native ACP permission restart resumes the persisted Sess
   })
   await restarted.refreshAgents()
   const beforeApprovalCalls = calls.length
+  if (beforeApproval) await beforeApproval(restarted)
   restarted.decideHumanGate(originalGate.gateId, {
     status: 'approved', optionId: 'allow-once', actorId: 'local-user',
   })
+  return { restarted, restartedLedger, originalGate, options, calls, beforeApprovalCalls, gatedSlot }
+}
 
+test('Auto V4 read-only native ACP permission restart resumes the persisted Session', async (t) => {
+  const { restarted, restartedLedger, originalGate, calls, beforeApprovalCalls, gatedSlot } = await createAutoPermissionRestart(t)
   const terminal = await terminalRun(restartedLedger, originalGate.runId)
   const resumedCalls = calls.filter(call => (
     call.kind === 'hermes' && call.phase === 'proposal'
@@ -626,6 +631,34 @@ test('Auto V4 read-only native ACP permission restart resumes the persisted Sess
   for (const kind of ['codex', 'workbuddy']) {
     assert.equal(calls.filter(call => call.kind === kind && call.phase === 'proposal').length, 1)
   }
+})
+
+test('Auto V4 approval survives a second shutdown during recovery', async t => {
+  let interrupted = false
+  const recovery = await createAutoPermissionRestart(t, async workspace => {
+    workspace.autoRunner.resume = async (_group, _durable, controller) => {
+      controller.stopReason = 'shutdown'
+      controller.abort()
+      interrupted = true
+      return 'interrupted'
+    }
+  })
+  const { originalGate, restarted, restartedLedger, options } = recovery
+  await waitFor(() => interrupted && !restarted.activeRuns.size, 'second auto shutdown')
+  const persisted = restartedLedger.get(originalGate.runId)
+  assert.equal(persisted.status, 'waiting')
+  assert.equal(persisted.continuation.state, 'resuming')
+  assert.equal(restarted.humanGateStore.get(originalGate.gateId).status, 'approved')
+
+  const restored = new LocalWorkspace({
+    ...options,
+    runLedger: restartedLedger,
+    runScheduler: new RunScheduler({ taskLimit: 3, workspaceLimit: 3, globalLimit: 3 }),
+  })
+  await restored.refreshAgents()
+  const terminal = await terminalRun(restartedLedger, originalGate.runId)
+  assert.equal(terminal.status, 'completed', terminal.reason)
+  assert.equal(restored.listHumanGates({ pendingOnly: true }).length, 0)
 })
 
 test('Auto V4 synthesis native ACP permission restart enters existing recovery Gate', async (t) => {
