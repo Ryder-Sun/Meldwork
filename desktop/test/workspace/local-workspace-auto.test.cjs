@@ -109,6 +109,55 @@ test('task graph recovery rechecks accepted evidence and rejects missing or chan
   assert.throws(() => runner.validateTaskGraphRecoveredResults(controller), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
 })
 
+test('task graph can revalidate artifact-only outcomes when no conclusion is required', () => {
+  const node = graphNode({ terminal: true,
+    acceptance: { requireConclusion: false, minArtifactRefs: 1, minEvidenceRefs: 1 } })
+  const graph = createTaskGraph({ template: 'task-graph', nodes: [node] })
+  const controller = { runId: 'run', taskId: 'task', currentRound: 1, completedKinds: [], failedKinds: [],
+    orchestration: { taskGraph: createTaskGraphCursor(graph), collaboration: emptyCollaborationState(), activeKinds: ['codex'] } }
+  let available = true
+  const runner = { ...collaborationMethods, ...taskGraphMethods,
+    taskGraphVerifiedOutcomeRefs: () => available
+      ? { artifactIds: ['artifact-one'], evidenceIds: ['evidence-one'] }
+      : { artifactIds: [], evidenceIds: [] },
+    checkpointOrchestration: (_group, target, updates) => Object.assign(target.orchestration, updates),
+    checkpointTaskGraph: (_group, target, next) => { target.orchestration.taskGraph = next; return next },
+  }
+  const result = { message: { content: '', trace: { status: 'completed', agentRunId: 'agent-run' } },
+    outcomeRefs: { artifactIds: ['artifact-one'], evidenceIds: ['evidence-one'] } }
+  assert.equal(runner.applyTaskGraphAgentResult({}, controller, node, result), true)
+  assert.equal(controller.orchestration.collaboration.entries.some(entry => entry.entryType === 'claim'), false)
+  assert.equal(runner.validateTaskGraphRecoveredResults(controller), true)
+  available = false
+  assert.throws(() => runner.validateTaskGraphRecoveredResults(controller), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
+})
+
+test('task graph cannot accept an empty arbitration while conflicts remain', () => {
+  const node = graphNode({ role: 'arbiter', agentKind: 'codex', terminal: true,
+    acceptance: { requireConclusion: false, minArtifactRefs: 0, minEvidenceRefs: 0 } })
+  const graph = createTaskGraph({ template: 'task-graph', nodes: [node] })
+  let collaboration = emptyCollaborationState()
+  for (const [index, kind] of ['codex', 'hermes'].entries()) {
+    collaboration = appendBlackboardEntry(collaboration, { entryType: 'claim', subject: 'shared',
+      statement: `Position ${index}`, value: `position-${index}`,
+      owner: { type: 'agent', agentKind: kind, role: 'primary' }, audience: { roles: ['arbiter'], agentKinds: [] },
+      lifecycle: { state: 'active', sequence: index + 1, recordedAt: index + 1, supersedesEntryId: null },
+      provenance: { runId: 'run', taskId: 'task', round: 1, agentRunId: `agent-run-${index}`,
+        artifactIds: [], evidenceIds: [] }, refs: [] })
+  }
+  const controller = { runId: 'run', taskId: 'task', currentRound: 1, completedKinds: [], failedKinds: [],
+    orchestration: { taskGraph: createTaskGraphCursor(graph), collaboration, activeKinds: ['codex'] } }
+  const runner = { ...collaborationMethods, ...taskGraphMethods,
+    taskGraphVerifiedOutcomeRefs: () => ({ artifactIds: [], evidenceIds: [] }),
+    checkpointOrchestration: (_group, target, updates) => Object.assign(target.orchestration, updates),
+    checkpointTaskGraph: (_group, target, next) => { target.orchestration.taskGraph = next; return next },
+  }
+  const result = { message: { content: '', trace: { status: 'completed', agentRunId: 'arbiter-run' } } }
+  assert.equal(runner.unresolvedTaskGraphConflicts(collaboration).length, 1)
+  assert.equal(runner.applyTaskGraphAgentResult({}, controller, node, result), false)
+  assert.equal(controller.orchestration.taskGraph.terminalState, 'failed')
+})
+
 test('task graph and V4 cannot be combined silently in either start path', async t => {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

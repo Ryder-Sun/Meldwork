@@ -51,21 +51,27 @@ const taskGraphMethods = {
       const claims = selected.filter(entry => ['claim', 'decision'].includes(entry.entryType)
         && entry.owner?.type === 'agent' && entry.owner.agentKind === node.agentKind
         && entry.provenance?.runId === controller.runId && entry.provenance.taskId === controller.taskId)
-      if (claims.length !== 1 || !claims[0].provenance.agentRunId) throw new Error('LOCAL_RUN_CONTINUATION_INVALID')
+      if (claims.length > 1 || (node.acceptance.requireConclusion && claims.length !== 1)) {
+        throw new Error('LOCAL_RUN_CONTINUATION_INVALID')
+      }
       const claim = claims[0]
+      const anchor = claim || selected.find(entry => ['artifact-ref', 'evidence-ref'].includes(entry.entryType)
+        && entry.owner?.type === 'agent' && entry.owner.agentKind === node.agentKind
+        && entry.provenance?.runId === controller.runId && entry.provenance.taskId === controller.taskId)
+      if (!anchor?.provenance.agentRunId) throw new Error('LOCAL_RUN_CONTINUATION_INVALID')
       const subject = node.role === 'primary'
         ? (node.claimKey ? `task:${controller.taskId}:claim:${node.claimKey}` : `task:${controller.taskId}:conclusion`)
         : `task:${controller.taskId}:node:${node.nodeId}`
-      const conclusionHash = claim.statement ? createHash('sha256').update(claim.statement).digest('hex') : ''
-      if (claim.owner.role !== node.role || claim.subject !== subject
-          || claim.entryType !== (node.role === 'arbiter' ? 'decision' : 'claim')
+      const conclusionHash = claim?.statement ? createHash('sha256').update(claim.statement).digest('hex') : ''
+      if (anchor.owner.role !== node.role || (claim && (claim.subject !== subject
+          || claim.entryType !== (node.role === 'arbiter' ? 'decision' : 'claim')))
           || state.conclusionHash !== conclusionHash
-          || canonicalJson(state.artifactIds) !== canonicalJson(claim.provenance.artifactIds)
-          || canonicalJson(state.evidenceIds) !== canonicalJson(claim.provenance.evidenceIds)) {
+          || canonicalJson(state.artifactIds) !== canonicalJson(anchor.provenance.artifactIds)
+          || canonicalJson(state.evidenceIds) !== canonicalJson(anchor.provenance.evidenceIds)) {
         throw new Error('LOCAL_RUN_CONTINUATION_INVALID')
       }
-      const result = { message: { content: claim.statement, trace: {
-        status: 'completed', agentRunId: claim.provenance.agentRunId,
+      const result = { message: { content: claim?.statement || '', trace: {
+        status: 'completed', agentRunId: anchor.provenance.agentRunId,
       } }, outcomeRefs: { artifactIds: state.artifactIds, evidenceIds: state.evidenceIds } }
       const refs = this.taskGraphVerifiedOutcomeRefs(node, result, controller)
       if (canonicalJson(refs.artifactIds) !== canonicalJson(state.artifactIds)
@@ -203,7 +209,9 @@ const taskGraphMethods = {
     const conflicts = this.unresolvedTaskGraphConflicts(controller.orchestration.collaboration)
     const verifiedRefs = this.taskGraphVerifiedOutcomeRefs(node, result, controller)
     const verifiedResult = { ...result, outcomeRefs: verifiedRefs }
+    const conclusion = publicCollaborationText(result?.message?.content || '')
     let accepted = this.taskGraphResultAccepted(node, result, controller, verifiedRefs)
+    if (node.role === 'arbiter' && conflicts.length && !conclusion) accepted = false
     const acceptedDecision = node.role === 'arbiter' && accepted
     const subject = node.role === 'primary'
       ? (node.claimKey ? `task:${controller.taskId}:claim:${node.claimKey}` : `task:${controller.taskId}:conclusion`)
@@ -212,7 +220,6 @@ const taskGraphMethods = {
     const previous = agentRunId ? controller.orchestration.collaboration.entries.filter(entry => (
       entry.provenance.runId === controller.runId && entry.provenance.agentRunId === agentRunId
     )) : []
-    const conclusion = publicCollaborationText(result?.message?.content || '')
     if (previous.length) {
       const primary = previous.filter(entry => ['claim', 'decision'].includes(entry.entryType))
       if (primary.length !== 1 || primary[0].entryType !== (acceptedDecision ? 'decision' : 'claim')
