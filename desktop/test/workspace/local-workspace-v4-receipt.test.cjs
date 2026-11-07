@@ -20,14 +20,19 @@ test('V4 work recovery rejects a completed task whose dependency is missing', ()
   const plan = { planHash: 'plan', assignments: [
     { taskId: 'upstream', ownerKind: 'codex', dependsOn: [] },
     { taskId: 'downstream', ownerKind: 'hermes', dependsOn: ['upstream'] },
+    { taskId: 'independent', ownerKind: 'workbuddy', dependsOn: [] },
   ] }
   const receipt = (taskId, ownerKind) => ({ planHash: 'plan', taskId, ownerKind,
     collaborationReceipt: {}, artifacts: [] })
   const runner = { ...v4OutcomeMethods, v4ReceiptReferencesComplete: () => true }
   assert.throws(() => runner.v4WorkState([receipt('downstream', 'hermes')], plan),
     { message: 'LOCAL_RUN_V4_WORK_RECEIPT_INVALID' })
+  assert.equal(runner.v4WorkState([receipt('downstream', 'hermes'), receipt('upstream', 'codex')], plan).completed.size, 2)
   const state = runner.v4WorkState([receipt('upstream', 'codex'), receipt('downstream', 'hermes')], plan)
   assert.equal(state.completed.size, 2)
+  const parallel = runner.v4WorkState([receipt('independent', 'workbuddy'),
+    receipt('upstream', 'codex'), receipt('downstream', 'hermes')], plan)
+  assert.equal(parallel.completed.size, 3)
 })
 
 function receiptFor(phase, summary) {

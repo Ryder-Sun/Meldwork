@@ -753,6 +753,31 @@ test('round-trips exact work receipts bound to the active plan, snapshot, operat
     workReceiptId: undefined, resultHash: undefined })
   assert.throws(() => parseOrchestrationV4({ ...record, coordinationPlan: dependentPlan,
     workReceipts: [prematureReceipt] }, { targetKinds }), { code: 'ORCHESTRATION_V4_WORK_RECEIPT_INVALID' })
+  const dependencySlot = base.slots.find(candidate => candidate.agentKind === 'hermes')
+  const dependencyArtifact = `artifact-${'e'.repeat(64)}`
+  const dependencyReceipt = createCollaborationReceipt({
+    phase: 'work', agentKind: 'hermes', slotId: dependencySlot.slotId,
+    operationId: dependencySlot.operationId, status: 'completed', summary: 'Dependency completed.',
+    artifactIds: [dependencyArtifact], evidenceIds: [], workItemId: 'hermes-work',
+    snapshotHash: base.snapshotHash, deliveryWatermark: 3,
+  })
+  const dependencyWork = createWorkReceipt({
+    snapshotHash: base.snapshotHash, snapshotBodyHash: base.snapshot.bodyHash,
+    snapshotContentRef: base.snapshot.contentRef, planHash: dependentPlan.planHash,
+    taskId: 'hermes-work', ownerKind: 'hermes', slotId: dependencySlot.slotId,
+    operationId: dependencySlot.operationId, collaborationReceipt: dependencyReceipt,
+    artifacts: [{ artifactId: dependencyArtifact, contentHash: artifactHash, contentRef: contentRef(artifactHash, 42) }],
+  })
+  const dependencyRecord = { ...record, coordinationPlan: dependentPlan,
+    slots: record.slots.map(candidate => candidate.slotId === dependencySlot.slotId ? {
+      ...candidate, phase: 'work', status: 'completed', finishedAt: 1002,
+      receiptId: dependencyReceipt.receiptId, resultHash: hashValue(dependencyReceipt),
+      resultRefs: { ...(candidate.resultRefs || {}), artifactIds: [dependencyArtifact], evidenceIds: [],
+        workflowOutcomeRefs: [...(candidate.resultRefs?.workflowOutcomeRefs || []), { receipt: dependencyReceipt }] },
+    } : candidate), workReceipts: [dependencyWork, prematureReceipt] }
+  assert.deepEqual(parseOrchestrationV4(dependencyRecord, { targetKinds }), dependencyRecord)
+  const reordered = { ...dependencyRecord, workReceipts: [prematureReceipt, dependencyWork] }
+  assert.deepEqual(parseOrchestrationV4(reordered, { targetKinds }), reordered)
 
   const conflictingReceipt = createCollaborationReceipt({
     ...receipt,
