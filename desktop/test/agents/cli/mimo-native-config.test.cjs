@@ -20,10 +20,10 @@ test('MiMo selected native provider remains usable without signing in to the bui
   assert.equal(JSON.stringify(result).includes('synthetic-key'), false)
   config.model = 'unconfigured/text'
   fs.writeFileSync(file, JSON.stringify(config))
-  assert.equal((await resolveNativeCredentialState('mimo', options)).state, 'missing')
+  assert.equal((await resolveNativeCredentialState('mimo', options)).state, 'unknown')
   config.model = 'private/text'
   config.provider.private.options.apiKey = '{env:PRIVATE_MODEL_KEY}'
   fs.writeFileSync(file, JSON.stringify(config))
-  assert.equal((await resolveNativeCredentialState('mimo', options)).state, 'missing')
+  assert.equal((await resolveNativeCredentialState('mimo', options)).state, 'unknown')
   assert.equal((await resolveNativeCredentialState('mimo', { ...options, env: { PRIVATE_MODEL_KEY: 'native-env-value' } })).state, 'ready')
 })
