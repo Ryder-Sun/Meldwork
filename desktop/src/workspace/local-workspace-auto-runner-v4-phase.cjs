@@ -172,6 +172,7 @@ const v4PhaseMethods = {
       commitState: commit,
       ...(candidateCommit ? { candidateCommit: { ...candidateCommit } } : {}),
       collaboration: controller.orchestration?.collaboration || emptyCollaborationState(),
+      ...(current?.taskGraph ? { taskGraph: structuredClone(current.taskGraph) } : {}),
       ...(Array.isArray(challengeBindings)
         ? { challengeBindings: challengeBindings.map(binding => ({
             ...binding,

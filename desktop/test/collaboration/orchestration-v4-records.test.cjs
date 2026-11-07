@@ -66,6 +66,25 @@ test('V4 rejects legacy terminal states that hide unfinished independent work', 
     { targetKinds: ['codex', 'hermes'] }), { message: 'ORCHESTRATION_V4_TASK_GRAPH_INVALID' })
 })
 
+test('V4 phase checkpoints preserve an existing task graph cursor', () => {
+  const { createTaskGraph, createTaskGraphCursor } = require('../../src/collaboration/task-graph-records.cjs')
+  const { v4PhaseMethods } = require('../../src/workspace/local-workspace-auto-runner-v4-phase.cjs')
+  const graph = createTaskGraph({ template: 'task-graph', nodes: [{ nodeId: 'primary', role: 'primary',
+    agentKind: 'codex', dependsOn: [], inputNodeIds: [], expectedOutput: 'Result',
+    acceptance: { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 },
+    terminal: true, parallel: false, decisionOptions: [] }] }, ['codex'])
+  const cursor = createTaskGraphCursor(graph)
+  const controller = { currentRound: 1, orchestration: { version: 4, phase: 'proposal', round: 1, taskGraph: cursor } }
+  let saved
+  const runner = { ...v4PhaseMethods, checkpointOrchestration: (_group, _controller, record) => { saved = record } }
+  runner.v4CheckpointPhase({}, controller, { targetKinds: ['codex'], phase: 'proposal', batchId: 'batch',
+    snapshotRecord: { capturedAt: 1000 }, snapshotHash: 'a'.repeat(64), slots: [], writerKind: '' })
+  assert.deepEqual(saved.taskGraph, cursor)
+  assert.notEqual(saved.taskGraph, cursor)
+  saved.taskGraph.nodeStates[0].status = 'failed'
+  assert.equal(cursor.nodeStates[0].status, 'pending')
+})
+
 function contentRef(hash = 'b'.repeat(64), size = 123) {
   return { algorithm: 'sha256', hash, size, mediaType: 'application/json' }
 }
