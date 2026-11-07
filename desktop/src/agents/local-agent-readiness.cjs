@@ -444,13 +444,15 @@ function codexDeclaredCredentialKeys(options = {}) {
   return nativeSecretEnvKeys([codexProviderCredentialKey(options)])
 }
 
-function hermesSelectedProvider(root, env) {
+function hermesSelectedProvider(root, env, home) {
   try {
     const content = readCredentialFile(path.join(root, 'config.yaml'))
     const config = content ? yaml.load(content) : {}
     if (!config || typeof config !== 'object' || Array.isArray(config)) return null
     if ([config.fallback_providers, config.fallback_model].some(value =>
-      Array.isArray(value) ? value.length > 0 : value && typeof value === 'object')) return null
+      Array.isArray(value) ? value.length > 0 : value && typeof value === 'object')) {
+      return { provider: '', config, keys: hermesDeclaredCredentialKeys({ home, env: { ...env, HERMES_HOME: root } }) }
+    }
     const model = config.model && typeof config.model === 'object' && !Array.isArray(config.model) ? config.model : {}
     const provider = hermesProviderFromConfig(config, hermesProviderEnvironment(root, env)).toLowerCase()
     const canonical = { openai: 'OPENAI_API_KEY', openrouter: 'OPENROUTER_API_KEY', anthropic: 'ANTHROPIC_API_KEY' }
@@ -733,7 +735,7 @@ function nativeCredentialState(kind, options = {}) {
       : { state: 'unknown', source: 'unverified' }
   }
   const piProvider = kind === 'pi' ? piDefaultProvider(piHome) : ''
-  const hermesSelection = kind === 'hermes' ? hermesSelectedProvider(hermesHome, env) : null
+  const hermesSelection = kind === 'hermes' ? hermesSelectedProvider(hermesHome, env, home) : null
   if (hermesSelection?.unavailable) return { state: 'unknown', source: 'unverified' }
   const hermesKeys = hermesSelection?.keys || null
   let credentialEnv = nativeCredentialKeyEnvironment(kind, env)

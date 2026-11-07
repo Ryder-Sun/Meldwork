@@ -414,6 +414,23 @@ test('Hermes declared credentials follow selected and fallback providers, includ
   assert.deepEqual(hermesDeclaredCredentialKeys({ home, env: {} }), ['ABSENT_API_KEY', 'FALLBACK_KEY'])
 })
 
+test('Hermes fallback readiness ignores unrelated credentials', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-fallback-readiness-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const root = path.join(home, '.hermes')
+  fs.mkdirSync(root)
+  fs.writeFileSync(path.join(root, 'config.yaml'), [
+    'model:', '  provider: openrouter', 'fallback_providers:', '  - provider: anthropic',
+  ].join('\n'))
+  const unrelated = { OPENAI_API_KEY: 'other-account' }
+  assert.deepEqual(nativeCredentialState('hermes', { home, env: unrelated }), { state: 'unknown', source: 'unverified' })
+  fs.writeFileSync(path.join(root, '.env'), 'OPENAI_API_KEY=other-account\n')
+  assert.deepEqual(nativeCredentialState('hermes', { home, env: {} }), { state: 'unknown', source: 'unverified' })
+  assert.equal(nativeCredentialState('hermes', { home, env: { ...unrelated, ANTHROPIC_API_KEY: 'fallback-key' } }).state, 'ready')
+  fs.writeFileSync(path.join(root, '.env'), 'ANTHROPIC_API_KEY=fallback-key\n')
+  assert.equal(nativeCredentialState('hermes', { home, env: {} }).state, 'ready')
+})
+
 test('Hermes captures credentials for the native fallback provider chain and legacy fallback', async t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-fallback-keys-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))
