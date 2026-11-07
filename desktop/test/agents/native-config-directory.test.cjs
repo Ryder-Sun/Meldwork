@@ -10,6 +10,26 @@ test('Zcode authentication identity follows the target Windows profile', () => {
     'C:\\Users\\Ryder\\.zcode\\cli\\config.json',
   ])
 })
+
+test('Zcode CA bundle changes invalidate verification and relative paths are tracked', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-zcode-ca-identity-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const filename = path.join(home, 'ca.pem')
+  fs.writeFileSync(filename, 'first certificate')
+  const { NATIVE_AUTH_IDENTITY_FILES } = require('../../src/agents/native-config-directory.cjs')
+  const { agentVerificationIdentity } = require('../../src/workspace/agent-verification-identity.cjs')
+  const agent = { kind: 'zcode' }
+  Object.defineProperty(agent, NATIVE_AUTH_IDENTITY_FILES, {
+    value: nativeAuthIdentityFiles('zcode', { ZCODE_AGENT_CA_CERT: filename }, home),
+  })
+  assert.ok(agent[NATIVE_AUTH_IDENTITY_FILES].includes(filename))
+  assert.deepEqual(nativeProjectConfigPaths('zcode', { ZCODE_AGENT_CA_CERT: 'certs/ca.pem' }), [
+    { value: 'certs/ca.pem', directory: false },
+  ])
+  const before = agentVerificationIdentity(agent)
+  fs.writeFileSync(filename, 'replacement certificate')
+  assert.notEqual(agentVerificationIdentity(agent), before)
+})
 const { nativeCredentialState } = require('../../src/agents/local-agent-readiness.cjs')
 const { loadWorkspaceState, saveWorkspaceState } = require('../../src/workspace/local-workspace-state.cjs')
 

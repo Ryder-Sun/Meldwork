@@ -27,6 +27,7 @@ function cloudIdentityFiles(kind, env, home, platform) {
 function nativeProjectConfigPaths(kind, env = {}) {
   let entries = kind === 'opencode' ? [[env.OPENCODE_CONFIG, false], [env.OPENCODE_CONFIG_DIR, true]]
     : kind === 'mimo' ? [[env.MIMOCODE_CONFIG, false], [env.MIMOCODE_CONFIG_DIR, true]] : []
+  if (kind === 'zcode') entries = [[env.ZCODE_AGENT_CA_CERT, false]]
   if (kind === 'gemini' || kind === 'qwen') {
     const settings = env[kind === 'gemini' ? 'GEMINI_CLI_SYSTEM_SETTINGS_PATH' : 'QWEN_CODE_SYSTEM_SETTINGS_PATH']
     const defaults = env[kind === 'gemini' ? 'GEMINI_CLI_SYSTEM_DEFAULTS_PATH' : 'QWEN_CODE_SYSTEM_DEFAULTS_PATH']
@@ -83,7 +84,8 @@ function nativeAuthIdentityFiles(kind, env, home, platform = process.platform) {
     const paths = platform === 'win32' ? path.win32 : path.posix
     const configured = platform === 'win32' ? env?.USERPROFILE : env?.HOME
     const root = typeof configured === 'string' && configured.trim() ? configured.trim() : home
-    return typeof root === 'string' && paths.isAbsolute(root) ? [paths.join(root, '.zcode', 'cli', 'config.json')] : []
+    return [typeof root === 'string' && paths.isAbsolute(root) ? paths.join(root, '.zcode', 'cli', 'config.json') : '',
+      env?.ZCODE_AGENT_CA_CERT].filter(filename => typeof filename === 'string' && paths.isAbsolute(filename))
   }
   if (kind === 'mimo') {
     const explicit = env?.MIMOCODE_CONFIG
