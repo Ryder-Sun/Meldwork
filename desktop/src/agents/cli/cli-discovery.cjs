@@ -219,7 +219,7 @@ function agentCommands(kind, options = {}) {
     const suffix = envValue(env, 'HERMES_DATA_DIR_SUFFIX', platform) || ''
     const homes = [configuredHome, pathApi.join(home, `.hermes${suffix}`)]
       .filter(value => typeof value === 'string' && pathApi.isAbsolute(value))
-    const roots = [installDir, ...homes.map(value => pathApi.join(value, 'hermes-agent'))]
+    const roots = [installDir, ...homes.map(value => pathApi.join(value, 'hermes-agent')), ...homes]
       .filter(value => typeof value === 'string' && pathApi.isAbsolute(value))
     for (const root of roots) {
       commands.push(pathApi.join(root, '.hermes', 'bin', 'hermes'))
@@ -235,6 +235,7 @@ function agentCommands(kind, options = {}) {
     for (const root of homes) {
       commands.push(pathApi.join(root, 'bin', 'hermes'))
       commands.push(pathApi.join(root, 'hermes-agent', 'venv', 'Scripts', 'hermes'))
+      commands.push(pathApi.join(root, 'venv', 'Scripts', 'hermes'))
     }
   }
   if (kind === 'codex' && platform === 'darwin') {

@@ -538,6 +538,29 @@ test('Hermes discovery honors an explicit installation directory after PATH', as
   assert.equal(await resolveExecutable('hermes', options), '/test/bin/hermes')
 })
 
+test('Hermes discovers a flat installation in the selected native home', async () => {
+  const selected = '/test/flat-hermes'
+  const expected = `${selected}/.hermes/bin/hermes`
+  const options = { platform: 'darwin', home: '/test/home',
+    env: { PATH: '/missing', HERMES_HOME: selected },
+    accessFn: async candidate => { if (candidate !== expected) throw new Error('missing') },
+    execFileFn: async () => { throw new Error('missing') } }
+  assert.equal(await resolveExecutable('hermes', options), expected)
+  const agents = await detectAgents({ ...options,
+    nativeEnvironmentForKind: kind => kind === 'hermes' ? { HERMES_HOME: selected } : {},
+    execFileFn: async (_command, args) => args[0] === '--version'
+      ? { stdout: 'Hermes 0.19.1', stderr: '' } : { stdout: '', stderr: '' },
+    probeAgentCapabilitiesFn: async () => ({ compatibilityState: 'compatible' }),
+  })
+  assert.equal(agents.find(agent => agent.kind === 'hermes')?.executable, expected)
+  const legacy = `${selected}/venv/bin/hermes`
+  options.accessFn = async candidate => { if (candidate !== legacy) throw new Error('missing') }
+  options.statFn = async () => { throw Object.assign(new Error('missing'), { code: 'ENOENT' }) }
+  assert.equal(await resolveExecutable('hermes', options), legacy)
+  options.statFn = async () => ({ isDirectory: () => true })
+  assert.equal(await resolveExecutable('hermes', options), null)
+})
+
 test('Hermes discovers a legacy Unix virtual environment only for legacy installs', async () => {
   const legacy = '/test/custom-install/venv/bin/hermes'
   const options = { platform: 'darwin', home: '/test/home',
@@ -588,6 +611,9 @@ test('Windows Hermes discovery falls back to its native launcher and legacy virt
   assert.equal(await resolveExecutable('hermes', options), launcher)
   options.accessFn = async candidate => { if (candidate !== legacy) throw new Error('missing') }
   assert.equal(await resolveExecutable('hermes', options), legacy)
+  const flat = 'C:\\Native Hermes\\venv\\Scripts\\hermes.EXE'
+  options.accessFn = async candidate => { if (candidate !== flat) throw new Error('missing') }
+  assert.equal(await resolveExecutable('hermes', options), flat)
   options.accessFn = async candidate => { if (candidate !== 'C:\\missing\\hermes.EXE') throw new Error('missing') }
   assert.equal(await resolveExecutable('hermes', options), 'C:\\missing\\hermes.EXE')
   options.env = { PATH: 'C:\\missing', LOCALAPPDATA: 'C:\\Users\\Ryder\\AppData\\Local', PATHEXT: '.EXE' }
