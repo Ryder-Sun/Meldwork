@@ -240,6 +240,30 @@ test('capability probe cache does not survive native configuration file changes'
   assert.equal((await probeAgentCapabilities('workbuddy', executable, options)).compatibilityState, 'unknown')
 })
 
+test('capability probe cache follows native authentication files outside the config directory', async t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-capability-auth-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const data = path.join(home, 'data')
+  const auth = path.join(data, 'opencode', 'auth.json')
+  fs.mkdirSync(path.dirname(auth), { recursive: true })
+  fs.writeFileSync(auth, '{}')
+  let timeout = false
+  const options = {
+    home, env: {}, version: '1.18.12', childEnv: { HOME: home, XDG_DATA_HOME: data },
+    statFn: () => ({ dev: 1, ino: 1, size: 100, mtimeMs: 1, ctimeMs: 1 }),
+    execFileFn: async () => {
+      if (timeout) throw Object.assign(new Error('timeout'), { code: 'ETIMEDOUT' })
+      return { stdout: '--format --agent --session --file json' }
+    },
+  }
+  const executable = '/test/auth-file-opencode'
+  assert.equal((await probeAgentCapabilities('opencode', executable, options)).compatibilityState, 'compatible')
+  timeout = true
+  assert.equal((await probeAgentCapabilities('opencode', executable, options)).compatibilityState, 'compatible')
+  fs.writeFileSync(auth, '{"changed":true}')
+  assert.equal((await probeAgentCapabilities('opencode', executable, options)).compatibilityState, 'unknown')
+})
+
 test('capability probe cache does not cross native configuration or credential environments', async () => {
   let timeout = false
   const options = {
