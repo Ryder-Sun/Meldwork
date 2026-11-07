@@ -211,7 +211,7 @@ const collaborationMethods = {
       })
       sequence = collaboration.entries.length + 1
     }
-    for (const artifactId of duplicateConclusion ? [] : provenance.artifactIds.slice(0, 1)) {
+    for (const artifactId of duplicateConclusion ? [] : options.allOutcomeRefs ? provenance.artifactIds : provenance.artifactIds.slice(0, 1)) {
       collaboration = appendBlackboardEntry(collaboration, {
         entryType: 'artifact-ref',
         subject: `task:${controller.taskId}:artifact`,
@@ -227,7 +227,7 @@ const collaborationMethods = {
       })
       sequence = collaboration.entries.length + 1
     }
-    for (const evidenceId of duplicateConclusion ? [] : provenance.evidenceIds.slice(0, 1)) {
+    for (const evidenceId of duplicateConclusion ? [] : options.allOutcomeRefs ? provenance.evidenceIds : provenance.evidenceIds.slice(0, 1)) {
       collaboration = appendBlackboardEntry(collaboration, {
         entryType: 'evidence-ref',
         subject: `task:${controller.taskId}:evidence`,

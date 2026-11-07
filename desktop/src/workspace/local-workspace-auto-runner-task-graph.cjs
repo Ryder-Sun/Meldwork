@@ -227,19 +227,21 @@ const taskGraphMethods = {
     )) : []
     if (previous.length) {
       const primary = previous.filter(entry => ['claim', 'decision'].includes(entry.entryType))
+      const artifactEntries = previous.filter(entry => entry.entryType === 'artifact-ref')
+      const evidenceEntries = previous.filter(entry => entry.entryType === 'evidence-ref')
+      const matchesRefs = (entries, ids) => entries.length === ids.length
+        && entries.every((entry, index) => entry.refs.length === 1 && entry.refs[0] === ids[index])
       const artifactOnly = !conclusion && !node.acceptance.requireConclusion && primary.length === 0
-        && previous.length === Number(verifiedRefs.artifactIds.length > 0) + Number(verifiedRefs.evidenceIds.length > 0)
-        && previous.filter(entry => entry.entryType === 'artifact-ref').length === Number(verifiedRefs.artifactIds.length > 0)
-        && previous.filter(entry => entry.entryType === 'evidence-ref').length === Number(verifiedRefs.evidenceIds.length > 0)
+        && previous.length === artifactEntries.length + evidenceEntries.length
+        && matchesRefs(artifactEntries, verifiedRefs.artifactIds)
+        && matchesRefs(evidenceEntries, verifiedRefs.evidenceIds)
         && previous.every(entry => ['artifact-ref', 'evidence-ref'].includes(entry.entryType)
           && entry.lifecycle.state === 'active'
           && entry.owner.type === 'agent' && entry.owner.agentKind === node.agentKind && entry.owner.role === node.role
           && entry.provenance.taskId === controller.taskId
           && canonicalJson(entry.provenance.artifactIds) === canonicalJson(verifiedRefs.artifactIds)
           && canonicalJson(entry.provenance.evidenceIds) === canonicalJson(verifiedRefs.evidenceIds)
-          && entry.refs.length === 1 && (entry.entryType === 'artifact-ref'
-            ? entry.subject === `task:${controller.taskId}:artifact` && entry.refs[0] === verifiedRefs.artifactIds[0]
-            : entry.subject === `task:${controller.taskId}:evidence` && entry.refs[0] === verifiedRefs.evidenceIds[0]))
+          && entry.subject === `task:${controller.taskId}:${entry.entryType === 'artifact-ref' ? 'artifact' : 'evidence'}`)
       if (!artifactOnly && (primary.length !== 1 || primary[0].entryType !== (acceptedDecision ? 'decision' : 'claim')
           || primary[0].subject !== subject || primary[0].statement !== conclusion
           || primary[0].owner.type !== 'agent' || primary[0].owner.agentKind !== node.agentKind
@@ -264,6 +266,7 @@ const taskGraphMethods = {
             .map(candidate => candidate.agentKind))],
         },
         deduplicateByAgentRun: true,
+        allOutcomeRefs: true,
         entryType: acceptedDecision ? 'decision' : 'claim',
         subject,
         refs: acceptedDecision ? conflicts.map(entry => entry.entryId) : [],

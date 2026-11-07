@@ -190,6 +190,29 @@ test('task graph replays an artifact-only result after cursor checkpoint failure
   assert.throws(() => changed.applyTaskGraphAgentResult({}, resumed, node, result), { message: 'LOCAL_RUN_CONTINUATION_INVALID' })
 })
 
+test('task graph exposes every verified artifact and evidence to dependent nodes', () => {
+  const primary = graphNode({ acceptance: { requireConclusion: false, minArtifactRefs: 2, minEvidenceRefs: 2 } })
+  const reviewer = graphNode({ nodeId: 'review', role: 'reviewer', agentKind: 'hermes', terminal: true,
+    dependsOn: [primary.nodeId], inputNodeIds: [primary.nodeId] })
+  const graph = createTaskGraph({ template: 'task-graph', nodes: [primary, reviewer] })
+  const controller = { runId: 'run', taskId: 'task', currentRound: 1, completedKinds: [], failedKinds: [],
+    orchestration: { taskGraph: createTaskGraphCursor(graph), collaboration: emptyCollaborationState(), activeKinds: ['codex', 'hermes'] } }
+  const refs = { artifactIds: ['artifact-one', 'artifact-two'], evidenceIds: ['evidence-one', 'evidence-two'] }
+  const runner = { ...collaborationMethods, ...taskGraphMethods,
+    taskGraphVerifiedOutcomeRefs: () => refs,
+    checkpointOrchestration: (_group, target, updates) => Object.assign(target.orchestration, updates),
+    checkpointTaskGraph: (_group, target, next) => { target.orchestration.taskGraph = next; return next },
+  }
+  const result = { message: { content: '', trace: { status: 'completed', agentRunId: 'agent-run' } }, outcomeRefs: refs }
+  assert.equal(runner.applyTaskGraphAgentResult({}, controller, primary, result), true)
+  const selected = new Set(runner.taskGraphSelectedEntryIds(controller, reviewer))
+  assert.deepEqual(controller.orchestration.collaboration.entries.filter(entry => selected.has(entry.entryId))
+    .flatMap(entry => entry.refs), [...refs.artifactIds, ...refs.evidenceIds])
+  assert.equal(runner.validateTaskGraphRecoveredResults(controller), true)
+  assert.equal(runner.applyTaskGraphAgentResult({}, controller, primary, result), true)
+  assert.equal(controller.orchestration.collaboration.entries.length, 4)
+})
+
 test('task graph cannot accept an empty arbitration while conflicts remain', () => {
   const node = graphNode({ role: 'arbiter', agentKind: 'codex', terminal: true,
     acceptance: { requireConclusion: false, minArtifactRefs: 0, minEvidenceRefs: 0 } })
