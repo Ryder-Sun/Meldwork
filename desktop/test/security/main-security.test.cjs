@@ -603,6 +603,41 @@ test('Codex selected config passes its declared credential only to Codex', async
   assert.equal(harness.runAgentCalls.at(-1)[3].env.CUSTOM_CREDENTIAL, undefined)
 })
 
+test('Zcode selected native configuration controls detection, credentials and execution home', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-zcode-config-main-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const home = path.join(directory, 'selected-home')
+  const selected = path.join(home, '.zcode', 'cli')
+  fs.mkdirSync(selected, { recursive: true })
+  fs.writeFileSync(path.join(selected, 'config.json'), JSON.stringify({ model: { main: 'selected/model' },
+    provider: { selected: { kind: 'openai', name: 'Selected' } } }))
+  const readiness = require('../../src/agents/local-agent-readiness.cjs')
+  let detected
+  const { harness } = loadMain(directory, {
+    dialogResult: { canceled: false, filePaths: [selected] },
+    zcodeDeclaredCredentialKeys: readiness.zcodeDeclaredCredentialKeys,
+    nativeEnvironment: readiness.nativeCredentialEnvironment,
+    nativeShellEnvironment: input => ({ source: 'native-shell', env: input.extraEnvKeys?.includes('SELECTED_API_KEY')
+      ? { SELECTED_API_KEY: 'synthetic-selected' } : {} }),
+    detectAgents: input => { detected = input.nativeEnvironmentForKind('zcode'); return [] },
+  })
+  await harness.ready()
+  const workspace = harness.workspaceInstances[0]
+  workspace.state.agentPreferences = {}
+  workspace.state.agentRuntime = {}
+  workspace.activeRuns = new Map()
+  workspace.save = () => {}
+  const choice = await harness.ipcHandlers.get('local-agent-native-config:choose')(harness.event(), 'zcode')
+  assert.equal(choice.directory, path.resolve(selected))
+  await harness.installerInstances[0].input.detectAgents()
+  assert.equal(detected.HOME, path.resolve(home))
+  assert.equal(detected.SELECTED_API_KEY, 'synthetic-selected')
+  await workspace.input.runAgent({ kind: 'zcode', executable: '/tmp/zcode' }, 'hello', directory, {})
+  const env = harness.runAgentCalls.at(-1)[3].env
+  assert.equal(env.HOME, path.resolve(home))
+  assert.equal(env.SELECTED_API_KEY, 'synthetic-selected')
+})
+
 test('Hermes selected config captures only its declared native credential for execution', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-env-main-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

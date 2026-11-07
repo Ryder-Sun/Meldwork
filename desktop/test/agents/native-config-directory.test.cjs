@@ -5,6 +5,31 @@ const os = require('node:os')
 const path = require('node:path')
 const { nativeAuthIdentityFiles, nativeConfigEnvironment, nativeIdentityDirectory, nativeProjectConfigPaths, validateNativeConfigDirectory } = require('../../src/agents/native-config-directory.cjs')
 
+test('Zcode selects only a native .zcode/cli directory and derives its process home', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-zcode-config-home-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const selected = path.join(home, '.zcode', 'cli')
+  fs.mkdirSync(selected, { recursive: true })
+  assert.throws(() => validateNativeConfigDirectory('zcode', selected), { message: 'LOCAL_NATIVE_CONFIG_INVALID' })
+  fs.writeFileSync(path.join(selected, 'config.json'), '{}')
+  const directory = validateNativeConfigDirectory('zcode', selected)
+  const preferences = { zcode: { nativeConfigDirectory: directory } }
+  assert.equal(nativeConfigEnvironment('zcode', preferences, { HOME: '/old' }).HOME, path.resolve(home))
+  assert.deepEqual(nativeConfigEnvironment('zcode', preferences, {}, 'win32'), { HOME: path.resolve(home), USERPROFILE: path.resolve(home) })
+  assert.equal(nativeIdentityDirectory('zcode', { HOME: path.resolve(home) }, '/other', 'linux'), directory)
+  assert.equal(nativeIdentityDirectory('zcode', { USERPROFILE: 'C:\\Users\\Selected' }, 'C:\\Other', 'win32'),
+    'C:\\Users\\Selected\\.zcode\\cli')
+  assert.throws(() => nativeConfigEnvironment('zcode', { zcode: { nativeConfigDirectory: home } }), { message: 'LOCAL_NATIVE_CONFIG_INVALID' })
+  if (process.platform !== 'win32') {
+    const aliasHome = path.join(home, 'alias')
+    fs.mkdirSync(path.join(aliasHome, '.zcode'), { recursive: true })
+    const linked = path.join(aliasHome, '.zcode', 'cli')
+    fs.symlinkSync(selected, linked, 'dir')
+    assert.equal(validateNativeConfigDirectory('zcode', linked), path.resolve(linked))
+    assert.equal(nativeConfigEnvironment('zcode', { zcode: { nativeConfigDirectory: linked } }).HOME, aliasHome)
+  }
+})
+
 test('Zcode authentication identity follows the target Windows profile', () => {
   assert.deepEqual(nativeAuthIdentityFiles('zcode', { USERPROFILE: 'C:\\Users\\Ryder' }, 'C:\\Fallback', 'win32'), [
     'C:\\Users\\Ryder\\.zcode\\cli\\config.json',

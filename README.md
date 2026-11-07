@@ -107,6 +107,8 @@ WorkBuddy also supports selecting its existing native configuration directory in
 
 When switching an Agent's native configuration directory, Meldwork keeps separate local conversation sessions for each selected directory and restores them when switching back. Configuration changes are blocked while a run is active or awaiting recovery.
 
+For Zcode, choose an existing `.zcode/cli` directory containing `config.json`. Zcode runs with that directory's parent user home, which also affects its home-relative session and other file paths; project configuration may still override user configuration.
+
 Hermes uses its native `config.yaml` and Provider settings. When its model, fallback model, or provider entries declare credential variables with `key_env` or `api_key_env`, Meldwork reads those variables from the launch environment or login shell for Hermes; unrelated variables and unsafe process controls are excluded. Hermes may prepare its own dependencies when started with a new native data directory.
 
 ## Context and local boundaries

@@ -11,6 +11,16 @@ const { redactChildSecrets } = require('../../../src/agents/cli/cli-runtime-even
 const { nativeOpenClawOptions } = require('../../../src/agents/cli/openclaw-runtime.cjs')
 const { workBuddyInstall } = require('../../support/cli-adapters-test-helpers.cjs')
 
+test('Zcode receives its selected native home without changing other Agent homes', () => {
+  const options = { env: { HOME: '/selected-zcode', USERPROFILE: 'C:\\selected-zcode' } }
+  const unix = childEnvironment({ kind: 'zcode' }, '/tmp', options, 'darwin')
+  const windows = childEnvironment({ kind: 'zcode' }, 'C:\\work', options, 'win32')
+  const codex = childEnvironment({ kind: 'codex' }, '/tmp', options, 'darwin')
+  assert.equal(unix.HOME, '/selected-zcode')
+  assert.equal(windows.USERPROFILE, 'C:\\selected-zcode')
+  assert.equal(codex.HOME, process.env.HOME || os.homedir())
+})
+
 test('Windows termination requires successful taskkill and observed child exit', async () => {
   const child = new EventEmitter()
   child.pid = 4321

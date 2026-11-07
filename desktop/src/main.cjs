@@ -266,7 +266,8 @@ async function nativeShellEnvironment(options = {}) {
   const hermesCredentialKeys = hermesDeclaredCredentialKeys({ home, env: hermesEnv })
   const deepseekEnv = nativeConfigEnvironment('deepseek', workspace?.state.agentPreferences, initialEnv)
   const deepseekCredentialKeys = deepseekNativeConfig({ home, env: deepseekEnv }).credentialKeys
-  const zcodeCredentialKeys = zcodeDeclaredCredentialKeys({ home, workdir: options.workdir, env: initialEnv })
+  const zcodeEnv = nativeConfigEnvironment('zcode', workspace?.state.agentPreferences, initialEnv)
+  const zcodeCredentialKeys = zcodeDeclaredCredentialKeys({ home, workdir: options.workdir, env: zcodeEnv })
   const qwenCredentialKeys = qwenDeclaredCredentialKeys({ home, workdir: options.workdir, env: initialEnv })
   const piEnv = nativeConfigEnvironment('pi', workspace?.state.agentPreferences, initialEnv)
   const piCredentialKeys = piDeclaredCredentialKeys({ home, env: piEnv })
@@ -313,6 +314,7 @@ async function nativeShellEnvironment(options = {}) {
   for (const key of resolved.unsetKeys || []) delete env[key]
   opencodeCredentialKeys = opencodeCredentialKeys.filter(key => typeof env[key] === 'string' && env[key].length > 0)
   for (const [kind, { key }] of Object.entries(NATIVE_CONFIG_DIRECTORIES)) {
+    if (kind === 'zcode') continue
     const directory = typeof env[key] === 'string' ? env[key] : ''
     if ((nativeSkillDirectories[key] || '') !== directory) skillCatalog?.invalidate(kind)
     nativeSkillDirectories[key] = directory
