@@ -184,7 +184,7 @@ function evaluateCandidate(agent, requirements, options = {}) {
     attachmentSupport: options.attachmentSupport?.(agent.kind) || {},
   })
   const exclusions = []
-  if (!(agent.invocable ?? agent.available)) exclusions.push('unavailable')
+  if (!(options.requireVerified ? agent.invocable === true : (agent.invocable ?? agent.available))) exclusions.push('unavailable')
   if (options.requireVerified && !options.isRecentlyVerified(agent)) exclusions.push('unverified')
   if (requirements.domains.some(domain => !capabilities.domains.includes(domain))) {
     exclusions.push('domain')
@@ -352,7 +352,7 @@ class AgentRouter {
     const targetWriteSupport = permissionTargets.map((kind) => {
       const candidate = detected.get(kind)
       return (effectiveMode === 'explicit' || (candidate
-        && (candidate.invocable ?? candidate.available) && this.isRecentlyVerified(candidate, group.workdir)))
+        && candidate.invocable === true && this.isRecentlyVerified(candidate, group.workdir)))
       && agentRuntimeCapabilities(kind, {
         agent: detected.get(kind),
         attachmentSupport: this.attachmentSupport(kind),

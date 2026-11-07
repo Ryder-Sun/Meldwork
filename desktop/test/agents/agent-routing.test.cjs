@@ -289,6 +289,7 @@ for (const mode of ['manual', 'auto']) test(`automatic ${mode} routing falls bac
 for (const writer of [
   agent('codex', { recentlyVerified: false }),
   agent('codex', { available: false, invocable: false }),
+  agent('codex', { available: true, invocable: undefined }),
 ]) test(`automatic routing ignores ${writer.available ? 'unverified' : 'unavailable'} writers when choosing permissions`, () => {
   const reader = agent('custom-aaaaaaaaaaaaaaaa', { routingCapabilities: {
     domains: ['general'], inputTypes: ['text'], outputTypes: ['text'], toolClasses: ['agent-native'],
@@ -304,6 +305,15 @@ for (const writer of [
   assert.equal(result.requirements.permissionMode, 'read-only')
   assert.throws(() => router.route({ ...args, input: { ...input, routingRequirements: { permissionMode: 'workspace-write' } } }),
     { code: 'LOCAL_AGENT_ROUTING_REQUIREMENTS_INVALID' })
+})
+
+test('automatic routing requires explicit invocability even for a recently verified Agent', () => {
+  const router = new AgentRouter()
+  const legacy = agent('codex', { invocable: undefined, available: true })
+  const args = request({ agents: [legacy], group: { id: 'group-routing', agentKinds: ['codex'], allowWrite: false },
+    input: { routingMode: 'automatic', targetKinds: [] } })
+  assert.throws(() => router.route(args), { code: 'LOCAL_AGENT_ROUTING_NO_MATCH' })
+  assert.deepEqual(router.route({ ...args, input: { targetKinds: ['codex'] } }).selectedKinds, ['codex'])
 })
 
 test('frozen Eval Harness evidence influences routing without static brand preference', () => {
