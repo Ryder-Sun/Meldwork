@@ -128,13 +128,13 @@ function nativeAuthIdentityFiles(kind, env, home, platform = process.platform) {
 }
 
 const NATIVE_CONFIG_DIRECTORIES = Object.freeze({
-  hermes: { key: 'HERMES_HOME', files: ['config.yaml', 'auth.json', '.env'] },
-  codex: { key: 'CODEX_HOME', files: ['config.toml', 'auth.json'] },
-  claude: { key: 'CLAUDE_CONFIG_DIR', files: ['settings.json', '.credentials.json'] },
+  hermes: { key: 'HERMES_HOME', files: ['config.yaml', 'auth.json', '.env'], identityFiles: ['config.json'] },
+  codex: { key: 'CODEX_HOME', files: ['config.toml', 'auth.json'], identityFiles: ['config.json', '.env'] },
+  claude: { key: 'CLAUDE_CONFIG_DIR', files: ['settings.json', '.credentials.json'], identityFiles: ['settings.local.json', '.env'] },
   pi: { key: 'PI_CODING_AGENT_DIR', files: ['settings.json', 'auth.json', 'models.json'] },
   opencode: { key: 'OPENCODE_CONFIG_DIR', files: ['opencode.json', 'opencode.jsonc'] },
   gemini: { key: 'GEMINI_CLI_HOME', files: ['oauth_creds.json', 'gemini-credentials.json', 'google_accounts.json', 'settings.json', '.env'] },
-  kimi: { key: 'KIMI_CODE_HOME', files: ['config.toml'], directories: ['credentials'] },
+  kimi: { key: 'KIMI_CODE_HOME', files: ['config.toml'], identityFiles: ['.env'], directories: ['credentials'] },
   mimo: { key: 'MIMOCODE_CONFIG_DIR', files: ['mimocode.json', 'mimocode.jsonc'] },
   deepseek: { key: 'DSH_HOME', files: ['cordis.patch.yml', '.credentials.yaml'], directories: ['profiles'] },
   workbuddy: { key: 'CODEBUDDY_CONFIG_DIR', files: ['models.json', 'settings.json', '.credentials.json'] },

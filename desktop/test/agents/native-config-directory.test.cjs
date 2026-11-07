@@ -60,6 +60,27 @@ test('native identity directories follow shell overrides and known defaults', ()
   assert.equal(nativeIdentityDirectory('unknown', {}, home, 'linux'), '')
 })
 
+test('verification tracks the native files used by credential readiness', t => {
+  const { NATIVE_CONFIG_IDENTITY_DIRECTORY } = require('../../src/agents/native-config-directory.cjs')
+  const { agentVerificationIdentity } = require('../../src/workspace/agent-verification-identity.cjs')
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-identity-'))
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+  for (const [kind, files] of Object.entries({
+    hermes: ['config.json'], codex: ['config.json', '.env'],
+    claude: ['settings.local.json', '.env'], kimi: ['.env'],
+  })) {
+    const directory = path.join(root, kind)
+    fs.mkdirSync(directory)
+    const agent = { kind }
+    Object.defineProperty(agent, NATIVE_CONFIG_IDENTITY_DIRECTORY, { value: directory })
+    for (const file of files) {
+      const before = agentVerificationIdentity(agent)
+      fs.writeFileSync(path.join(directory, file), 'changed native configuration')
+      assert.notEqual(agentVerificationIdentity(agent), before, `${kind}: ${file}`)
+    }
+  }
+})
+
 test('MiMo validates its selected native configuration directory', t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-mimo-config-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
