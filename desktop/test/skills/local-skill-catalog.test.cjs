@@ -114,6 +114,27 @@ test('Gemini and OpenCode discover skills in configured native locations', t => 
   assert.throws(() => catalog.resolveSelections('gemini', [skill]), { message: 'LOCAL_SKILL_SELECTION_INVALID' })
 })
 
+test('OpenCode skill discovery follows the XDG config root and refreshes when it changes', t => {
+  const home = fixture(t)
+  const first = path.join(home, 'xdg-one')
+  const second = path.join(home, 'xdg-two')
+  const selected = path.join(home, 'additional-config')
+  writeSkill(path.join(home, '.config', 'opencode', 'skills'), 'default-skill')
+  writeSkill(path.join(first, 'opencode', 'skills'), 'first-skill')
+  writeSkill(path.join(second, 'opencode', 'skill'), 'second-skill')
+  writeSkill(path.join(selected, 'skills'), 'additional-skill')
+  let xdg = first
+  const catalog = new LocalSkillCatalog({ home, configDirectoryForKind: () => selected,
+    sharedDirectoryForKind: kind => kind === 'opencode' ? xdg : '' })
+  assert.deepEqual(catalog.list('opencode').skills.map(skill => skill.slug).sort(), ['additional-skill', 'first-skill'])
+  xdg = second
+  catalog.invalidate('opencode')
+  assert.deepEqual(catalog.list('opencode').skills.map(skill => skill.slug).sort(), ['additional-skill', 'second-skill'])
+  xdg = ''
+  catalog.invalidate('opencode')
+  assert.deepEqual(catalog.list('opencode').skills.map(skill => skill.slug).sort(), ['additional-skill', 'default-skill'])
+})
+
 test('WorkBuddy plugin settings follow its selected native directory', t => {
   const home = fixture(t)
   const selected = path.join(home, 'selected-workbuddy')

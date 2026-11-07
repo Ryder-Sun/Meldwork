@@ -175,7 +175,9 @@ function globalRoots(kind, home, configDirectory = '', sharedDirectory = '') {
       : (['codex', 'hermes', 'claude', 'workbuddy'].includes(kind) && parts[0] === `.${kind}`)
         || (kind === 'deepseek' && parts[0] === '.dsh')
         || (kind === 'kimi' && parts[0] === '.kimi-code') ? parts.slice(1) : null
-    const directory = configDirectory && kind === 'gemini'
+    const directory = sharedDirectory && kind === 'opencode'
+      ? path.join(sharedDirectory, ...parts.slice(1))
+      : configDirectory && kind === 'gemini'
       ? path.join(configDirectory, ...parts)
       : configDirectory && nativeParts
         ? path.join(configDirectory, ...nativeParts) : path.join(home, ...parts)

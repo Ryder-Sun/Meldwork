@@ -296,6 +296,10 @@ async function nativeShellEnvironment(options = {}) {
   const sharedDirectory = typeof env.DSH_AGENTS_HOME === 'string' ? env.DSH_AGENTS_HOME : ''
   if ((nativeSkillDirectories.DSH_AGENTS_HOME || '') !== sharedDirectory) skillCatalog?.invalidate('deepseek')
   nativeSkillDirectories.DSH_AGENTS_HOME = sharedDirectory
+  const xdgConfig = typeof env.XDG_CONFIG_HOME === 'string' && path.isAbsolute(env.XDG_CONFIG_HOME)
+    ? env.XDG_CONFIG_HOME : ''
+  if ((nativeSkillDirectories.XDG_CONFIG_HOME || '') !== xdgConfig) skillCatalog?.invalidate('opencode')
+  nativeSkillDirectories.XDG_CONFIG_HOME = xdgConfig
   return {
     ...resolved,
     env,
@@ -976,6 +980,7 @@ if (!hasSingleInstanceLock) {
         return directory
       },
       sharedDirectoryForKind: kind => {
+        if (kind === 'opencode') return nativeSkillDirectories.XDG_CONFIG_HOME || ''
         if (kind !== 'deepseek') return ''
         let directory = nativeSkillDirectories.DSH_AGENTS_HOME || ''
         if (!directory.trim()) return ''
