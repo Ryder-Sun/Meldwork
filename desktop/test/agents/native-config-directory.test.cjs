@@ -4,6 +4,12 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { nativeAuthIdentityFiles, nativeConfigEnvironment, nativeIdentityDirectory, nativeProjectConfigPaths, validateNativeConfigDirectory } = require('../../src/agents/native-config-directory.cjs')
+
+test('Zcode authentication identity follows the target Windows profile', () => {
+  assert.deepEqual(nativeAuthIdentityFiles('zcode', { USERPROFILE: 'C:\\Users\\Ryder' }, 'C:\\Fallback', 'win32'), [
+    'C:\\Users\\Ryder\\.zcode\\cli\\config.json',
+  ])
+})
 const { nativeCredentialState } = require('../../src/agents/local-agent-readiness.cjs')
 const { loadWorkspaceState, saveWorkspaceState } = require('../../src/workspace/local-workspace-state.cjs')
 

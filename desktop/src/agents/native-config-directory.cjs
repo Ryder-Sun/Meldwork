@@ -80,9 +80,10 @@ function nativeAuthIdentityFiles(kind, env, home, platform = process.platform) {
       .filter(filename => typeof filename === 'string' && paths.isAbsolute(filename))
   }
   if (kind === 'zcode') {
-    const configured = process.platform === 'win32' ? env?.USERPROFILE : env?.HOME
+    const paths = platform === 'win32' ? path.win32 : path.posix
+    const configured = platform === 'win32' ? env?.USERPROFILE : env?.HOME
     const root = typeof configured === 'string' && configured.trim() ? configured.trim() : home
-    return typeof root === 'string' && path.isAbsolute(root) ? [path.join(root, '.zcode', 'cli', 'config.json')] : []
+    return typeof root === 'string' && paths.isAbsolute(root) ? [paths.join(root, '.zcode', 'cli', 'config.json')] : []
   }
   if (kind === 'mimo') {
     const explicit = env?.MIMOCODE_CONFIG
