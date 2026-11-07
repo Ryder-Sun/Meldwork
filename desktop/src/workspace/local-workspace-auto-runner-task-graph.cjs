@@ -229,26 +229,42 @@ const taskGraphMethods = {
       const primary = previous.filter(entry => ['claim', 'decision'].includes(entry.entryType))
       const artifactEntries = previous.filter(entry => entry.entryType === 'artifact-ref')
       const evidenceEntries = previous.filter(entry => entry.entryType === 'evidence-ref')
-      const matchesRefs = (entries, ids) => entries.length === ids.length
+      const matchesRefs = (entries, ids) => (entries.length === ids.length || (entries.length === 1 && ids.length > 1))
         && entries.every((entry, index) => entry.refs.length === 1 && entry.refs[0] === ids[index])
-      const artifactOnly = !conclusion && !node.acceptance.requireConclusion && primary.length === 0
-        && previous.length === artifactEntries.length + evidenceEntries.length
+      const validReferences = previous.length === primary.length + artifactEntries.length + evidenceEntries.length
         && matchesRefs(artifactEntries, verifiedRefs.artifactIds)
         && matchesRefs(evidenceEntries, verifiedRefs.evidenceIds)
-        && previous.every(entry => ['artifact-ref', 'evidence-ref'].includes(entry.entryType)
-          && entry.lifecycle.state === 'active'
+        && [...artifactEntries, ...evidenceEntries].every(entry => entry.lifecycle.state === 'active'
           && entry.owner.type === 'agent' && entry.owner.agentKind === node.agentKind && entry.owner.role === node.role
           && entry.provenance.taskId === controller.taskId
           && canonicalJson(entry.provenance.artifactIds) === canonicalJson(verifiedRefs.artifactIds)
           && canonicalJson(entry.provenance.evidenceIds) === canonicalJson(verifiedRefs.evidenceIds)
           && entry.subject === `task:${controller.taskId}:${entry.entryType === 'artifact-ref' ? 'artifact' : 'evidence'}`)
-      if (!artifactOnly && (primary.length !== 1 || primary[0].entryType !== (acceptedDecision ? 'decision' : 'claim')
+      const artifactOnly = !conclusion && !node.acceptance.requireConclusion && primary.length === 0
+      if (!validReferences || (!artifactOnly && (primary.length !== 1 || primary[0].entryType !== (acceptedDecision ? 'decision' : 'claim')
           || primary[0].subject !== subject || primary[0].statement !== conclusion
           || primary[0].owner.type !== 'agent' || primary[0].owner.agentKind !== node.agentKind
           || primary[0].provenance.taskId !== controller.taskId
           || canonicalJson(primary[0].provenance.artifactIds) !== canonicalJson(verifiedRefs.artifactIds)
-          || canonicalJson(primary[0].provenance.evidenceIds) !== canonicalJson(verifiedRefs.evidenceIds))) {
+          || canonicalJson(primary[0].provenance.evidenceIds) !== canonicalJson(verifiedRefs.evidenceIds)))) {
         throw new Error('LOCAL_RUN_CONTINUATION_INVALID')
+      }
+      if (artifactEntries.length < verifiedRefs.artifactIds.length
+          || evidenceEntries.length < verifiedRefs.evidenceIds.length) {
+        let collaboration = controller.orchestration.collaboration
+        for (const [entries, ids] of [[artifactEntries, verifiedRefs.artifactIds], [evidenceEntries, verifiedRefs.evidenceIds]]) {
+          for (const id of ids.slice(entries.length)) {
+            const { entryId, version, recordType, ...template } = entries[0]
+            collaboration = appendBlackboardEntry(collaboration, {
+              ...template,
+              refs: [id],
+              lifecycle: { ...template.lifecycle, sequence: (collaboration.entries.at(-1)?.lifecycle.sequence || 0) + 1,
+                recordedAt: Date.now(), supersedesEntryId: null },
+            })
+            previous.push(collaboration.entries.at(-1))
+          }
+        }
+        this.checkpointOrchestration(group, controller, { collaboration })
       }
     }
     const entryIds = previous.length ? previous.map(entry => entry.entryId) : this.recordCollaborationResult(

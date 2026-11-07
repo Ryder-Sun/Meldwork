@@ -209,6 +209,29 @@ test('task graph exposes every verified artifact and evidence to dependent nodes
   assert.deepEqual(controller.orchestration.collaboration.entries.filter(entry => selected.has(entry.entryId))
     .flatMap(entry => entry.refs), [...refs.artifactIds, ...refs.evidenceIds])
   assert.equal(runner.validateTaskGraphRecoveredResults(controller), true)
+  const legacy = { ...controller, completedKinds: [], failedKinds: [], orchestration: structuredClone(controller.orchestration) }
+  legacy.orchestration.taskGraph = createTaskGraphCursor(graph)
+  legacy.orchestration.collaboration.entries = legacy.orchestration.collaboration.entries.filter(entry => (
+    entry.refs[0] === 'artifact-one' || entry.refs[0] === 'evidence-one'
+  ))
+  assert.equal(runner.applyTaskGraphAgentResult({}, legacy, primary, result), true)
+  assert.deepEqual(new Set(legacy.orchestration.collaboration.entries.flatMap(entry => entry.refs)),
+    new Set([...refs.artifactIds, ...refs.evidenceIds]))
+  assert.equal(runner.validateTaskGraphRecoveredResults(legacy), true)
+  assert.equal(runner.applyTaskGraphAgentResult({}, legacy, primary, result), true)
+  assert.equal(legacy.orchestration.collaboration.entries.length, 4)
+  const withConclusion = { ...controller, completedKinds: [], failedKinds: [], orchestration: {
+    taskGraph: createTaskGraphCursor(graph), collaboration: emptyCollaborationState(), activeKinds: ['codex', 'hermes'],
+  } }
+  const concluded = { ...result, message: { ...result.message, content: 'Completed work.' } }
+  assert.equal(runner.applyTaskGraphAgentResult({}, withConclusion, primary, concluded), true)
+  withConclusion.orchestration.taskGraph = createTaskGraphCursor(graph)
+  withConclusion.orchestration.collaboration.entries = withConclusion.orchestration.collaboration.entries.filter(entry => (
+    entry.entryType === 'claim' || entry.refs[0] === 'artifact-one' || entry.refs[0] === 'evidence-one'
+  ))
+  assert.equal(runner.applyTaskGraphAgentResult({}, withConclusion, primary, concluded), true)
+  assert.equal(withConclusion.orchestration.collaboration.entries.length, 5)
+  assert.equal(runner.validateTaskGraphRecoveredResults(withConclusion), true)
   assert.equal(runner.applyTaskGraphAgentResult({}, controller, primary, result), true)
   assert.equal(controller.orchestration.collaboration.entries.length, 4)
 })
