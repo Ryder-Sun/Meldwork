@@ -123,6 +123,7 @@ const RUNTIME_ENV_KEYS = Object.freeze({
   ],
   opencodereview: [
     'OCR_LLM_TOKEN', 'OCR_LLM_URL', 'OCR_LLM_MODEL', 'OCR_USE_ANTHROPIC',
+    'OCR_LLM_PROTOCOL', 'OCR_LLM_AUTH_HEADER', 'OCR_LLM_TIMEOUT',
     'OPENAI_API_KEY', 'OPENAI_BASE_URL', 'OPENAI_MODEL',
   ],
 })

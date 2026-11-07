@@ -16,6 +16,19 @@ const {
   resolveNativeShellEnvironment,
 } = require('../../src/agents/local-agent-readiness.cjs')
 
+test('OpenCodeReview preserves native protocol and request settings without passing extra headers', async () => {
+  const env = { OCR_LLM_URL: 'https://example.invalid/v1', OCR_LLM_MODEL: 'model', OCR_LLM_TOKEN: 'synthetic-token',
+    OCR_LLM_PROTOCOL: 'openai', OCR_LLM_AUTH_HEADER: 'authorization', OCR_LLM_TIMEOUT: '60',
+    OCR_LLM_EXTRA_HEADERS: '{"Authorization":"synthetic-secret"}' }
+  const captured = await resolveNativeShellEnvironment({ cache: false, platform: 'win32', env })
+  const native = nativeCredentialEnvironment('opencodereview', captured.env)
+  for (const key of ['OCR_LLM_PROTOCOL', 'OCR_LLM_AUTH_HEADER', 'OCR_LLM_TIMEOUT']) assert.equal(native[key], env[key])
+  const child = childEnvironment({ kind: 'opencodereview' }, '/workspace', { env: native }, 'darwin')
+  for (const key of ['OCR_LLM_PROTOCOL', 'OCR_LLM_AUTH_HEADER', 'OCR_LLM_TIMEOUT']) assert.equal(child[key], env[key])
+  assert.equal(child.OCR_LLM_EXTRA_HEADERS, undefined)
+  assert.deepEqual(nativeCredentialEnvironment('codex', captured.env), {})
+})
+
 test('Hermes receives native Bedrock and Vertex environment for discovery and execution', async () => {
   const env = { AWS_PROFILE: 'research', AWS_REGION: 'us-east-1', AWS_ACCESS_KEY_ID: 'native-access',
     AWS_SECRET_ACCESS_KEY: 'native-secret', GOOGLE_APPLICATION_CREDENTIALS: '/native/google.json',
