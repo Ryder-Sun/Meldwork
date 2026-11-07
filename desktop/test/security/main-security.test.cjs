@@ -1460,6 +1460,58 @@ test('Connector approval rejects a package reimported while confirmation is open
   assert.equal((await invoke('inspect')(harness.event(), packageId)).state, 'imported')
 })
 
+test('Connector credential confirmation does not read the shell after trust changes', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-connector-env-race-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const { createAgentConnectorManifest } = require('../../src/agents/connectors/agent-connector-manifest.cjs')
+  const { createAgentConnectorPackage, SDK_HTTP_JSON_RECIPE_ID } = require('../../src/agents/connectors/agent-connector-package-store.cjs')
+  const manifest = createAgentConnectorManifest({ connectorId: 'external.env-race', connectorVersion: '1.0.0',
+    kind: 'agent', label: 'Env test', description: 'Environment credential test.',
+    transport: { type: 'http', protocol: 'json' }, upstream: { id: 'meldwork-sdk', minVersion: '1.0.0', maxVersion: '1.0.0' },
+    invocation: { recipeId: SDK_HTTP_JSON_RECIPE_ID }, domains: ['general'],
+    session: { supported: false, resume: false, cancel: false, checkpoint: false }, inputTypes: ['text'],
+    permissionModes: ['read-only'], eventProtocolVersion: 1, eventTypes: ['Completed', 'Failed', 'Cancelled'],
+    usage: { inputTokens: false, outputTokens: false, costMicros: false, toolCalls: false, outboundBytes: false, elapsedMs: false },
+    outboundDestinations: ['https://connector.example.com'],
+    credentials: { mode: 'credential-ref', slots: [{ slotId: 'access-token', type: 'token', required: true }] }, license: 'MIT' })
+  const pkg = createAgentConnectorPackage({ publisher: { id: 'example', name: 'Example' },
+    provider: { id: SDK_HTTP_JSON_RECIPE_ID, config: { endpoint: 'https://connector.example.com/run', authSlotId: 'access-token' } }, manifest })
+  const decision = deferred()
+  const reads = []
+  let environmentGate = null
+  const { harness } = loadMain(directory, { messageBoxResult: decision.promise,
+    nativeShellEnvironment: input => {
+      if (input.extraEnvKeys) { reads.push(input.extraEnvKeys); if (environmentGate) return environmentGate.promise }
+      return { env: {}, source: 'process' }
+    } })
+  await harness.ready()
+  const connectors = harness.workspaceInstances[0].input.connectorRuntime
+  const store = connectors.packageStore
+  store.import(serializeAgentConnectorPackage(pkg), 'connector.json')
+  store.approve(pkg.packageId)
+  store.install(pkg.packageId)
+  connectors.refresh([])
+  const invoke = name => harness.ipcHandlers.get(`local-agent-connector:${name}`)
+  const pending = invoke('configure-from-environment')(harness.event(), { packageId: pkg.packageId,
+    label: 'Account', environmentKeys: { 'access-token': 'CONNECTOR_API_KEY' } })
+  await waitFor(() => harness.dialogCalls.length >= 1)
+  store.disable(pkg.packageId)
+  store.install(pkg.packageId)
+  decision.resolve({ response: 0 })
+  await assert.rejects(pending, { message: 'AGENT_CONNECTOR_PACKAGE_CHANGED' })
+  assert.deepEqual(reads, [])
+  assert.deepEqual(connectors.instanceStore.list(), [])
+  environmentGate = deferred()
+  const duringRead = invoke('configure-from-environment')(harness.event(), { packageId: pkg.packageId,
+    label: 'Account', environmentKeys: { 'access-token': 'CONNECTOR_API_KEY' } })
+  await waitFor(() => reads.length === 1)
+  store.disable(pkg.packageId)
+  store.install(pkg.packageId)
+  environmentGate.resolve({ env: { CONNECTOR_API_KEY: 'synthetic-secret' }, source: 'native-shell' })
+  await assert.rejects(duringRead, { message: 'AGENT_CONNECTOR_PACKAGE_CHANGED' })
+  assert.deepEqual(connectors.instanceStore.list(), [])
+})
+
 test('Connector credentials can be read from the native shell only after native confirmation', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-connector-env-ipc-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

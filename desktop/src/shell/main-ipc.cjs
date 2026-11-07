@@ -717,6 +717,15 @@ function registerDesktopIpc(options) {
     if (!connectors || typeof resolveConnectorEnvironment !== 'function') throw new Error('AGENT_CONNECTOR_RUNTIME_UNAVAILABLE')
     const inspected = connectors.inspectPackage(args[0].packageId)
     if (inspected.state !== 'installed') throw new Error('AGENT_CONNECTOR_PACKAGE_NOT_INSTALLED')
+    const auditEventId = connectors.auditPackage(args[0].packageId).at(-1)?.eventId
+    const assertPackageUnchanged = () => {
+      try {
+        if (auditEventId && getAgentConnectors?.() === connectors
+            && connectors.auditPackage(args[0].packageId).at(-1)?.eventId === auditEventId
+            && connectors.inspectPackage(args[0].packageId).state === 'installed') return
+      } catch { /* A removed or unreadable package is no longer authorized. */ }
+      throw new Error('AGENT_CONNECTOR_PACKAGE_CHANGED')
+    }
     const slots = inspected.manifest.credentials.slots
     const entries = Object.entries(args[0].environmentKeys)
     if (!slots.length || entries.length > slots.length
@@ -737,14 +746,18 @@ function registerDesktopIpc(options) {
     })
     if (decision.response !== 0) return { canceled: true }
     if (isShutdownStarted()) throw new Error('DESKTOP_CLIENT_SHUTTING_DOWN')
+    assertPackageUnchanged()
     const env = await resolveConnectorEnvironment(names)
     if (isShutdownStarted()) throw new Error('DESKTOP_CLIENT_SHUTTING_DOWN')
+    assertPackageUnchanged()
     const credentials = Object.fromEntries(entries.map(([slot, name]) => [slot, env?.[name]]))
     if (Object.values(credentials).some(value => typeof value !== 'string' || !value.trim())) {
       throw new Error('AGENT_CONNECTOR_CREDENTIAL_ENV_MISSING')
     }
-    connectors.refresh(await installer.detectedAgents())
+    const detectedAgents = await installer.detectedAgents()
     if (isShutdownStarted()) throw new Error('DESKTOP_CLIENT_SHUTTING_DOWN')
+    assertPackageUnchanged()
+    connectors.refresh(detectedAgents)
     const instance = connectors.configure({ manifestId: inspected.manifest.manifestId, label: args[0].label, credentials })
     await refreshLocalAgentState()
     return { canceled: false, instance }
