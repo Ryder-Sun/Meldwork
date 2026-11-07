@@ -7,6 +7,7 @@
     <p v-if="directory && !directoryMissing && configurationFiles?.present?.length">{{ t('nativeConfig.foundFiles') }}: {{ configurationFiles.present.join(', ') }}</p>
     <p v-if="directory && configurationFiles?.missing?.length">{{ t('nativeConfig.otherFilesMissing') }}: {{ configurationFiles.missing.join(', ') }}</p>
     <p v-if="kind === 'hermes' && directory !== null">{{ t('nativeConfig.configuredProvider') }}: {{ provider || t('nativeConfig.providerUnknown') }}</p>
+    <p v-if="kind === 'deepseek' && directory !== null">{{ t('nativeConfig.configuredProvider') }}: {{ provider || t('nativeConfig.providerUnknown') }}</p>
     <p v-if="['codex', 'zcode'].includes(kind) && directory !== null">{{ t('nativeConfig.userConfiguredProvider') }}: {{ provider || t('nativeConfig.providerUnknown') }}</p>
     <p v-if="kind === 'qwen' && directory !== null">{{ t('nativeConfig.userAuthType') }}: {{ authType || t('nativeConfig.providerUnknown') }}</p>
     <p v-if="error" class="form-error" role="alert">{{ error }} <template v-if="invalid">{{ t(`nativeConfig.expected.${kind}`) }}</template></p>

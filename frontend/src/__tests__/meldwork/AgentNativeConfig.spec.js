@@ -136,6 +136,15 @@ it('identifies Codex provider information as user configuration', async () => {
   wrapper.unmount()
 })
 
+it('shows the DeepSeek runtime provider when it is known', async () => {
+  window.meldworkDesktop = { localAgentNativeConfig: { get: vi.fn().mockResolvedValue({ directory: '', provider: 'zgci' }) } }
+  const wrapper = mount(AgentNativeConfig, { props: { kind: 'deepseek' } })
+  await flushPromises()
+  expect(wrapper.text()).toContain(t('nativeConfig.configuredProvider'))
+  expect(wrapper.text()).toContain('zgci')
+  wrapper.unmount()
+})
+
 it('shows the Qwen authentication type without calling it a provider', async () => {
   window.meldworkDesktop = { localAgentNativeConfig: { get: vi.fn().mockResolvedValue({ directory: '', authType: 'openai' }) } }
   const wrapper = mount(AgentNativeConfig, { props: { kind: 'qwen' } })

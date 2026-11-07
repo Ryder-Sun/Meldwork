@@ -558,6 +558,22 @@ test('native Agent configuration selection is validated and used for execution',
   assert.equal((await get(harness.event(), 'hermes')).directory, '')
 })
 
+test('DeepSeek configuration summary distinguishes the Meldwork default from a native override', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-dsh-summary-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const native = path.join(directory, 'native')
+  fs.mkdirSync(native)
+  const { harness } = loadMain(directory, {
+    nativeShellEnvironment: () => ({ source: 'native-shell', env: { DSH_HOME: native } }),
+  })
+  await harness.ready()
+  harness.workspaceInstances[0].state.agentPreferences = {}
+  const get = harness.ipcHandlers.get('local-agent-native-config:get')
+  assert.equal((await get(harness.event(), 'deepseek')).provider, 'zgci')
+  fs.writeFileSync(path.join(native, 'cordis.patch.yml'), '- id: acp\n  config:\n    provider: custom\n')
+  assert.equal((await get(harness.event(), 'deepseek')).provider, '')
+})
+
 test('shell-unset provider credentials are not restored from the desktop process', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-shell-unset-main-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

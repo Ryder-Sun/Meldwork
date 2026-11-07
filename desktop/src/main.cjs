@@ -982,9 +982,10 @@ function registerIpc() {
     getMainWindow: () => mainWindow,
     getWorkspace: () => workspace,
     getNativeConfigSummary: async (kind, currentWorkspace) => {
-      if (!['hermes', 'codex', 'qwen', 'zcode'].includes(kind)) return null
+      if (!['hermes', 'codex', 'qwen', 'zcode', 'deepseek'].includes(kind)) return null
       const shell = await nativeShellEnvironment()
       const env = nativeConfigEnvironment(kind, currentWorkspace.state.agentPreferences, shell.env)
+      if (kind === 'deepseek') return { provider: deepseekNativeConfig({ home: shell.home, env }).explicitModel ? '' : 'zgci' }
       if (kind === 'qwen' || kind === 'zcode') return nativeUserConfigSummary(kind, { home: shell.home, env })
       return { provider: kind === 'hermes'
         ? hermesConfiguredProvider({ home: shell.home, env })
