@@ -492,6 +492,42 @@ test('native environment names are case sensitive on Unix and case insensitive o
   }
 })
 
+test('Hermes discovery falls back to the native installation when the PATH launcher is missing', async () => {
+  const home = '/test/hermes-home'
+  const expected = path.join(home, '.hermes', 'hermes-agent', '.hermes', 'bin', 'hermes')
+  const executable = await resolveExecutable('hermes', {
+    platform: 'darwin', home, env: { PATH: '/missing' },
+    accessFn: async candidate => { if (candidate !== expected) throw new Error('missing') },
+    execFileFn: async () => { throw new Error('missing') },
+  })
+  assert.equal(executable, expected)
+})
+
+test('Hermes discovery honors an explicit installation directory after PATH', async () => {
+  const expected = '/test/custom-install/.hermes/bin/hermes'
+  const options = { platform: 'darwin', home: '/test/home',
+    env: { PATH: '/test/bin', HERMES_INSTALL_DIR: '/test/custom-install' },
+    accessFn: async candidate => { if (candidate !== expected) throw new Error('missing') },
+    execFileFn: async () => { throw new Error('missing') } }
+  assert.equal(await resolveExecutable('hermes', options), expected)
+  options.accessFn = async candidate => {
+    if (!['/test/bin/hermes', expected].includes(candidate)) throw new Error('missing')
+  }
+  assert.equal(await resolveExecutable('hermes', options), '/test/bin/hermes')
+})
+
+test('Hermes detection uses the selected native home when locating its installation', async () => {
+  const expected = '/test/selected/hermes-agent/.hermes/bin/hermes'
+  const agents = await detectAgents({ platform: 'darwin', home: '/test/home', env: { PATH: '/missing' },
+    nativeEnvironmentForKind: kind => kind === 'hermes' ? { HERMES_HOME: '/test/selected' } : {},
+    accessFn: async candidate => { if (candidate !== expected) throw new Error('missing') },
+    execFileFn: async (_command, args) => args[0] === '--version'
+      ? { stdout: 'Hermes 0.19.1', stderr: '' } : { stdout: '', stderr: '' },
+    probeAgentCapabilitiesFn: async () => ({ compatibilityState: 'compatible' }),
+  })
+  assert.equal(agents.find(agent => agent.kind === 'hermes')?.executable, expected)
+})
+
 test('Windows executable resolution honors PATHEXT', async () => {
   const expected = 'C:\\Tools\\codex.CMD'
   const executable = await resolveExecutable('codex', {

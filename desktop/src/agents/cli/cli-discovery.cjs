@@ -210,8 +210,18 @@ function searchPath(options = {}) {
 }
 
 function agentCommands(kind, options = {}) {
-  const { platform, home, pathApi } = runtimeOptions(options)
+  const { platform, home, pathApi, env } = runtimeOptions(options)
   const commands = [...AGENT_PROFILES[kind].commands]
+  if (kind === 'hermes' && platform !== 'win32') {
+    const configuredHome = envValue(env, 'HERMES_HOME', platform)
+    const installDir = envValue(env, 'HERMES_INSTALL_DIR', platform)
+    const suffix = envValue(env, 'HERMES_DATA_DIR_SUFFIX', platform) || ''
+    const homes = [configuredHome, pathApi.join(home, `.hermes${suffix}`)]
+      .filter(value => typeof value === 'string' && pathApi.isAbsolute(value))
+    const roots = [installDir, ...homes.map(value => pathApi.join(value, 'hermes-agent'))]
+      .filter(value => typeof value === 'string' && pathApi.isAbsolute(value))
+    for (const root of roots) commands.push(pathApi.join(root, '.hermes', 'bin', 'hermes'))
+  }
   if (kind === 'codex' && platform === 'darwin') {
     commands.push('/Applications/ChatGPT.app/Contents/Resources/codex')
     commands.push(pathApi.join(
@@ -542,7 +552,9 @@ async function detectAgentKind(kind, options, childEnv) {
     : null
   const candidates = typeof options.resolveExecutableFn === 'function'
     ? (resolved ? [resolved] : [])
-    : resolvedExecutableCandidates(kind, options)
+    : resolvedExecutableCandidates(kind, kind === 'hermes'
+      ? { ...options, env: { ...options.env, HERMES_HOME: childEnv.HERMES_HOME,
+        HERMES_INSTALL_DIR: childEnv.HERMES_INSTALL_DIR } } : options)
   let firstIncompatible = null
   for await (const executable of candidates) {
     const candidate = await inspectAgentCandidate(kind, executable, options, childEnv)
