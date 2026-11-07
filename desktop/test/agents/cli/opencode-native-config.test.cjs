@@ -53,3 +53,25 @@ test('OpenCode discovers env names for selected native model providers only', as
   fs.writeFileSync(path.join(cache, 'models.json'), '{invalid')
   assert.deepEqual(opencodeDeclaredCredentialKeys({ home, env }), [])
 })
+
+test('OpenCode discovers recent native providers only when no model is configured', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-opencode-recent-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const cache = path.join(home, 'cache', 'opencode')
+  const state = path.join(home, 'state', 'opencode')
+  const config = path.join(home, 'config', 'opencode')
+  for (const dir of [cache, state, config]) fs.mkdirSync(dir, { recursive: true })
+  fs.writeFileSync(path.join(cache, 'models.json'), JSON.stringify({
+    deepseek: { env: ['DEEPSEEK_API_KEY'] }, groq: { env: ['GROQ_API_KEY'] },
+  }))
+  fs.writeFileSync(path.join(state, 'model.json'), JSON.stringify({ recent: [
+    { providerID: 'deepseek', modelID: 'model' }, { providerID: 'bad/name', modelID: 'model' },
+  ] }))
+  const env = { XDG_CACHE_HOME: path.dirname(cache), XDG_STATE_HOME: path.dirname(state), XDG_CONFIG_HOME: path.dirname(config) }
+  assert.deepEqual(opencodeDeclaredCredentialKeys({ home, env }), ['DEEPSEEK_API_KEY'])
+  fs.writeFileSync(path.join(config, 'opencode.json'), JSON.stringify({ model: 'groq/model' }))
+  assert.deepEqual(opencodeDeclaredCredentialKeys({ home, env }), ['GROQ_API_KEY'])
+  fs.writeFileSync(path.join(state, 'model.json'), '{invalid')
+  fs.rmSync(path.join(config, 'opencode.json'))
+  assert.deepEqual(opencodeDeclaredCredentialKeys({ home, env }), [])
+})

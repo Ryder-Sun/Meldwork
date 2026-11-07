@@ -59,6 +59,22 @@ function opencodeDeclaredCredentialKeys(options = {}) {
   const providers = new Set(configs.flatMap(config => [config?.model, config?.small_model])
     .filter(model => typeof model === 'string' && /^[A-Za-z0-9._-]+\/.+/.test(model))
     .map(model => model.slice(0, model.indexOf('/'))))
+  if (!configs.some(config => typeof config?.model === 'string' && config.model)) {
+    const stateRoot = env.XDG_STATE_HOME || path.join(home, '.local', 'state')
+    const filename = path.join(stateRoot, 'opencode', 'model.json')
+    try {
+      const stat = fs.statSync(filename)
+      if (stat.isFile() && stat.size <= 2 * 1024 * 1024) {
+        const recent = JSON.parse(fs.readFileSync(filename, 'utf8'))?.recent
+        if (Array.isArray(recent)) {
+          for (const item of recent.slice(0, 32)) {
+            if (typeof item?.providerID === 'string' && /^[A-Za-z0-9._-]+$/.test(item.providerID)
+                && typeof item.modelID === 'string' && item.modelID) providers.add(item.providerID)
+          }
+        }
+      }
+    } catch { /* No usable recent native model is available. */ }
+  }
   if (providers.size) {
     const cacheRoot = env.XDG_CACHE_HOME || path.join(home, '.cache')
     const filename = path.join(cacheRoot, 'opencode', 'models.json')

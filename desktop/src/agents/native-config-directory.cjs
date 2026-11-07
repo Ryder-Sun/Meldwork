@@ -99,8 +99,10 @@ function nativeAuthIdentityFiles(kind, env, home, platform = process.platform) {
   const sharedRoot = typeof configRoot === 'string' && path.isAbsolute(configRoot) ? path.join(configRoot, 'opencode') : ''
   const explicit = typeof env?.OPENCODE_CONFIG === 'string' && typeof home === 'string' && path.isAbsolute(home)
     ? env.OPENCODE_CONFIG.replace(/^~(?=$|[\\/])/, home) : env?.OPENCODE_CONFIG
+  const stateRoot = env?.XDG_STATE_HOME || (home && path.join(home, '.local', 'state'))
   return [typeof root === 'string' && path.isAbsolute(root) ? path.join(root, 'opencode', 'auth.json') : '', explicit,
     ...(sharedRoot ? ['opencode.json', 'opencode.jsonc'].map(name => path.join(sharedRoot, name)) : []),
+    typeof stateRoot === 'string' && path.isAbsolute(stateRoot) ? path.join(stateRoot, 'opencode', 'model.json') : '',
     ...cloudIdentityFiles(kind, env, home, platform)]
     .filter(filename => typeof filename === 'string' && path.isAbsolute(filename))
 }

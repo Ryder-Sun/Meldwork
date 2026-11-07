@@ -48,7 +48,8 @@ test('MiMo validates its selected native configuration directory', t => {
 test('OpenCode authentication identity follows its XDG data directory', () => {
   const home = path.resolve('test-home')
   const shared = ['opencode.json', 'opencode.jsonc'].map(name => path.join(home, '.config', 'opencode', name))
-  const cloud = [path.join(home, '.aws', 'config'), path.join(home, '.aws', 'credentials')]
+  const cloud = [path.join(home, '.local', 'state', 'opencode', 'model.json'),
+    path.join(home, '.aws', 'config'), path.join(home, '.aws', 'credentials')]
   assert.deepEqual(nativeAuthIdentityFiles('opencode', {}, home), [path.join(home, '.local', 'share', 'opencode', 'auth.json'), ...shared, ...cloud])
   assert.deepEqual(nativeAuthIdentityFiles('opencode', { XDG_DATA_HOME: path.join(home, 'data') }, home),
     [path.join(home, 'data', 'opencode', 'auth.json'), ...shared, ...cloud])
@@ -132,6 +133,21 @@ test('default AWS credential updates change Pi and Claude verification identity'
   for (let index = 0; index < agents.length; index += 1) {
     assert.notEqual(agentVerificationIdentity(agents[index]), before[index])
   }
+})
+
+test('OpenCode recent model changes invalidate verification identity', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-opencode-model-identity-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const filename = path.join(home, '.local', 'state', 'opencode', 'model.json')
+  fs.mkdirSync(path.dirname(filename), { recursive: true })
+  fs.writeFileSync(filename, '{"recent":[]}')
+  const { NATIVE_AUTH_IDENTITY_FILES } = require('../../src/agents/native-config-directory.cjs')
+  const { agentVerificationIdentity } = require('../../src/workspace/agent-verification-identity.cjs')
+  const agent = { kind: 'opencode' }
+  Object.defineProperty(agent, NATIVE_AUTH_IDENTITY_FILES, { value: nativeAuthIdentityFiles('opencode', {}, home) })
+  const before = agentVerificationIdentity(agent)
+  fs.writeFileSync(filename, '{"recent":[{"providerID":"test","modelID":"model"}]}')
+  assert.notEqual(agentVerificationIdentity(agent), before)
 })
 
 test('Gemini authentication identity includes explicitly selected system and cloud files', () => {
