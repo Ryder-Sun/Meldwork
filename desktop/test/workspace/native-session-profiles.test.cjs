@@ -7,6 +7,8 @@ const { switchNativeSessionProfile } = require('../../src/workspace/native-sessi
 const { saveWorkspaceState, loadWorkspaceState, workspaceSnapshot } = require('../../src/workspace/local-workspace-state.cjs')
 const { sessionKey, resolveSessionState, clearSessionState } = require('../../src/workspace/local-workspace-context.cjs')
 const { LocalWorkspaceConversations } = require('../../src/workspace/local-workspace-conversations.cjs')
+const { LocalWorkspace } = require('../../src/workspace/local-workspace.cjs')
+const { fixture } = require('../support/local-workspace-test-helpers.cjs')
 
 test('switching native profiles preserves direct, group and other Agent sessions across reload', t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-sessions-'))
@@ -78,4 +80,35 @@ test('group deletion rolls back archived sessions when saving fails', () => {
     isGroupBusy: () => false, save: () => { throw new Error('save failed') } })
   assert.throws(() => conversations.deleteGroup('one'), { message: 'save failed' })
   assert.deepEqual(state.nativeSessionProfiles, before)
+})
+
+test('direct and group chats resume the matching native profile after restart', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const calls = []
+  let nextSession = 0
+  options.runAgent = async (_agent, _prompt, _workdir, runOptions) => {
+    calls.push(runOptions.sessionRef)
+    return { text: 'Reply', outcome: 'completed', sessionRef: runOptions.sessionRef || `native-${++nextSession}` }
+  }
+  let workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const direct = workspace.createGroup({ conversationType: 'direct', directAgentKind: 'hermes', workdir: directory })
+  const group = workspace.createGroup({ name: 'Group', agentKinds: ['hermes', 'codex'], workdir: directory })
+  const sendBoth = async () => {
+    await workspace.sendMessage({ groupId: direct.id, text: 'Hello' })
+    await workspace.sendMessage({ groupId: group.id, text: 'Hello', mode: 'manual', targetKinds: ['hermes'] })
+  }
+  await sendBoth()
+  switchNativeSessionProfile(workspace.state, 'hermes', '', '/profile-b')
+  workspace.state.agentPreferences.hermes = { nativeConfigDirectory: '/profile-b' }
+  workspace.save()
+  await sendBoth()
+  workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  switchNativeSessionProfile(workspace.state, 'hermes', '/profile-b', '')
+  workspace.state.agentPreferences.hermes = { nativeConfigDirectory: '' }
+  workspace.save()
+  await sendBoth()
+  assert.deepEqual(calls, ['', '', '', '', 'native-1', 'native-2'])
 })
