@@ -301,6 +301,32 @@ test('OpenCode resolves a shell-selected model before collecting its provider cr
   assert.equal(harness.runAgentCalls.at(-1)[3].env.GROQ_API_KEY, undefined)
 })
 
+test('OpenCode default model discovery captures only present native provider credentials', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-opencode-default-env-main-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const cache = path.join(directory, 'cache', 'opencode')
+  fs.mkdirSync(cache, { recursive: true })
+  const providers = Object.fromEntries(Array.from({ length: 180 }, (_, index) => [
+    `provider-${index}`, { env: [`PROVIDER_${String(index).padStart(3, '0')}_API_KEY`] },
+  ]))
+  fs.writeFileSync(path.join(cache, 'models.json'), JSON.stringify(providers))
+  const readiness = require('../../src/agents/local-agent-readiness.cjs')
+  const { harness } = loadMain(directory, {
+    nativeShellEnvironment: input => ({ env: { XDG_CACHE_HOME: path.dirname(cache),
+      ...(input.extraEnvKeys?.includes('PROVIDER_179_API_KEY') ? { PROVIDER_179_API_KEY: 'synthetic-secret' } : {}) }, source: 'native-shell' }),
+    nativeEnvironment: readiness.nativeCredentialEnvironment,
+  })
+  await harness.ready()
+  const workspace = harness.workspaceInstances[0]
+  await workspace.input.runAgent({ kind: 'opencode', executable: '/tmp/opencode' }, 'hello', directory, {})
+  const options = harness.runAgentCalls.at(-1)[3]
+  assert.equal(options.env.PROVIDER_179_API_KEY, 'synthetic-secret')
+  assert.ok(options.nativeCredentialKeys.includes('PROVIDER_179_API_KEY'))
+  assert.equal(options.nativeCredentialKeys.includes('PROVIDER_000_API_KEY'), false)
+  await workspace.input.runAgent({ kind: 'codex', executable: '/tmp/codex' }, 'hello', directory, {})
+  assert.equal(harness.runAgentCalls.at(-1)[3].env.PROVIDER_179_API_KEY, undefined)
+})
+
 test('selected OpenCode configuration supplies its declared credentials to execution', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-opencode-selected-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

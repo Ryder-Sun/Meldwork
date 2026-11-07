@@ -300,6 +300,7 @@ async function nativeShellEnvironment(options = {}) {
   }
   const env = { ...process.env, ...resolved.env }
   for (const key of resolved.unsetKeys || []) delete env[key]
+  opencodeCredentialKeys = opencodeCredentialKeys.filter(key => typeof env[key] === 'string' && env[key].length > 0)
   for (const [kind, { key }] of Object.entries(NATIVE_CONFIG_DIRECTORIES)) {
     const directory = typeof env[key] === 'string' ? env[key] : ''
     if ((nativeSkillDirectories[key] || '') !== directory) skillCatalog?.invalidate(kind)

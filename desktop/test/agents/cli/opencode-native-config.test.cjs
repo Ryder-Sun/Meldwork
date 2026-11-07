@@ -54,7 +54,7 @@ test('OpenCode discovers env names for selected native model providers only', as
   assert.deepEqual(opencodeDeclaredCredentialKeys({ home, env }), [])
 })
 
-test('OpenCode discovers recent native providers only when no model is configured', t => {
+test('OpenCode discovers native default provider candidates when no model is configured', t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-opencode-recent-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))
   const cache = path.join(home, 'cache', 'opencode')
@@ -68,12 +68,26 @@ test('OpenCode discovers recent native providers only when no model is configure
     { providerID: 'deepseek', modelID: 'model' }, { providerID: 'bad/name', modelID: 'model' },
   ] }))
   const env = { XDG_CACHE_HOME: path.dirname(cache), XDG_STATE_HOME: path.dirname(state), XDG_CONFIG_HOME: path.dirname(config) }
-  assert.deepEqual(opencodeDeclaredCredentialKeys({ home, env }), ['DEEPSEEK_API_KEY'])
+  assert.deepEqual(opencodeDeclaredCredentialKeys({ home, env }), ['DEEPSEEK_API_KEY', 'GROQ_API_KEY'])
   fs.writeFileSync(path.join(config, 'opencode.json'), JSON.stringify({ model: 'groq/model' }))
   assert.deepEqual(opencodeDeclaredCredentialKeys({ home, env }), ['GROQ_API_KEY'])
   fs.writeFileSync(path.join(state, 'model.json'), '{invalid')
   fs.rmSync(path.join(config, 'opencode.json'))
-  assert.deepEqual(opencodeDeclaredCredentialKeys({ home, env }), [])
+  assert.deepEqual(opencodeDeclaredCredentialKeys({ home, env }), ['DEEPSEEK_API_KEY', 'GROQ_API_KEY'])
+})
+
+test('OpenCode default discovery retains provider names beyond the first 128 entries', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-opencode-many-providers-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const cache = path.join(home, '.cache', 'opencode')
+  fs.mkdirSync(cache, { recursive: true })
+  const providers = Object.fromEntries(Array.from({ length: 180 }, (_, index) => [
+    `provider-${index}`, { env: [`PROVIDER_${String(index).padStart(3, '0')}_API_KEY`] },
+  ]))
+  fs.writeFileSync(path.join(cache, 'models.json'), JSON.stringify(providers))
+  const keys = opencodeDeclaredCredentialKeys({ home, env: {} })
+  assert.equal(keys.length, 180)
+  assert.ok(keys.includes('PROVIDER_179_API_KEY'))
 })
 
 test('OpenCode resolves an env-selected native model to its provider credential name', t => {
