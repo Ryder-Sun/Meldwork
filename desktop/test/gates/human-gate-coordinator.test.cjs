@@ -80,6 +80,18 @@ test('persists a pending gate and resumes its live waiter after one decision', a
   assert.deepEqual(events.map(value => value.split(':', 1)[0]), ['waiting', 'resumed'])
 })
 
+test('input gate preserves response whitespace while rejecting empty answers', async t => {
+  const { coordinator, store } = fixture(t)
+  const waiting = coordinator.wait({ ...request(), type: 'input',
+    options: [{ optionId: 'submit', name: 'Submit', kind: 'respond' }] })
+  const [pending] = coordinator.list({ pendingOnly: true })
+  assert.throws(() => coordinator.decide(pending.gateId, { optionId: 'submit', response: '  \n' }),
+    { message: 'HUMAN_GATE_DECISION_INVALID' })
+  coordinator.decide(pending.gateId, { optionId: 'submit', response: '  indented\n' })
+  assert.equal((await waiting).response, '  indented\n')
+  assert.equal(store.get(pending.gateId).decision.response, '  indented\n')
+})
+
 test('repeated decisions return the persisted result without replaying resume callbacks', async t => {
   let resumed = 0
   let orphaned = 0

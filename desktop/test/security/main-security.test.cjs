@@ -2550,16 +2550,16 @@ test('workspace Human Gate IPC derives decisions from the persisted option', asy
     optionId: 'reopen-task',
   }), { gateId, status: 'rejected', optionId: 'reopen-task' })
   assert.deepEqual(await decide(harness.event(), inputGateId, {
-    optionId: 'submit-input', response: 'stable',
+    optionId: 'submit-input', response: '  stable\n',
   }), {
-    gateId: inputGateId, status: 'approved', optionId: 'submit-input', response: 'stable',
+    gateId: inputGateId, status: 'approved', optionId: 'submit-input', response: '  stable\n',
   })
   assert.deepEqual(workspace.humanGateDecisionCalls, [
     { gateId, decision: { status: 'approved', optionId: 'allow-once' } },
     { gateId, decision: { status: 'rejected', optionId: 'reopen-task' } },
     {
       gateId: inputGateId,
-      decision: { status: 'approved', optionId: 'submit-input', response: 'stable' },
+      decision: { status: 'approved', optionId: 'submit-input', response: '  stable\n' },
     },
   ])
 
@@ -2571,6 +2571,7 @@ test('workspace Human Gate IPC derives decisions from the persisted option', asy
     [gateId, { status: 'approved', optionId: 'reopen-task' }],
     [gateId, { optionId: 'allow-once', response: 'unexpected' }],
     [inputGateId, { optionId: 'submit-input' }],
+    [inputGateId, { optionId: 'submit-input', response: '  \n' }],
     [inputGateId, { optionId: 'cancel-input', response: 'unexpected' }],
     [gateId, { optionId: 'missing-option' }],
   ]) {

@@ -1138,8 +1138,8 @@ function humanGateResponse(gateId) {
 
 function submitHumanGateInput(gate) {
   const option = gate?.options?.find(item => item.kind === 'respond')
-  const response = humanGateResponse(gate?.gateId)
-  if (!option || !response) return false
+  const response = String(humanGateResponses[gate?.gateId] || '')
+  if (!option || !response.trim()) return false
   return decideHumanGate({ gateId: gate.gateId, optionId: option.optionId, response })
 }
 

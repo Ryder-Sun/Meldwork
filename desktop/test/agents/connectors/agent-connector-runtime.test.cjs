@@ -724,12 +724,12 @@ test('returns durable waiting input and passes an exactly validated resume respo
   const completed = await runtime.run(agent, 'Release', '/tmp/workspace', {
     runId: 'run-input', agentRunId: 'agent-run-input-2', sandbox: 'read-only',
     connectorResume: {
-      type: 'input', requestId: 'request-input', response: 'stable', ...hashes,
+      type: 'input', requestId: 'request-input', response: '  stable\n', ...hashes,
     },
   })
-  assert.equal(completed.text, 'channel:stable')
+  assert.equal(completed.text, 'channel:  stable\n')
   assert.deepEqual(received, [null, {
-    type: 'input', requestId: 'request-input', response: 'stable', ...hashes,
+    type: 'input', requestId: 'request-input', response: '  stable\n', ...hashes,
   }])
   await assert.rejects(runtime.run(agent, 'Release', '/tmp/workspace', {
     runId: 'run-input', agentRunId: 'agent-run-input-3', sandbox: 'read-only',

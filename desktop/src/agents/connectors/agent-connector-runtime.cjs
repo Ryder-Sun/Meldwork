@@ -218,8 +218,8 @@ function normalizeResume(input) {
     fail('AGENT_CONNECTOR_RESUME_INVALID')
   }
   if (type === 'input') {
-    const response = String(input.response || '').trim()
-    if (!response || Buffer.byteLength(response) > MAX_INPUT_RESPONSE_BYTES) {
+    const response = typeof input.response === 'string' ? input.response : ''
+    if (!response.trim() || Buffer.byteLength(response) > MAX_INPUT_RESPONSE_BYTES) {
       fail('AGENT_CONNECTOR_RESUME_INVALID')
     }
     return Object.freeze({

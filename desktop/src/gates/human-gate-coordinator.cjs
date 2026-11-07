@@ -200,8 +200,8 @@ class HumanGateCoordinator {
     if (Object.hasOwn(input, 'status') && input.status !== status) {
       throw gateError('HUMAN_GATE_DECISION_INVALID')
     }
-    const response = typeof input.response === 'string' ? input.response.trim() : ''
-    if ((current.type === 'input' && status === 'approved' && !response)
+    const response = typeof input.response === 'string' ? input.response : ''
+    if ((current.type === 'input' && status === 'approved' && !response.trim())
         || response.length > 32 * 1024
         || (current.type !== 'input' && Object.hasOwn(input, 'response'))
         || (status !== 'approved' && Object.hasOwn(input, 'response'))) {

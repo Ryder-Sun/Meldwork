@@ -727,9 +727,9 @@ function stopRun(...args) {
 async function decideHumanGate(payload = {}) {
   const gate = pendingHumanGates.value.find(item => item.gateId === payload.gateId)
   const option = gate?.options.find(item => item.optionId === payload.optionId)
-  const response = typeof payload.response === 'string' ? payload.response.trim() : ''
+  const response = typeof payload.response === 'string' ? payload.response : ''
   if (!gate || !option || humanGateDecisionPendingIds.value.includes(gate.gateId)) return false
-  if ((gate.type === 'input' && option.kind === 'respond' && !response)
+  if ((gate.type === 'input' && option.kind === 'respond' && !response.trim())
       || (gate.type !== 'input' && response)) return false
   const bridge = workspace.value
   if (!bridge?.decideHumanGate) return false

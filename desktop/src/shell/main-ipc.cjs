@@ -306,7 +306,7 @@ function registerDesktopIpc(options) {
     const optionId = typeof decision?.optionId === 'string' ? decision.optionId : ''
     const hasResponse = Object.hasOwn(decision || {}, 'response')
     const response = hasResponse && typeof decision.response === 'string'
-      ? decision.response.trim()
+      ? decision.response
       : ''
     const hasStatus = Object.hasOwn(decision || {}, 'status')
     const requestedStatus = hasStatus ? decision.status : ''
@@ -314,7 +314,7 @@ function registerDesktopIpc(options) {
         || !HUMAN_GATE_OPTION_IDENTIFIER.test(optionId)
         || !isPlainObject(decision)
         || (hasStatus && !['approved', 'rejected'].includes(requestedStatus))
-        || (hasResponse && (!response || response.length > 32 * 1024))
+        || (hasResponse && (!response.trim() || response.length > 32 * 1024))
         || Reflect.ownKeys(decision).some(key => !['status', 'optionId', 'response'].includes(key))) {
       throw new Error('HUMAN_GATE_DECISION_INVALID')
     }
