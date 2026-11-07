@@ -804,6 +804,11 @@ async function createAcpRuntime(input) {
         turn.stopRepeatedOutput()
         return
       }
+      if (update?.sessionUpdate === 'agent_thought_chunk'
+          && update.content?.type === 'text' && typeof update.content.text === 'string'
+          && update.content.text.length > 0) {
+        try { turn.options.onSubstantiveActivity?.() } catch { /* activity is best-effort */ }
+      }
       turn.structuredOutput.ingest?.({ ...params, update })
       for (const event of turn.profile.mapEvent(update, turn.runtimeState)) {
         turn.runtimeEvents.emit(event)

@@ -1118,6 +1118,10 @@ input.on('line', (line) => {
       content: { type: 'text', text: 'PRIVATE_REASONING' },
     })
     update(sessionId, {
+      sessionUpdate: 'agent_thought_chunk',
+      content: { type: 'text', text: 'MORE_PRIVATE_REASONING' },
+    })
+    update(sessionId, {
       sessionUpdate: 'tool_call', toolCallId: 'tool-1', title: 'search',
       kind: 'search', status: 'in_progress',
       rawInput: { query: 'targetKinds', AWS_SECRET_ACCESS_KEY: 'aws-secret-value' },
@@ -1142,6 +1146,7 @@ input.on('line', (line) => {
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
   const events = []
   const sessionMetadata = []
+  let substantiveUpdates = 0
 
   const result = await runAgent(
     { kind: 'hermes', executable: cli, name: 'Hermes' },
@@ -1152,6 +1157,7 @@ input.on('line', (line) => {
       sessionTransport: 'acp',
       env: { MELDWORK_TEST_MODE_FILE: modeFile },
       onEvent: event => events.push(event),
+      onSubstantiveActivity: (...args) => { assert.equal(args.length, 0); substantiveUpdates += 1 },
       onSessionRef: (sessionRef, metadata) => sessionMetadata.push({ sessionRef, metadata }),
     },
   )
@@ -1159,6 +1165,7 @@ input.on('line', (line) => {
   assert.equal(result.text, 'current answer')
   assert.equal(result.sessionRef, 'hermes-session')
   assert.equal(result.outcome, 'completed')
+  assert.equal(substantiveUpdates, 2)
   assert.equal(fs.readFileSync(modeFile, 'utf8'), 'default')
   assert.equal(events.filter(event => event.type === 'answer_delta')
     .reduce(

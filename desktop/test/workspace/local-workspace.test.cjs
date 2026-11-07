@@ -846,6 +846,35 @@ test('stopping during an authentication failure refresh preserves invocation met
   assert.notEqual(workspace.state.agentRuntime.mimo?.credentialState, 'missing')
 })
 
+test('substantive private progress keeps an automatic Agent alive without publishing it', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  options.detectAgents = async () => [{ kind: 'hermes', name: 'Hermes', executable: '/tmp/hermes', version: '1' }]
+  options.runAgentTimeoutMs = 150
+  options.naturalAgentResponses = true
+  let pulses = 0
+  options.runAgent = async (_agent, _prompt, _workdir, runOptions) => {
+    for (let index = 0; index < 20; index += 1) {
+      await new Promise(resolve => setTimeout(resolve, 30))
+      if (runOptions.signal.aborted) throw new Error('LOCAL_AGENT_EXECUTION_STOPPED')
+      runOptions.onActivity()
+      runOptions.onSubstantiveActivity?.()
+      pulses += 1
+    }
+    return { text: 'Completed response.', outcome: 'completed' }
+  }
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Progress', agentKinds: ['hermes'], workdir: directory, allowWrite: false })
+  await workspace.sendMessage({ groupId: group.id, text: 'Respond', mode: 'auto', protocol: 'v4',
+    maxRounds: 1, targetKinds: ['hermes'] })
+  const controller = workspace.activeRuns.get(group.id)
+  if (controller) await controller.done
+  assert.equal(pulses, 20)
+  assert.equal(workspace.snapshot().messages.some(message => message.role === 'agent'
+    && message.content.includes('Completed response.')), true)
+})
+
 test('stopping during a project verification refresh does not commit the completed reply', async t => {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

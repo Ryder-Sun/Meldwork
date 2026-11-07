@@ -981,6 +981,10 @@ class LocalWorkspaceAgentInvocation {
             watchdog.liveness()
           }
         },
+        onSubstantiveActivity: () => {
+          watchdog.establish()
+          watchdog.progress()
+        },
         onProgress,
         onEvent: emitRuntimeEvent,
         onOutboundPayload: recordOutboundPayload,
