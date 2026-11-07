@@ -98,7 +98,8 @@ test('OpenCode authentication identity follows its XDG data directory', () => {
   shared.push(...['opencode.json', 'opencode.jsonc'].map(name => path.join(home, '.opencode', name)))
   const cloud = [path.join(home, '.local', 'state', 'opencode', 'model.json'),
     path.join(home, '.cache', 'opencode', 'models.json'),
-    path.join(home, '.aws', 'config'), path.join(home, '.aws', 'credentials')]
+    path.join(home, '.aws', 'config'), path.join(home, '.aws', 'credentials'),
+    path.join(home, '.config', 'gcloud', 'application_default_credentials.json')]
   assert.deepEqual(nativeAuthIdentityFiles('opencode', {}, home), [path.join(home, '.local', 'share', 'opencode', 'auth.json'), ...shared, ...cloud])
   assert.deepEqual(nativeAuthIdentityFiles('opencode', { XDG_DATA_HOME: path.join(home, 'data') }, home),
     [path.join(home, 'data', 'opencode', 'auth.json'), ...shared, ...cloud])
@@ -177,6 +178,31 @@ test('Hermes project verification follows a relative Google Cloud credentials di
   assert.notEqual(projectVerificationIdentity('hermes', workdir, agent, 'environment'), before)
 })
 
+test('Google Cloud ADC directories participate in Gemini, Pi and OpenCode verification', t => {
+  const { NATIVE_AUTH_IDENTITY_FILES, NATIVE_PROJECT_CONFIG_PATHS } = require('../../src/agents/native-config-directory.cjs')
+  const { agentVerificationIdentity, projectVerificationIdentity } = require('../../src/workspace/agent-verification-identity.cjs')
+  const workdir = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-gcloud-identities-'))
+  t.after(() => fs.rmSync(workdir, { recursive: true, force: true }))
+  const root = path.join(workdir, 'gcloud')
+  const filename = path.join(root, 'application_default_credentials.json')
+  fs.mkdirSync(root)
+  fs.writeFileSync(filename, 'first')
+  for (const kind of ['gemini', 'pi', 'opencode']) {
+    const agent = { kind }
+    const absolute = nativeAuthIdentityFiles(kind, { CLOUDSDK_CONFIG: root }, workdir)
+    assert.ok(absolute.includes(filename), kind)
+    Object.defineProperty(agent, NATIVE_AUTH_IDENTITY_FILES, { value: absolute })
+    Object.defineProperty(agent, NATIVE_PROJECT_CONFIG_PATHS, {
+      value: nativeProjectConfigPaths(kind, { CLOUDSDK_CONFIG: 'gcloud' }),
+    })
+    const beforeAgent = agentVerificationIdentity(agent)
+    const beforeProject = projectVerificationIdentity(kind, workdir, agent, 'environment')
+    fs.appendFileSync(filename, 'x')
+    assert.notEqual(agentVerificationIdentity(agent), beforeAgent, kind)
+    assert.notEqual(projectVerificationIdentity(kind, workdir, agent, 'environment'), beforeProject, kind)
+  }
+})
+
 test('Hermes verification tracks native cloud credential files', t => {
   const { NATIVE_AUTH_IDENTITY_FILES } = require('../../src/agents/native-config-directory.cjs')
   const { agentVerificationIdentity } = require('../../src/workspace/agent-verification-identity.cjs')
@@ -201,10 +227,11 @@ test('Pi and Claude identity tracks explicitly selected absolute cloud credentia
   const env = { AWS_SHARED_CREDENTIALS_FILE: aws, AZURE_FEDERATED_TOKEN_FILE: azure,
     GOOGLE_APPLICATION_CREDENTIALS: 'relative.json' }
   const config = path.join(home, '.aws', 'config')
-  assert.deepEqual(nativeAuthIdentityFiles('pi', env, home), [config, aws])
+  const adc = path.join(home, '.config', 'gcloud', 'application_default_credentials.json')
+  assert.deepEqual(nativeAuthIdentityFiles('pi', env, home), [config, aws, adc])
   assert.deepEqual(nativeAuthIdentityFiles('claude', env, home), [config, aws, azure])
   assert.deepEqual(nativeAuthIdentityFiles('pi', { AWS_CONFIG_FILE: 'relative-config' }, home),
-    [path.join(home, '.aws', 'credentials')])
+    [path.join(home, '.aws', 'credentials'), adc])
 })
 
 test('default AWS credential updates change Pi and Claude verification identity', t => {

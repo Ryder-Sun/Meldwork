@@ -34,7 +34,7 @@ function cloudIdentityFiles(kind, env, home, platform) {
     ? env?.APPDATA && paths.join(env.APPDATA, 'gcloud')
     : root && paths.join(env?.XDG_CONFIG_HOME || paths.join(root, '.config'), 'gcloud'))
   return [...cloudIdentityPathKeys(kind).map(key => env?.[key] || defaults[key]),
-    ...(kind === 'hermes' && typeof cloudRoot === 'string' && paths.isAbsolute(cloudRoot)
+    ...(['hermes', 'pi', 'opencode'].includes(kind) && typeof cloudRoot === 'string' && paths.isAbsolute(cloudRoot)
       ? [paths.join(cloudRoot, 'application_default_credentials.json')] : [])]
     .filter(filename => typeof filename === 'string' && paths.isAbsolute(filename))
 }
@@ -52,11 +52,12 @@ function nativeProjectConfigPaths(kind, env = {}) {
   }
   if (kind === 'pi' || kind === 'claude' || kind === 'hermes') {
     entries = cloudIdentityPathKeys(kind).map(key => [env[key], false])
-    if (kind === 'hermes' && typeof env.CLOUDSDK_CONFIG === 'string' && env.CLOUDSDK_CONFIG) {
-      entries.push([path.join(env.CLOUDSDK_CONFIG, 'application_default_credentials.json'), false])
-    }
   }
   if (kind === 'opencode') entries.push(...cloudIdentityPathKeys(kind).map(key => [env[key], false]))
+  if (['gemini', 'hermes', 'pi', 'opencode'].includes(kind)
+      && typeof env.CLOUDSDK_CONFIG === 'string' && env.CLOUDSDK_CONFIG) {
+    entries.push([path.join(env.CLOUDSDK_CONFIG, 'application_default_credentials.json'), false])
+  }
   const network = networkEnvironment(env)
   entries.push(...NETWORK_CERTIFICATE_KEYS.map(key => [network[key], false]))
   return entries.flatMap(([value, directory]) => {
@@ -96,10 +97,12 @@ function nativeAuthIdentityFiles(kind, env, home, platform = process.platform) {
         ? 'C:\\ProgramData\\gemini-cli\\settings.json' : '/etc/gemini-cli/settings.json')
     const defaults = env?.GEMINI_CLI_SYSTEM_DEFAULTS_PATH
       || (typeof settings === 'string' && paths.isAbsolute(settings) ? paths.join(paths.dirname(settings), 'system-defaults.json') : '')
-    const cloudRoot = platform === 'win32' ? env?.APPDATA : paths.join(env?.HOME || home || '', '.config')
+    const cloudRoot = env?.CLOUDSDK_CONFIG || (platform === 'win32'
+      ? env?.APPDATA && paths.join(env.APPDATA, 'gcloud')
+      : paths.join(env?.XDG_CONFIG_HOME || paths.join(env?.HOME || home || '', '.config'), 'gcloud'))
     const credentials = env?.GOOGLE_APPLICATION_CREDENTIALS
       || (typeof cloudRoot === 'string' && paths.isAbsolute(cloudRoot)
-        ? paths.join(cloudRoot, 'gcloud', 'application_default_credentials.json') : '')
+        ? paths.join(cloudRoot, 'application_default_credentials.json') : '')
     return [settings, defaults, credentials,
       ...(typeof home === 'string' && paths.isAbsolute(home) ? [paths.join(home, '.env')] : [])]
       .filter(filename => typeof filename === 'string' && paths.isAbsolute(filename))
