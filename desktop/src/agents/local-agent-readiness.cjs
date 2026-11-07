@@ -96,7 +96,7 @@ function jsonContainsCredential(filename) {
   }
 }
 
-function openCodeReviewSelectedCredential(home, env, credentialSource) {
+function openCodeReviewSelectedCredential(home, env, credentialSource, presetProviders) {
   let config
   try {
     const contents = readCredentialFile(path.join(home, '.opencodereview', 'config.json'))
@@ -107,7 +107,9 @@ function openCodeReviewSelectedCredential(home, env, credentialSource) {
   if (!provider) return null
   const nativeKey = provider === 'openai' || provider === 'openai-responses' ? 'OPENAI_API_KEY'
     : provider === 'anthropic' ? 'ANTHROPIC_API_KEY' : ''
-  const selected = config.providers?.[provider] || (!nativeKey && config.custom_providers?.[provider])
+  const knownPreset = Boolean(nativeKey) || (Array.isArray(presetProviders) && presetProviders.includes(provider))
+  const selected = knownPreset ? config.providers?.[provider]
+    : Array.isArray(presetProviders) ? config.custom_providers?.[provider] : null
   const configured = credentialLiteral(selected?.api_key)
   const command = typeof selected?.api_key_cmd === 'string' && selected.api_key_cmd.trim()
   const inherited = !command && nativeKey && credentialLiteral(env[nativeKey])
@@ -728,7 +730,7 @@ function nativeCredentialState(kind, options = {}) {
   const configuredUserHome = (options.platform || process.platform) === 'win32' ? env.USERPROFILE : env.HOME
   const effectiveUserHome = typeof configuredUserHome === 'string' && configuredUserHome.trim() ? configuredUserHome.trim() : home
   if (kind === 'opencodereview') {
-    const selected = openCodeReviewSelectedCredential(effectiveUserHome, env, options.credentialSource)
+    const selected = openCodeReviewSelectedCredential(effectiveUserHome, env, options.credentialSource, options.ocrPresetProviders)
     if (selected) return selected
   }
   const codexHome = env.CODEX_HOME || path.join(home, '.codex')
@@ -1216,6 +1218,30 @@ async function queryMimoAuthState(options = {}) {
 async function resolveNativeCredentialState(kind, options = {}) {
   if (kind === 'workbuddy') return workBuddyCredentialState(options)
   const current = nativeCredentialState(kind, options)
+  if (kind === 'opencodereview' && current.state !== 'ready' && options.executable) {
+    const platform = options.platform || process.platform
+    const env = options.env || process.env
+    const configuredHome = platform === 'win32' ? env.USERPROFILE : env.HOME
+    const home = typeof configuredHome === 'string' && configuredHome.trim()
+      ? configuredHome.trim() : (options.home || os.homedir())
+    if (!openCodeReviewSelectedCredential(home, env, options.credentialSource)) return current
+    const prepareCommandFn = options.prepareCommandFn || prepareCommand
+    const execFileFn = options.execFileFn || execFileAsync
+    try {
+      const prepared = prepareCommandFn(options.executable, ['llm', 'providers'], { platform })
+      const result = await execFileFn(prepared.command, prepared.args, {
+        timeout: 5000, maxBuffer: 256 * 1024, windowsHide: true, env: probeEnvironment(kind, options),
+      })
+      const output = String(result.stdout || '').replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, '')
+      if (!/^\s*Built-in providers:\s*$/m.test(output) || !/^\s*NAME\s+PROTOCOL\s+BASE URL\s*$/m.test(output)) return current
+      const names = output.split(/\r?\n/).flatMap(line => {
+        const match = line.match(/^\s*([a-z][a-z0-9-]*)\s+\S+/)
+        return match ? [match[1]] : []
+      })
+      if (!names.includes('openai') || !names.includes('anthropic')) return current
+      return nativeCredentialState(kind, { ...options, ocrPresetProviders: names })
+    } catch { return current }
+  }
   if (kind === 'mimo') {
     if (current.state === 'ready' || mimoConfiguredProvider(options)) {
       return { state: 'ready', source: 'native-credential' }

@@ -66,12 +66,40 @@ test('OpenCodeReview does not treat another provider credential as the selected 
   assert.equal(nativeCredentialState('opencodereview', { home, env: { OPENAI_API_KEY: 'synthetic-unrelated' } }).state, 'unknown')
   config.custom_providers['selected-gateway'].api_key = 'synthetic-selected'
   fs.writeFileSync(file, JSON.stringify(config))
-  assert.equal(nativeCredentialState('opencodereview', { home, env: {} }).state, 'ready')
+  assert.equal(nativeCredentialState('opencodereview', { home, env: {} }).state, 'unknown')
+  assert.equal(nativeCredentialState('opencodereview', { home, env: {},
+    ocrPresetProviders: ['openai', 'anthropic', 'deepseek'] }).state, 'ready')
+  config.provider = 'deepseek'
+  config.custom_providers.deepseek = { api_key: 'synthetic-shadow' }
+  fs.writeFileSync(file, JSON.stringify(config))
+  assert.equal(nativeCredentialState('opencodereview', { home, env: {},
+    ocrPresetProviders: ['openai', 'anthropic', 'deepseek'] }).state, 'unknown')
+  config.providers = { deepseek: { api_key: 'synthetic-native' } }
+  fs.writeFileSync(file, JSON.stringify(config))
+  assert.equal(nativeCredentialState('opencodereview', { home, env: {},
+    ocrPresetProviders: ['openai', 'anthropic', 'deepseek'] }).state, 'ready')
   config.provider = 'openai'
   config.custom_providers.openai = { api_key: 'synthetic-shadow' }
   fs.writeFileSync(file, JSON.stringify(config))
   assert.equal(nativeCredentialState('opencodereview', { home, env: {} }).state, 'unknown')
   assert.equal(nativeCredentialState('opencodereview', { home, env: { OPENAI_API_KEY: 'synthetic-openai' } }).state, 'ready')
+})
+
+test('OpenCodeReview probes native provider names before trusting a custom credential', async t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-ocr-provider-list-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const root = path.join(home, '.opencodereview')
+  fs.mkdirSync(root)
+  fs.writeFileSync(path.join(root, 'config.json'), JSON.stringify({ provider: 'my-gateway',
+    custom_providers: { 'my-gateway': { api_key: 'synthetic-key' } } }))
+  const options = { home, env: {}, executable: '/tmp/ocr',
+    execFileFn: async (_command, args) => {
+      assert.deepEqual(args, ['llm', 'providers'])
+      return { stdout: 'Built-in providers:\n  NAME  PROTOCOL  BASE URL\n  ----  --------  --------\n  anthropic  anthropic  https://example.invalid\n  openai  openai  https://example.invalid\n' }
+    } }
+  assert.equal((await resolveNativeCredentialState('opencodereview', options)).state, 'ready')
+  options.execFileFn = async () => { throw new Error('unavailable') }
+  assert.equal((await resolveNativeCredentialState('opencodereview', options)).state, 'unknown')
 })
 
 test('Hermes receives native Bedrock and Vertex environment for discovery and execution', async () => {
