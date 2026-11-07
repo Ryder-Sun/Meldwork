@@ -3,7 +3,7 @@ const { launchEnvironment, searchPath, systemChildEnvironment } = require('./cli
 const { NETWORK_ENV_KEYS, networkEnvironment } = require('./cli-network-environment.cjs')
 const { CONFIG_DIRECTORY_ENV_KEYS } = require('./cli-config-directories.cjs')
 const { SECRET_ENV_KEYS, nativeSecretEnvKeys } = require('./native-secret-environment.cjs')
-const { PI_BUILTIN_CREDENTIAL_KEYS, PI_BUILTIN_CONFIG_KEYS } = require('./pi-provider-environment.cjs')
+const { nativeCredentialEnvironment } = require('../local-agent-readiness.cjs')
 const { redactChildSecrets } = require('./cli-runtime-events.cjs')
 const {
   agentRuntimeError,
@@ -29,7 +29,7 @@ const OPENCLAW_RUNTIME_PATH_KEYS = Object.freeze([
   'OPENCLAW_CONFIG_PATH',
   'OPENCLAW_WORKSPACE_DIR',
 ])
-const CONTROLLED_RUNTIME_ENV = /^(?:AWS_|AZURE_|GOOGLE_|GCLOUD_PROJECT$|GEMINI_|ANTHROPIC_|OPENAI_|OPENROUTER_|CUSTOM_BASE_URL$|OLLAMA_HOST$|OLLAMA_API_KEY$|CODEX_|CODEBUDDY_|HERMES_|PI_|KIMI_|MIMO_|MIMOCODE_|ZCODE_API_KEY$|ZCODE_BASE_URL$|ZCODE_MODEL$|ZCODE_HTTP_PROXY$|ZCODE_NO_PROXY$|ZCODE_AGENT_CA_CERT$|ZGCI_API_KEY$|DSH_HOME$|DSH_AGENTS_HOME$|OPENCODE_|QWEN_|DASHSCOPE_|CLAUDE_|OCR_|CLOUDSDK_|VERTEX_|CLOUD_ML_|MOONSHOT_|CONNECTOR_TEST_|MELDWORK_TEST_)/
+const TEST_RUNTIME_ENV = /^(?:CONNECTOR_TEST_|MELDWORK_TEST_)/
 const BLOCKED_RUNTIME_ENV = /^(?:NODE_OPTIONS|NODE_PATH|LD_PRELOAD|LD_LIBRARY_PATH|DYLD_|ELECTRON_RUN_AS_NODE)$/
 
 function agentExecutionError(code, diagnostic = '') {
@@ -202,10 +202,10 @@ function childEnvironment(agent, workdir, options, platform) {
   }
   const nativeKeys = ['codex', 'hermes', 'zcode', 'mimo', 'pi', 'opencode'].includes(agent.kind)
     ? nativeSecretEnvKeys(options.nativeCredentialKeys) : []
+  const nativeEnvironment = nativeCredentialEnvironment(agent.kind, options.env || {}, nativeKeys)
   const controlled = Object.fromEntries(Object.entries(options.env || {}).filter(([key, value]) => (
     typeof value === 'string'
-      && (CONTROLLED_RUNTIME_ENV.test(key) || nativeKeys.includes(key)
-        || (agent.kind === 'pi' && (PI_BUILTIN_CREDENTIAL_KEYS.includes(key) || PI_BUILTIN_CONFIG_KEYS.includes(key))) || NETWORK_ENV_KEYS.includes(key)
+      && (Object.hasOwn(nativeEnvironment, key) || TEST_RUNTIME_ENV.test(key) || NETWORK_ENV_KEYS.includes(key)
         || CONFIG_DIRECTORY_ENV_KEYS.includes(key))
       && !BLOCKED_RUNTIME_ENV.test(key)
   )))

@@ -109,6 +109,25 @@ test('local Agent child environments keep supported runtime settings but reject 
   assert.equal(Object.hasOwn(env, 'DYLD_INSERT_LIBRARIES'), false)
 })
 
+test('native execution uses the same Agent-scoped environment contract as readiness', () => {
+  const source = { ANTHROPIC_API_KEY: 'claude-secret', AWS_PROFILE: 'claude-profile',
+    GEMINI_API_KEY: 'gemini-secret', GOOGLE_CLOUD_PROJECT: 'gemini-project',
+    HTTPS_PROXY: 'http://proxy.example:3128', NODE_OPTIONS: '--require=/tmp/injection' }
+  const claude = childEnvironment({ kind: 'claude' }, '/tmp/workspace', { env: source }, 'darwin')
+  const gemini = childEnvironment({ kind: 'gemini' }, '/tmp/workspace', { env: source }, 'darwin')
+  assert.equal(claude.ANTHROPIC_API_KEY, source.ANTHROPIC_API_KEY)
+  assert.equal(claude.AWS_PROFILE, source.AWS_PROFILE)
+  assert.equal(claude.GEMINI_API_KEY, undefined)
+  assert.equal(gemini.GEMINI_API_KEY, source.GEMINI_API_KEY)
+  assert.equal(gemini.GOOGLE_CLOUD_PROJECT, source.GOOGLE_CLOUD_PROJECT)
+  assert.equal(gemini.ANTHROPIC_API_KEY, undefined)
+  assert.equal(gemini.AWS_PROFILE, undefined)
+  for (const env of [claude, gemini]) {
+    assert.equal(env.HTTPS_PROXY, source.HTTPS_PROXY)
+    assert.equal(env.NODE_OPTIONS, undefined)
+  }
+})
+
 test('Pi receives and redacts credentials declared in native models configuration', () => {
   const env = childEnvironment({ kind: 'pi' }, '/tmp/workspace', {
     env: { CUSTOM_PROVIDER_TOKEN: 'synthetic-private-value', UNRELATED_TOKEN: 'not-shared' },
