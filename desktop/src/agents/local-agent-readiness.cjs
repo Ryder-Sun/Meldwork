@@ -293,7 +293,7 @@ function zcodeDeclaredCredentialKeys(options = {}) {
       }
     }
     const envModel = typeof options.env?.ZCODE_MODEL === 'string' ? options.env.ZCODE_MODEL.trim() : ''
-    const selectedModel = envModel ? (envModel.includes('/') ? envModel : `anthropic/${envModel}`) : model.main
+    const selectedModel = envModel ? { provider: envModel.includes('/') ? envModel.split('/')[0] : 'anthropic', kind: 'anthropic' } : model.main
     const models = [selectedModel, model.lite, ...(Array.isArray(model.available) ? model.available.slice(0, 32) : [])]
     const names = []
     for (const item of models) {
@@ -347,7 +347,7 @@ function zcodeSelectedCredentialState(options = {}) {
   }
   if (!found) return null
   const envModel = typeof env.ZCODE_MODEL === 'string' ? env.ZCODE_MODEL.trim() : ''
-  const model = envModel ? { provider: envModel.includes('/') ? envModel.split('/')[0] : 'anthropic' }
+  const model = envModel ? { provider: envModel.includes('/') ? envModel.split('/')[0] : 'anthropic', kind: 'anthropic' }
     : typeof config?.model?.main === 'string' ? { provider: config.model.main.includes('/')
       ? config.model.main.split('/')[0] : 'anthropic' }
       : config?.model?.main

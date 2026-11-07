@@ -257,6 +257,8 @@ test('Zcode readiness checks only the selected native provider', t => {
     { state: 'unknown', source: 'unverified' })
   assert.deepEqual(nativeCredentialState('zcode', { home, env: { ZCODE_MODEL: 'alternate/model', ALTERNATE_API_KEY: 'selected' } }),
     { state: 'ready', source: 'native-credential' })
+  assert.deepEqual(nativeCredentialState('zcode', { home, env: { ZCODE_MODEL: 'alternate/model', ANTHROPIC_API_KEY: 'selected' } }),
+    { state: 'ready', source: 'native-credential' })
 })
 
 test('Zcode discovers native project model overrides and their credentials', t => {
@@ -271,7 +273,7 @@ test('Zcode discovers native project model overrides and their credentials', t =
     model: { main: 'project/model' }, provider: { project: { name: 'Project service' } },
   }))
   assert.deepEqual(zcodeDeclaredCredentialKeys({ home, workdir: child }), ['PROJECT_API_KEY', 'PROJECT_SERVICE_API_KEY'])
-  assert.deepEqual(zcodeDeclaredCredentialKeys({ home, workdir: child, env: { ZCODE_MODEL: 'override/model' } }), ['OVERRIDE_API_KEY'])
+  assert.deepEqual(zcodeDeclaredCredentialKeys({ home, workdir: child, env: { ZCODE_MODEL: 'override/model' } }), ['ANTHROPIC_API_KEY', 'OVERRIDE_API_KEY'])
   assert.deepEqual(zcodeDeclaredCredentialKeys({ home, workdir: child, env: { ZCODE_MODEL: 'claude-model' } }), ['ANTHROPIC_API_KEY'])
   assert.deepEqual(zcodeDeclaredCredentialKeys({ home, workdir: child, env: { ZCODE_MODEL: '  ' } }), ['PROJECT_API_KEY', 'PROJECT_SERVICE_API_KEY'])
   assert.deepEqual(zcodeDeclaredCredentialKeys({ home, workdir: home }), [])
