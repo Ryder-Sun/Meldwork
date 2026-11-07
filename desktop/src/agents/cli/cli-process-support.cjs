@@ -1,4 +1,6 @@
 const path = require('node:path')
+const fs = require('node:fs')
+const JSON5 = require('json5')
 const { launchEnvironment, searchPath, systemChildEnvironment } = require('./cli-discovery.cjs')
 const { networkEnvironment } = require('./cli-network-environment.cjs')
 const { CONFIG_DIRECTORY_ENV_KEYS } = require('./cli-config-directories.cjs')
@@ -219,6 +221,27 @@ function childEnvironment(agent, workdir, options, platform) {
     PATH: searchPath({ platform, env: source }),
   }
   Object.defineProperty(childEnv, SECRET_ENV_KEYS, { value: nativeKeys })
+  if (agent.kind === 'claude' && typeof workdir === 'string' && path.isAbsolute(workdir)) {
+    const secrets = new Set()
+    for (const name of ['settings.json', 'settings.local.json']) {
+      const file = path.join(workdir, '.claude', name)
+      try {
+        const stat = fs.statSync(file)
+        if (!stat.isFile() || stat.size > 1024 * 1024) continue
+        const env = JSON5.parse(fs.readFileSync(file, 'utf8'))?.env
+        if (!env || typeof env !== 'object' || Array.isArray(env)) continue
+        for (const [key, value] of Object.entries(env)) {
+          if (/(?:API[_-]?KEY|ACCESS[_-]?KEY|TOKEN|SECRET|PASSWORD|AUTHORIZATION)/i.test(key)
+              && typeof value === 'string' && value && value.length <= 8192) {
+            secrets.add(value)
+            const bearer = value.match(/^Bearer\s+(\S+)$/i)
+            if (bearer) secrets.add(bearer[1])
+          }
+        }
+      } catch { /* The CLI reports invalid or unreadable native settings. */ }
+    }
+    Object.defineProperty(childEnv, Symbol.for('meldwork.project-secret-values'), { value: [...secrets] })
+  }
   return childEnv
 }
 

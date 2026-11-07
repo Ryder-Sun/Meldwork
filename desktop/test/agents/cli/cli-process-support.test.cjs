@@ -7,9 +7,31 @@ const { EventEmitter } = require('node:events')
 
 const { childEnvironment, failedAgentProcessError, terminateWindowsProcessTree } = require('../../../src/agents/cli/cli-process-support.cjs')
 const { systemChildEnvironment } = require('../../../src/agents/cli/cli-discovery.cjs')
-const { redactChildSecrets } = require('../../../src/agents/cli/cli-runtime-event-sanitizer.cjs')
+const { redactChildSecrets, createRuntimeEventEmitter } = require('../../../src/agents/cli/cli-runtime-event-sanitizer.cjs')
 const { nativeOpenClawOptions } = require('../../../src/agents/cli/openclaw-runtime.cjs')
 const { workBuddyInstall } = require('../../support/cli-adapters-test-helpers.cjs')
+
+test('Claude project credentials are redacted from final and split streaming output', t => {
+  const workdir = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-claude-project-secret-'))
+  t.after(() => fs.rmSync(workdir, { recursive: true, force: true }))
+  fs.mkdirSync(path.join(workdir, '.claude'))
+  fs.writeFileSync(path.join(workdir, '.claude', 'settings.json'), JSON.stringify({
+    env: { ANTHROPIC_API_KEY: 'project-private-value' },
+  }))
+  fs.writeFileSync(path.join(workdir, '.claude', 'settings.local.json'), JSON.stringify({
+    env: { ANTHROPIC_AUTH_TOKEN: 'local-private-value', CUSTOM_AUTHORIZATION: 'Bearer bearer-private-value' },
+  }))
+  const child = childEnvironment({ kind: 'claude' }, workdir, {}, process.platform)
+  assert.equal(child.ANTHROPIC_API_KEY, undefined)
+  assert.equal(redactChildSecrets('project-private-value local-private-value', child), '[redacted] [redacted]')
+  assert.equal(redactChildSecrets('bearer-private-value', child), '[redacted]')
+  const events = []
+  const emitter = createRuntimeEventEmitter({ onEvent: event => events.push(event) }, child)
+  emitter.emit({ type: 'answer_delta', delta: 'project-private-' })
+  emitter.emit({ type: 'answer_delta', delta: 'value local-private-value' })
+  emitter.finalize({ text: 'project-private-value local-private-value', status: 'completed' })
+  assert.doesNotMatch(JSON.stringify(events), /project-private-value|local-private-value/)
+})
 
 test('Zcode receives its selected native home without changing other Agent homes', () => {
   const options = { env: { HOME: '/selected-zcode', USERPROFILE: 'C:\\selected-zcode' } }
