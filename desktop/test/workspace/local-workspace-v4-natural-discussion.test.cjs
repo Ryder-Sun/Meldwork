@@ -252,6 +252,29 @@ test('a completion receipt with a failure reason cannot create or approve a cand
   assert.equal(runner.v4NaturalConsensus(group, controller, 'task'), null)
 })
 
+test('an explicit reviewer rejection cannot approve the candidate through a contradictory receipt', () => {
+  const messages = []
+  const runner = { ...naturalConsensusMethods, state: () => ({ messages }),
+    v4NaturalMessageMatchesBinding: () => true,
+    v4NaturalMessageContent: naturalDiscussionMethods.v4NaturalMessageContent }
+  const group = { id: 'group' }
+  const decision = { status: 'completed', reason: 'Reviewed.', deliverables: ['answer'] }
+  const turn = (kind, sequence, content, receipt) => ({ id: `m${sequence}`, groupId: 'group',
+    threadRootId: 'task', role: 'agent', agentKind: kind, turnSeq: sequence, content,
+    trace: { phase: 'discussion', runId: 'run', context: { taskDecision: receipt } } })
+  messages.push(turn('codex', 1, 'Here is the answer.', decision))
+  const candidate = runner.v4NaturalConsensus(group, { runId: 'run' }, 'task')
+  messages.push(turn('hermes', 2, 'The proposed change fails the required tests; do not approve.',
+    { ...decision, reviewedVersion: candidate.version }))
+  assert.equal(runner.v4NaturalConsensus(group, { runId: 'run' }, 'task'), null)
+  messages[1].content = '测试未通过；不予批准。'
+  assert.equal(runner.v4NaturalConsensus(group, { runId: 'run' }, 'task'), null)
+  messages[1].content = '> Do not approve.\nThe quoted instruction is outdated; I approve the candidate.'
+  assert.equal(runner.v4NaturalConsensus(group, { runId: 'run' }, 'task').approvedKinds.size, 2)
+  messages[1].content = '```\nDo not approve.\n```\nThe example is outdated; I approve the candidate.'
+  assert.equal(runner.v4NaturalConsensus(group, { runId: 'run' }, 'task').approvedKinds.size, 2)
+})
+
 test('a completion receipt without deliverables cannot create or approve a candidate', () => {
   const messages = []
   const runner = { ...naturalConsensusMethods, state: () => ({ messages }),
