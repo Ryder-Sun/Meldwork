@@ -21,9 +21,15 @@ test('Claude project credentials are redacted from final and split streaming out
   fs.writeFileSync(path.join(workdir, '.claude', 'settings.local.json'), JSON.stringify({
     env: { ANTHROPIC_AUTH_TOKEN: 'local-private-value', CUSTOM_AUTHORIZATION: 'Bearer bearer-private-value' },
   }))
-  const child = childEnvironment({ kind: 'claude' }, workdir, {}, process.platform)
+  const selectedConfig = path.join(workdir, 'selected-config')
+  fs.mkdirSync(selectedConfig)
+  fs.writeFileSync(path.join(selectedConfig, 'settings.json'), JSON.stringify({
+    env: { ANTHROPIC_API_KEY: 'user-private-value' },
+  }))
+  const child = childEnvironment({ kind: 'claude' }, workdir, { env: { CLAUDE_CONFIG_DIR: selectedConfig } }, process.platform)
   assert.equal(child.ANTHROPIC_API_KEY, undefined)
   assert.equal(redactChildSecrets('project-private-value local-private-value', child), '[redacted] [redacted]')
+  assert.equal(redactChildSecrets('user-private-value', child), '[redacted]')
   assert.equal(redactChildSecrets('bearer-private-value', child), '[redacted]')
   const events = []
   const emitter = createRuntimeEventEmitter({ onEvent: event => events.push(event) }, child)

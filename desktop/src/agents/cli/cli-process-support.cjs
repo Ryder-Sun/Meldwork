@@ -223,8 +223,13 @@ function childEnvironment(agent, workdir, options, platform) {
   Object.defineProperty(childEnv, SECRET_ENV_KEYS, { value: nativeKeys })
   if (agent.kind === 'claude' && typeof workdir === 'string' && path.isAbsolute(workdir)) {
     const secrets = new Set()
-    for (const name of ['settings.json', 'settings.local.json']) {
-      const file = path.join(workdir, '.claude', name)
+    const home = platform === 'win32' ? (childEnv.USERPROFILE || childEnv.HOME) : childEnv.HOME
+    const userRoot = childEnv.CLAUDE_CONFIG_DIR || (home && path.join(home, '.claude'))
+    const files = [
+      ...(typeof userRoot === 'string' && path.isAbsolute(userRoot) ? [path.join(userRoot, 'settings.json')] : []),
+      ...['settings.json', 'settings.local.json'].map(name => path.join(workdir, '.claude', name)),
+    ]
+    for (const file of files) {
       try {
         const stat = fs.statSync(file)
         if (!stat.isFile() || stat.size > 1024 * 1024) continue
