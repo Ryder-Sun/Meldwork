@@ -334,7 +334,7 @@ class LocalWorkspaceAgentCatalog {
     }
     const since = this.indeterminateSince.get(agent.kind)
     if (previous?.available !== true || runtimeMissing || !Number.isFinite(nowMs)
-        || !Number.isFinite(since) || nowMs - since >= INDETERMINATE_PROBE_GRACE_MS
+        || !Number.isFinite(since) || nowMs < since || nowMs - since >= INDETERMINATE_PROBE_GRACE_MS
         || this.detectedIdentities.get(agent.kind) !== agentVerificationIdentity(agent, this.state().agentPreferences)
         || !agentVersionIdentified(agent) || !agentCompatible(agent)) return null
     return {

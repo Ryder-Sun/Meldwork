@@ -1265,6 +1265,25 @@ test('an Agent that was never usable is not made available by an inconclusive pr
   assert.equal(agents()[0].available, false)
 })
 
+test('a clock rollback expires the inconclusive probe grace period', async () => {
+  const time = clock()
+  let probe = { state: 'ready', source: 'native-auth-status' }
+  const { agents, catalog } = fixture({
+    now: time.now,
+    detectAgents: async () => [OPENCLAW],
+    credentialState: async () => probe,
+  })
+  await catalog.refresh()
+  probe = { state: 'unknown', source: 'native-probe-failed' }
+  await catalog.refresh()
+  assert.equal(agents()[0].available, true)
+
+  time.advance(-1000)
+  await catalog.refresh()
+  assert.equal(agents()[0].available, false)
+  assert.equal(agents()[0].availabilitySource, 'native-probe-failed')
+})
+
 test('OpenClaw immediately becomes unavailable when its guarded runtime is unavailable', async () => {
   let probe = { state: 'ready', source: 'native-auth-status' }
   const { agents, catalog } = fixture({
