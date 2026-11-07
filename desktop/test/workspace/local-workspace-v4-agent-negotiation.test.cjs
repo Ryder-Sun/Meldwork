@@ -1020,6 +1020,8 @@ test('V4 lets Agents negotiate responsibilities, execute every work package, and
 
   const referencedAssignments = () => {
     const assignments = proposedAssignments()
+    const inspector = assignments.find(item => item.taskId === 'inspect-current-behavior')
+    inspector.acceptance = { minArtifactRefs: 2, minEvidenceRefs: 2 }
     const integrator = assignments.find(item => item.taskId === 'assemble-team-delivery')
     Object.assign(integrator, {
       objective: `OBJECTIVE_START_${'o'.repeat(500)}_OBJECTIVE_TAIL`,
@@ -1141,6 +1143,9 @@ test('V4 lets Agents negotiate responsibilities, execute every work package, and
       const workItemId = prompt.match(/^Work item: ([A-Za-z0-9._:-]+)$/m)?.[1] || ''
       assert.ok(workItemId)
       if (['inspect-current-behavior', 'implement-bounded-change'].includes(workItemId)) {
+        if (workItemId === 'inspect-current-behavior') {
+          assert.match(prompt, /Required Artifact refs: 2; Evidence refs: 2/)
+        }
         firstWaveStarted.add(agent.kind)
         if (firstWaveStarted.size === 2) releaseFirstWave.resolve()
         await releaseFirstWave.promise
@@ -1323,6 +1328,10 @@ test('V4 lets Agents negotiate responsibilities, execute every work package, and
     const receipt = workReceipts.find(item => item.taskId === assignment.taskId)
     const dependencies = assignment.dependsOn.map(id => workReceipts.find(item => item.taskId === id).workReceiptId).sort()
     assert.deepEqual(receipt.dependencyWorkReceiptIds, dependencies)
+    if (assignment.taskId === 'inspect-current-behavior') {
+      assert.ok(receipt.collaborationReceipt.artifactIds.length >= 2)
+      assert.ok(receipt.collaborationReceipt.evidenceIds.length >= 2)
+    }
   }
   assert.deepEqual(
     calls.filter(call => call.phase === 'work').map(call => call.kind).sort(),
