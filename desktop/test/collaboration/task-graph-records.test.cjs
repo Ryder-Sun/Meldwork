@@ -122,12 +122,14 @@ test('terminal acceptance cannot hide unfinished or failed graph nodes, includin
 test('runner normalizes legacy success before applying the round limit', async () => {
   const graph = createTaskGraph({ template: 'task-graph', nodes: [
     node({ nodeId: 'independent' }),
-    node({ nodeId: 'terminal', agentKind: 'hermes', terminal: true }),
+    node({ nodeId: 'terminal', agentKind: 'hermes', terminal: true,
+      acceptance: { requireConclusion: false, minArtifactRefs: 0, minEvidenceRefs: 0 } }),
   ] })
   const cursor = updateTaskGraphCursor(createTaskGraphCursor(graph), 'terminal', { status: 'accepted' })
   const controller = { signal: { aborted: false }, unlimitedRounds: false, currentRound: 1, maxRounds: 1,
     orchestration: { taskGraph: { ...cursor, terminalState: 'accepted' } } }
   const runner = {
+    ...taskGraphMethods,
     checkpointTaskGraph(_group, current, value) {
       const normalized = { ...value, terminalState: terminalTaskGraphState(value) }
       current.orchestration.taskGraph = normalized

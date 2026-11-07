@@ -7,6 +7,7 @@ const {
 const RECENT_VERIFICATION_MS = 24 * 60 * 60 * 1000
 const AUTH_FAILURE_RETRY_MS = 30 * 1000
 const MAX_PROJECT_AUTH_RECORDS = 64
+const PROJECT_NATIVE_ENVIRONMENT_KINDS = new Set(['zcode', 'mimo', 'opencode'])
 // A readiness probe that times out or crashes says nothing about whether the
 // Agent works: it is not a "not signed in" answer. An Agent that was usable
 // stays usable through such results for this long; a definitive answer
@@ -76,6 +77,9 @@ class LocalWorkspaceAgentCatalog {
     this.detectAgents = options.detectAgents
     this.isKnownAgent = options.isKnownAgent || (() => false)
     this.credentialState = options.credentialState
+    this.resolveProjectEnvironmentIdentities = options.resolveProjectEnvironmentIdentities || null
+    this.projectEnvironmentIdentities = new Map()
+    this.projectEnvironmentGeneration = 0
     this.attachmentSupport = options.attachmentSupport || (() => ({}))
     this.save = options.save
     this.emitChanged = options.emitChanged
@@ -87,12 +91,41 @@ class LocalWorkspaceAgentCatalog {
     this.detectedIdentities = new Map(this.detectedAgents().map(agent => [agent.kind, agentVerificationIdentity(agent, this.state().agentPreferences)]))
   }
 
+  async refreshProjectEnvironment(workdir, kinds) {
+    if (!this.resolveProjectEnvironmentIdentities || typeof workdir !== 'string') return
+    const selected = [...new Set((kinds || []).filter(kind => PROJECT_NATIVE_ENVIRONMENT_KINDS.has(kind)))]
+    if (!selected.length) return
+    const generation = ++this.projectEnvironmentGeneration
+    const keys = selected.map(kind => JSON.stringify([kind, workdir]))
+    for (const key of keys) this.projectEnvironmentIdentities.set(key, { generation, value: null })
+    let identities = null
+    try { identities = await this.resolveProjectEnvironmentIdentities(workdir, selected) } catch { /* Fail closed for routing. */ }
+    for (let index = 0; index < selected.length; index += 1) {
+      const current = this.projectEnvironmentIdentities.get(keys[index])
+      if (current?.generation !== generation) continue
+      const value = identities?.[selected[index]]
+      current.value = typeof value === 'string' && /^[a-f0-9]{64}$/.test(value) ? value : null
+    }
+    while (this.projectEnvironmentIdentities.size > 256) {
+      this.projectEnvironmentIdentities.delete(this.projectEnvironmentIdentities.keys().next().value)
+    }
+  }
+
+  projectIdentity(kind, workdir, agent) {
+    let environmentIdentity = ''
+    if (this.resolveProjectEnvironmentIdentities && PROJECT_NATIVE_ENVIRONMENT_KINDS.has(kind)) {
+      environmentIdentity = this.projectEnvironmentIdentities.get(JSON.stringify([kind, workdir]))?.value
+      if (!environmentIdentity) return null
+    }
+    return projectVerificationIdentity(kind, workdir, agent, environmentIdentity)
+  }
+
   isRecentlyVerified(kind, workdir) {
     const runtime = this.state().agentRuntime[kind]
     const agent = this.detectedAgents().find(item => item.kind === kind)
     if (workdir === undefined) return matchesRecentVerification(runtime, agent, this.now(), this.state().agentPreferences)
     if (this.isProjectAuthBlocked(kind, workdir)) return false
-    const projectIdentity = projectVerificationIdentity(kind, workdir, agent)
+    const projectIdentity = this.projectIdentity(kind, workdir, agent)
     if (projectIdentity === '') return matchesRecentVerification(runtime, agent, this.now(), this.state().agentPreferences)
     if (!projectIdentity || runtime?.credentialState === 'missing') return false
     const identity = agentVerificationIdentity(agent, this.state().agentPreferences)
@@ -107,7 +140,7 @@ class LocalWorkspaceAgentCatalog {
   isProjectAuthBlocked(kind, workdir) {
     const runtime = this.state().agentRuntime[kind]
     const agent = this.detectedAgents().find(item => item.kind === kind)
-    const identity = projectVerificationIdentity(kind, workdir, agent)
+    const identity = this.projectIdentity(kind, workdir, agent)
     const agentIdentity = agentVerificationIdentity(agent, this.state().agentPreferences)
     const failure = Array.isArray(runtime?.projectFailures)
       ? runtime.projectFailures.find(item => item?.projectIdentity === identity && item.verificationIdentity === agentIdentity)
@@ -320,8 +353,9 @@ class LocalWorkspaceAgentCatalog {
   markRuntimeCredential(kind, credentialState, { verifiedRun = true, verificationIdentity = '', workdir, projectIdentity } = {}) {
     const state = this.state()
     const agent = this.detectedAgents().find(item => item.kind === kind)
+    if (projectIdentity === null) return
     if (verificationIdentity && (!agent || verificationIdentity !== agentVerificationIdentity(agent, state.agentPreferences))) return
-    if (projectIdentity !== undefined && projectIdentity !== projectVerificationIdentity(kind, workdir, agent)) return
+    if (projectIdentity !== undefined && projectIdentity !== this.projectIdentity(kind, workdir, agent)) return
     const identity = verificationIdentity || agentVerificationIdentity(agent, state.agentPreferences)
     const projectFailure = credentialState === 'missing' && typeof projectIdentity === 'string' && Boolean(projectIdentity)
     const previous = state.agentRuntime[kind]

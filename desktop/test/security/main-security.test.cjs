@@ -626,6 +626,28 @@ test('MiMo captures an env-selected project model and only its provider credenti
   assert.equal(options.env.OTHER_KEY, undefined)
 })
 
+test('project environment identities follow the selected native credential without revealing it', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-project-env-identity-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  fs.writeFileSync(path.join(directory, 'mimocode.json'), JSON.stringify({ model: 'custom/model',
+    provider: { custom: { options: { apiKey: '{env:CUSTOM_KEY}' } } } }))
+  const readiness = require('../../src/agents/local-agent-readiness.cjs')
+  let secret = 'first-synthetic-secret'
+  const { harness } = loadMain(directory, {
+    nativeEnvironment: readiness.nativeCredentialEnvironment,
+    nativeShellEnvironment: input => ({ source: 'native-shell', env: input.extraEnvKeys?.includes('CUSTOM_KEY')
+      ? { CUSTOM_KEY: secret } : {} }),
+  })
+  await harness.ready()
+  const resolve = harness.workspaceInstances[0].input.resolveProjectEnvironmentIdentities
+  const first = await resolve(directory, ['mimo'])
+  secret = 'second-synthetic-secret'
+  const second = await resolve(directory, ['mimo'])
+  assert.match(first.mimo, /^[a-f0-9]{64}$/)
+  assert.notEqual(first.mimo, second.mimo)
+  assert.doesNotMatch(JSON.stringify([first, second]), /synthetic-secret|CUSTOM_KEY/)
+})
+
 test('MiMo captures the recent model provider credential for a project', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-mimo-recent-main-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

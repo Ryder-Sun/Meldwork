@@ -161,6 +161,24 @@ function assertRequiredContextFits(packedContext) {
   throw error
 }
 
+async function awaitProjectEnvironment(refresh, workdir, kind, signals) {
+  const activeSignals = [...new Set(signals.filter(Boolean))]
+  if (activeSignals.some(signal => signal.aborted)) throw agentStoppedError()
+  const pending = Promise.resolve().then(() => {
+    if (activeSignals.some(signal => signal.aborted)) throw agentStoppedError()
+    return refresh(workdir, [kind])
+  })
+  if (!activeSignals.length) return pending
+  let abort
+  const stopped = new Promise((_, reject) => { abort = () => reject(agentStoppedError()) })
+  for (const signal of activeSignals) {
+    if (signal.aborted) abort()
+    else signal.addEventListener('abort', abort, { once: true })
+  }
+  try { return await Promise.race([pending, stopped]) }
+  finally { for (const signal of activeSignals) signal.removeEventListener('abort', abort) }
+}
+
 class LocalWorkspaceAgentInvocation {
   constructor(options) {
     this.state = options.state
@@ -204,6 +222,8 @@ class LocalWorkspaceAgentInvocation {
     this.recordContextDelivery = options.recordContextDelivery
     this.markRuntimeCredential = options.markRuntimeCredential
     this.isProjectAuthBlocked = options.isProjectAuthBlocked || (() => false)
+    this.refreshProjectEnvironment = options.refreshProjectEnvironment || (async () => {})
+    this.projectIdentity = options.projectIdentity || projectVerificationIdentity
     this.addMessage = options.addMessage
     this.runScheduler = options.runScheduler || processRunScheduler
     this.registerAgentController = options.registerAgentController
@@ -311,12 +331,14 @@ class LocalWorkspaceAgentInvocation {
   async invokeLeased(
     group, kind, mode, signal, threadRootId = '', context = {}, invocation = {},
   ) {
+    await awaitProjectEnvironment(this.refreshProjectEnvironment, group.workdir, kind,
+      [signal, invocation.agentController?.signal])
     const detected = this.detectedAgents()
     const activeRun = this.activeRuns.get(group.id)
     const candidate = detected.find(item => item.kind === kind)
     const snapshotKey = `${group.id}:${activeRun?.runId || 'active'}:${kind}`
     const runtime = this.state()?.agentRuntime?.[kind]
-    const projectIdentity = projectVerificationIdentity(kind, group.workdir, candidate || this.activeAgentSnapshots.get(snapshotKey))
+    const projectIdentity = this.projectIdentity(kind, group.workdir, candidate || this.activeAgentSnapshots.get(snapshotKey))
     const runtimeBlocked = runtime?.credentialState === 'missing'
       || this.isProjectAuthBlocked(kind, group.workdir)
     const usable = item => item.installed !== false && item.invocable !== false
@@ -1297,6 +1319,10 @@ class LocalWorkspaceAgentInvocation {
         capturedOutcomeRefs,
         requestedOutcomeRefs,
       ])
+      // The Agent has returned; shell revalidation is not Agent inactivity.
+      watchdog.pause()
+      await awaitProjectEnvironment(this.refreshProjectEnvironment, group.workdir, kind, [signal, agentController.signal])
+      if (signal?.aborted || agentController.signal.aborted) throw agentStoppedError()
       const finalStatus = result.outcome
       const trace = finishHarness(finalStatus, reply.text, {
         promptChars: prompt.length,
@@ -1405,6 +1431,8 @@ class LocalWorkspaceAgentInvocation {
       // provider refusals stay run-scoped so a healthy Agent remains usable.
       if (error?.code === 'LOCAL_AGENT_AUTH_REQUIRED'
           && context.deferCredentialFailure !== true) {
+        watchdog.pause()
+        await awaitProjectEnvironment(this.refreshProjectEnvironment, group.workdir, kind, [signal, agentController.signal])
         this.markRuntimeCredential(kind, 'missing', { verificationIdentity, workdir: group.workdir, projectIdentity })
       }
       // Failure and stop notices take the turn's slot in the timeline.

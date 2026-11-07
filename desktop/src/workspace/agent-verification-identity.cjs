@@ -61,7 +61,7 @@ function agentVerificationIdentity(agent, preferences = {}) {
   return createHash('sha256').update(JSON.stringify(identity)).digest('hex')
 }
 
-function projectVerificationIdentity(kind, workdir, agent = null) {
+function projectVerificationIdentity(kind, workdir, agent = null, environmentIdentity = '') {
   const files = {
     codex: ['.codex/config.toml'],
     claude: ['.claude/settings.json', '.claude/settings.local.json'],
@@ -77,6 +77,7 @@ function projectVerificationIdentity(kind, workdir, agent = null) {
   if (typeof workdir !== 'string' || !path.isAbsolute(workdir)) return null
   const root = path.resolve(workdir)
   const entries = [kind, root]
+  if (environmentIdentity) entries.push(['native-environment', environmentIdentity])
   for (const item of agent?.[NATIVE_PROJECT_CONFIG_PATHS] || []) {
     if (!item || typeof item.value !== 'string' || path.isAbsolute(item.value)) continue
     const target = path.resolve(root, item.value)

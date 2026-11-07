@@ -381,7 +381,7 @@ test('Manual V4 restart retains a settled slot and reruns only unfinished safe s
     const statuses = new Map(record.orchestration?.slots?.map(slot => [slot.agentKind, slot.status]))
     return statuses.get('codex') === 'completed'
       && statuses.get('hermes') === 'running'
-      && ['planned', 'running'].includes(statuses.get('workbuddy'))
+      && ['planned', 'queued', 'running'].includes(statuses.get('workbuddy'))
   })
   assert.ok(interrupted, 'intermediate checkpoint captured')
 

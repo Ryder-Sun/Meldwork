@@ -210,6 +210,7 @@ class LocalWorkspace extends EventEmitter {
       detectAgents: () => this.detectAgentsFn(),
       isKnownAgent: options.isKnownAgent,
       credentialState: (...args) => this.credentialStateFn(...args),
+      resolveProjectEnvironmentIdentities: options.resolveProjectEnvironmentIdentities,
       attachmentSupport: kind => this.attachmentSupportFn(kind),
       save: () => this.save(),
       emitChanged: () => this.emitChanged(),
@@ -313,6 +314,8 @@ class LocalWorkspace extends EventEmitter {
       recordContextDelivery: (...args) => this.recordContextDelivery(...args),
       markRuntimeCredential: (...args) => this.markRuntimeCredential(...args),
       isProjectAuthBlocked: (...args) => this.agentCatalog.isProjectAuthBlocked(...args),
+      refreshProjectEnvironment: (...args) => this.agentCatalog.refreshProjectEnvironment(...args),
+      projectIdentity: (...args) => this.agentCatalog.projectIdentity(...args),
       addMessage: (...args) => this.addMessage(...args),
       runScheduler: options.runScheduler,
       registerAgentController: (...args) => this.runCoordinator.registerAgentController(...args),
@@ -2898,6 +2901,11 @@ class LocalWorkspace extends EventEmitter {
   }
 
   async sendMessage(input) {
+    if (input?.routingMode === 'automatic' && !input.targetKinds?.length) {
+      const group = this.getGroup(input.groupId)
+      if (this.isGroupBusy(group.id)) throw new Error('LOCAL_GROUP_RUNNING')
+      await this.agentCatalog.refreshProjectEnvironment(group.workdir, group.agentKinds)
+    }
     if (!Object.hasOwn(input, 'deliveryTaskId')) return this.messageSubmission.send(input)
     const prepared = this.delivery.prepare(input)
     try { return await this.messageSubmission.send(prepared) }

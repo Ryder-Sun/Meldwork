@@ -597,6 +597,178 @@ test('automatic routing requires a successful Zcode run in the current project',
     targetKinds: [], routingMode: 'automatic' }), { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
 })
 
+for (const kind of ['zcode', 'mimo', 'opencode']) {
+  test(`${kind} automatic routing follows the current project's native credential`, async t => {
+    const { directory, calls, options } = fixture()
+    t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+    const { nativeEnvironmentIdentity } = require('../../src/agents/native-config-directory.cjs')
+    let secret = 'initial-synthetic-secret'
+    options.detectAgents = async () => [{ kind, name: kind, executable: '/tmp/agent', version: '1' }]
+    options.resolveProjectEnvironmentIdentities = async () => ({
+      [kind]: nativeEnvironmentIdentity({ CUSTOM_KEY: secret }),
+    })
+    const workspace = new LocalWorkspace(options)
+    await workspace.refreshAgents()
+    const group = workspace.createGroup({ name: 'Project', agentKinds: [kind], workdir: directory })
+    await workspace.sendMessage({ groupId: group.id, text: 'Verify', targetKinds: [kind] })
+    await workspace.sendMessage({ groupId: group.id, text: 'Route', targetKinds: [], routingMode: 'automatic' })
+    secret = 'replacement-synthetic-secret'
+    await assert.rejects(workspace.sendMessage({ groupId: group.id, text: 'Route again', targetKinds: [],
+      routingMode: 'automatic' }), { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
+    assert.equal(calls.length, 2)
+    await workspace.sendMessage({ groupId: group.id, text: 'Verify replacement', targetKinds: [kind] })
+    await workspace.sendMessage({ groupId: group.id, text: 'Route replacement', targetKinds: [], routingMode: 'automatic' })
+    assert.equal(calls.length, 4)
+    assert.doesNotMatch(JSON.stringify(workspace.state.agentRuntime), /synthetic-secret|CUSTOM_KEY/)
+  })
+}
+
+test('automatic group routing excludes an Agent after its project credential changes', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const { nativeEnvironmentIdentity } = require('../../src/agents/native-config-directory.cjs')
+  let secret = 'first-synthetic-secret'
+  options.detectAgents = async () => [
+    { kind: 'mimo', name: 'MiMo', executable: '/tmp/mimo', version: '1' },
+    { kind: 'codex', name: 'Codex', executable: '/tmp/codex', version: '1' },
+  ]
+  options.resolveProjectEnvironmentIdentities = async () => ({ mimo: nativeEnvironmentIdentity({ CUSTOM_KEY: secret }) })
+  options.naturalAgentResponses = true
+  options.runAgent = async agent => ({ text: `${agent.kind} completed.`, outcome: 'completed' })
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Project group', agentKinds: ['mimo', 'codex'], workdir: directory })
+  await workspace.sendMessage({ groupId: group.id, text: 'Verify the team', mode: 'auto', protocol: 'v4',
+    maxRounds: 1, targetKinds: ['mimo', 'codex'] })
+  const controller = workspace.activeRuns.get(group.id)
+  if (controller) await controller.done
+  assert.equal(workspace.agentCatalog.isRecentlyVerified('mimo', directory), true)
+  secret = 'replacement-synthetic-secret'
+  await assert.rejects(workspace.sendMessage({ groupId: group.id, text: 'Route the team', mode: 'auto',
+    targetKinds: [], routingMode: 'automatic' }), { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
+})
+
+test('a project credential change during execution cannot verify the replacement', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const { nativeEnvironmentIdentity } = require('../../src/agents/native-config-directory.cjs')
+  const started = deferred()
+  const release = deferred()
+  let secret = 'first-synthetic-secret'
+  options.detectAgents = async () => [{ kind: 'mimo', name: 'MiMo', executable: '/tmp/mimo', version: '1' }]
+  options.resolveProjectEnvironmentIdentities = async () => ({ mimo: nativeEnvironmentIdentity({ CUSTOM_KEY: secret }) })
+  options.runAgent = async () => { started.resolve(); await release.promise; return { text: 'done', outcome: 'completed' } }
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Project', agentKinds: ['mimo'], workdir: directory })
+  const run = workspace.sendMessage({ groupId: group.id, text: 'Verify', targetKinds: ['mimo'] })
+  await started.promise
+  secret = 'replacement-synthetic-secret'
+  release.resolve()
+  await run
+  await assert.rejects(workspace.sendMessage({ groupId: group.id, text: 'Route', targetKinds: [],
+    routingMode: 'automatic' }), { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
+})
+
+test('automatic routing rejects a busy group before recapturing its environment', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const started = deferred()
+  const release = deferred()
+  let captures = 0
+  options.detectAgents = async () => [{ kind: 'mimo', name: 'MiMo', executable: '/tmp/mimo', version: '1' }]
+  options.resolveProjectEnvironmentIdentities = async () => { captures += 1; return { mimo: 'a'.repeat(64) } }
+  options.runAgent = async () => { started.resolve(); await release.promise; return { text: 'done', outcome: 'completed' } }
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Project', agentKinds: ['mimo'], workdir: directory })
+  const run = workspace.sendMessage({ groupId: group.id, text: 'Verify', targetKinds: ['mimo'] })
+  await started.promise
+  const before = captures
+  try {
+    await assert.rejects(workspace.sendMessage({ groupId: group.id, text: 'Route', targetKinds: [],
+      routingMode: 'automatic' }), { message: 'LOCAL_GROUP_RUNNING' })
+    assert.equal(captures, before)
+  } finally { release.resolve(); await run }
+})
+
+test('stopping during the initial project environment capture never starts the Agent', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const capturing = deferred()
+  const release = deferred()
+  let calls = 0
+  options.detectAgents = async () => [{ kind: 'mimo', name: 'MiMo', executable: '/tmp/mimo', version: '1' }]
+  options.resolveProjectEnvironmentIdentities = async () => { capturing.resolve(); await release.promise; return { mimo: 'a'.repeat(64) } }
+  options.runAgent = async () => { calls += 1; return { text: 'unexpected', outcome: 'completed' } }
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Project', agentKinds: ['mimo'], workdir: directory })
+  const run = workspace.sendMessage({ groupId: group.id, text: 'Verify', targetKinds: ['mimo'] })
+  await capturing.promise
+  const controller = workspace.activeRuns.get(group.id)
+  assert.equal(workspace.stop(group.id, controller.runId), true)
+  let timer
+  try {
+    await Promise.race([run, new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('TEST_STOP_WAITED_FOR_PROJECT_CAPTURE')), 1000)
+    })])
+  } finally { clearTimeout(timer); release.resolve() }
+  await controller.done
+  assert.equal(calls, 0)
+})
+
+test('post-run project verification does not count as Agent inactivity', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  let captures = 0
+  options.runAgentTimeoutMs = 80
+  options.detectAgents = async () => [{ kind: 'mimo', name: 'MiMo', executable: '/tmp/mimo', version: '1' }]
+  options.resolveProjectEnvironmentIdentities = async () => {
+    if (++captures === 2) await new Promise(resolve => setTimeout(resolve, 180))
+    return { mimo: 'a'.repeat(64) }
+  }
+  options.runAgent = async () => ({ text: 'completed response', outcome: 'completed' })
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Project', agentKinds: ['mimo'], workdir: directory })
+  await workspace.sendMessage({ groupId: group.id, text: 'Verify', targetKinds: ['mimo'] })
+  assert.equal(workspace.snapshot().messages.some(message => message.role === 'agent'
+    && message.content === 'completed response'), true)
+  assert.equal(workspace.agentCatalog.isRecentlyVerified('mimo', directory), true)
+})
+
+test('stopping during a project verification refresh does not commit the completed reply', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const refreshing = deferred()
+  const release = deferred()
+  let captures = 0
+  options.detectAgents = async () => [{ kind: 'mimo', name: 'MiMo', executable: '/tmp/mimo', version: '1' }]
+  options.resolveProjectEnvironmentIdentities = async () => {
+    if (++captures === 2) { refreshing.resolve(); await release.promise }
+    return { mimo: 'a'.repeat(64) }
+  }
+  options.runAgent = async () => ({ text: 'completed response', outcome: 'completed' })
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Project', agentKinds: ['mimo'], workdir: directory })
+  const run = workspace.sendMessage({ groupId: group.id, text: 'Verify', targetKinds: ['mimo'] })
+  await refreshing.promise
+  const controller = workspace.activeRuns.get(group.id)
+  assert.equal(workspace.stop(group.id, controller.runId), true)
+  let timer
+  try {
+    await Promise.race([run, new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('TEST_STOP_WAITED_FOR_PROJECT_REFRESH')), 1000)
+    })])
+  } finally { clearTimeout(timer); release.resolve() }
+  await controller.done
+  assert.equal(workspace.snapshot().messages.some(message => message.role === 'agent'
+    && message.content === 'completed response'), false)
+  assert.equal(workspace.agentCatalog.isRecentlyVerified('mimo', directory), false)
+})
+
 test('Qwen automatic routing is bound to its project settings', async t => {
   const { directory, calls, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

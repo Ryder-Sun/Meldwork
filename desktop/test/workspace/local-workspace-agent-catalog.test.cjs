@@ -49,6 +49,7 @@ function fixture(overrides = {}) {
     credentialState: overrides.credentialState || (async () => ({
       state: 'unknown', source: 'unverified',
     })),
+    resolveProjectEnvironmentIdentities: overrides.resolveProjectEnvironmentIdentities,
     save: () => events.push('save'),
     emitChanged: () => events.push('emit'),
     snapshot: () => {
@@ -59,6 +60,102 @@ function fixture(overrides = {}) {
   })
   return { agents: () => agents, catalog, events, state }
 }
+
+test('project credential changes invalidate successful and late verification without exposing values', async t => {
+  const workdir = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-project-env-'))
+  t.after(() => fs.rmSync(workdir, { recursive: true, force: true }))
+  const agent = { kind: 'mimo', executable: '/tmp/agent', version: '1', available: true, compatibilityState: 'compatible' }
+  let secret = 'first-project-secret'
+  const { catalog, state } = fixture({ initialAgents: [agent],
+    resolveProjectEnvironmentIdentities: async () => ({ mimo: nativeEnvironmentIdentity({ CUSTOM_KEY: secret }) }) })
+  await catalog.refreshProjectEnvironment(workdir, ['mimo'])
+  const projectIdentity = catalog.projectIdentity('mimo', workdir, agent)
+  catalog.markRuntimeCredential('mimo', 'ready', { workdir, projectIdentity })
+  assert.equal(catalog.isRecentlyVerified('mimo', workdir), true)
+  secret = 'second-project-secret'
+  await catalog.refreshProjectEnvironment(workdir, ['mimo'])
+  assert.equal(catalog.isRecentlyVerified('mimo', workdir), false)
+  catalog.markRuntimeCredential('mimo', 'ready', { workdir, projectIdentity })
+  assert.equal(catalog.isRecentlyVerified('mimo', workdir), false)
+  assert.doesNotMatch(JSON.stringify(state.agentRuntime), /first-project-secret|second-project-secret|CUSTOM_KEY/)
+})
+
+test('late project environment capture cannot replace a newer result', async t => {
+  const workdir = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-project-env-race-'))
+  t.after(() => fs.rmSync(workdir, { recursive: true, force: true }))
+  const pending = deferred()
+  let calls = 0
+  const agent = { kind: 'opencode' }
+  const { catalog } = fixture({ initialAgents: [agent], resolveProjectEnvironmentIdentities: () => (
+    ++calls === 1 ? pending.promise : Promise.resolve({ opencode: 'b'.repeat(64) })
+  ) })
+  const first = catalog.refreshProjectEnvironment(workdir, ['opencode'])
+  await catalog.refreshProjectEnvironment(workdir, ['opencode'])
+  const current = catalog.projectIdentity('opencode', workdir, agent)
+  pending.resolve({ opencode: 'a'.repeat(64) })
+  await first
+  assert.equal(catalog.projectIdentity('opencode', workdir, agent), current)
+})
+
+test('project credential changes do not invalidate another project', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-project-env-isolation-'))
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+  const first = path.join(root, 'first')
+  const second = path.join(root, 'second')
+  fs.mkdirSync(first); fs.mkdirSync(second)
+  const agent = { kind: 'zcode', version: '1', available: true, compatibilityState: 'compatible' }
+  const secrets = { [first]: 'first-secret', [second]: 'second-secret' }
+  const { catalog } = fixture({ initialAgents: [agent], resolveProjectEnvironmentIdentities: async workdir => ({
+    zcode: nativeEnvironmentIdentity({ CUSTOM_KEY: secrets[workdir] }),
+  }) })
+  for (const workdir of [first, second]) {
+    await catalog.refreshProjectEnvironment(workdir, ['zcode'])
+    catalog.markRuntimeCredential('zcode', 'ready', { workdir, projectIdentity: catalog.projectIdentity('zcode', workdir, agent) })
+  }
+  assert.equal(catalog.isRecentlyVerified('zcode', first), true)
+  assert.equal(catalog.isRecentlyVerified('zcode', second), true)
+  secrets[first] = 'changed-secret'
+  await catalog.refreshProjectEnvironment(first, ['zcode'])
+  assert.equal(catalog.isRecentlyVerified('zcode', first), false)
+  assert.equal(catalog.isRecentlyVerified('zcode', second), true)
+})
+
+test('failed project environment capture prevents reusing or recording verification', async t => {
+  const workdir = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-project-env-failed-'))
+  t.after(() => fs.rmSync(workdir, { recursive: true, force: true }))
+  const agent = { kind: 'zcode', version: '1', available: true, compatibilityState: 'compatible' }
+  let fail = false
+  const { catalog } = fixture({ initialAgents: [agent], resolveProjectEnvironmentIdentities: async () => {
+    if (fail) throw new Error('shell unavailable')
+    return { zcode: 'a'.repeat(64) }
+  } })
+  await catalog.refreshProjectEnvironment(workdir, ['zcode'])
+  const projectIdentity = catalog.projectIdentity('zcode', workdir, agent)
+  catalog.markRuntimeCredential('zcode', 'ready', { workdir, projectIdentity })
+  assert.equal(catalog.isRecentlyVerified('zcode', workdir), true)
+  fail = true
+  await catalog.refreshProjectEnvironment(workdir, ['zcode'])
+  assert.equal(catalog.isRecentlyVerified('zcode', workdir), false)
+  catalog.markRuntimeCredential('zcode', 'ready', { workdir, projectIdentity: null })
+  assert.equal(catalog.isRecentlyVerified('zcode', workdir), false)
+})
+
+test('project credential changes clear a previous project-specific authentication block', async t => {
+  const workdir = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-project-env-auth-'))
+  t.after(() => fs.rmSync(workdir, { recursive: true, force: true }))
+  const agent = { kind: 'mimo', version: '1', available: true, compatibilityState: 'compatible' }
+  let secret = 'first-secret'
+  const { catalog } = fixture({ initialAgents: [agent], resolveProjectEnvironmentIdentities: async () => ({
+    mimo: nativeEnvironmentIdentity({ CUSTOM_KEY: secret }),
+  }) })
+  await catalog.refreshProjectEnvironment(workdir, ['mimo'])
+  catalog.markRuntimeCredential('mimo', 'missing', { workdir, projectIdentity: catalog.projectIdentity('mimo', workdir, agent) })
+  assert.equal(catalog.isProjectAuthBlocked('mimo', workdir), true)
+  secret = 'replacement-secret'
+  await catalog.refreshProjectEnvironment(workdir, ['mimo'])
+  assert.equal(catalog.isProjectAuthBlocked('mimo', workdir), false)
+  assert.equal(catalog.isRecentlyVerified('mimo', workdir), false)
+})
 
 test('uninspectable project configuration cannot retain successful verification', t => {
   const workdir = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-uninspectable-config-'))

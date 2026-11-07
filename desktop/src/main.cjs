@@ -368,6 +368,23 @@ async function detectLocalAgents() {
   })
 }
 
+async function resolveProjectEnvironmentIdentities(workdir, kinds) {
+  const captured = await nativeShellEnvironment({ workdir, refresh: true })
+  const result = {}
+  for (const kind of kinds) {
+    const keys = kind === 'zcode' ? captured.zcodeCredentialKeys
+      : kind === 'mimo' ? captured.mimoCredentialKeys
+        : kind === 'opencode' ? captured.opencodeCredentialKeys : null
+    if (!keys) continue
+    const env = nativeConfigEnvironment(kind, workspace?.state.agentPreferences, captured.env)
+    result[kind] = nativeEnvironmentIdentity({
+      ...networkEnvironment(env), ...configDirectoryEnvironment(env),
+      ...nativeCredentialEnvironment(kind, env, keys),
+    })
+  }
+  return result
+}
+
 function workspaceStoragePath(userData = app.getPath('userData')) {
   return path.join(userData, 'meldwork-workspace.json')
 }
@@ -671,6 +688,7 @@ function createWorkspace() {
     }),
     outcomeStore,
     agentFitMatrix: FROZEN_AGENT_FIT_MATRIX,
+    resolveProjectEnvironmentIdentities,
     runLedger: cloudAgentRuntime.workspaceLedger(),
     detectAgents: async () => {
       await cloudAgentBridges?.refresh()
