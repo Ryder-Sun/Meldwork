@@ -906,6 +906,11 @@ function validateOpenClawDirectoryIdentities(identities) {
 function parseOpenClawStatus(output, options = {}) {
   try {
     const status = JSON.parse(String(output || '').trim())
+    if (status?.ok === false && status?.error?.type === 'cli_error'
+        && typeof status.error.message === 'string'
+        && /\.apiKey is unresolved in the active runtime snapshot\./.test(status.error.message)) {
+      return { credentialState: { state: 'unknown', source: 'native-secret-unresolved' } }
+    }
     const auth = status?.auth
     const resolvedModel = String(status?.resolvedDefault || status?.defaultModel || '').trim()
     if (!auth || !OPENCLAW_MODEL_REF.test(resolvedModel)) return null
@@ -1157,7 +1162,7 @@ async function resolveNativeCredentialState(kind, options = {}) {
         return { state: 'ready', source: 'native-auth-status' }
       }
     } catch { /* fail closed below */ }
-    return ['native-runtime-unavailable', 'native-probe-failed'].includes(status?.credentialState?.source)
+    return ['native-runtime-unavailable', 'native-probe-failed', 'native-secret-unresolved'].includes(status?.credentialState?.source)
       ? status.credentialState
       : { state: 'unknown', source: 'native-runtime-unavailable' }
   }

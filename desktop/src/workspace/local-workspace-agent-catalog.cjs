@@ -245,6 +245,7 @@ class LocalWorkspaceAgentCatalog {
         && !workBuddyUnavailable
         && nativeState === 'unknown'
         && native?.source !== 'native-runtime-unavailable'
+        && native?.source !== 'native-secret-unresolved'
         && native?.source !== 'native-probe-failed'
       const configured = retained?.configured === true
         || nativeState === 'ready'
@@ -257,6 +258,7 @@ class LocalWorkspaceAgentCatalog {
       ))
       const runtimePrerequisitesReady = retained !== null
         || (native?.source !== 'native-runtime-unavailable'
+          && native?.source !== 'native-secret-unresolved'
           && (native?.source !== 'native-probe-failed' || verifiedReady))
       const invocable = agentInvocable({ installed, versionIdentified, compatible, configured,
         authenticated, canAttempt: retained !== null || nativeConfigurationUnknown
@@ -275,6 +277,7 @@ class LocalWorkspaceAgentCatalog {
       else if (nativeState === 'missing') availabilitySource = native.source || 'none'
       else if (native?.source === 'native-probe-failed') availabilitySource = 'native-probe-failed'
       else if (native?.source === 'native-runtime-unavailable') availabilitySource = 'native-runtime-unavailable'
+      else if (native?.source === 'native-secret-unresolved') availabilitySource = 'native-secret-unresolved'
       else if (nativeReadySource) availabilitySource = nativeReadySource
       else if (verifiedReady) availabilitySource = 'verified-run'
       else if (nativeConfigurationUnknown) availabilitySource = 'local-cli'

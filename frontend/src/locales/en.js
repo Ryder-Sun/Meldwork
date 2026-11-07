@@ -314,6 +314,7 @@ export default {
     'agent.note.verifiedRange': 'Verified versions: {range}.',
     'agent.note.probeTimeout': 'Detection timed out. Make sure it starts normally in a terminal, then detect again.',
     'agent.note.nativeRuntimeUnavailable': 'Meldwork could not prepare the native runtime. The terminal may use a different configuration or Gateway.',
+    'agent.note.nativeSecretUnresolved': 'OpenClaw could not resolve a secret reference in its native configuration. Check its configured credentials and environment.',
     'agent.note.needsLogin': 'Run it in a terminal and finish signing in, then detect again.',
     'agent.note.needsLoginCloud': 'This is a cloud Agent: sign in to it on its server, then detect again.',
     'agent.detectedVersion': 'Version {version}',

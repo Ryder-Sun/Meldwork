@@ -917,6 +917,20 @@ test('configured credentials do not make an Agent invocable when runtime prerequ
   assert.equal(agents()[0].availabilitySource, 'native-runtime-unavailable')
 })
 
+test('an unresolved OpenClaw native secret blocks invocation without exposing its name', async () => {
+  const { agents, catalog } = fixture({
+    detectAgents: async () => [{ kind: 'openclaw', executable: '/tmp/openclaw',
+      resolvedVersion: '2026.7.1-2', compatibilityState: 'compatible' }],
+    credentialState: async () => ({ state: 'unknown', source: 'native-secret-unresolved' }),
+  })
+  await catalog.refresh()
+  assert.equal(agents()[0].invocable, false)
+  assert.equal(agents()[0].available, false)
+  assert.equal(agents()[0].availabilitySource, 'native-secret-unresolved')
+  catalog.markRuntimeCredential('openclaw', 'ready')
+  assert.equal(agents()[0].invocable, false)
+})
+
 test('review-only custom Agents stay out of the sidebar across runtime credential changes', async () => {
   const kind = 'custom-0123456789abcdef'
   const { agents, catalog } = fixture({

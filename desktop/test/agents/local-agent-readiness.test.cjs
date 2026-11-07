@@ -1132,6 +1132,19 @@ test('OpenClaw readiness uses the official model status when auth is stored outs
   }
 })
 
+test('OpenClaw reports unresolved native secret references without exposing CLI details', async () => {
+  const result = await resolveNativeCredentialState('openclaw', {
+    executable: '/tmp/openclaw',
+    execFileFn: async () => {
+      const error = new Error('exit')
+      error.stdout = JSON.stringify({ ok: false, error: { type: 'cli_error',
+        message: 'models status: models.providers.example.apiKey is unresolved in the active runtime snapshot.' } })
+      throw error
+    },
+  })
+  assert.deepEqual(result, { state: 'unknown', source: 'native-secret-unresolved' })
+})
+
 test('OpenClaw native runtime extracts only the current validated Provider', async (t) => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-openclaw-runtime-status-'))
   const agentDir = path.join(home, '.openclaw', 'agents', 'main', 'agent')

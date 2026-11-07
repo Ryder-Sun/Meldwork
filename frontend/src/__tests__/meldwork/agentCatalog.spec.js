@@ -44,6 +44,8 @@ describe('Agent compatibility state', () => {
     })
     expect(catalog.agentStateNote({ kind: 'openclaw', installed: true, ready: false,
       availabilitySource: 'native-runtime-unavailable' })).toContain('different configuration or Gateway')
+    expect(catalog.agentStateNote({ kind: 'openclaw', installed: true, ready: false,
+      availabilitySource: 'native-secret-unresolved' })).toContain('secret reference')
   })
   it('honors explicit hiding despite history and excludes unavailable WorkBuddy until it becomes ready', () => {
     const snapshot = ref({ agents: [

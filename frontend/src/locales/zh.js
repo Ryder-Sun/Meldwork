@@ -314,6 +314,7 @@ export default {
     'agent.note.verifiedRange': '已验证的版本：{range}。',
     'agent.note.probeTimeout': '检测超时。请确认它能在终端里正常启动，然后重新检测。',
     'agent.note.nativeRuntimeUnavailable': 'Meldwork 无法准备原生运行环境；终端可能使用了不同的配置或 Gateway。',
+    'agent.note.nativeSecretUnresolved': 'OpenClaw 无法解析原生配置中的密钥引用，请检查其凭据和环境变量。',
     'agent.note.needsLogin': '请先在终端运行它并完成登录，然后重新检测。',
     'agent.note.needsLoginCloud': '这是云端 Agent：请到对应的服务器上完成登录，然后重新检测。',
     'agent.detectedVersion': '版本 {version}',

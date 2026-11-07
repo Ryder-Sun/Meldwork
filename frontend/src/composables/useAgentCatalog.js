@@ -174,6 +174,7 @@ export function useAgentCatalog({
     if (!agent || agent.ready || agent.custom || !agent.installed) return ''
     if (agent.availabilitySource === 'cloud-bridge-unsupported') return t('agent.note.cloudBridgeUnsupported')
     if (agent.availabilitySource === 'native-runtime-unavailable') return t('agent.note.nativeRuntimeUnavailable')
+    if (agent.availabilitySource === 'native-secret-unresolved') return t('agent.note.nativeSecretUnresolved')
     if (agent.availabilitySource === 'workbuddy-desktop-locked') return t('workbuddy.desktopLocked')
     if (agent.availabilitySource === 'workbuddy-model-unavailable') return t('workbuddy.modelUnavailable')
     const version = agent.resolvedVersion || agent.version || ''
