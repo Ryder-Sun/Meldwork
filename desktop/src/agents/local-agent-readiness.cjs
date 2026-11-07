@@ -437,19 +437,28 @@ function hermesSelectedProvider(root, env) {
     const model = config.model && typeof config.model === 'object' && !Array.isArray(config.model) ? config.model : {}
     const provider = String(model.provider || env.HERMES_INFERENCE_PROVIDER || '').trim().toLowerCase()
     const canonical = { openai: 'OPENAI_API_KEY', openrouter: 'OPENROUTER_API_KEY', anthropic: 'ANTHROPIC_API_KEY' }
-    if (provider.startsWith('custom:') && config.providers && typeof config.providers === 'object'
-        && !Array.isArray(config.providers)) {
-      const providerKey = Object.keys(config.providers).find(key => key.toLowerCase() === provider.slice(7))
-      const selected = providerKey && config.providers[providerKey]
+    if (provider.startsWith('custom:')) {
+      const providers = config.providers && typeof config.providers === 'object' && !Array.isArray(config.providers)
+        ? config.providers : {}
+      const suffix = provider.slice(7)
+      const providerKey = Object.keys(providers).find(key => key.toLowerCase() === suffix)
+      const legacy = Array.isArray(config.custom_providers) ? config.custom_providers.find(entry => (
+        entry && typeof entry === 'object' && !Array.isArray(entry)
+        && [entry.name, entry.provider_key].some(value => (
+          typeof value === 'string' && value.trim().toLowerCase().replace(/ /g, '-') === suffix
+        ))
+      )) : null
+      const selected = (providerKey && providers[providerKey]) || legacy
       if (selected && typeof selected === 'object' && !Array.isArray(selected)) {
         const enabled = selected.enabled === undefined || (Boolean(selected.enabled)
           && !(typeof selected.enabled === 'string' && ['false', '0', 'no', 'off'].includes(selected.enabled.trim().toLowerCase())))
         const endpoint = selected.api || selected.url || selected.base_url
         if (!enabled || typeof endpoint !== 'string' || !endpoint.trim()) return { unavailable: true }
-        return { provider: providerKey, config, keys: nativeSecretEnvKeys([
+        return { provider: providerKey || suffix, selected, config, keys: nativeSecretEnvKeys([
           model.key_env, model.api_key_env, selected.key_env, selected.api_key_env,
         ]) }
       }
+      return { unavailable: true }
     }
     if (!Object.hasOwn(canonical, provider)) return null
     return { provider, config, keys: nativeSecretEnvKeys([canonical[provider], model.key_env, model.api_key_env,
@@ -467,8 +476,8 @@ function hermesAuthContainsCredential(filename, provider) {
 }
 
 function hermesConfigContainsCredential(selection) {
-  const { config, provider } = selection
-  return containsCredential(config.model) || containsCredential(config.providers?.[provider])
+  const { config, provider, selected } = selection
+  return containsCredential(config.model) || containsCredential(selected || config.providers?.[provider])
 }
 
 

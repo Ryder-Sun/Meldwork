@@ -942,6 +942,26 @@ test('Hermes named custom provider readiness ignores unrelated account credentia
   }
 })
 
+test('Hermes readiness follows a named legacy custom provider', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-legacy-provider-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const root = path.join(home, '.hermes')
+  fs.mkdirSync(root)
+  const config = path.join(root, 'config.yaml')
+  fs.writeFileSync(config, [
+    'model:', '  provider: "custom:work-team"', 'custom_providers:',
+    '  - name: Work Team', '    base_url: https://example.invalid/v1', '    key_env: WORK_TOKEN',
+    '  - name: Other', '    base_url: https://other.invalid/v1', '    api_key: unrelated-secret',
+  ].join('\n'))
+  assert.deepEqual(nativeCredentialState('hermes', { home, env: { OPENAI_API_KEY: 'unrelated' } }),
+    { state: 'unknown', source: 'unverified' })
+  assert.deepEqual(nativeCredentialState('hermes', { home, env: { WORK_TOKEN: 'selected' } }),
+    { state: 'ready', source: 'native-credential' })
+  fs.writeFileSync(config, 'model:\n  provider: "custom:missing"\n')
+  assert.deepEqual(nativeCredentialState('hermes', { home, env: { OPENAI_API_KEY: 'unrelated' } }),
+    { state: 'unknown', source: 'unverified' })
+})
+
 test('WorkBuddy readiness requires a selected model and never exposes configured keys', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-workbuddy-readiness-'))
   const secret = 'workbuddy-secret-value'
