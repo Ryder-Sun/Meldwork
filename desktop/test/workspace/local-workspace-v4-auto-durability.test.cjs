@@ -918,7 +918,8 @@ test('Auto V4 checkpoints each concurrent work receipt before the dependency wav
   )
 })
 
-test('Auto V4 rejects a work result that arrives after the run is stopped', async (t) => {
+for (const [reason, expected] of [['user', 'stopped'], ['shutdown', 'interrupted'], ['hard_budget', 'budget-exhausted']]) {
+test(`Auto V4 rejects late work and preserves ${reason} status`, async (t) => {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
   const ledger = new RunLedger({ storagePath: path.join(directory, 'run-ledger-late-work.json') })
@@ -952,6 +953,12 @@ test('Auto V4 rejects a work result that arrives after the run is stopped', asyn
     }
   }
   const workspace = new LocalWorkspace(options)
+  const runDiscussion = workspace.autoRunner.runV4Discussion.bind(workspace.autoRunner)
+  let runnerStatus = ''
+  workspace.autoRunner.runV4Discussion = async (...args) => {
+    runnerStatus = await runDiscussion(...args)
+    return runnerStatus
+  }
   await workspace.refreshAgents()
   const group = workspace.createGroup({
     name: 'Reject late Auto work', agentKinds: ['codex', 'hermes', 'workbuddy'],
@@ -963,17 +970,20 @@ test('Auto V4 rejects a work result that arrives after the run is stopped', asyn
   })
   const controller = workspace.activeRuns.get(group.id)
   await workStarted.promise
+  controller.stopReason = reason
   workspace.stop(group.id, controller.runId)
   lateWork.resolve()
   await controller.promise
 
   const final = ledger.get(controller.runId)
-  assert.equal(final.status, 'stopped')
+  assert.equal(runnerStatus, expected)
+  assert.equal(final.status, expected)
   assert.deepEqual(final.orchestration.workReceipts, [])
   assert.equal(final.orchestration.slots.some(slot => (
     slot.resultRefs?.workflowOutcomeRefs?.some(item => item.receipt?.phase === 'work')
   )), false)
 })
+}
 
 for (const corruption of ['missing', 'tampered']) {
   test(`Auto V4 recovery fails before Agent invocation when the snapshot blob is ${corruption}`, async (t) => {

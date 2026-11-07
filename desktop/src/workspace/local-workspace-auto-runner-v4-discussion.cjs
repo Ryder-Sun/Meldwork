@@ -674,7 +674,7 @@ const v4DiscussionMethods = {
         })
         commitPhaseMessages('challenge', challenge)
         if (!challenge.ok) {
-          if (controller.signal.aborted) return 'stopped'
+          if (controller.signal.aborted) return terminalRunStatusForReason(controller.stopReason)
           const failedKinds = removePhaseFailures(challenge)
           activeKinds = activeKinds.filter(kind => !failedKinds.includes(kind))
           if (!failedKinds.length || activeKinds.length < 2
@@ -747,7 +747,8 @@ const v4DiscussionMethods = {
             deliveryReceiptRecords: [...receiptRecords],
             workAssignments: readyAssignments,
           })
-          if (!work.ok) return controller.signal.aborted ? 'stopped' : 'failed'
+          if (controller.signal.aborted) return terminalRunStatusForReason(controller.stopReason)
+          if (!work.ok) return 'failed'
           const completedAfter = this.v4WorkState(workReceipts, coordinationPlan, controller.runId).completed.size
           if (completedAfter <= completedBefore) return 'failed'
         }
@@ -833,8 +834,8 @@ const v4DiscussionMethods = {
         writerKind = synthesisRecovery.activeWriterKind
         verificationKinds = [...synthesisRecovery.verificationKinds]
         synthesis = await runPhase('synthesis', [writerKind])
+        if (controller.signal.aborted) return terminalRunStatusForReason(controller.stopReason)
         if (synthesis.ok) break
-        if (controller.signal.aborted) return 'stopped'
         const failedAttempt = [...synthesisRecovery.attempts].reverse()[0]
         if (failedAttempt?.status === 'unknown_outcome') {
           const recoveryResult = await requestSynthesisRecoveryGate()
@@ -851,7 +852,7 @@ const v4DiscussionMethods = {
         writerKind = replacement.activeWriterKind
         verificationKinds = [...replacement.verificationKinds]
       }
-      if (!synthesis?.ok) return controller.signal.aborted ? 'stopped' : 'failed'
+      if (!synthesis?.ok) return controller.signal.aborted ? terminalRunStatusForReason(controller.stopReason) : 'failed'
       let synthesisPendingMessage = synthesis.synthesisPendingMessage
       const synthesisReceipt = latestFor('synthesis', writerKind)
       if (!synthesisPendingMessage && synthesisReceipt) {
@@ -887,7 +888,8 @@ const v4DiscussionMethods = {
         },
       )
       const verification = await runPhase('verification', verificationKinds)
-      if (!verification.ok) return controller.signal.aborted ? 'stopped' : 'partial'
+      if (controller.signal.aborted) return terminalRunStatusForReason(controller.stopReason)
+      if (!verification.ok) return 'partial'
 
       const acceptance = this.v4Acceptance(
         receiptRecords, activeKinds, writerKind, verificationKinds,
