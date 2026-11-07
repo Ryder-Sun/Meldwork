@@ -192,6 +192,27 @@ test('AWS CA bundle changes invalidate Bedrock Agent verification and relative p
   }
 })
 
+test('native TLS bundle changes invalidate Agent and workspace verification', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-ca-identity-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const absolute = path.join(home, 'absolute.pem')
+  const relative = path.join(home, 'relative.pem')
+  fs.writeFileSync(absolute, 'first certificate')
+  fs.writeFileSync(relative, 'first relative certificate')
+  const { NATIVE_AUTH_IDENTITY_FILES, NATIVE_PROJECT_CONFIG_PATHS, nativeNetworkIdentityFiles } = require('../../src/agents/native-config-directory.cjs')
+  const { agentVerificationIdentity, projectVerificationIdentity } = require('../../src/workspace/agent-verification-identity.cjs')
+  const env = { NODE_EXTRA_CA_CERTS: absolute, SSL_CERT_FILE: 'relative.pem' }
+  const agent = { kind: 'codex' }
+  Object.defineProperty(agent, NATIVE_AUTH_IDENTITY_FILES, { value: nativeNetworkIdentityFiles(env) })
+  Object.defineProperty(agent, NATIVE_PROJECT_CONFIG_PATHS, { value: nativeProjectConfigPaths('codex', env) })
+  const before = agentVerificationIdentity(agent)
+  const projectBefore = projectVerificationIdentity('codex', home, agent, 'environment')
+  fs.writeFileSync(absolute, 'updated certificate')
+  fs.writeFileSync(relative, 'updated relative certificate')
+  assert.notEqual(agentVerificationIdentity(agent), before)
+  assert.notEqual(projectVerificationIdentity('codex', home, agent, 'environment'), projectBefore)
+})
+
 test('MiMo recent model changes invalidate verification identity', t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-mimo-model-identity-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))

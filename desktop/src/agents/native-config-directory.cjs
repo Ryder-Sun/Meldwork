@@ -1,11 +1,20 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const { createHmac, randomBytes } = require('node:crypto')
+const { networkEnvironment } = require('./cli/cli-network-environment.cjs')
 const NATIVE_CONFIG_IDENTITY_DIRECTORY = Symbol('nativeConfigIdentityDirectory')
 const NATIVE_ENVIRONMENT_IDENTITY = Symbol('nativeEnvironmentIdentity')
 const NATIVE_AUTH_IDENTITY_FILES = Symbol('nativeAuthIdentityFiles')
 const NATIVE_PROJECT_CONFIG_PATHS = Symbol('nativeProjectConfigPaths')
 const environmentIdentityKey = randomBytes(32)
+const NETWORK_CERTIFICATE_KEYS = ['SSL_CERT_FILE', 'NODE_EXTRA_CA_CERTS', 'REQUESTS_CA_BUNDLE', 'CURL_CA_BUNDLE']
+
+function nativeNetworkIdentityFiles(env = {}, platform = process.platform) {
+  const source = networkEnvironment(env, platform)
+  const paths = platform === 'win32' ? path.win32 : path.posix
+  return NETWORK_CERTIFICATE_KEYS.map(key => source[key])
+    .filter(filename => typeof filename === 'string' && paths.isAbsolute(filename))
+}
 
 function cloudIdentityPathKeys(kind) {
   return ['AWS_CONFIG_FILE', 'AWS_SHARED_CREDENTIALS_FILE', 'AWS_WEB_IDENTITY_TOKEN_FILE', 'AWS_CA_BUNDLE',
@@ -38,6 +47,8 @@ function nativeProjectConfigPaths(kind, env = {}) {
     entries = cloudIdentityPathKeys(kind).map(key => [env[key], false])
   }
   if (kind === 'opencode') entries.push(...cloudIdentityPathKeys(kind).map(key => [env[key], false]))
+  const network = networkEnvironment(env)
+  entries.push(...NETWORK_CERTIFICATE_KEYS.map(key => [network[key], false]))
   return entries.flatMap(([value, directory]) => {
     return typeof value === 'string' && value && !path.isAbsolute(value)
       && !(kind === 'opencode' && /^~(?=$|[\\/])/.test(value))
@@ -181,6 +192,6 @@ function validateNativeConfigDirectory(kind, directory) {
 }
 
 module.exports = { NATIVE_CONFIG_DIRECTORIES, NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_ENVIRONMENT_IDENTITY, NATIVE_AUTH_IDENTITY_FILES, NATIVE_PROJECT_CONFIG_PATHS,
-  nativeProjectConfigPaths,
+  nativeProjectConfigPaths, nativeNetworkIdentityFiles,
   nativeEnvironmentIdentity, nativeAuthIdentityFiles, nativeConfigEnvironment,
   nativeIdentityDirectory, validateNativeConfigDirectory }

@@ -5,7 +5,7 @@ const path = require('node:path')
 const { redactSecrets } = require('./security/secret-redaction.cjs')
 const { ensurePrivateDirectory } = require('./security/private-file.cjs')
 const { NATIVE_CONFIG_DIRECTORIES, NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_ENVIRONMENT_IDENTITY, NATIVE_AUTH_IDENTITY_FILES, NATIVE_PROJECT_CONFIG_PATHS,
-  nativeConfigEnvironment, nativeIdentityDirectory, nativeEnvironmentIdentity, nativeAuthIdentityFiles, nativeProjectConfigPaths } = require('./agents/native-config-directory.cjs')
+  nativeConfigEnvironment, nativeIdentityDirectory, nativeEnvironmentIdentity, nativeAuthIdentityFiles, nativeProjectConfigPaths, nativeNetworkIdentityFiles } = require('./agents/native-config-directory.cjs')
 const { AttachmentStore } = require('./attachments/attachment-store.cjs')
 const { ContentBlobStore } = require('./attachments/content-blob-store.cjs')
 const { ContextPackStore } = require('./collaboration/context-pack-store.cjs')
@@ -354,7 +354,8 @@ async function detectLocalAgents() {
     const directory = nativeIdentityDirectory(agent.kind, shellEnvironment.env, shellEnvironment.home)
     const result = { ...agent }
     if (directory) Object.defineProperty(result, NATIVE_CONFIG_IDENTITY_DIRECTORY, { value: directory })
-    const authFiles = nativeAuthIdentityFiles(agent.kind, shellEnvironment.env, shellEnvironment.home)
+    const authFiles = [...new Set([...nativeAuthIdentityFiles(agent.kind, shellEnvironment.env, shellEnvironment.home),
+      ...nativeNetworkIdentityFiles(shellEnvironment.env)])]
     if (authFiles.length) Object.defineProperty(result, NATIVE_AUTH_IDENTITY_FILES, { value: authFiles })
     if (agent.kind !== 'openclaw') {
       const env = nativeConfigEnvironment(agent.kind, workspace?.state.agentPreferences, shellEnvironment.env)
