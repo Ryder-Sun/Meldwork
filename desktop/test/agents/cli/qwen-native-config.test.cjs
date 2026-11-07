@@ -145,6 +145,11 @@ test('Qwen infers native auth from complete environment combinations', t => {
   const oauthEnv = { ...env, QWEN_OAUTH: '1' }
   assert.deepEqual(qwenDeclaredCredentialKeys({ home, env: oauthEnv }), [])
   assert.deepEqual(nativeCredentialState('qwen', { home, env: oauthEnv }), { state: 'unknown', source: 'unverified' })
+  const native = nativeCredentialEnvironment('qwen', oauthEnv, [])
+  const child = childEnvironment({ kind: 'qwen' }, home, { env: native, nativeCredentialKeys: [] }, 'darwin')
+  assert.equal(child.QWEN_OAUTH, '1')
+  assert.deepEqual(qwenDeclaredCredentialKeys({ home, env: child }), [])
+  assert.deepEqual(nativeCredentialState('qwen', { home, env: child }), { state: 'unknown', source: 'unverified' })
   fs.mkdirSync(path.join(home, '.qwen'))
   fs.writeFileSync(path.join(home, '.qwen', 'settings.json'), JSON.stringify({ security: { auth: { selectedType: 'openai' } } }))
   assert.deepEqual(qwenDeclaredCredentialKeys({ home, env: oauthEnv }), ['OPENAI_API_KEY'])
