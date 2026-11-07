@@ -455,7 +455,7 @@ function hermesSelectedProvider(root, env) {
         const endpoint = selected.api || selected.url || selected.base_url
         if (!enabled || typeof endpoint !== 'string' || !endpoint.trim()) return { unavailable: true }
         return { provider: providerKey || suffix, selected, config, keys: nativeSecretEnvKeys([
-          model.key_env, model.api_key_env, selected.key_env, selected.api_key_env,
+          selected.key_env, selected.api_key_env,
         ]) }
       }
       return { unavailable: true }

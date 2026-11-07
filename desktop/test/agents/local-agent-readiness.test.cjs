@@ -934,6 +934,9 @@ test('Hermes named custom provider readiness ignores unrelated account credentia
     { state: 'ready', source: 'native-credential' })
   const config = path.join(root, 'config.yaml')
   const original = fs.readFileSync(config, 'utf8')
+  fs.writeFileSync(config, original.replace('  provider: "custom:work"', '  provider: "custom:work"\n  key_env: MODEL_TOKEN'))
+  assert.deepEqual(nativeCredentialState('hermes', { home, env: { MODEL_TOKEN: 'other-endpoint' } }),
+    { state: 'unknown', source: 'unverified' })
   for (const invalid of [original.replace('  work:', '  work:\n    enabled: false'),
     original.replace('    base_url: https://example.invalid/v1\n', '')]) {
     fs.writeFileSync(config, invalid)
