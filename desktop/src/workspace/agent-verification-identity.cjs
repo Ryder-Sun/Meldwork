@@ -130,4 +130,4 @@ function projectVerificationIdentity(kind, workdir, agent = null, environmentIde
   return createHash('sha256').update(JSON.stringify(entries)).digest('hex')
 }
 
-module.exports = { agentVerificationIdentity, projectVerificationIdentity }
+module.exports = { agentVerificationIdentity, projectVerificationIdentity, selectedConfigurationIdentity }

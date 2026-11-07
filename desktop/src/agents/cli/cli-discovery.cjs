@@ -6,7 +6,7 @@ const path = require('node:path')
 const { promisify } = require('node:util')
 const { networkEnvironment } = require('./cli-network-environment.cjs')
 const { SECRET_ENV_KEYS, nativeSecretEnvKeys } = require('./native-secret-environment.cjs')
-const { NATIVE_CONFIG_DIRECTORIES } = require('../native-config-directory.cjs')
+const { NATIVE_CONFIG_DIRECTORIES, NATIVE_CONFIG_IDENTITY_DIRECTORY, nativeIdentityDirectory } = require('../native-config-directory.cjs')
 const { nativeCredentialEnvironment } = require('../agent-native-environment.cjs')
 const { redactChildSecrets } = require('./cli-runtime-event-sanitizer.cjs')
 const { authFailureCertainty } = require('../../runs/failure-signals.cjs')
@@ -427,9 +427,15 @@ async function probeAgentCapabilities(kind, executable, options = {}) {
     const environment = Object.keys(childEnv).sort().map(key => [key, childEnv[key]])
     const environmentFingerprint = createHmac('sha256', capabilityEnvironmentKey)
       .update(JSON.stringify(environment)).digest('hex')
+    const nativeRoot = nativeIdentityDirectory(kind, childEnv, runtime.home, platform)
+    if (!nativeRoot && platform === process.platform) throw new Error('native configuration unavailable')
+    // Loaded lazily because verification identities also use the executable shim parser in this module.
+    const { selectedConfigurationIdentity } = require('../../workspace/agent-verification-identity.cjs')
+    const nativeAgent = { kind, [NATIVE_CONFIG_IDENTITY_DIRECTORY]: nativeRoot }
+    const nativeConfiguration = selectedConfigurationIdentity(nativeAgent, {})
     identity = JSON.stringify([
       kind, executable, options.version || '', stat.dev, stat.ino,
-      stat.size, stat.mtimeMs, stat.ctimeMs, shimTargetIdentity, environmentFingerprint,
+      stat.size, stat.mtimeMs, stat.ctimeMs, shimTargetIdentity, environmentFingerprint, nativeConfiguration,
     ])
   } catch { /* caching requires a verifiable executable identity */ }
   const cacheKey = `${kind}:${executable}`

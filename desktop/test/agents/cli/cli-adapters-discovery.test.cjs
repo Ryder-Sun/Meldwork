@@ -218,6 +218,28 @@ test('capability probe cache expires when the system clock moves backwards', asy
   assert.equal((await probeAgentCapabilities('workbuddy', executable, options)).compatibilityState, 'unknown')
 })
 
+test('capability probe cache does not survive native configuration file changes', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-capability-config-'))
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+  const config = path.join(root, 'settings.json')
+  fs.writeFileSync(config, '{}')
+  let timeout = false
+  const options = {
+    env: {}, version: '2.115.0', childEnv: { HOME: root, CODEBUDDY_CONFIG_DIR: root },
+    statFn: () => ({ dev: 1, ino: 1, size: 100, mtimeMs: 1, ctimeMs: 1 }),
+    execFileFn: async () => {
+      if (timeout) throw Object.assign(new Error('timeout'), { code: 'ETIMEDOUT' })
+      return { stdout: '--print --output-format --permission-mode --max-turns --resume json plan acceptEdits' }
+    },
+  }
+  const executable = '/test/config-file-workbuddy'
+  assert.equal((await probeAgentCapabilities('workbuddy', executable, options)).compatibilityState, 'compatible')
+  timeout = true
+  assert.equal((await probeAgentCapabilities('workbuddy', executable, options)).compatibilityState, 'compatible')
+  fs.writeFileSync(config, '{"changed":true}')
+  assert.equal((await probeAgentCapabilities('workbuddy', executable, options)).compatibilityState, 'unknown')
+})
+
 test('capability probe cache does not cross native configuration or credential environments', async () => {
   let timeout = false
   const options = {
