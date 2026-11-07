@@ -111,6 +111,21 @@ test('Hermes native configuration secrets are redacted without being added to ch
   assert.doesNotMatch(JSON.stringify(events), /config-private-value/)
 })
 
+test('Hermes native dotenv expansion redacts the values actually loaded by the CLI', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-dotenv-secret-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  fs.writeFileSync(path.join(home, '.env'), [
+    'CUSTOM_BASE=file-value#with-hash',
+    "FIRST_API_KEY='${CUSTOM_BASE}'",
+    'SECOND_TOKEN=${UNSET_MELDWORK_SECRET:-fallback-secret-value}',
+  ].join('\n'))
+  const child = childEnvironment({ kind: 'hermes' }, home, {
+    env: { HERMES_HOME: home, CUSTOM_BASE: 'stale-shell-value' },
+    nativeCredentialKeys: ['CUSTOM_BASE'],
+  }, process.platform)
+  assert.equal(redactChildSecrets('file-value#with-hash fallback-secret-value', child), '[redacted] [redacted]')
+})
+
 test('Zcode receives its selected native home without changing other Agent homes', () => {
   const options = { env: { HOME: '/selected-zcode', USERPROFILE: 'C:\\selected-zcode' } }
   const unix = childEnvironment({ kind: 'zcode' }, '/tmp', options, 'darwin')

@@ -27,10 +27,11 @@ function hermesConfigSecrets({ env, home, platform, declaredKeys }) {
       const [, key, raw] = match
       const quoted = raw.match(/^(['"])(.*?)\1\s*(?:#.*)?$/)
       if (/^['"]/.test(raw) && !quoted) continue
-      let value = quoted ? quoted[2] : raw.replace(/\s*#.*$/, '').trim()
+      let value = quoted ? quoted[2] : raw.replace(/\s+#.*$/, '').trim()
       if (quoted?.[1] === '"') value = value.replace(/\\([nr"\\])/g, (_, c) => ({ n: '\n', r: '\r', '"': '"', '\\': '\\' })[c])
-      if (quoted?.[1] !== "'") value = value.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (_, name) => values[name] || '')
-      if (!Object.hasOwn(values, key)) values[key] = value
+      value = value.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}/g,
+        (_, name, fallback) => Object.hasOwn(values, name) ? values[name] : fallback || '')
+      values[key] = value
       if ((declared.has(key) || /(?:API[_-]?KEY|ACCESS[_-]?KEY|TOKEN|SECRET|PASSWORD|AUTHORIZATION)/i.test(key))
           && value && value.length <= 8192) secrets.add(value)
     }
