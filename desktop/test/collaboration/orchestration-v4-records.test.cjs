@@ -30,6 +30,27 @@ function orchestration(overrides = {}) {
   }, { targetKinds: ['codex', 'hermes'], now: 1000 })
 }
 
+test('V4 rejects task graph cursors that ran ahead of their dependencies', () => {
+  const { createTaskGraph, createTaskGraphCursor, updateTaskGraphCursor } = require('../../src/collaboration/task-graph-records.cjs')
+  const node = (nodeId, agentKind, dependsOn, terminal) => ({ nodeId, agentKind, dependsOn,
+    role: terminal ? 'reviewer' : 'primary', inputNodeIds: dependsOn, expectedOutput: 'Result',
+    acceptance: { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 },
+    terminal, parallel: false, decisionOptions: [] })
+  const graph = createTaskGraph({ template: 'task-graph', nodes: [
+    node('primary', 'codex', [], false), node('review', 'hermes', ['primary'], true),
+  ] }, ['codex', 'hermes'])
+  const cursor = createTaskGraphCursor(graph)
+  const record = { ...orchestration(), taskGraph: cursor }
+  assert.doesNotThrow(() => parseOrchestrationV4(record, { targetKinds: ['codex', 'hermes'] }))
+  const invalid = { ...cursor, nodeStates: cursor.nodeStates.map(state => state.nodeId === 'review'
+    ? { ...state, status: 'accepted' } : state), terminalState: 'accepted' }
+  assert.throws(() => parseOrchestrationV4({ ...record, taskGraph: invalid }, { targetKinds: ['codex', 'hermes'] }),
+    { message: 'ORCHESTRATION_V4_TASK_GRAPH_INVALID' })
+  const primaryAccepted = updateTaskGraphCursor(cursor, 'primary', { status: 'accepted' })
+  const valid = updateTaskGraphCursor(primaryAccepted, 'review', { status: 'accepted' })
+  assert.doesNotThrow(() => parseOrchestrationV4({ ...record, taskGraph: valid }, { targetKinds: ['codex', 'hermes'] }))
+})
+
 function contentRef(hash = 'b'.repeat(64), size = 123) {
   return { algorithm: 'sha256', hash, size, mediaType: 'application/json' }
 }

@@ -2051,8 +2051,8 @@ function parseOrchestrationV4(input, options = {}) {
   }
   if (hasOwn(input, 'taskGraph')) {
     try {
-      const { parseTaskGraphCursor } = require('./task-graph-records.cjs')
-      parseTaskGraphCursor(input.taskGraph, effectiveKinds)
+      const { parseTaskGraphCursor, assertTaskGraphDependencies } = require('./task-graph-records.cjs')
+      assertTaskGraphDependencies(parseTaskGraphCursor(input.taskGraph, effectiveKinds))
     } catch {
       fail('ORCHESTRATION_V4_TASK_GRAPH_INVALID')
     }
