@@ -88,6 +88,28 @@ test('consensus rejects missing or unrelated artifact records', () => {
   assert.equal(consensus(), null)
 })
 
+test('a newly produced workspace file withdraws the candidate being reviewed', () => {
+  const messages = []
+  const runner = { ...naturalConsensusMethods, state: () => ({ messages }),
+    v4NaturalMessageMatchesBinding: () => true,
+    v4NaturalMessageContent: naturalDiscussionMethods.v4NaturalMessageContent,
+    v4ArtifactIdentity: () => ({ artifact: {
+      producedBy: { runId: 'run', agentRunId: 'review', agentKind: 'hermes' },
+      locationRef: { kind: 'workspace-relative', path: 'new-file.txt' }, contentRef: { size: 1 },
+    }, contentHash: 'a'.repeat(64) }) }
+  const group = { id: 'g' }
+  const decision = { status: 'completed', reason: 'Done', deliverables: ['answer'] }
+  messages.push({ id: 'one', groupId: 'g', threadRootId: 't', role: 'agent', agentKind: 'codex',
+    turnSeq: 1, content: 'Answer', trace: { phase: 'discussion', runId: 'run', agentRunId: 'draft',
+      context: { taskDecision: decision } } })
+  const candidate = runner.v4NaturalConsensus(group, { runId: 'run' }, 't')
+  assert.ok(candidate)
+  messages.push({ id: 'two', groupId: 'g', threadRootId: 't', role: 'agent', agentKind: 'hermes',
+    turnSeq: 2, content: 'Reviewed', trace: { phase: 'discussion', runId: 'run', agentRunId: 'review',
+      context: { outcomeRefs: { artifactIds: ['new'] }, taskDecision: { ...decision, reviewedVersion: candidate.version } } } })
+  assert.equal(runner.v4NaturalConsensus(group, { runId: 'run' }, 't'), null)
+})
+
 test('explicit first-person task failures are distinguished from discussion and quotations', () => {
   for (const text of ['Error: Permission denied', 'fatal: access denied: /workspace/private', 'Permission denied: /workspace/file']) {
     assert.equal(explicitTaskFailure(text), true, text)

@@ -27,8 +27,8 @@ const naturalConsensusMethods = {
             || artifact.producedBy?.agentKind !== message.agentKind
             || !message.trace?.runId || !message.trace?.agentRunId) return null
         if (artifact.locationRef?.kind === 'workspace-relative') {
-          if (candidate?.files.some(file => file.path === artifact.locationRef.path
-              && file.contentHash !== contentHash)) candidate = null
+          if (candidate && !candidate.files.some(file => file.path === artifact.locationRef.path
+              && file.contentHash === contentHash)) candidate = null
           files.set(artifact.locationRef.path, { path: artifact.locationRef.path,
             artifactId, contentHash, size: artifact.contentRef.size })
         }
