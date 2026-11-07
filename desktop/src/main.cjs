@@ -372,12 +372,13 @@ async function resolveProjectEnvironmentIdentities(workdir, kinds) {
   const captured = await nativeShellEnvironment({ workdir, refresh: true })
   const result = {}
   for (const kind of kinds) {
+    if (!LOCAL_AGENT_KINDS.has(kind) || kind === 'openclaw') continue
     const keys = kind === 'codex' ? captured.codexCredentialKeys
       : kind === 'hermes' ? captured.hermesCredentialKeys
       : kind === 'zcode' ? captured.zcodeCredentialKeys
+      : kind === 'pi' ? captured.piCredentialKeys
       : kind === 'mimo' ? captured.mimoCredentialKeys
-        : kind === 'opencode' ? captured.opencodeCredentialKeys : null
-    if (!keys) continue
+        : kind === 'opencode' ? captured.opencodeCredentialKeys : []
     const env = nativeConfigEnvironment(kind, workspace?.state.agentPreferences, captured.env)
     result[kind] = nativeEnvironmentIdentity({
       ...networkEnvironment(env), ...configDirectoryEnvironment(env),

@@ -677,6 +677,33 @@ test('Codex and Hermes project identities track only their own native credential
   assert.doesNotMatch(JSON.stringify([first, second, third]), /codex-first|hermes-first|CUSTOM_KEY/)
 })
 
+test('Pi and Claude project identities follow their native authentication environment', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-auth-identities-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const readiness = require('../../src/agents/local-agent-readiness.cjs')
+  const values = { PI_CUSTOM_KEY: 'pi-first', CLAUDE_CODE_OAUTH_TOKEN: 'claude-first' }
+  const { harness } = loadMain(directory, {
+    piDeclaredCredentialKeys: () => ['PI_CUSTOM_KEY'],
+    nativeEnvironment: readiness.nativeCredentialEnvironment,
+    nativeShellEnvironment: input => ({ source: 'native-shell', env: {
+      CLAUDE_CODE_OAUTH_TOKEN: values.CLAUDE_CODE_OAUTH_TOKEN,
+      ...(input.extraEnvKeys?.includes('PI_CUSTOM_KEY') ? { PI_CUSTOM_KEY: values.PI_CUSTOM_KEY } : {}),
+    } }),
+  })
+  await harness.ready()
+  const resolve = harness.workspaceInstances[0].input.resolveProjectEnvironmentIdentities
+  const first = await resolve(directory, ['pi', 'claude'])
+  values.PI_CUSTOM_KEY = 'pi-second'
+  const second = await resolve(directory, ['pi', 'claude'])
+  assert.notEqual(first.pi, second.pi)
+  assert.equal(first.claude, second.claude)
+  values.CLAUDE_CODE_OAUTH_TOKEN = 'claude-second'
+  const third = await resolve(directory, ['pi', 'claude'])
+  assert.equal(second.pi, third.pi)
+  assert.notEqual(second.claude, third.claude)
+  assert.doesNotMatch(JSON.stringify([first, second, third]), /pi-first|claude-first|CUSTOM_KEY|AUTH_TOKEN/)
+})
+
 test('MiMo captures the recent model provider credential for a project', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-mimo-recent-main-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

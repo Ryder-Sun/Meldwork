@@ -597,7 +597,8 @@ test('automatic routing requires a successful Zcode run in the current project',
     targetKinds: [], routingMode: 'automatic' }), { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
 })
 
-for (const kind of ['codex', 'hermes', 'zcode', 'mimo', 'opencode']) {
+for (const kind of ['codex', 'hermes', 'workbuddy', 'zcode', 'pi', 'kimi', 'mimo', 'deepseek',
+  'claude', 'gemini', 'opencode', 'qwen', 'opencodereview']) {
   test(`${kind} automatic routing follows the current project's native credential`, async t => {
     const { directory, calls, options } = fixture()
     t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
@@ -610,14 +611,15 @@ for (const kind of ['codex', 'hermes', 'zcode', 'mimo', 'opencode']) {
     const workspace = new LocalWorkspace(options)
     await workspace.refreshAgents()
     const group = workspace.createGroup({ name: 'Project', agentKinds: [kind], workdir: directory })
+    const routingRequirements = kind === 'opencodereview' ? { domains: ['software-review'] } : undefined
     await workspace.sendMessage({ groupId: group.id, text: 'Verify', targetKinds: [kind] })
-    await workspace.sendMessage({ groupId: group.id, text: 'Route', targetKinds: [], routingMode: 'automatic' })
+    await workspace.sendMessage({ groupId: group.id, text: 'Route', targetKinds: [], routingMode: 'automatic', routingRequirements })
     secret = 'replacement-synthetic-secret'
     await assert.rejects(workspace.sendMessage({ groupId: group.id, text: 'Route again', targetKinds: [],
-      routingMode: 'automatic' }), { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
+      routingMode: 'automatic', routingRequirements }), { message: 'LOCAL_AGENT_ROUTING_UNVERIFIED' })
     assert.equal(calls.length, 2)
     await workspace.sendMessage({ groupId: group.id, text: 'Verify replacement', targetKinds: [kind] })
-    await workspace.sendMessage({ groupId: group.id, text: 'Route replacement', targetKinds: [], routingMode: 'automatic' })
+    await workspace.sendMessage({ groupId: group.id, text: 'Route replacement', targetKinds: [], routingMode: 'automatic', routingRequirements })
     assert.equal(calls.length, 4)
     assert.doesNotMatch(JSON.stringify(workspace.state.agentRuntime), /synthetic-secret|CUSTOM_KEY/)
   })

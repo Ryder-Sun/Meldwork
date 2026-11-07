@@ -73,7 +73,7 @@ function projectVerificationIdentity(kind, workdir, agent = null, environmentIde
     pi: [],
   }[kind]
   if (!files && !environmentIdentity) return ''
-  if (kind === 'pi' && !agent?.[NATIVE_PROJECT_CONFIG_PATHS]?.length) return ''
+  if (kind === 'pi' && !environmentIdentity && !agent?.[NATIVE_PROJECT_CONFIG_PATHS]?.length) return ''
   if (typeof workdir !== 'string' || !path.isAbsolute(workdir)) return null
   const root = path.resolve(workdir)
   const entries = [kind, root]
