@@ -562,11 +562,14 @@ async function detectAgents(options = {}) {
     PATH: searchPath(detectionOptions),
   }
   const detected = await Promise.all(ALLOWED_KINDS.map(kind => {
-    const nativeEnv = typeof options.nativeEnvironmentForKind === 'function'
-      ? options.nativeEnvironmentForKind(kind) : nativeConfigDirectoryEnvironment(kind, env, platform)
-    const kindEnv = { ...childEnv, ...nativeEnv }
     const secretKeys = typeof options.nativeCredentialKeysForKind === 'function'
       ? nativeSecretEnvKeys(options.nativeCredentialKeysForKind(kind)) : []
+    const nativeEnv = typeof options.nativeEnvironmentForKind === 'function'
+      ? options.nativeEnvironmentForKind(kind) : {
+          ...nativeConfigDirectoryEnvironment(kind, env, platform),
+          ...(kind === 'openclaw' ? {} : nativeCredentialEnvironment(kind, env, secretKeys, platform)),
+        }
+    const kindEnv = { ...childEnv, ...nativeEnv }
     Object.defineProperty(kindEnv, SECRET_ENV_KEYS, { value: secretKeys })
     return detectAgentKind(kind, detectionOptions, kindEnv).catch(() => null)
   }))

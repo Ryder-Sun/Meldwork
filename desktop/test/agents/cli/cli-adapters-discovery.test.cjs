@@ -38,6 +38,32 @@ test('Hermes discovery redacts configured credentials even when their names are 
   assert.doesNotMatch(JSON.stringify(agents), /abc/)
 })
 
+test('default discovery passes only each Agent native environment to version and capability probes', async () => {
+  const observed = new Map()
+  const env = { ANTHROPIC_API_KEY: 'claude-key', AWS_PROFILE: 'cloud-profile',
+    GEMINI_API_KEY: 'gemini-key', OPENAI_API_KEY: 'openai-private', CUSTOM_CREDENTIAL: 'pi-private', HTTPS_PROXY: 'http://proxy.example:3128' }
+  await detectAgents({ platform: 'darwin', env,
+    resolveExecutableFn: async kind => ['claude', 'gemini', 'pi', 'openclaw'].includes(kind) ? `/tmp/${kind}` : null,
+    nativeCredentialKeysForKind: kind => kind === 'pi' ? ['CUSTOM_CREDENTIAL'] : [],
+    execFileFn: async (command, _args, options) => {
+      observed.set(path.basename(command), options.env)
+      return { stdout: '', stderr: '' }
+    },
+    probeAgentCapabilitiesFn: async (_kind, _executable, options) => {
+      assert.ok(options.childEnv)
+      return { compatibilityState: 'compatible' }
+    },
+  })
+  assert.equal(observed.get('claude').AWS_PROFILE, 'cloud-profile')
+  assert.equal(observed.get('claude').GEMINI_API_KEY, undefined)
+  assert.equal(observed.get('gemini').GEMINI_API_KEY, 'gemini-key')
+  assert.equal(observed.get('gemini').ANTHROPIC_API_KEY, undefined)
+  assert.equal(observed.get('pi').CUSTOM_CREDENTIAL, 'pi-private')
+  assert.equal(observed.get('openclaw').ANTHROPIC_API_KEY, undefined)
+  assert.equal(observed.get('openclaw').OPENAI_API_KEY, undefined)
+  for (const child of observed.values()) assert.equal(child.HTTPS_PROXY, env.HTTPS_PROXY)
+})
+
 test('discovery scans version-manager directories once per pass and rescans on refresh', async () => {
   let scans = 0
   const options = {
@@ -1158,7 +1184,7 @@ test('Windows discovery uses the canonical PATH when casing variants coexist', a
   assert.equal(detectedPath.split(';').includes('C:\\old'), false)
 })
 
-test('Agent detection passes only allowlisted system environment to version commands', async () => {
+test('Agent detection passes scoped native and system environment to version commands', async () => {
   const calls = []
   const found = await detectAgents({
     platform: 'darwin',
@@ -1194,11 +1220,12 @@ test('Agent detection passes only allowlisted system environment to version comm
     assert.equal(env.LANG, 'zh_CN.UTF-8')
     assert.match(env.PATH, /\/custom\/bin/)
     assert.equal(env.MELDWORK_PRIVATE_VALUE, undefined)
-    assert.equal(env.OPENAI_API_KEY, undefined)
+    assert.equal(env.OPENAI_API_KEY, 'provider-secret')
     assert.equal(env.https_proxy, 'http://proxy.example:3128')
     assert.equal(env.NO_PROXY, 'localhost,127.0.0.1')
     assert.equal(env.REQUESTS_CA_BUNDLE, '/certs/company.pem')
   }
+  assert.doesNotMatch(JSON.stringify(found), /provider-secret/)
 })
 
 test('Agent detection uses each Agent native environment without exposing its values in the catalog', async () => {
