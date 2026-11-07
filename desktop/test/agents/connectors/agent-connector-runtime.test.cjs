@@ -3,6 +3,9 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
+const { createHash } = require('node:crypto')
+
+const emptySessionHash = createHash('sha256').update('').digest('hex')
 
 const { createAgentConnectorManifest, RUN_EVENT_TYPES } = require('../../../src/agents/connectors/agent-connector-manifest.cjs')
 const { AgentConnectorRegistry } = require('../../../src/agents/connectors/agent-connector-registry.cjs')
@@ -228,7 +231,7 @@ test('rejects every undeclared Connector capability before it crosses the recipe
   const terminalTypes = ['Completed', 'Failed', 'Cancelled']
   const hashes = {
     requestHash: 'a'.repeat(64),
-    sessionRefHash: 'b'.repeat(64),
+    sessionRefHash: emptySessionHash,
     sessionProvenanceHash: 'c'.repeat(64),
   }
 
@@ -715,7 +718,7 @@ test('returns durable waiting input and passes an exactly validated resume respo
 
   const hashes = {
     requestHash: 'a'.repeat(64),
-    sessionRefHash: 'b'.repeat(64),
+    sessionRefHash: emptySessionHash,
     sessionProvenanceHash: 'c'.repeat(64),
   }
   const completed = await runtime.run(agent, 'Release', '/tmp/workspace', {
@@ -737,7 +740,7 @@ test('returns durable waiting input and passes an exactly validated resume respo
 })
 
 test('a Connector cannot resume a wait type absent from its manifest', async () => {
-  const hashes = { requestHash: 'a'.repeat(64), sessionRefHash: 'b'.repeat(64), sessionProvenanceHash: 'c'.repeat(64) }
+  const hashes = { requestHash: 'a'.repeat(64), sessionRefHash: emptySessionHash, sessionProvenanceHash: 'c'.repeat(64) }
   for (const resume of [
     { type: 'input', requestId: 'request', response: 'answer', ...hashes },
     { type: 'permission', requestId: 'request', status: 'approved', optionId: 'allow', permission: 'network', ...hashes },
@@ -752,6 +755,24 @@ test('a Connector cannot resume a wait type absent from its manifest', async () 
     }), { message: 'AGENT_CONNECTOR_RESUME_UNSUPPORTED' })
     assert.equal(calls, 0)
   }
+})
+
+test('a Connector cannot replay a continuation against another session', async () => {
+  let calls = 0
+  const { runtime } = runtimeFixture(async input => {
+    calls += 1
+    input.emit({ eventId: 'done', cursor: 'done', sequence: 1, type: 'Completed', outcome: 'completed' })
+    return { text: 'done', outcome: 'completed' }
+  })
+  const agent = runtime.detectAgents()[0]
+  const resume = { type: 'input', requestId: 'request', response: 'answer', requestHash: 'a'.repeat(64),
+    sessionRefHash: createHash('sha256').update('session-a').digest('hex'), sessionProvenanceHash: 'c'.repeat(64) }
+  const options = { runId: 'run-bound-session', agentRunId: 'agent-run-bound-session', connectorResume: resume }
+  await assert.rejects(runtime.run(agent, 'Review', '/tmp/workspace', { ...options, sessionRef: 'session-b' }),
+    { message: 'AGENT_CONNECTOR_SESSION_MISMATCH' })
+  assert.equal(calls, 0)
+  await runtime.run(agent, 'Review', '/tmp/workspace', { ...options, sessionRef: 'session-a' })
+  assert.equal(calls, 1)
 })
 
 test('a Connector cannot enter an unrecoverable input or permission wait', async () => {
@@ -802,7 +823,7 @@ test('returns durable waiting permission and validates the bound decision', asyn
     connectorResume: {
       type: 'permission', requestId: 'network-request', status: 'approved',
       optionId: 'allow-once', requestHash: 'a'.repeat(64),
-      sessionRefHash: 'b'.repeat(64), sessionProvenanceHash: 'c'.repeat(64),
+      sessionRefHash: emptySessionHash, sessionProvenanceHash: 'c'.repeat(64),
     },
   })
   assert.equal(completed.text, 'approved')
@@ -819,7 +840,7 @@ test('permission decision events must match the resumed human decision', async (
   const agent = runtime.detectAgents()[0]
   const base = { runId: 'run-bound-permission', agentRunId: 'agent-run-bound-permission', sandbox: 'read-only' }
   const resume = { type: 'permission', requestId: 'request-one', status: 'approved', optionId: 'allow', permission: 'network',
-    requestHash: 'a'.repeat(64), sessionRefHash: 'b'.repeat(64), sessionProvenanceHash: 'c'.repeat(64) }
+    requestHash: 'a'.repeat(64), sessionRefHash: emptySessionHash, sessionProvenanceHash: 'c'.repeat(64) }
   await assert.rejects(runtime.run(agent, 'Review', '/tmp/workspace', base),
     { message: 'AGENT_CONNECTOR_PERMISSION_DECISION_UNBOUND' })
   for (const bad of [{ ...resume, requestId: 'other' }, { ...resume, status: 'rejected' },

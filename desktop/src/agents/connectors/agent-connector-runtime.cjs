@@ -476,6 +476,9 @@ class AgentConnectorRuntime {
     if (resume && !connector.capabilities.eventTypes.includes(resume.type === 'input' ? 'WaitingInput' : 'Permission')) {
       fail('AGENT_CONNECTOR_RESUME_UNSUPPORTED')
     }
+    if (resume && crypto.createHash('sha256').update(sessionRef).digest('hex') !== resume.sessionRefHash) {
+      fail('AGENT_CONNECTOR_SESSION_MISMATCH')
+    }
     if (options.signal?.aborted && !connector.capabilities.session.cancel) {
       fail('AGENT_CONNECTOR_CANCEL_UNSUPPORTED')
     }
