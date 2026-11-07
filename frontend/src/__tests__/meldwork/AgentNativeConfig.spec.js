@@ -5,6 +5,18 @@ import { t } from '../../i18n.js'
 
 afterEach(() => { delete window.meldworkDesktop })
 
+it('warns when a previously selected native directory is no longer valid', async () => {
+  window.meldworkDesktop = { localAgentNativeConfig: {
+    get: vi.fn().mockResolvedValue({ directory: '/native/hermes', directoryMissing: true }),
+  } }
+  const wrapper = mount(AgentNativeConfig, { props: { kind: 'hermes' } })
+  await flushPromises()
+  expect(wrapper.get('[role="alert"]').text()).toContain(t('nativeConfig.directoryMissing'))
+  expect(wrapper.get('[role="alert"]').text()).toContain('config.yaml')
+  expect(wrapper.text()).toContain('/native/hermes')
+  wrapper.unmount()
+})
+
 it('does not claim automatic discovery when the saved directory cannot be read', async () => {
   window.meldworkDesktop = { localAgentNativeConfig: {
     get: vi.fn().mockRejectedValue(new Error('LOCAL_WORKSPACE_UNAVAILABLE')),

@@ -437,7 +437,12 @@ function registerDesktopIpc(options) {
     if (getWorkspace() !== workspace || (workspace.state.agentPreferences[args[0]]?.nativeConfigDirectory || '') !== directory) {
       throw new Error('LOCAL_NATIVE_CONFIG_INVALID')
     }
-    return { directory, ...(summary ? { provider: summary.provider || '' } : {}) }
+    let directoryMissing = false
+    if (directory) {
+      try { validateNativeConfigDirectory(args[0], directory) } catch { directoryMissing = true }
+    }
+    return { directory, ...(directoryMissing ? { directoryMissing: true } : {}),
+      ...(summary ? { provider: summary.provider || '' } : {}) }
   })
   for (const action of ['choose', 'clear']) {
     registerTrustedHandle(`local-agent-native-config:${action}`, async (...args) => {

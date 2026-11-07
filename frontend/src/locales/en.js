@@ -4,6 +4,7 @@ export default {
     'nativeConfig.userConfiguredProvider': 'Provider in user configuration (projects may override)',
     'nativeConfig.providerUnknown': 'Not specified or unavailable',
     'nativeConfig.automatic': 'No directory selected; the CLI native configuration will be discovered automatically.',
+    'nativeConfig.directoryMissing': 'The selected directory is unavailable or no longer contains a recognized configuration.',
     'nativeConfig.choose': 'Choose directory',
     'nativeConfig.clear': 'Restore automatic discovery',
     'nativeConfig.invalid': 'The selected directory does not contain this Agent’s native configuration.',

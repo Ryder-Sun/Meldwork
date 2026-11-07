@@ -477,6 +477,11 @@ test('native Agent configuration selection is validated and used for execution',
   selection.filePaths = [directory]
   await assert.rejects(() => choose(harness.event(), 'hermes'), { message: 'LOCAL_NATIVE_CONFIG_INVALID' })
   assert.equal((await get(harness.event(), 'hermes')).directory, chosen.directory)
+  fs.unlinkSync(path.join(native, 'config.yaml'))
+  const missing = await get(harness.event(), 'hermes')
+  assert.equal(missing.directory, chosen.directory)
+  assert.equal(missing.directoryMissing, true)
+  assert.doesNotMatch(JSON.stringify(missing), /synthetic-secret/)
   workspace.activeRuns.set('busy', {})
   await assert.rejects(() => clear(harness.event(), 'hermes'), { message: 'LOCAL_WORK_PREFERENCES_BUSY' })
   workspace.activeRuns.clear()
