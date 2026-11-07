@@ -250,9 +250,24 @@ const taskGraphMethods = {
       const primary = previous.filter(entry => ['claim', 'decision'].includes(entry.entryType))
       const artifactEntries = previous.filter(entry => entry.entryType === 'artifact-ref')
       const evidenceEntries = previous.filter(entry => entry.entryType === 'evidence-ref')
+      const conflictEntries = previous.filter(entry => entry.entryType === 'conflict')
       const matchesRefs = (entries, ids) => (entries.length === ids.length || (entries.length === 1 && ids.length > 1))
         && entries.every((entry, index) => entry.refs.length === 1 && entry.refs[0] === ids[index])
-      const validReferences = previous.length === primary.length + artifactEntries.length + evidenceEntries.length
+      const validConflicts = conflictEntries.every(entry => {
+        const claim = primary[0]
+        const otherId = entry.refs.find(id => id !== claim?.entryId)
+        const other = controller.orchestration.collaboration.entries.find(candidate => candidate.entryId === otherId)
+        return primary.length === 1 && claim.entryType === 'claim' && entry.owner.type === 'harness'
+          && entry.lifecycle.state === 'active' && entry.subject === subject && entry.refs.length === 2
+          && entry.refs.includes(claim.entryId) && other?.entryType === 'claim'
+          && other.subject === subject && other.value !== claim.value
+          && other.owner.type === 'agent' && other.owner.agentKind !== node.agentKind
+          && entry.provenance.taskId === controller.taskId
+          && canonicalJson(entry.provenance.artifactIds) === canonicalJson(verifiedRefs.artifactIds)
+          && canonicalJson(entry.provenance.evidenceIds) === canonicalJson(verifiedRefs.evidenceIds)
+      })
+      const validReferences = previous.length === primary.length + artifactEntries.length + evidenceEntries.length + conflictEntries.length
+        && validConflicts
         && matchesRefs(artifactEntries, verifiedRefs.artifactIds)
         && matchesRefs(evidenceEntries, verifiedRefs.evidenceIds)
         && [...artifactEntries, ...evidenceEntries].every(entry => entry.lifecycle.state === 'active'
