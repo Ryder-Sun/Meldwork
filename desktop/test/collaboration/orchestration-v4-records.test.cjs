@@ -51,6 +51,21 @@ test('V4 rejects task graph cursors that ran ahead of their dependencies', () =>
   assert.doesNotThrow(() => parseOrchestrationV4({ ...record, taskGraph: valid }, { targetKinds: ['codex', 'hermes'] }))
 })
 
+test('V4 rejects legacy terminal states that hide unfinished independent work', () => {
+  const { createTaskGraph, createTaskGraphCursor, updateTaskGraphCursor } = require('../../src/collaboration/task-graph-records.cjs')
+  const node = (nodeId, agentKind, terminal) => ({ nodeId, agentKind, dependsOn: [], inputNodeIds: [],
+    role: 'primary', expectedOutput: 'Result', acceptance: { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 },
+    terminal, parallel: true, decisionOptions: [] })
+  const graph = createTaskGraph({ template: 'task-graph', nodes: [
+    node('work', 'codex', false), node('final', 'hermes', true),
+  ] }, ['codex', 'hermes'])
+  const cursor = updateTaskGraphCursor(createTaskGraphCursor(graph), 'final', { status: 'accepted' })
+  const record = { ...orchestration(), taskGraph: cursor }
+  assert.doesNotThrow(() => parseOrchestrationV4(record, { targetKinds: ['codex', 'hermes'] }))
+  assert.throws(() => parseOrchestrationV4({ ...record, taskGraph: { ...cursor, terminalState: 'accepted' } },
+    { targetKinds: ['codex', 'hermes'] }), { message: 'ORCHESTRATION_V4_TASK_GRAPH_INVALID' })
+})
+
 function contentRef(hash = 'b'.repeat(64), size = 123) {
   return { algorithm: 'sha256', hash, size, mediaType: 'application/json' }
 }
