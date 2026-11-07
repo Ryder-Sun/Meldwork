@@ -58,6 +58,27 @@ function acceptedReply(prompt, text, extra = {}) {
   return decisionReply(text, 'completed', { ...extra, ...(reviewedVersion ? { reviewedVersion } : {}) })
 }
 
+test('consensus rejects missing or unrelated artifact records', () => {
+  const message = { id: 'm', groupId: 'g', threadRootId: 't', role: 'agent', agentKind: 'codex', content: 'Answer',
+    trace: { phase: 'discussion', runId: 'run', agentRunId: 'attempt', context: {
+      outcomeRefs: { artifactIds: ['artifact'] }, taskDecision: { status: 'completed', deliverables: ['answer'] },
+    } } }
+  const artifact = { producedBy: { runId: 'run', agentRunId: 'attempt', agentKind: 'codex' } }
+  const runner = { ...naturalConsensusMethods, state: () => ({ messages: [message] }),
+    v4NaturalMessageMatchesBinding: () => true, v4NaturalMessageContent: () => ({ text: 'Answer', partial: false }),
+    v4ArtifactIdentity: () => ({ artifact, contentHash: 'hash' }) }
+  const consensus = () => runner.v4NaturalConsensus({ id: 'g' }, { runId: 'run' }, 't')
+  assert.ok(consensus())
+  for (const field of ['runId', 'agentRunId', 'agentKind']) {
+    const original = artifact.producedBy[field]
+    artifact.producedBy[field] = 'other'
+    assert.equal(consensus(), null)
+    artifact.producedBy[field] = original
+  }
+  runner.v4ArtifactIdentity = () => { throw new Error('missing artifact') }
+  assert.equal(consensus(), null)
+})
+
 test('explicit first-person task failures are distinguished from discussion and quotations', () => {
   for (const text of ['Error: Permission denied', 'fatal: access denied: /workspace/private', 'Permission denied: /workspace/file']) {
     assert.equal(explicitTaskFailure(text), true, text)

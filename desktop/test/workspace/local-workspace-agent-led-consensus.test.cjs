@@ -250,10 +250,10 @@ test('changing captured deliverable bytes invalidates approval of the old file',
   fs.writeFileSync(filename, 'Version one')
   const contentHash = createHash('sha256').update('Version one').digest('hex')
   const message = { id: 'm', groupId: 'g', threadRootId: 't', role: 'agent', agentKind: 'codex', content: 'Final result',
-    trace: { phase: 'discussion', context: { outcomeRefs: { artifactIds: ['file'] }, taskDecision: { status: 'completed', reason: 'Done', deliverables: ['result.txt'] } } } }
+    trace: { phase: 'discussion', runId: 'run', agentRunId: 'agent-run', context: { outcomeRefs: { artifactIds: ['file'] }, taskDecision: { status: 'completed', reason: 'Done', deliverables: ['result.txt'] } } } }
   const runner = { ...naturalConsensusMethods, state: () => ({ messages: [message] }),
     v4NaturalMessageMatchesBinding: () => true, v4NaturalMessageContent: () => ({ text: message.content, partial: false }),
-    v4ArtifactIdentity: () => ({ contentHash, artifact: { locationRef: { kind: 'workspace-relative', path: 'result.txt' }, contentRef: { size: 11 } } }) }
+    v4ArtifactIdentity: () => ({ contentHash, artifact: { producedBy: { runId: 'run', agentRunId: 'agent-run', agentKind: 'codex' }, locationRef: { kind: 'workspace-relative', path: 'result.txt' }, contentRef: { size: 11 } } }) }
   assert.ok(runner.v4NaturalConsensus({ id: 'g', workdir: directory }, {}, 't'))
   fs.writeFileSync(filename, 'Version two')
   assert.equal(runner.v4NaturalConsensus({ id: 'g', workdir: directory }, {}, 't'), null)

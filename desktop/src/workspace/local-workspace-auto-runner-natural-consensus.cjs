@@ -19,7 +19,13 @@ const naturalConsensusMethods = {
     for (const message of messages) {
       const artifactIds = message.trace?.context?.outcomeRefs?.artifactIds || []
       for (const artifactId of artifactIds) {
-        const { artifact, contentHash } = this.v4ArtifactIdentity(artifactId)
+        let identity
+        try { identity = this.v4ArtifactIdentity(artifactId) } catch { return null }
+        const { artifact, contentHash } = identity
+        if (artifact.producedBy?.runId !== message.trace?.runId
+            || artifact.producedBy?.agentRunId !== message.trace?.agentRunId
+            || artifact.producedBy?.agentKind !== message.agentKind
+            || !message.trace?.runId || !message.trace?.agentRunId) return null
         if (artifact.locationRef?.kind === 'workspace-relative') {
           if (candidate?.files.some(file => file.path === artifact.locationRef.path
               && file.contentHash !== contentHash)) candidate = null
