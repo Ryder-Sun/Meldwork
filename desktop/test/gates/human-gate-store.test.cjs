@@ -3,6 +3,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
+const { createHash } = require('node:crypto')
 
 const { ContentBlobStore } = require('../../src/attachments/content-blob-store.cjs')
 const { canonicalJson } = require('../../src/collaboration/outcome-records.cjs')
@@ -57,6 +58,24 @@ test('creates content-addressed pending gates without public request references'
   assert.equal('requestRef' in publicRecord, false)
   assert.equal('requestHash' in publicRecord, false)
   assert.equal(JSON.stringify(publicRecord).includes('write_file'), false)
+})
+
+test('projects only bounded public task graph decision context', t => {
+  const { store } = fixture(t)
+  const graphId = `task-graph-${'a'.repeat(64)}`
+  const nodeId = 'human'
+  const agentRunId = `graph-decision-${createHash('sha256').update(JSON.stringify([graphId, nodeId])).digest('hex')}`
+  const base = { type: 'decision', runId: 'run-1', agentRunId, agentKind: 'codex',
+    summary: 'Choose an outcome.', options: [{ optionId: 'approve', name: 'Approve', kind: 'allow_once' },
+      { optionId: 'reject', name: 'Reject', kind: 'reject_once' }], createdAt: '2026-08-04T00:00:00.000Z' }
+  store.create({ ...base, request: { graphId, nodeId, inputNodeIds: ['primary'],
+    decisionContext: [{ agentKind: 'codex', text: 'The release is ready.', truncated: false }], privateValue: 'must-not-cross' } })
+  const [gate] = store.list({ pendingOnly: true })
+  assert.deepEqual(gate.decisionContext, [{ agentKind: 'codex', text: 'The release is ready.', truncated: false }])
+  assert.doesNotMatch(JSON.stringify(gate), /must-not-cross|requestHash|requestRef/)
+  store.create({ ...base, runId: 'run-2', request: { graphId, nodeId,
+    decisionContext: [{ agentKind: 'codex', text: '/private/work/secrets.txt', truncated: false }] } })
+  assert.deepEqual(store.list({ pendingOnly: true }).map(item => item.runId), ['run-1'])
 })
 
 test('accepts one idempotent decision and rejects conflicting decisions', (t) => {

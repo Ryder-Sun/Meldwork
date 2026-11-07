@@ -559,6 +559,18 @@ const taskGraphMethods = {
       controller.orchestration.taskGraph.graph.graphId,
       node.nodeId,
     )
+    const graph = parseTaskGraphCursor(controller.orchestration.taskGraph)
+    const selected = new Set(graph.nodeStates.filter(state => node.inputNodeIds.includes(state.nodeId))
+      .flatMap(state => state.entryIds))
+    const decisionContext = controller.orchestration.collaboration.entries.filter(entry => (
+      selected.has(entry.entryId) && entry.entryType === 'claim' && entry.lifecycle.state === 'active'
+      && entry.owner.type === 'agent'
+    )).map(entry => {
+      const full = publicCollaborationText(entry.statement)
+      let text = full.slice(0, 2000).trim()
+      if (/[\uD800-\uDBFF]$/.test(text)) text = text.slice(0, -1).trimEnd()
+      return { agentKind: entry.owner.agentKind, text, truncated: text.length < full.length }
+    })
     let cursor = updateTaskGraphCursor(
       controller.orchestration.taskGraph,
       node.nodeId,
@@ -576,6 +588,7 @@ const taskGraphMethods = {
         graphId: cursor.graph.graphId,
         nodeId: node.nodeId,
         inputNodeIds: node.inputNodeIds,
+        decisionContext,
       },
     }, {
       signal: controller.signal,

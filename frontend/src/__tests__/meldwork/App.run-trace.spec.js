@@ -312,6 +312,8 @@ describe('Meldwork workbench', () => {
         agentRunId: 'agent-runtime-codex',
         agentKind: 'codex',
         summary: 'The workspace-write synthesis attempt may have produced side effects, but its result is unknown.',
+        decisionContext: [{ agentKind: 'codex', text: 'The release is ready.', truncated: false },
+          { agentKind: 'hermes', text: 'The release is blocked.', truncated: false }],
         options: [
           { optionId: 'continue-discussion', name: 'Accept', kind: 'accept' },
           { optionId: 'stop-discussion', name: 'Reject', kind: 'reject' },
@@ -331,6 +333,8 @@ describe('Meldwork workbench', () => {
     expect(wrapper.get('.trace-waiting-state').text()).toBe('Waiting for your decision')
     expect(wrapper.get('.trace-human-gate-section').text())
       .toContain('workspace-write synthesis attempt may have produced side effects')
+    expect(wrapper.get('.trace-human-gate-section').text()).toContain('The release is ready.')
+    expect(wrapper.get('.trace-human-gate-section').text()).toContain('The release is blocked.')
     expect(wrapper.find('.trace-budget-section').exists()).toBe(false)
     expect(wrapper.find('.trace-agent-control-section').exists()).toBe(false)
     const gateButtons = wrapper.findAll('.trace-human-gate-options button')

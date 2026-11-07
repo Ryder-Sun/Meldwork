@@ -1318,6 +1318,28 @@ test('task graph Human node uses a typed decision instead of Agent consensus', a
   assert.equal(calls.length, 1)
 })
 
+test('task graph human gate labels long selected conclusions as excerpts', async t => {
+  const { directory, options } = fixture()
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  options.runAgent = async () => ({ text: 'x'.repeat(2100), outcome: 'completed' })
+  const workspace = new LocalWorkspace(options)
+  await workspace.refreshAgents()
+  const group = workspace.createGroup({ name: 'Long decision input', agentKinds: ['codex'], workdir: directory })
+  const human = graphNode({ nodeId: 'human', role: 'human', agentKind: null, terminal: true,
+    dependsOn: ['primary-codex'], inputNodeIds: ['primary-codex'],
+    acceptance: { requireConclusion: false, minArtifactRefs: 0, minEvidenceRefs: 0 },
+    decisionOptions: [{ optionId: 'approve', name: 'Approve', kind: 'allow_once' },
+      { optionId: 'reject', name: 'Reject', kind: 'reject_once' }] })
+  await workspace.sendMessage({ groupId: group.id, text: 'Assess release.', mode: 'auto', maxRounds: 4,
+    targetKinds: ['codex'], workflow: { template: 'task-graph', nodes: [
+      graphNode({ acceptance: { requireConclusion: true, minArtifactRefs: 0, minEvidenceRefs: 0 } }), human,
+    ] } })
+  const gate = await pendingHumanGate(workspace)
+  assert.equal(gate.decisionContext[0].text.length, 2000)
+  assert.equal(gate.decisionContext[0].truncated, true)
+  await workspace.stopAll()
+})
+
 for (const approved of [true, false]) test(`task graph human ${approved ? 'approval resolves' : 'rejection preserves'} conflicts`, async t => {
   const { directory, options } = fixture()
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
@@ -1340,6 +1362,7 @@ for (const approved of [true, false]) test(`task graph human ${approved ? 'appro
   await workspace.sendMessage({ groupId: group.id, text: 'Assess release.', mode: 'auto', maxRounds: 4,
     targetKinds: group.agentKinds, workflow: graph })
   const gate = await pendingHumanGate(workspace)
+  assert.deepEqual(gate.decisionContext?.map(item => item.text), ['The release is ready.', 'The release is blocked.'])
   workspace.decideHumanGate(gate.gateId, { status: approved ? 'approved' : 'rejected',
     optionId: approved ? 'approve' : 'reject', actorId: 'local-user' })
   await workspace.activeRuns.get(group.id).promise
@@ -1483,8 +1506,6 @@ test('automatic Primary Reviewer Arbiter flow uses selective typed collaboration
   assert.match(calls[0].prompt, /Role: primary/)
   assert.match(calls[0].prompt, /Selected blackboard entries: \(none\)/)
   assert.match(calls[1].prompt, /Role: reviewer/)
-  assert.match(calls[1].prompt, /Verified outcome content:/)
-  assert.match(calls[1].prompt, /Evidence .*\(.*\)/)
   assert.match(calls[1].prompt, /The release is ready after tests\./)
   assert.match(calls[2].prompt, /Role: arbiter/)
   assert.match(calls[2].prompt, /\[conflict\]/)
@@ -4563,6 +4584,8 @@ test('task graph reviewer does not resume the same Agent primary session', async
   assert.equal(calls[1].runOptions.sessionRef, '')
   assert.match(calls[1].prompt, /MELDWORK_TASK_GRAPH_V1/)
   assert.match(calls[1].prompt, /Role: reviewer/)
+  assert.match(calls[1].prompt, /Verified outcome content:/)
+  assert.match(calls[1].prompt, /Evidence .*\(.*\)/)
   for (const call of calls) assert.match(call.prompt, /Meldwork records your completed response as an Artifact/)
   assert.match(calls[1].prompt, /A completed result/)
   assert.equal(ledger.list(group.id)[0].orchestration.taskGraph.terminalState, 'accepted')

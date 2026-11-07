@@ -1206,6 +1206,7 @@ describe('Meldwork workbench', () => {
         {
           ...gate(recoveryGateId, 'decision'),
           summary: 'The candidate and unresolved issues have remained unchanged for two rounds.',
+          decisionContext: [{ agentKind: 'codex', text: 'Selected conclusion.', truncated: true }],
           options: [
             { optionId: 'retry-original-writer', name: 'Accept', kind: 'accept' },
             { optionId: 'replace-next-writer', name: 'Accept', kind: 'accept' },
@@ -1221,6 +1222,8 @@ describe('Meldwork workbench', () => {
     expect(wrapper.findAll('.direct-human-gate-list .human-gate-card')).toHaveLength(3)
     expect(wrapper.get('.direct-human-gate-list').text()).toContain('This Agent needs permission')
     expect(wrapper.get('.direct-human-gate-list').text()).toContain('cannot report cost usage')
+    expect(wrapper.get('.direct-human-gate-list').text()).toContain('Selected conclusion.')
+    expect(wrapper.get('.direct-human-gate-list').text()).toContain('Excerpt; see the conversation')
     expect(wrapper.get('.direct-budget-details').text()).toContain('Input tokens')
     expect(wrapper.get('.direct-budget-details').text()).toContain('750 / 4,000')
     expect(wrapper.get('.direct-budget-details').text()).toContain('Hard budget stop')

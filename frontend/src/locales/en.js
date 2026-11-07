@@ -527,6 +527,8 @@ export default {
     'trace.sessionReuseWarning': 'Native Session reused. Earlier native Session context may exist beyond the messages injected for this attempt.',
     'trace.sessionUnknownLegacyWarning': 'Legacy native Session history is unknown. The injected message IDs for this attempt are not the complete context.',
     'humanGate.pendingTitle': 'Action required',
+    'humanGate.selectedConclusions': 'Conclusions for this decision',
+    'humanGate.conclusionTruncated': 'Excerpt; see the conversation for the full conclusion.',
     'humanGate.waiting': 'Waiting for your decision',
     'humanGate.type.permission': 'Permission',
     'humanGate.type.budget': 'Budget',

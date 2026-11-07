@@ -197,6 +197,7 @@ test('task-graph Human decisions resume from the durable v3 cursor after restart
     workflow: decisionTaskGraph(),
   })
   const pending = await pendingGate(workspace)
+  assert.equal(pending.decisionContext?.length, 1)
   await workspace.stopAll()
 
   const waiting = new RunLedger({ storagePath: ledgerPath }).get(pending.runId)
@@ -209,6 +210,8 @@ test('task-graph Human decisions resume from the durable v3 cursor after restart
   const restartedLedger = new RunLedger({ storagePath: ledgerPath })
   const restarted = new LocalWorkspace({ ...options, runLedger: restartedLedger })
   await restarted.refreshAgents()
+  assert.deepEqual(restarted.listHumanGates({ pendingOnly: true }).find(gate => gate.gateId === pending.gateId)?.decisionContext,
+    pending.decisionContext)
   restarted.decideHumanGate(pending.gateId, {
     status: 'approved', optionId: 'approve-graph', actorId: 'local-user',
   })

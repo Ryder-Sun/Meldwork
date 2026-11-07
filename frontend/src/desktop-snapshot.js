@@ -17,9 +17,10 @@ const AGENT_TERMINAL_SYSTEM_KEYS = new Set([
 ])
 const HUMAN_GATE_OPTION_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/
 const HUMAN_GATE_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/
-const HUMAN_GATE_FIELDS = new Set([
+const HUMAN_GATE_BASE_FIELDS = new Set([
   'gateId', 'type', 'runId', 'agentRunId', 'agentKind', 'summary', 'options', 'status', 'createdAt',
 ])
+const HUMAN_GATE_FIELDS = new Set([...HUMAN_GATE_BASE_FIELDS, 'decisionContext'])
 const HUMAN_GATE_OPTION_FIELDS = new Set(['optionId', 'name', 'kind'])
 const BUDGET_DIMENSIONS = [
   'inputTokens', 'outputTokens', 'costMicros', 'toolCalls', 'outboundBytes', 'elapsedMs',
@@ -137,7 +138,7 @@ function normalizeBudget(value) {
 }
 
 function normalizeHumanGate(value) {
-  const input = exactRecord(value, HUMAN_GATE_FIELDS)
+  const input = exactRecord(value, value && Object.hasOwn(value, 'decisionContext') ? HUMAN_GATE_FIELDS : HUMAN_GATE_BASE_FIELDS)
   const gateId = String(input?.gateId || '')
   const runId = identifier(input?.runId)
   const agentRunId = identifier(input?.agentRunId)
@@ -175,9 +176,22 @@ function normalizeHumanGate(value) {
   }).filter(Boolean)
   if (!options.length || options.length !== input.options.length
       || new Set(options.map(option => option.optionId)).size !== options.length) return null
+  let decisionContext
+  if (input.decisionContext !== undefined) {
+    if (type !== 'decision' || !Array.isArray(input.decisionContext) || !input.decisionContext.length || input.decisionContext.length > 32) return null
+    decisionContext = input.decisionContext.map(item => {
+      const claim = exactRecord(item, new Set(['agentKind', 'text', 'truncated']))
+      const claimKind = agentKind(claim?.agentKind)
+      const text = typeof claim?.text === 'string' && claim.text.length <= 2000 ? claim.text.trim() : ''
+      return claimKind && claimKind === claim.agentKind && text && text === claim.text && typeof claim.truncated === 'boolean'
+        && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(text)
+        ? { agentKind: claimKind, text, truncated: claim.truncated } : null
+    })
+    if (decisionContext.some(item => !item)) return null
+  }
   return {
     gateId, runId, agentRunId, agentKind: kind, type, summary, options, status,
-    createdAt,
+    createdAt, ...(decisionContext ? { decisionContext } : {}),
   }
 }
 
@@ -332,7 +346,8 @@ export function normalizeSnapshot(value) {
     .filter((gate) => {
       if (!gate) return false
       const run = runs.find(item => item.runId === gate.runId)
-      return Boolean(run?.agentRuns.some(agent => (
+      return Boolean((!gate.decisionContext || gate.decisionContext.every(claim => run?.targetKinds.includes(claim.agentKind)))
+        && run?.agentRuns.some(agent => (
         agent.agentRunId === gate.agentRunId && agent.kind === gate.agentKind
       )))
     })

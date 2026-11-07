@@ -708,6 +708,7 @@ describe('run event normalization', () => {
         humanGate(gateId, {
           type: 'decision',
           summary: 'This run requires a human decision.',
+          decisionContext: [{ agentKind: 'codex', text: 'The release is ready.', truncated: false }],
           options: [
             { optionId: 'accept-artifact', name: 'Accept Artifact', kind: 'accept' },
             { optionId: 'reject-artifact', name: 'Reject Artifact', kind: 'reject' },
@@ -724,6 +725,7 @@ describe('run event normalization', () => {
     expect(snapshot.humanGates).toEqual([humanGate(gateId, {
       type: 'decision',
       summary: 'This run requires a human decision.',
+      decisionContext: [{ agentKind: 'codex', text: 'The release is ready.', truncated: false }],
       options: [
         { optionId: 'accept-artifact', name: 'Accept Artifact', kind: 'accept' },
         { optionId: 'reject-artifact', name: 'Reject Artifact', kind: 'reject' },
@@ -753,6 +755,22 @@ describe('run event normalization', () => {
     })
 
     expect(snapshot.humanGates).toEqual([inputGate])
+  })
+
+  it('rejects unsafe or malformed decision context in public snapshots', () => {
+    const gateId = `human-gate-${'e'.repeat(64)}`
+    const gate = humanGate(gateId, { type: 'decision', decisionContext: [
+      { agentKind: 'codex', text: 'Selected conclusion.', truncated: false, rawPayload: 'private' },
+    ] })
+    const snapshot = normalizeSnapshot({ agents: [], groups: [], messages: [], runningGroupIds: [],
+      runs: [{ runId: 'run-gated', groupId: 'group-gated', targetKinds: ['codex'], waitingGateIds: [gateId],
+        agentRuns: [{ agentRunId: 'agent-gated', kind: 'codex', status: 'waiting' }] }], humanGates: [gate] })
+    expect(snapshot.humanGates).toEqual([])
+    gate.decisionContext = [{ agentKind: 'hermes', text: 'Outside this run.', truncated: false }]
+    const outside = normalizeSnapshot({ agents: [], groups: [], messages: [], runningGroupIds: [],
+      runs: [{ runId: 'run-gated', groupId: 'group-gated', targetKinds: ['codex'], waitingGateIds: [gateId],
+        agentRuns: [{ agentRunId: 'agent-gated', kind: 'codex', status: 'waiting' }] }], humanGates: [gate] })
+    expect(outside.humanGates).toEqual([])
   })
 
   it('drops budget snapshots with extra or missing fields', () => {

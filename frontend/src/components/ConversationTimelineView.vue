@@ -610,6 +610,7 @@
               <small>{{ t(`humanGate.type.${gate.type}`) }}</small>
             </header>
             <p>{{ humanGateSummary(gate) }}</p>
+            <HumanGateDecisionContext :claims="gate.decisionContext" />
             <form
               v-if="gate.type === 'input'"
               class="human-gate-input"
@@ -875,6 +876,7 @@ import { locale } from '../i18n.js'
 import { messageKnowledgeBases, messageSkills, messageTargetKinds } from '../messageContext.js'
 import { isAgentFailureMessage, responseVersionRootId } from '../conversationTimelineModel.js'
 import AttachmentMediaPreview from './AttachmentMediaPreview.vue'
+import HumanGateDecisionContext from './HumanGateDecisionContext.vue'
 import MarkdownMessage from './MarkdownMessage.vue'
 
 const props = defineProps({

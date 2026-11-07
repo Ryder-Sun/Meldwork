@@ -527,6 +527,8 @@ export default {
     'trace.sessionReuseWarning': '已复用原生 Session。除本次尝试注入的消息外，Session 中可能还存在更早的上下文。',
     'trace.sessionUnknownLegacyWarning': '旧版原生 Session 的历史来源未知。本次尝试注入的消息 ID 并不代表完整上下文。',
     'humanGate.pendingTitle': '需要你的决定',
+    'humanGate.selectedConclusions': '本次决策参考的结论',
+    'humanGate.conclusionTruncated': '以上为节选，完整结论请查看会话。',
     'humanGate.waiting': '等待你的决定',
     'humanGate.type.permission': '权限',
     'humanGate.type.budget': '预算',

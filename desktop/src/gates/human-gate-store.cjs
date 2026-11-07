@@ -1,10 +1,12 @@
 const fs = require('node:fs')
 const path = require('node:path')
+const { createHash } = require('node:crypto')
 
 const { ContentBlobStore } = require('../attachments/content-blob-store.cjs')
 const {
   canonicalJson,
 } = require('../collaboration/outcome-records.cjs')
+const { publicCollaborationText } = require('../collaboration/collaboration-records.cjs')
 const {
   createHumanGateRecord,
   decideHumanGateRecord,
@@ -188,7 +190,30 @@ class HumanGateStore {
     return this.records
       .filter(record => (!runId || record.runId === runId)
         && (!pendingOnly || record.status === 'pending'))
-      .map(publicHumanGate)
+      .map(record => {
+        const gate = publicHumanGate(record)
+        if (record.type !== 'decision' || record.status !== 'pending' || !record.agentRunId.startsWith('graph-decision-')) return gate
+        try {
+          const request = this.validateRequest(record)
+          if (!/^task-graph-[a-f0-9]{64}$/.test(request.graphId || '')
+              || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/.test(request.nodeId || '')
+              || record.agentRunId !== `graph-decision-${createHash('sha256').update(JSON.stringify([request.graphId, request.nodeId])).digest('hex')}`) return null
+          if (request.decisionContext === undefined) return gate
+          if (!Array.isArray(request.decisionContext) || request.decisionContext.length > 32) return null
+          const decisionContext = request.decisionContext.map(item => {
+            if (!item || typeof item !== 'object' || Array.isArray(item)
+                || Object.keys(item).sort().join(',') !== 'agentKind,text,truncated'
+                || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$/.test(item.agentKind || '')
+                || typeof item.text !== 'string' || !item.text || item.text.length > 2000
+                || typeof item.truncated !== 'boolean'
+                || publicCollaborationText(item.text, 2000) !== item.text) return null
+            return { agentKind: item.agentKind, text: item.text, truncated: item.truncated }
+          })
+          if (!decisionContext.every(Boolean)) return null
+          return decisionContext.length ? { ...gate, decisionContext } : gate
+        } catch { return null }
+      })
+      .filter(Boolean)
   }
 }
 

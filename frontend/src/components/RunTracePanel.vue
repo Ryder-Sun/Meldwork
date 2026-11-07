@@ -300,6 +300,7 @@
               <small>{{ t(`humanGate.type.${gate.type}`) }}</small>
             </header>
             <p>{{ humanGateSummary(gate) }}</p>
+            <HumanGateDecisionContext :claims="gate.decisionContext" />
             <form
               v-if="gate.type === 'input'"
               class="trace-human-gate-input"
@@ -413,6 +414,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import HumanGateDecisionContext from './HumanGateDecisionContext.vue'
 import {
   CheckmarkCircleOutline,
   ChevronDownOutline,
