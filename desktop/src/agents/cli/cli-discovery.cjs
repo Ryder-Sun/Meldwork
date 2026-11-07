@@ -641,6 +641,7 @@ module.exports = {
   ALLOWED_KINDS,
   detectAgents,
   launchEnvironment,
+  npmShimTarget,
   prepareCommand,
   probeAgentCapabilities,
   resolveExecutable,

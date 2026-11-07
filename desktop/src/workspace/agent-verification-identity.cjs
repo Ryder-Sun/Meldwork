@@ -1,6 +1,7 @@
 const { createHash, randomBytes } = require('node:crypto')
 const fs = require('node:fs')
 const path = require('node:path')
+const { npmShimTarget } = require('../agents/cli/cli-discovery.cjs')
 const { NATIVE_CONFIG_DIRECTORIES, NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_ENVIRONMENT_IDENTITY, NATIVE_AUTH_IDENTITY_FILES, NATIVE_PROJECT_CONFIG_PATHS } = require('../agents/native-config-directory.cjs')
 
 function fileIdentity(filename) {
@@ -38,7 +39,7 @@ function selectedConfigurationIdentity(agent, preferences) {
   return entries
 }
 
-function agentVerificationIdentity(agent, preferences = {}) {
+function agentVerificationIdentity(agent, preferences = {}, options = {}) {
   if (!agent?.kind) return ''
   let executableStat = null
   if (agent.executable) {
@@ -52,6 +53,16 @@ function agentVerificationIdentity(agent, preferences = {}) {
     agent.connectorId || '', agent.connectorVersion || '', agent.upstreamVersion || '',
     preferences?.[agent.kind]?.nativeConfigDirectory || '',
   ]
+  if ((options.platform || process.platform) === 'win32' && /\.(?:cmd|bat)$/i.test(agent.executable || '')) {
+    try {
+      const target = npmShimTarget(agent.executable, options)
+      if (!target) throw new Error('invalid shim')
+      const stat = (options.statFn || fs.statSync)(target)
+      identity.push(['shim-target', target, stat.dev, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs])
+    } catch {
+      identity.push(['unavailable-shim-target', randomBytes(32).toString('hex')])
+    }
+  }
   const configuration = selectedConfigurationIdentity(agent, preferences)
   if (configuration !== null) identity.push(configuration)
   if (Array.isArray(agent[NATIVE_AUTH_IDENTITY_FILES])) {

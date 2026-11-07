@@ -43,6 +43,21 @@ test('Agent verification identity changes when the executable is replaced', t =>
   assert.doesNotMatch(first, /agent-identity|codex/)
 })
 
+test('Windows Agent verification tracks the target behind an npm shim', () => {
+  const agent = { kind: 'codex', executable: 'C:\\npm\\codex.cmd', version: '1.0.0' }
+  let targetIdentity = 1
+  const options = { platform: 'win32',
+    readFileFn: () => '"%_prog%" "%dp0%\\node_modules\\codex\\bin\\cli.js" %*',
+    statFn: () => ({ dev: 1, ino: targetIdentity, size: 100, mtimeMs: 1, ctimeMs: 1 }),
+  }
+  const first = agentVerificationIdentity(agent, {}, options)
+  assert.equal(agentVerificationIdentity(agent, {}, options), first)
+  targetIdentity = 2
+  assert.notEqual(agentVerificationIdentity(agent, {}, options), first)
+  options.statFn = () => { throw new Error('unavailable') }
+  assert.notEqual(agentVerificationIdentity(agent, {}, options), agentVerificationIdentity(agent, {}, options))
+})
+
 function deferred() {
   let resolve
   let reject
