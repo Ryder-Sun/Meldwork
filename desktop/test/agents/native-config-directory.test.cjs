@@ -334,8 +334,24 @@ test('Qwen authentication identity tracks its native user and system settings', 
   const settings = path.join(home, 'system', 'qwen.json')
   assert.deepEqual(nativeAuthIdentityFiles('qwen', { QWEN_CODE_SYSTEM_SETTINGS_PATH: settings }, home, 'darwin'), [
     settings, path.join(home, 'system', 'system-defaults.json'),
-    path.join(home, '.qwen', 'settings.json'), path.join(home, '.qwen', 'oauth_creds.json'), path.join(home, '.qwen', '.env'), path.join(home, '.env'),
+    path.join(home, '.qwen', 'settings.json'), path.join(home, '.qwen', 'oauth_creds.json'), path.join(home, '.qwen', '.env'),
+    path.join(home, '.qwen', 'trustedFolders.json'), path.join(home, '.env'),
   ])
+})
+
+test('Qwen verification changes when native folder trust changes', t => {
+  const { NATIVE_AUTH_IDENTITY_FILES } = require('../../src/agents/native-config-directory.cjs')
+  const { agentVerificationIdentity } = require('../../src/workspace/agent-verification-identity.cjs')
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-qwen-trust-identity-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  fs.mkdirSync(path.join(home, '.qwen'))
+  const filename = path.join(home, '.qwen', 'trustedFolders.json')
+  fs.writeFileSync(filename, '{}')
+  const agent = { kind: 'qwen' }
+  Object.defineProperty(agent, NATIVE_AUTH_IDENTITY_FILES, { value: nativeAuthIdentityFiles('qwen', {}, home) })
+  const before = agentVerificationIdentity(agent)
+  fs.writeFileSync(filename, JSON.stringify({ [home]: 'TRUST_FOLDER' }))
+  assert.notEqual(agentVerificationIdentity(agent), before)
 })
 
 test('Qwen and Gemini project verification track environment files above the Git root', t => {

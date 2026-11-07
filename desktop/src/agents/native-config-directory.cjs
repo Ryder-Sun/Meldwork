@@ -47,7 +47,8 @@ function nativeProjectConfigPaths(kind, env = {}) {
     const settings = env[kind === 'gemini' ? 'GEMINI_CLI_SYSTEM_SETTINGS_PATH' : 'QWEN_CODE_SYSTEM_SETTINGS_PATH']
     const defaults = env[kind === 'gemini' ? 'GEMINI_CLI_SYSTEM_DEFAULTS_PATH' : 'QWEN_CODE_SYSTEM_DEFAULTS_PATH']
       || (typeof settings === 'string' && settings ? path.join(path.dirname(settings), 'system-defaults.json') : '')
-    entries = [[settings, false], [defaults, false], ...(kind === 'gemini' ? [[env.GOOGLE_APPLICATION_CREDENTIALS, false]] : [])]
+    entries = [[settings, false], [defaults, false], ...(kind === 'gemini' ? [[env.GOOGLE_APPLICATION_CREDENTIALS, false]]
+      : [[env.GEMINI_CLI_TRUSTED_FOLDERS_PATH, false]])]
   }
   if (kind === 'pi' || kind === 'claude' || kind === 'hermes') {
     entries = cloudIdentityPathKeys(kind).map(key => [env[key], false])
@@ -84,6 +85,7 @@ function nativeAuthIdentityFiles(kind, env, home, platform = process.platform) {
       || (typeof settings === 'string' && paths.isAbsolute(settings) ? paths.join(paths.dirname(settings), 'system-defaults.json') : '')
     const userRoot = typeof home === 'string' && paths.isAbsolute(home) ? paths.join(home, '.qwen') : ''
     return [settings, defaults, ...(userRoot ? ['settings.json', 'oauth_creds.json', '.env'].map(name => paths.join(userRoot, name)) : []),
+      env?.GEMINI_CLI_TRUSTED_FOLDERS_PATH || (userRoot && paths.join(userRoot, 'trustedFolders.json')),
       ...(typeof home === 'string' && paths.isAbsolute(home) ? [paths.join(home, '.env')] : [])]
       .filter(filename => typeof filename === 'string' && paths.isAbsolute(filename))
   }

@@ -702,6 +702,12 @@ function nativeCredentialState(kind, options = {}) {
         : { state: 'unknown', source: 'unverified' }
     }
   }
+  if (kind === 'qwen' && options.nativeCredentialKeys?.length) {
+    const [key] = nativeSecretEnvKeys(options.nativeCredentialKeys)
+    return key && typeof env[key] === 'string' && env[key].trim()
+      ? { state: 'ready', source: options.credentialSource === 'native-shell' ? 'native-shell' : 'native-credential' }
+      : { state: 'unknown', source: 'unverified' }
+  }
   const piProvider = kind === 'pi' ? piDefaultProvider(piHome) : ''
   const hermesSelection = kind === 'hermes' ? hermesSelectedProvider(hermesHome, env) : null
   if (hermesSelection?.unavailable) return { state: 'unknown', source: 'unverified' }

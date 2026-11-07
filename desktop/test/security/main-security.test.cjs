@@ -594,6 +594,38 @@ test('MiMo receives its native provider reference from the shell without leaking
   assert.equal(harness.runAgentCalls.at(-1)[3].env.MIMO_CUSTOM_SECRET, undefined)
 })
 
+test('Qwen resolves only the selected project model credential at the main-process boundary', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-qwen-project-main-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const projects = ['a', 'b'].map(name => path.join(directory, name))
+  for (const [index, project] of projects.entries()) {
+    fs.mkdirSync(path.join(project, '.qwen'), { recursive: true })
+    fs.writeFileSync(path.join(project, '.qwen', 'settings.json'), JSON.stringify({
+      model: { name: 'chosen' }, security: { auth: { selectedType: 'openai' } },
+      modelProviders: { openai: [{ id: 'chosen', envKey: `PROJECT_${index}_KEY` }] },
+    }))
+  }
+  const readiness = require('../../src/agents/local-agent-readiness.cjs')
+  const { harness } = loadMain(directory, {
+    nativeEnvironment: readiness.nativeCredentialEnvironment,
+    nativeShellEnvironment: input => ({ source: 'native-shell', env: {
+      QWEN_CODE_SYSTEM_SETTINGS_PATH: path.join(directory, 'missing.json'),
+      ...Object.fromEntries((input.extraEnvKeys || []).map(key => [key, `value-${key}`])),
+    } }),
+  })
+  await harness.ready()
+  const workspace = harness.workspaceInstances[0]
+  for (const [index, project] of projects.entries()) {
+    await workspace.input.runAgent({ kind: 'qwen', executable: '/tmp/qwen' }, 'hello', project, {})
+    const options = harness.runAgentCalls.at(-1)[3]
+    assert.equal(options.env[`PROJECT_${index}_KEY`], `value-PROJECT_${index}_KEY`)
+    assert.equal(options.env[`PROJECT_${1 - index}_KEY`], undefined)
+    assert.deepEqual(options.nativeCredentialKeys, [`PROJECT_${index}_KEY`])
+  }
+  await workspace.input.runAgent({ kind: 'codex', executable: '/tmp/codex' }, 'hello', projects[0], {})
+  assert.equal(harness.runAgentCalls.at(-1)[3].env.PROJECT_0_KEY, undefined)
+})
+
 test('MiMo resolves project credentials for each chat working directory', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-mimo-project-main-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

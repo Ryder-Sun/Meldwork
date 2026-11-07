@@ -1,0 +1,73 @@
+const fs = require('node:fs')
+const path = require('node:path')
+const os = require('node:os')
+const JSON5 = require('json5')
+const { nativeSecretEnvKeys } = require('./native-secret-environment.cjs')
+
+function qwenDeclaredCredentialKeys(options = {}) {
+  const env = options.env || process.env
+  const home = options.home || os.homedir()
+  const platform = options.platform || process.platform
+  const system = env.QWEN_CODE_SYSTEM_SETTINGS_PATH || (platform === 'darwin'
+    ? '/Library/Application Support/QwenCode/settings.json' : platform === 'win32'
+      ? 'C:\\ProgramData\\qwen-code\\settings.json' : '/etc/qwen-code/settings.json')
+  const defaults = env.QWEN_CODE_SYSTEM_DEFAULTS_PATH || path.join(path.dirname(system), 'system-defaults.json')
+  const resolveFile = file => path.isAbsolute(file) ? file
+    : typeof options.workdir === 'string' && path.isAbsolute(options.workdir) ? path.resolve(options.workdir, file) : ''
+  const user = path.join(home, '.qwen', 'settings.json')
+  const project = options.workdir && path.isAbsolute(options.workdir) && path.resolve(options.workdir) !== path.resolve(home)
+    ? path.join(options.workdir, '.qwen', 'settings.json') : ''
+  let model = ''
+  let auth = ''
+  const providers = new Map()
+  try {
+    const configs = new Map()
+    for (const entry of [defaults, user, project, system].filter(Boolean)) {
+      const file = resolveFile(entry)
+      if (!file) return []
+      let stat
+      try { stat = fs.statSync(file) } catch (error) { if (error.code === 'ENOENT') continue; throw error }
+      if (!stat.isFile() || stat.size > 1024 * 1024) return []
+      const settings = JSON5.parse(fs.readFileSync(file, 'utf8'))
+      if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return []
+      configs.set(entry, settings)
+    }
+    const trustEnabled = configs.get(system)?.security?.folderTrust?.enabled
+      ?? configs.get(user)?.security?.folderTrust?.enabled ?? false
+    let includeProject = trustEnabled === false
+    if (project && trustEnabled === true) {
+      const trustFile = resolveFile(env.GEMINI_CLI_TRUSTED_FOLDERS_PATH || path.join(home, '.qwen', 'trustedFolders.json'))
+      try {
+        const stat = fs.statSync(trustFile)
+        const rules = stat.isFile() && stat.size <= 1024 * 1024 ? JSON5.parse(fs.readFileSync(trustFile, 'utf8')) : null
+        const target = path.resolve(options.workdir)
+        includeProject = Boolean(rules && typeof rules === 'object' && !Array.isArray(rules)
+          && Object.entries(rules).some(([folder, level]) => {
+            if (!path.isAbsolute(folder) || !['TRUST_FOLDER', 'TRUST_PARENT'].includes(level)) return false
+            const root = path.resolve(level === 'TRUST_PARENT' ? path.dirname(folder) : folder)
+            const relative = path.relative(root, target)
+            return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative))
+          }))
+      } catch { includeProject = false }
+    }
+    for (const entry of [defaults, user, ...(includeProject && project ? [project] : []), system]) {
+      const settings = configs.get(entry)
+      if (!settings) continue
+      if (typeof settings.model?.name === 'string') model = settings.model.name
+      if (typeof settings.security?.auth?.selectedType === 'string') auth = settings.security.auth.selectedType
+      if (settings.modelProviders && typeof settings.modelProviders === 'object' && !Array.isArray(settings.modelProviders)) {
+        providers.clear()
+        for (const [type, entries] of Object.entries(settings.modelProviders)) {
+          if (Array.isArray(entries)) providers.set(type, entries)
+        }
+      }
+    }
+    auth ||= typeof env.QWEN_DEFAULT_AUTH_TYPE === 'string' ? env.QWEN_DEFAULT_AUTH_TYPE : ''
+    if (!auth || !model) return []
+    const selected = (providers.get(auth) || []).filter(entry => entry?.id === model)
+    if (selected.length !== 1) return []
+    return nativeSecretEnvKeys([selected[0]?.envKey])
+  } catch { return [] }
+}
+
+module.exports = { qwenDeclaredCredentialKeys }

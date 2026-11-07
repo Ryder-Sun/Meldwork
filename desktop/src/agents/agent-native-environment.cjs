@@ -98,7 +98,8 @@ const RUNTIME_ENV_KEYS = Object.freeze({
   qwen: ['DASHSCOPE_API_KEY', 'OPENAI_API_KEY', 'OPENAI_BASE_URL', 'OPENAI_MODEL',
     'ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL', 'ANTHROPIC_MODEL',
     'GEMINI_API_KEY', 'GEMINI_MODEL', 'GOOGLE_API_KEY', 'GOOGLE_MODEL', 'QWEN_OAUTH', 'QWEN_HOME',
-    'QWEN_CODE_SYSTEM_SETTINGS_PATH', 'QWEN_CODE_SYSTEM_DEFAULTS_PATH', 'QWEN_DEFAULT_AUTH_TYPE'],
+    'QWEN_CODE_SYSTEM_SETTINGS_PATH', 'QWEN_CODE_SYSTEM_DEFAULTS_PATH', 'QWEN_DEFAULT_AUTH_TYPE',
+    'GEMINI_CLI_TRUSTED_FOLDERS_PATH'],
   gemini: [
     'GEMINI_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_MODEL', 'GEMINI_CLI_HOME',
     'GEMINI_DEFAULT_AUTH_TYPE', 'GEMINI_CLI_AUTH_OVERRIDE', 'GEMINI_CLI_USE_COMPUTE_ADC',
@@ -134,7 +135,7 @@ function nativeCredentialEnvironment(kind, env = process.env, declaredKeys = [],
   const keys = [...runtimeKeys, ...(kind === 'claude'
     ? sourceKeys.map(key => platform === 'win32' ? key.toUpperCase() : key)
       .filter(key => VERTEX_MODEL_REGION_KEY.test(key)) : []),
-    ...(['codex', 'hermes', 'zcode', 'mimo', 'pi', 'opencode', 'deepseek'].includes(kind) ? nativeSecretEnvKeys(declaredKeys) : [])]
+    ...(['codex', 'hermes', 'zcode', 'mimo', 'pi', 'opencode', 'deepseek', 'qwen'].includes(kind) ? nativeSecretEnvKeys(declaredKeys) : [])]
   for (const key of keys) {
     const sourceKey = Object.hasOwn(env, key) ? key
       : platform === 'win32' ? sourceKeys.find(name => name.toUpperCase() === key.toUpperCase()) : undefined
