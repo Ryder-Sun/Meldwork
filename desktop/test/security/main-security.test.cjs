@@ -631,7 +631,9 @@ test('MiMo captures the recent model provider credential for a project', async t
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
   const state = path.join(directory, 'state', 'mimocode')
   fs.mkdirSync(state, { recursive: true })
-  fs.writeFileSync(path.join(state, 'model.json'), JSON.stringify({ recent: [{ providerID: 'custom', modelID: 'example' }] }))
+  fs.writeFileSync(path.join(state, 'model.json'), JSON.stringify({ recent: [
+    { providerID: 'missing', modelID: 'example' }, { providerID: 'custom', modelID: 'example' },
+  ] }))
   fs.writeFileSync(path.join(directory, 'mimocode.json'), JSON.stringify({ provider: {
     custom: { options: { apiKey: '{env:CUSTOM_KEY}' } }, other: { options: { apiKey: '{env:OTHER_KEY}' } },
   } }))

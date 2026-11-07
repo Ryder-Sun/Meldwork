@@ -204,7 +204,9 @@ test('MiMo discovers the recent native model provider when no model is configure
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))
   const state = path.join(home, 'state', 'mimocode')
   fs.mkdirSync(state, { recursive: true })
-  fs.writeFileSync(path.join(state, 'model.json'), JSON.stringify({ recent: [{ providerID: 'custom', modelID: 'example' }] }))
+  fs.writeFileSync(path.join(state, 'model.json'), JSON.stringify({ recent: [
+    { providerID: 'missing', modelID: 'example' }, { providerID: 'custom', modelID: 'example' },
+  ] }))
   fs.writeFileSync(path.join(home, 'mimocode.json'), JSON.stringify({ provider: {
     custom: { options: { apiKey: '{env:CUSTOM_KEY}' } }, other: { options: { apiKey: '{env:OTHER_KEY}' } },
   } }))
@@ -212,6 +214,11 @@ test('MiMo discovers the recent native model provider when no model is configure
   const env = { XDG_STATE_HOME: path.dirname(state), CUSTOM_KEY: 'synthetic', OTHER_KEY: 'unrelated' }
   assert.deepEqual(mimoDeclaredCredentialKeys({ home, workdir: home, env }), ['CUSTOM_KEY'])
   assert.equal(mimoConfiguredProvider({ home, workdir: home, env }), true)
+  fs.writeFileSync(path.join(state, 'model.json'), JSON.stringify({ recent: [
+    { providerID: 'custom', modelID: 'example' }, { providerID: 'other', modelID: 'example' },
+  ] }))
+  assert.deepEqual(mimoDeclaredCredentialKeys({ home, workdir: home, env }), ['CUSTOM_KEY', 'OTHER_KEY'])
+  assert.equal(mimoConfiguredProvider({ home, workdir: home, env: { ...env, CUSTOM_KEY: '' } }), true)
   fs.writeFileSync(path.join(state, 'model.json'), '{bad')
   assert.deepEqual(mimoDeclaredCredentialKeys({ home, workdir: home, env }), [])
 })
