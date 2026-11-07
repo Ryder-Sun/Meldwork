@@ -1601,8 +1601,8 @@ function validateV4Relations(orchestration, targetKinds) {
           && watermark.watermark >= workReceipt.collaborationReceipt.deliveryWatermark
         ))
       if (!assignment || assignment.ownerKind !== workReceipt.ownerKind
-          || (assignment.acceptance && (workReceipt.collaborationReceipt.artifactIds.length < assignment.acceptance.minArtifactRefs
-            || workReceipt.collaborationReceipt.evidenceIds.length < assignment.acceptance.minEvidenceRefs))
+          || (assignment.acceptance && (new Set(workReceipt.collaborationReceipt.artifactIds).size < assignment.acceptance.minArtifactRefs
+            || new Set(workReceipt.collaborationReceipt.evidenceIds).size < assignment.acceptance.minEvidenceRefs))
           || !slot || slot.agentKind !== workReceipt.ownerKind
           || !operationBound
           || workReceipt.snapshotHash !== orchestration.snapshotHash

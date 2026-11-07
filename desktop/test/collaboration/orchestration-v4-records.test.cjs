@@ -739,6 +739,9 @@ test('round-trips exact work receipts bound to the active plan, snapshot, operat
       contentRef: contentRef(artifactHash, 42),
     }],
   })
+  const duplicatedEvidence = createCollaborationReceipt({
+    ...receipt, evidenceIds: [receipt.evidenceIds[0], receipt.evidenceIds[0]],
+  })
   const record = {
     ...base,
     phase: 'work',
@@ -772,6 +775,19 @@ test('round-trips exact work receipts bound to the active plan, snapshot, operat
   const insufficient = createWorkReceipt({ ...workReceipt, planHash: strictPlan.planHash })
   assert.throws(() => parseOrchestrationV4({ ...record, coordinationPlan: strictPlan,
     workReceipts: [insufficient] }, { targetKinds }), { code: 'ORCHESTRATION_V4_WORK_RECEIPT_INVALID' })
+  const evidencePlan = createCoordinationPlan({ ...coordinationPlan, targetKinds,
+    assignments: coordinationPlan.assignments.map(item => item.taskId === 'codex-work'
+      ? { ...item, acceptance: { minArtifactRefs: 1, minEvidenceRefs: 2 } } : item) })
+  const duplicatedWork = createWorkReceipt({ ...workReceipt, planHash: evidencePlan.planHash,
+    collaborationReceipt: duplicatedEvidence })
+  const duplicatedRecord = { ...record, coordinationPlan: evidencePlan, workReceipts: [duplicatedWork],
+    slots: record.slots.map(candidate => candidate.slotId !== slot.slotId ? candidate : {
+      ...candidate, receiptId: duplicatedEvidence.receiptId, resultHash: hashValue(duplicatedEvidence),
+      resultRefs: { ...candidate.resultRefs,
+        workflowOutcomeRefs: [{ receipt: duplicatedEvidence }] },
+    }) }
+  assert.throws(() => parseOrchestrationV4(duplicatedRecord, { targetKinds }),
+    { code: 'ORCHESTRATION_V4_WORK_RECEIPT_INVALID' })
 
   const dependentPlan = createCoordinationPlan({
     ...coordinationPlan, targetKinds,
