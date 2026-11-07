@@ -118,12 +118,14 @@ test('Hermes native dotenv expansion redacts the values actually loaded by the C
     'CUSTOM_BASE=file-value#with-hash',
     "FIRST_API_KEY='${CUSTOM_BASE}'",
     'SECOND_TOKEN=${UNSET_MELDWORK_SECRET:-fallback-secret-value}',
+    "THIRD_API_KEY='escaped\\'credential'",
   ].join('\n'))
   const child = childEnvironment({ kind: 'hermes' }, home, {
     env: { HERMES_HOME: home, CUSTOM_BASE: 'stale-shell-value' },
     nativeCredentialKeys: ['CUSTOM_BASE'],
   }, process.platform)
-  assert.equal(redactChildSecrets('file-value#with-hash fallback-secret-value', child), '[redacted] [redacted]')
+  assert.equal(redactChildSecrets("file-value#with-hash fallback-secret-value escaped'credential", child),
+    '[redacted] [redacted] [redacted]')
 })
 
 test('Zcode receives its selected native home without changing other Agent homes', () => {

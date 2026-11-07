@@ -29,6 +29,7 @@ function hermesConfigSecrets({ env, home, platform, declaredKeys }) {
       if (/^['"]/.test(raw) && !quoted) continue
       let value = quoted ? quoted[2] : raw.replace(/\s+#.*$/, '').trim()
       if (quoted?.[1] === '"') value = value.replace(/\\([nr"\\])/g, (_, c) => ({ n: '\n', r: '\r', '"': '"', '\\': '\\' })[c])
+      if (quoted?.[1] === "'") value = value.replace(/\\(['\\])/g, '$1')
       value = value.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}/g,
         (_, name, fallback) => Object.hasOwn(values, name) ? values[name] : fallback || '')
       values[key] = value
