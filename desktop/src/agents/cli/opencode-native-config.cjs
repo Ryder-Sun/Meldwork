@@ -56,7 +56,9 @@ function opencodeDeclaredCredentialKeys(options = {}) {
     visit(config?.model)
     visit(config?.small_model)
   }
-  const providers = new Set(configs.flatMap(config => [config?.model, config?.small_model])
+  const resolveModel = model => typeof model === 'string'
+    ? model.replace(/\{env:([A-Za-z_][A-Za-z0-9_]*)\}/g, (_match, name) => env[name] || '') : model
+  const providers = new Set(configs.flatMap(config => [resolveModel(config?.model), resolveModel(config?.small_model)])
     .filter(model => typeof model === 'string' && /^[A-Za-z0-9._-]+\/.+/.test(model))
     .map(model => model.slice(0, model.indexOf('/'))))
   if (!configs.some(config => typeof config?.model === 'string' && config.model)) {

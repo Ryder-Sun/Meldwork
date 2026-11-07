@@ -263,12 +263,13 @@ async function nativeShellEnvironment(options = {}) {
   const piEnv = nativeConfigEnvironment('pi', workspace?.state.agentPreferences, initialEnv)
   const piCredentialKeys = piDeclaredCredentialKeys({ home, env: piEnv })
   const opencodeEnv = nativeConfigEnvironment('opencode', workspace?.state.agentPreferences, initialEnv)
-  const opencodeCredentialKeys = opencodeDeclaredCredentialKeys({ home, env: opencodeEnv, workdir: options.workdir })
+  let opencodeCredentialKeys = opencodeDeclaredCredentialKeys({ home, env: opencodeEnv, workdir: options.workdir })
   const mimoEnv = nativeConfigEnvironment('mimo', workspace?.state.agentPreferences, initialEnv)
   const mimoCredentialKeys = mimoDeclaredCredentialKeys({ home, env: mimoEnv, workdir: options.workdir })
-  const declaredKeys = [...new Set([...codexCredentialKeys, ...hermesCredentialKeys, ...zcodeCredentialKeys, ...piCredentialKeys,
-    ...opencodeCredentialKeys, ...mimoCredentialKeys])]
-  if (declaredKeys.length) {
+  for (let pass = 0; pass < 2; pass += 1) {
+    const declaredKeys = [...new Set([...codexCredentialKeys, ...hermesCredentialKeys, ...zcodeCredentialKeys, ...piCredentialKeys,
+      ...opencodeCredentialKeys, ...mimoCredentialKeys])]
+    if (!declaredKeys.length) break
     const chunks = []
     for (let index = 0; index < declaredKeys.length; index += 32) chunks.push(declaredKeys.slice(index, index + 32))
     const results = await Promise.all(chunks.map(extraEnvKeys => resolveNativeShellEnvironment({
@@ -285,6 +286,17 @@ async function nativeShellEnvironment(options = {}) {
     resolved = { ...resolved, env: { ...resolved.env, ...extra },
       unsetKeys: [...new Set([...(resolved.unsetKeys || []).filter(key => !declaredKeys.includes(key)),
         ...unset])] }
+    if (pass === 0) {
+      const enriched = { ...process.env, ...resolved.env }
+      for (const key of resolved.unsetKeys || []) delete enriched[key]
+      const nextEnv = nativeConfigEnvironment('opencode', workspace?.state.agentPreferences, enriched)
+      const nextKeys = opencodeDeclaredCredentialKeys({ home, env: nextEnv, workdir: options.workdir })
+      if (nextKeys.some(key => !opencodeCredentialKeys.includes(key))) {
+        opencodeCredentialKeys = nextKeys
+        continue
+      }
+    }
+    break
   }
   const env = { ...process.env, ...resolved.env }
   for (const key of resolved.unsetKeys || []) delete env[key]

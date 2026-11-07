@@ -277,6 +277,30 @@ test('OpenCode project provider references reach its execution without leaking t
   assert.equal(harness.runAgentCalls.at(-1)[3].env.PROJECT_PROVIDER_KEY, undefined)
 })
 
+test('OpenCode resolves a shell-selected model before collecting its provider credentials', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-opencode-model-env-main-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const cache = path.join(directory, 'cache', 'opencode')
+  fs.mkdirSync(cache, { recursive: true })
+  fs.writeFileSync(path.join(cache, 'models.json'), JSON.stringify({ groq: { env: ['GROQ_API_KEY'] } }))
+  fs.writeFileSync(path.join(directory, 'opencode.json'), JSON.stringify({ model: '{env:MODEL_CHOICE}' }))
+  const readiness = require('../../src/agents/local-agent-readiness.cjs')
+  const { harness } = loadMain(directory, {
+    nativeShellEnvironment: input => ({ env: { XDG_CACHE_HOME: path.dirname(cache),
+      ...(input.extraEnvKeys?.includes('MODEL_CHOICE') ? { MODEL_CHOICE: 'groq/model' } : {}),
+      ...(input.extraEnvKeys?.includes('GROQ_API_KEY') ? { GROQ_API_KEY: 'synthetic-secret' } : {}) }, source: 'native-shell' }),
+    nativeEnvironment: readiness.nativeCredentialEnvironment,
+  })
+  await harness.ready()
+  const workspace = harness.workspaceInstances[0]
+  await workspace.input.runAgent({ kind: 'opencode', executable: '/tmp/opencode' }, 'hello', directory, {})
+  const options = harness.runAgentCalls.at(-1)[3]
+  assert.equal(options.env.MODEL_CHOICE, 'groq/model')
+  assert.equal(options.env.GROQ_API_KEY, 'synthetic-secret')
+  await workspace.input.runAgent({ kind: 'codex', executable: '/tmp/codex' }, 'hello', directory, {})
+  assert.equal(harness.runAgentCalls.at(-1)[3].env.GROQ_API_KEY, undefined)
+})
+
 test('selected OpenCode configuration supplies its declared credentials to execution', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-opencode-selected-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
