@@ -5,6 +5,32 @@ const os = require('node:os')
 const path = require('node:path')
 const { nativeAuthIdentityFiles, nativeConfigEnvironment, nativeIdentityDirectory, nativeProjectConfigPaths, validateNativeConfigDirectory } = require('../../src/agents/native-config-directory.cjs')
 
+test('OpenCodeReview verification changes when native credentials or configuration change', t => {
+  const { NATIVE_AUTH_IDENTITY_FILES } = require('../../src/agents/native-config-directory.cjs')
+  const { agentVerificationIdentity } = require('../../src/workspace/agent-verification-identity.cjs')
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-ocr-identity-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const directory = path.join(home, '.opencodereview')
+  fs.mkdirSync(directory)
+  const agent = { kind: 'opencodereview' }
+  Object.defineProperty(agent, NATIVE_AUTH_IDENTITY_FILES, { value: nativeAuthIdentityFiles(agent.kind, {}, home) })
+  let previous = agentVerificationIdentity(agent)
+  for (const name of ['config.json', '.env']) {
+    fs.writeFileSync(path.join(directory, name), 'first')
+    const current = agentVerificationIdentity(agent)
+    assert.notEqual(current, previous, name)
+    previous = current
+  }
+  assert.deepEqual(nativeAuthIdentityFiles('opencodereview', { HOME: '/other' }, '/home', 'linux'), [
+    '/home/.opencodereview/config.json', '/home/.opencodereview/.env',
+    '/other/.opencodereview/config.json', '/other/.opencodereview/.env',
+  ])
+  assert.deepEqual(nativeAuthIdentityFiles('opencodereview', { USERPROFILE: 'C:\\Other' }, 'C:\\Home', 'win32'), [
+    'C:\\Home\\.opencodereview\\config.json', 'C:\\Home\\.opencodereview\\.env',
+    'C:\\Other\\.opencodereview\\config.json', 'C:\\Other\\.opencodereview\\.env',
+  ])
+})
+
 test('Zcode selects only a native .zcode/cli directory and derives its process home', t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-zcode-config-home-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))

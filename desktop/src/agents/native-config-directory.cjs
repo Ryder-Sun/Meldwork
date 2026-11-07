@@ -74,6 +74,12 @@ function nativeEnvironmentIdentity(env) {
 }
 
 function nativeAuthIdentityFiles(kind, env, home, platform = process.platform) {
+  if (kind === 'opencodereview') {
+    const paths = platform === 'win32' ? path.win32 : path.posix
+    const configuredHome = platform === 'win32' ? env?.USERPROFILE : env?.HOME
+    const roots = [...new Set([home, configuredHome].filter(root => typeof root === 'string' && paths.isAbsolute(root)))]
+    return roots.flatMap(root => ['config.json', '.env'].map(name => paths.join(root, '.opencodereview', name)))
+  }
   if (kind === 'pi' || kind === 'claude' || kind === 'hermes') {
     return cloudIdentityFiles(kind, env, home, platform)
   }
