@@ -128,6 +128,28 @@ test('Hermes native dotenv expansion redacts the values actually loaded by the C
     '[redacted] [redacted] [redacted]')
 })
 
+test('DeepSeek native stored credentials are redacted from final and streamed output', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-dsh-secret-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  fs.mkdirSync(path.join(home, 'profiles', 'acp'), { recursive: true })
+  fs.writeFileSync(path.join(home, '.credentials.yaml'), [
+    'version: 1', 'refs:', '  CUSTOM_REFERENCE: reference-private-value',
+    'records:', '  llm-pi-ai/custom:', '    kind: api-key', '    key: record-private-value',
+  ].join('\n'))
+  fs.writeFileSync(path.join(home, 'profiles', 'acp', 'cordis.patch.yml'),
+    '- id: llm-pi-ai\n  config:\n    apiKey: patch-private-value\n')
+  const child = childEnvironment({ kind: 'deepseek' }, home, { env: { DSH_HOME: home } }, process.platform)
+  assert.equal(child.CUSTOM_REFERENCE, undefined)
+  assert.equal(redactChildSecrets('reference-private-value record-private-value patch-private-value', child),
+    '[redacted] [redacted] [redacted]')
+  const events = []
+  const emitter = createRuntimeEventEmitter({ onEvent: event => events.push(event) }, child)
+  emitter.emit({ type: 'answer_delta', delta: 'reference-private-' })
+  emitter.emit({ type: 'answer_delta', delta: 'value' })
+  emitter.finalize({ text: 'reference-private-value', status: 'completed' })
+  assert.doesNotMatch(JSON.stringify(events), /reference-private-value/)
+})
+
 test('Zcode receives its selected native home without changing other Agent homes', () => {
   const options = { env: { HOME: '/selected-zcode', USERPROFILE: 'C:\\selected-zcode' } }
   const unix = childEnvironment({ kind: 'zcode' }, '/tmp', options, 'darwin')

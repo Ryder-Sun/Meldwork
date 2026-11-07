@@ -3,7 +3,7 @@ const os = require('node:os')
 const path = require('node:path')
 const { createHash } = require('node:crypto')
 const yaml = require('js-yaml')
-const { nativeSecretEnvKeys } = require('./native-secret-environment.cjs')
+const { nativeSecretEnvKeys, configSecrets } = require('./native-secret-environment.cjs')
 // DSH supports JavaScript-tagged scalar expressions; inspect them as inert text.
 const patchSchema = yaml.DEFAULT_SCHEMA.extend([new yaml.Type('tag:yaml.org,2002:js', {
   kind: 'scalar', construct: value => value,
@@ -29,6 +29,38 @@ function deepseekConfigurationFingerprint(options = {}) {
     }
   }
   return createHash('sha256').update(JSON.stringify([root, entries])).digest('hex')
+}
+
+function deepseekNativeSecrets(options = {}) {
+  const env = options.env || process.env
+  const home = options.home || os.homedir()
+  const root = typeof env.DSH_HOME === 'string' && env.DSH_HOME
+    ? env.DSH_HOME.replace(/^~(?=$|[\\/])/, home) : path.join(home, '.dsh')
+  if (!path.isAbsolute(root)) return []
+  const secrets = new Set()
+  const add = value => {
+    if (typeof value === 'string' && value && value.length <= 8192) secrets.add(value)
+  }
+  for (const file of ['.credentials.yaml', 'profiles/acp/.credentials.yaml',
+    'cordis.patch.yml', 'profiles/acp/cordis.patch.yml']) {
+    try {
+      const filename = path.join(root, file)
+      const stat = fs.statSync(filename)
+      if (!stat.isFile() || stat.size > 1024 * 1024) continue
+      const document = yaml.load(fs.readFileSync(filename, 'utf8'), { schema: patchSchema })
+      for (const value of configSecrets([document])) add(value)
+      if (!file.endsWith('.credentials.yaml') || !document || typeof document !== 'object') continue
+      if (document.refs && typeof document.refs === 'object' && !Array.isArray(document.refs)) {
+        for (const value of Object.values(document.refs)) add(value)
+      }
+      if (document.records && typeof document.records === 'object' && !Array.isArray(document.records)) {
+        for (const record of Object.values(document.records)) {
+          if (record?.kind === 'api-key') add(record.key)
+        }
+      }
+    } catch { /* The CLI handles unreadable or invalid native configuration. */ }
+  }
+  return [...secrets]
 }
 
 function deepseekDefaultCredentialConfigured(options = {}) {
@@ -113,4 +145,4 @@ function deepseekNativeConfig(options = {}) {
   return { explicitModel, credentialKeys: nativeSecretEnvKeys(keys) }
 }
 
-module.exports = { deepseekNativeConfig, deepseekConfigurationFingerprint, deepseekDefaultCredentialConfigured }
+module.exports = { deepseekNativeConfig, deepseekConfigurationFingerprint, deepseekDefaultCredentialConfigured, deepseekNativeSecrets }

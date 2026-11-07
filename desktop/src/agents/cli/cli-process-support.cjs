@@ -10,6 +10,7 @@ const { mimoConfigSecrets } = require('./mimo-native-config.cjs')
 const { opencodeConfigLayers } = require('./opencode-native-config.cjs')
 const { qwenConfigSecrets } = require('./qwen-native-config.cjs')
 const { hermesConfigSecrets } = require('./hermes-config-secrets.cjs')
+const { deepseekNativeSecrets } = require('./deepseek-native-config.cjs')
 const { redactChildSecrets } = require('./cli-runtime-events.cjs')
 const {
   agentRuntimeError,
@@ -228,6 +229,11 @@ function childEnvironment(agent, workdir, options, platform) {
   if (agent.kind === 'hermes') {
     const home = platform === 'win32' ? (childEnv.USERPROFILE || childEnv.HOME) : childEnv.HOME
     const secrets = hermesConfigSecrets({ env: childEnv, home, platform, declaredKeys: nativeKeys })
+    Object.defineProperty(childEnv, Symbol.for('meldwork.project-secret-values'), { value: secrets })
+  }
+  if (agent.kind === 'deepseek') {
+    const home = platform === 'win32' ? (childEnv.USERPROFILE || childEnv.HOME) : childEnv.HOME
+    const secrets = deepseekNativeSecrets({ env: childEnv, home })
     Object.defineProperty(childEnv, Symbol.for('meldwork.project-secret-values'), { value: secrets })
   }
   if (agent.kind === 'qwen') {
