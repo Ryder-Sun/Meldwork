@@ -813,7 +813,7 @@ function nativeCredentialState(kind, options = {}) {
         : { state: 'unknown', source: 'unverified' }
     }
     if (selection.authType === 'gemini-api-key') {
-      const found = ['GOOGLE_API_KEY', 'GEMINI_API_KEY'].some(key => typeof env[key] === 'string' && env[key].trim())
+      const found = typeof env.GEMINI_API_KEY === 'string' && env.GEMINI_API_KEY.trim()
       return found ? { state: 'ready', source: options.credentialSource === 'native-shell' ? 'native-shell' : 'native-credential' }
         : { state: 'unknown', source: 'unverified' }
     }

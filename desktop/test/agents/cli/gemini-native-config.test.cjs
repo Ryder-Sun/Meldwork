@@ -48,6 +48,7 @@ test('Gemini readiness checks credentials for its selected auth mode', t => {
   assert.deepEqual(nativeCredentialState('gemini', { home, env }), { state: 'unknown', source: 'unverified' })
   env.GEMINI_CLI_AUTH_OVERRIDE = 'gemini-api-key'
   delete env.GEMINI_API_KEY
+  env.GOOGLE_API_KEY = 'vertex-only'
   assert.deepEqual(nativeCredentialState('gemini', { home, env }), { state: 'unknown', source: 'unverified' })
 })
 
