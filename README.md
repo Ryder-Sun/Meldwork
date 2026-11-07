@@ -98,6 +98,7 @@ Meldwork detects and invokes compatible locally installed Agent commands. The ca
 </table>
 
 Approved Agent Connectors and custom executable Agents use the desktop connector paths. The [desktop guide](desktop/README.md) contains the current adapter, installation, provider, and capability matrix.
+The [Agent Connector SDK guide](desktop/AGENT_CONNECTOR_SDK.md) explains supported packages, approval, upgrades, and conformance checks.
 
 DeepSeek Harness (`dsh`) supports direct chats and group replies through ACP, with separate resumable sessions and workspace permissions. Its default route is ZGCI `smart-router-v2`; provide `ZGCI_API_KEY` through native credentials or the launch environment. In Settings → Agents → DeepSeek Harness, you can select an existing native `DSH_HOME` directory; detection, execution, and local Skills use that selection. The native `DSH_AGENTS_HOME` environment variable also controls the shared Skills directory. The icon comes from the official macOS application.
 

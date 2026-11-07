@@ -98,6 +98,7 @@ Meldwork 在本地保留任务上下文、Agent 回复、运行状态和产物�
 </table>
 
 已批准的 Agent Connector 和自定义可执行 Agent 使用桌面端的连接器入口。完整的适配器、安装、Provider 和能力矩阵见[桌面端指南](desktop/README.md)。
+[Agent Connector SDK 指南](desktop/AGENT_CONNECTOR_SDK.md)介绍当前支持的包、审批、升级和一致性检查。
 
 DeepSeek Harness（`dsh`）通过 ACP 支持私聊与群聊，各对话使用独立、可续接的原生会话，并遵守工作区权限。默认模型为 ZGCI `smart-router-v2`；凭据通过原生服务或启动环境中的 `ZGCI_API_KEY` 提供。在「设置 → Agent → DeepSeek Harness」中可以选择已有的原生 `DSH_HOME` 目录，探测、运行和本地 Skill 都会使用该目录。原生环境变量 `DSH_AGENTS_HOME` 也可指定共享 Skill 目录。图标使用官方 macOS 客户端资源。
 
