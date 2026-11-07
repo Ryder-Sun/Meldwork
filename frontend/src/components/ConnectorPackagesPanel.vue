@@ -11,7 +11,7 @@
       <div><strong>{{ item.label }}</strong> <span>{{ item.connectorVersion }}</span><p>{{ item.publisher.name }} · {{ t(`connectorPackages.state.${item.state}`) }}</p><p v-if="item.supported === false" role="status">{{ t('connectorPackages.unsupportedCapabilities') }}</p></div>
       <div class="connector-actions">
         <button type="button" :disabled="busy" @click="inspect(item)">{{ t('connectorPackages.inspect') }}</button>
-        <button v-if="item.state === 'imported'" type="button" :disabled="busy" @click="perform('approve', item)">{{ t('connectorPackages.approve') }}</button>
+        <button v-if="item.state === 'imported' && selected?.packageId !== item.packageId" type="button" :disabled="busy" @click="inspect(item)">{{ t('connectorPackages.approve') }}</button>
         <button v-if="item.supported !== false && ['approved', 'disabled'].includes(item.state) && !hasInstalledVersion(item)" type="button" :disabled="busy" @click="perform('install', item)">{{ t('connectorPackages.install') }}</button>
         <button v-if="item.supported !== false && item.state === 'approved' && hasInstalledVersion(item)" type="button" :disabled="busy" @click="perform('upgrade', item)">{{ t('connectorPackages.upgrade') }}</button>
         <button v-if="item.supported !== false && item.state === 'installed'" type="button" :disabled="busy" @click="configure(item)">{{ t('connectorPackages.configure') }}</button>
@@ -20,11 +20,14 @@
         <button v-if="['imported', 'approved', 'disabled', 'revoked'].includes(item.state)" type="button" :disabled="busy" @click="perform('remove', item)">{{ t('connectorPackages.remove') }}</button>
       </div>
       <div v-if="selected?.packageId === item.packageId" class="connector-detail">
+        <p>{{ t('connectorPackages.identity') }}: {{ selected.manifest.connectorId }} · {{ selected.manifest.manifestId }}</p>
+        <p>{{ t('connectorPackages.publisher') }}: {{ item.publisher.name }} · {{ item.publisher.id }}</p>
         <p>{{ t('connectorPackages.origin') }}: {{ selected.origin.filename }} · {{ selected.origin.sha256 }}</p>
         <p>{{ t('connectorPackages.transport') }}: {{ selected.manifest.transport.type }} / {{ selected.manifest.transport.protocol }}</p>
         <p>{{ t('connectorPackages.permissions') }}: {{ selected.manifest.permissionModes.join(', ') || t('connectorPackages.none') }}</p>
-        <p>{{ t('connectorPackages.credentials') }}: {{ selected.manifest.credentials.slots.map(slot => slot.slotId).join(', ') || t('connectorPackages.none') }}</p>
+        <p>{{ t('connectorPackages.credentials') }}: {{ selected.manifest.credentials.slots.map(slot => `${slot.slotId} (${slot.type})`).join(', ') || t('connectorPackages.none') }}</p>
         <p>{{ t('connectorPackages.destinations') }}: {{ selected.manifest.outboundDestinations.join(', ') || t('connectorPackages.none') }}</p>
+        <button v-if="item.state === 'imported'" type="button" :disabled="busy" @click="perform('approve', item)">{{ t('connectorPackages.confirmApproval') }}</button>
         <h4>{{ t('connectorPackages.audit') }}</h4>
         <ol><li v-for="event in audit" :key="event.eventId">{{ t(`connectorPackages.event.${event.action}`) }} · {{ event.timestamp }}</li></ol>
       </div>

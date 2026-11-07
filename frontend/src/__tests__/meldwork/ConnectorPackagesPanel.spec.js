@@ -43,13 +43,22 @@ describe('Connector package settings', () => {
       packages: vi.fn().mockResolvedValue([item]),
       list: vi.fn().mockResolvedValue([]),
       approve: vi.fn(async () => { item.state = 'installed' }),
-      inspect: vi.fn().mockResolvedValue({ manifest: { credentials: { slots: [] } } }),
+      inspect: vi.fn().mockResolvedValue({ packageId: 'package', origin: { filename: 'example.json', sha256: 'hash' },
+        manifest: { manifestId: 'manifest', connectorId: 'example', transport: { type: 'http', protocol: 'json' },
+          permissionModes: ['read-only'], outboundDestinations: ['https://example.com'], credentials: { slots: [] } } }),
+      audit: vi.fn().mockResolvedValue([]),
       configure: vi.fn().mockResolvedValue({}),
     }
     window.meldworkDesktop = { localAgentConnector: api }
     const wrapper = mount(ConnectorPackagesPanel)
     await flushPromises()
     await wrapper.findAll('button').find(button => button.text() === t('connectorPackages.approve')).trigger('click')
+    await flushPromises()
+    expect(api.approve).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('example.json')
+    expect(wrapper.text()).toContain('https://example.com')
+    expect(wrapper.text()).toContain('read-only')
+    await wrapper.findAll('button').find(button => button.text() === t('connectorPackages.confirmApproval')).trigger('click')
     await flushPromises()
     expect(api.approve).toHaveBeenCalledWith('package')
     await wrapper.findAll('button').find(button => button.text() === t('connectorPackages.configure')).trigger('click')
