@@ -5,7 +5,7 @@ const path = require('node:path')
 const { redactSecrets } = require('./security/secret-redaction.cjs')
 const { ensurePrivateDirectory } = require('./security/private-file.cjs')
 const { NATIVE_CONFIG_DIRECTORIES, NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_ENVIRONMENT_IDENTITY, NATIVE_AUTH_IDENTITY_FILES, NATIVE_PROJECT_CONFIG_PATHS,
-  nativeConfigEnvironment, nativeIdentityDirectory, nativeEnvironmentIdentity, nativeAuthIdentityFiles, nativeProjectConfigPaths, nativeNetworkIdentityFiles } = require('./agents/native-config-directory.cjs')
+  nativeConfigEnvironment, nativeIdentityDirectory, nativeEnvironmentIdentity, nativeAuthIdentityFiles, nativeProjectConfigPaths, nativeNetworkIdentityFiles, validateNativeConfigDirectory } = require('./agents/native-config-directory.cjs')
 const { AttachmentStore } = require('./attachments/attachment-store.cjs')
 const { ContentBlobStore } = require('./attachments/content-blob-store.cjs')
 const { ContextPackStore } = require('./collaboration/context-pack-store.cjs')
@@ -518,6 +518,10 @@ async function runCoreAgent(agent, prompt, workdir, options = {}) {
     }
   }
   const shellEnvironment = connectorCredentialIsolation ? null : await nativeShellEnvironment({ workdir })
+  if (!connectorCredentialIsolation) {
+    const directory = workspace?.state.agentPreferences?.[agent.kind]?.nativeConfigDirectory
+    if (directory) validateNativeConfigDirectory(agent.kind, directory)
+  }
   const selectedNativeEnv = shellEnvironment
     ? nativeConfigEnvironment(agent.kind, workspace?.state.agentPreferences, shellEnvironment.env) : null
   // OpenClaw runs through its isolated native runtime scope; every other Agent
@@ -741,6 +745,12 @@ function createWorkspace() {
       if (customAgentStore.has(kind)) return { state: 'ready', source: 'custom-agent' }
       if (agentConnectors.has(kind)) return { state: 'ready', source: 'agent-connector' }
       const shellEnvironment = await nativeShellEnvironment()
+      const directory = workspace?.state.agentPreferences?.[kind]?.nativeConfigDirectory
+      if (directory) {
+        try { validateNativeConfigDirectory(kind, directory) } catch {
+          return { state: 'unknown', source: 'native-runtime-unavailable' }
+        }
+      }
       return resolveNativeCredentialState(kind, {
         executable: agent?.executable,
         env: nativeConfigEnvironment(kind, workspace?.state.agentPreferences, shellEnvironment.env),

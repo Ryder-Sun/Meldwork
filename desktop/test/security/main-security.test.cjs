@@ -234,6 +234,7 @@ test('native credential changes invalidate the main-process Agent identity witho
 test('Pi native configuration declarations reach discovery and execution', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-pi-env-main-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  fs.writeFileSync(path.join(directory, 'models.json'), '{}')
   let discoveryKeys
   let selectedDirectory
   const { harness } = loadMain(directory, {
@@ -482,6 +483,12 @@ test('native Agent configuration selection is validated and used for execution',
   assert.equal(missing.directory, chosen.directory)
   assert.equal(missing.directoryMissing, true)
   assert.doesNotMatch(JSON.stringify(missing), /synthetic-secret/)
+  assert.deepEqual(await workspace.input.credentialState('hermes', { executable: '/tmp/hermes' }),
+    { state: 'unknown', source: 'native-runtime-unavailable' })
+  const previousCalls = harness.runAgentCalls.length
+  await assert.rejects(() => workspace.input.runAgent({ kind: 'hermes', executable: '/tmp/hermes' },
+    'hello', directory, {}), { message: 'LOCAL_NATIVE_CONFIG_INVALID' })
+  assert.equal(harness.runAgentCalls.length, previousCalls)
   workspace.activeRuns.set('busy', {})
   await assert.rejects(() => clear(harness.event(), 'hermes'), { message: 'LOCAL_WORK_PREFERENCES_BUSY' })
   workspace.activeRuns.clear()
