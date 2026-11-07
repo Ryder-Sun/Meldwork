@@ -1236,7 +1236,8 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
   t.after(async () => { await adapters.shutdownAcpSessionRuntime(); fs.rmSync(directory, { recursive: true, force: true }) })
   const agent = { kind: 'mimo', name: 'MiMo', executable: cli }
   const options = { acpPersistenceKey: 'workspace:mimo:config',
-    env: { XDG_CONFIG_HOME: path.join(directory, 'xdg'), MELDWORK_TEST_SPAWN_COUNT_FILE: count } }
+    env: { XDG_CONFIG_HOME: path.join(directory, 'xdg'), XDG_STATE_HOME: path.join(directory, 'state'),
+      MELDWORK_TEST_SPAWN_COUNT_FILE: count } }
   const first = await adapters.runAgent(agent, 'first', directory, options)
   const second = await adapters.runAgent(agent, 'second', directory, {
     ...options, sessionRef: first.sessionRef, sessionTransport: 'acp',
@@ -1250,6 +1251,25 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
   const fresh = await adapters.runAgent(agent, 'fresh', directory, options)
   assert.equal(fresh.text, 'reply')
   assert.equal(fs.readFileSync(count, 'utf8'), '2')
+  const state = path.join(directory, 'state', 'mimocode')
+  const history = path.join(state, 'model.json')
+  fs.mkdirSync(state, { recursive: true })
+  const recent = modelID => ({ recent: [{ providerID: 'custom', modelID }] })
+  fs.writeFileSync(config, '{}')
+  fs.writeFileSync(history, JSON.stringify(recent('first')))
+  const recentRun = await adapters.runAgent(agent, 'recent', directory, options)
+  assert.equal(fs.readFileSync(count, 'utf8'), '3')
+  fs.writeFileSync(history, JSON.stringify(recent('first'), null, 2))
+  await adapters.runAgent(agent, 'same recent', directory, {
+    ...options, sessionRef: recentRun.sessionRef, sessionTransport: 'acp',
+  })
+  assert.equal(fs.readFileSync(count, 'utf8'), '3')
+  fs.writeFileSync(history, JSON.stringify(recent('second')))
+  await assert.rejects(adapters.runAgent(agent, 'changed recent', directory, {
+    ...options, sessionRef: recentRun.sessionRef, sessionTransport: 'acp',
+  }), { code: 'LOCAL_AGENT_SESSION_INVALID' })
+  await adapters.runAgent(agent, 'fresh recent', directory, options)
+  assert.equal(fs.readFileSync(count, 'utf8'), '4')
 })
 
 test('switching between read-only and write keeps one ACP process when only the session mode differs', async (t) => {

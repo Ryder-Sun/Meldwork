@@ -60,28 +60,32 @@ function mimoConfigLayers(options = {}) {
 
 function mimoConfigurationFingerprint(options = {}) {
   const configs = mimoConfigLayers(options)
-  return configs === null ? null : createHash('sha256').update(JSON.stringify(configs)).digest('hex')
+  if (configs === null) return null
+  const recent = mimoModel(configs) ? null : mimoRecentModels(options.env || process.env, options.home || os.homedir())
+  return createHash('sha256').update(JSON.stringify([configs, recent])).digest('hex')
 }
 
 function mimoModel(configs) {
   return configs.reduce((model, config) => typeof config?.model === 'string' ? config.model : model, '')
 }
 
+function mimoRecentModels(env, home) {
+  const stateRoot = env.XDG_STATE_HOME || path.join(home, '.local', 'state')
+  try {
+    const filename = path.join(stateRoot, 'mimocode', 'model.json')
+    const stat = fs.statSync(filename)
+    if (!stat.isFile() || stat.size > 2 * 1024 * 1024) return []
+    const recent = JSON.parse(fs.readFileSync(filename, 'utf8'))?.recent
+    return (Array.isArray(recent) ? recent.slice(0, 32) : [])
+      .filter(item => typeof item?.providerID === 'string' && /^[A-Za-z0-9._-]+$/.test(item.providerID)
+        && typeof item.modelID === 'string' && item.modelID)
+      .map(item => ({ providerID: item.providerID, modelID: item.modelID }))
+  } catch { return [] }
+}
+
 function mimoProviderIds(configs, env, home) {
   const configuredModel = mimoModel(configs)
-  if (!configuredModel) {
-    const stateRoot = env.XDG_STATE_HOME || path.join(home, '.local', 'state')
-    try {
-      const filename = path.join(stateRoot, 'mimocode', 'model.json')
-      const stat = fs.statSync(filename)
-      if (!stat.isFile() || stat.size > 2 * 1024 * 1024) return []
-      const recent = JSON.parse(fs.readFileSync(filename, 'utf8'))?.recent
-      return [...new Set((Array.isArray(recent) ? recent.slice(0, 32) : [])
-        .filter(item => typeof item?.providerID === 'string' && /^[A-Za-z0-9._-]+$/.test(item.providerID)
-          && typeof item.modelID === 'string' && item.modelID)
-        .map(item => item.providerID))]
-    } catch { return [] }
-  }
+  if (!configuredModel) return [...new Set(mimoRecentModels(env, home).map(item => item.providerID))]
   const model = configuredModel.replace(/\{env:([A-Za-z_][A-Za-z0-9_]*)\}/g,
     (_match, name) => nativeSecretEnvKeys([name]).length ? env[name] || '' : '')
   return model.includes('/') && model.split('/')[0] ? [model.split('/')[0]] : []
