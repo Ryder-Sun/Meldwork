@@ -209,6 +209,32 @@ test('only unchanged recently verified executables survive inconclusive capabili
   assert.equal((await probeAgentCapabilities('workbuddy', executable, options)).compatibilityState, 'unknown')
 })
 
+test('spawn and authentication failures invalidate a previously successful capability probe', async () => {
+  let mode = 'success'
+  const options = {
+    env: {}, version: '2.115.0',
+    statFn: () => ({ dev: 1, ino: 1, size: 100, mtimeMs: 1, ctimeMs: 1 }),
+    execFileFn: async () => {
+      if (mode === 'spawn') throw Object.assign(new Error('permission denied'), { code: 'EACCES' })
+      if (mode === 'auth') throw Object.assign(new Error('Please log in first'), { code: 1 })
+      if (mode === 'timeout') throw Object.assign(new Error('timeout'), { code: 'ETIMEDOUT' })
+      return { stdout: '--print --output-format --permission-mode --max-turns --resume json plan acceptEdits' }
+    },
+  }
+  const probe = () => probeAgentCapabilities('workbuddy', '/test/spawn-failure-cache', options)
+  assert.equal((await probe()).compatibilityState, 'compatible')
+  mode = 'spawn'
+  assert.equal((await probe()).compatibilityState, 'unknown')
+  mode = 'timeout'
+  assert.equal((await probe()).compatibilityState, 'unknown')
+  mode = 'success'
+  assert.equal((await probe()).compatibilityState, 'compatible')
+  mode = 'auth'
+  assert.equal((await probe()).incompatibilityReason, 'LOCAL_AGENT_AUTH_REQUIRED')
+  mode = 'timeout'
+  assert.equal((await probe()).compatibilityState, 'unknown')
+})
+
 test('capability probe cache expires when the system clock moves backwards', async t => {
   let now = 10_000
   t.mock.method(Date, 'now', () => now)
