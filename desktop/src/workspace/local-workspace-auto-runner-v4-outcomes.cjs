@@ -10,8 +10,8 @@ const { canonicalJson } = require('../collaboration/context-pack-records.cjs')
 const v4OutcomeMethods = {
   v4WorkAcceptanceSatisfied(assignment, receipt) {
     const acceptance = assignment?.acceptance || { minArtifactRefs: 1, minEvidenceRefs: 1 }
-    if (!Array.isArray(receipt?.artifactIds) || receipt.artifactIds.length < acceptance.minArtifactRefs
-        || !Array.isArray(receipt?.evidenceIds) || receipt.evidenceIds.length < acceptance.minEvidenceRefs) return false
+    if (!Array.isArray(receipt?.artifactIds) || new Set(receipt.artifactIds).size < acceptance.minArtifactRefs
+        || !Array.isArray(receipt?.evidenceIds) || new Set(receipt.evidenceIds).size < acceptance.minEvidenceRefs) return false
     try {
       return (acceptance.requiredEvidenceKinds || []).every(kind => receipt.evidenceIds.some(evidenceId => {
         const evidence = this.v4EvidenceRecord(evidenceId)

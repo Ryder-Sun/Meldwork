@@ -45,6 +45,8 @@ test('V4 work acceptance applies explicit Artifact and Evidence minimums', () =>
   const assignment = { acceptance: { minArtifactRefs: 2, minEvidenceRefs: 2 } }
   assert.equal(runner.v4WorkAcceptanceSatisfied(assignment, { artifactIds: ['a'], evidenceIds: ['e1', 'e2'] }), false)
   assert.equal(runner.v4WorkAcceptanceSatisfied(assignment, { artifactIds: ['a', 'b'], evidenceIds: ['e1'] }), false)
+  assert.equal(runner.v4WorkAcceptanceSatisfied(assignment, { artifactIds: ['a', 'a'], evidenceIds: ['e1', 'e2'] }), false)
+  assert.equal(runner.v4WorkAcceptanceSatisfied(assignment, { artifactIds: ['a', 'b'], evidenceIds: ['e1', 'e1'] }), false)
   assert.equal(runner.v4WorkAcceptanceSatisfied(assignment, { artifactIds: ['a', 'b'], evidenceIds: ['e1', 'e2'] }), true)
   assert.equal(runner.v4WorkAcceptanceSatisfied({}, { artifactIds: ['a'], evidenceIds: ['e1'] }), true)
   const plan = { planHash: 'plan', assignments: [{ ...assignment, taskId: 'task', ownerKind: 'codex', dependsOn: [] }] }
