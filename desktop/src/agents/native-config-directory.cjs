@@ -51,6 +51,9 @@ function nativeProjectConfigPaths(kind, env = {}) {
   }
   if (kind === 'pi' || kind === 'claude' || kind === 'hermes') {
     entries = cloudIdentityPathKeys(kind).map(key => [env[key], false])
+    if (kind === 'hermes' && typeof env.CLOUDSDK_CONFIG === 'string' && env.CLOUDSDK_CONFIG) {
+      entries.push([path.join(env.CLOUDSDK_CONFIG, 'application_default_credentials.json'), false])
+    }
   }
   if (kind === 'opencode') entries.push(...cloudIdentityPathKeys(kind).map(key => [env[key], false]))
   const network = networkEnvironment(env)

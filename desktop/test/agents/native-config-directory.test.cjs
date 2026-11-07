@@ -154,9 +154,27 @@ test('project config identities retain only relative CLI paths', () => {
     { value: 'aws/credentials', directory: false }, { value: 'azure/token', directory: false },
   ])
   assert.deepEqual(nativeProjectConfigPaths('hermes', { AWS_CONFIG_FILE: 'aws/config',
-    VERTEX_CREDENTIALS_PATH: 'vertex.json' }), [
+    VERTEX_CREDENTIALS_PATH: 'vertex.json', CLOUDSDK_CONFIG: 'gcloud' }), [
     { value: 'aws/config', directory: false }, { value: 'vertex.json', directory: false },
+    { value: path.join('gcloud', 'application_default_credentials.json'), directory: false },
   ])
+})
+
+test('Hermes project verification follows a relative Google Cloud credentials directory', t => {
+  const { NATIVE_PROJECT_CONFIG_PATHS } = require('../../src/agents/native-config-directory.cjs')
+  const { projectVerificationIdentity } = require('../../src/workspace/agent-verification-identity.cjs')
+  const workdir = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-gcloud-project-'))
+  t.after(() => fs.rmSync(workdir, { recursive: true, force: true }))
+  const filename = path.join(workdir, 'gcloud', 'application_default_credentials.json')
+  fs.mkdirSync(path.dirname(filename))
+  fs.writeFileSync(filename, 'first')
+  const agent = { kind: 'hermes' }
+  Object.defineProperty(agent, NATIVE_PROJECT_CONFIG_PATHS, {
+    value: nativeProjectConfigPaths('hermes', { CLOUDSDK_CONFIG: 'gcloud' }),
+  })
+  const before = projectVerificationIdentity('hermes', workdir, agent, 'environment')
+  fs.writeFileSync(filename, 'replacement')
+  assert.notEqual(projectVerificationIdentity('hermes', workdir, agent, 'environment'), before)
 })
 
 test('Hermes verification tracks native cloud credential files', t => {
