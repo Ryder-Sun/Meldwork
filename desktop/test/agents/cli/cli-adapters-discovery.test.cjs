@@ -1200,6 +1200,23 @@ test('Agent detection probes capabilities when the product version is unrecogniz
   }])
 })
 
+test('Agent detection reads product versions from nonzero version-command output', async () => {
+  for (const [output, expected, code] of [
+    ['Node.js 22.0.0 warning\nKimi Code 0.29.0', '0.29.0', 1],
+    ['Node.js 22.0.0 warning', '', 1],
+    ['Kimi Code 0.29.0', '', 'ETIMEDOUT'],
+  ]) {
+    const found = await detectAgents({
+      platform: 'darwin', env: {},
+      resolveExecutableFn: async kind => kind === 'kimi' ? '/tmp/kimi' : null,
+      execFileFn: async () => { throw Object.assign(new Error('version command failed'), { code, stderr: output }) },
+      probeAgentCapabilitiesFn: async () => ({ compatibilityState: 'compatible', incompatibilityReason: '', incompatibilityProbe: '' }),
+    })
+    assert.equal(found[0].resolvedVersion, expected)
+    assert.equal(found[0].versionIdentified !== false, Boolean(expected))
+  }
+})
+
 test('authentication errors in capability probes do not imply protocol incompatibility', async () => {
   const result = await probeAgentCapabilities('workbuddy', '/test/auth-workbuddy', {
     env: {},

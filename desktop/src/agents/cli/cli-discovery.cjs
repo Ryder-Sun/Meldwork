@@ -500,6 +500,12 @@ async function inspectAgentCandidate(kind, executable, options, childEnv) {
     incompatibilityReason: 'LOCAL_AGENT_REQUIRED_CAPABILITY_MISSING',
     incompatibilityProbe: '',
   }
+  const identifiedVersion = (stdout, stderr) => {
+    const identified = identifyAgentVersion(kind, [stdout, stderr], { executable })
+    const version = identified && extractAgentVersion(identified.line) !== identified.resolvedVersion
+      ? identified.resolvedVersion : identified?.line || ''
+    return { succeeded: true, version: redactChildSecrets(version, childEnv), versionIdentified: Boolean(identified) }
+  }
   const versionTask = (async () => {
     try {
       const versionCommand = prepareCommandFn(executable, ['--version'], options)
@@ -508,15 +514,13 @@ async function inspectAgentCandidate(kind, executable, options, childEnv) {
         windowsHide: true,
         env: childEnv,
       })
-      const identified = identifyAgentVersion(kind, [result.stdout, result.stderr], { executable })
-      const version = identified && extractAgentVersion(identified.line) !== identified.resolvedVersion
-        ? identified.resolvedVersion : identified?.line || ''
-      return {
-        succeeded: true,
-        version: redactChildSecrets(version, childEnv),
-        versionIdentified: Boolean(identified),
+      return identifiedVersion(result.stdout, result.stderr)
+    } catch (error) {
+      if (Number.isInteger(error?.code) && !error.killed && !error.signal) {
+        return identifiedVersion(error.stdout, error.stderr)
       }
-    } catch { /* capability probes can still establish whether this installation works */ }
+      /* Capability probes can still establish whether this installation works. */
+    }
     return { succeeded: false, version: '', versionIdentified: false }
   })()
 
