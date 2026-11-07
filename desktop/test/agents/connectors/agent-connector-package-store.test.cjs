@@ -352,6 +352,29 @@ test('upgrades one installed Connector version and fails closed on audit tamperi
   })
 })
 
+test('a different publisher cannot replace an installed Connector as an upgrade', (t) => {
+  const { store } = fixture(t)
+  const first = SAMPLE_LOCAL_ECHO_AGENT_CONNECTOR_PACKAGE
+  const manifest = { ...SAMPLE_LOCAL_ECHO_AGENT_CONNECTOR_MANIFEST, connectorVersion: '1.1.0' }
+  delete manifest.manifestId
+  delete manifest.recordType
+  delete manifest.schemaVersion
+  const { createAgentConnectorManifest } = require('../../../src/agents/connectors/agent-connector-manifest.cjs')
+  const other = createAgentConnectorPackage({
+    publisher: { ...first.publisher, id: 'different.publisher' },
+    provider: first.provider,
+    manifest: createAgentConnectorManifest(manifest),
+  })
+  store.import(serializeAgentConnectorPackage(first), 'first.json')
+  store.approve(first.packageId)
+  store.install(first.packageId)
+  store.import(serializeAgentConnectorPackage(other), 'other.json')
+  store.approve(other.packageId)
+  assert.throws(() => store.upgrade(other.packageId), { message: 'AGENT_CONNECTOR_PACKAGE_UPGRADE_INVALID' })
+  assert.equal(store.inspect(first.packageId).state, 'installed')
+  assert.equal(store.inspect(other.packageId).state, 'approved')
+})
+
 test('installed package symlinks disable Connectors without blocking store construction', (t) => {
   const { create, rootPath, store } = fixture(t)
   const packageRecord = SAMPLE_LOCAL_ECHO_AGENT_CONNECTOR_PACKAGE

@@ -547,7 +547,9 @@ class AgentConnectorPackageStore {
       && item.connectorId === target.manifest.connectorId
       && item.packageId !== normalizedId
     ))
-    if (installed.length !== 1) fail('AGENT_CONNECTOR_PACKAGE_UPGRADE_INVALID')
+    if (installed.length !== 1 || installed[0].publisher.id !== target.publisher.id) {
+      fail('AGENT_CONNECTOR_PACKAGE_UPGRADE_INVALID')
+    }
     if (compareSemanticVersions(
       target.manifest.connectorVersion,
       installed[0].connectorVersion,
