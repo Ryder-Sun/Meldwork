@@ -85,13 +85,15 @@ function projectVerificationIdentity(kind, workdir, agent = null, environmentIde
     entries.push([target, item.directory ? names.map(name => [name, fileIdentity(path.join(target, name))]) : fileIdentity(target)])
   }
   let current = root
+  let complete = false
   for (let depth = 0; depth < 64; depth += 1) {
     entries.push([current, ...(files || []).map(file => [file, fileIdentity(path.join(current, file))])])
-    if (fs.existsSync(path.join(current, '.git'))) break
+    if (fs.existsSync(path.join(current, '.git'))) { complete = true; break }
     const parent = path.dirname(current)
-    if (parent === current) break
+    if (parent === current) { complete = true; break }
     current = parent
   }
+  if (!complete) return null
   return createHash('sha256').update(JSON.stringify(entries)).digest('hex')
 }
 

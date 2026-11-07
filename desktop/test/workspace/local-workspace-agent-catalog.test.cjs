@@ -9,6 +9,16 @@ const { agentVerificationIdentity, projectVerificationIdentity } = require('../.
 const { NATIVE_CONFIG_IDENTITY_DIRECTORY, NATIVE_ENVIRONMENT_IDENTITY, NATIVE_AUTH_IDENTITY_FILES, NATIVE_PROJECT_CONFIG_PATHS, nativeEnvironmentIdentity } = require('../../src/agents/native-config-directory.cjs')
 const { LocalWorkspaceAgentCatalog } = catalogApi
 
+test('deep workspaces cannot retain a verification that skipped ancestor configuration', t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-deep-verification-'))
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+  fs.mkdirSync(path.join(root, '.git'))
+  const workdir = path.join(root, ...Array(65).fill('d'))
+  fs.mkdirSync(workdir, { recursive: true })
+  fs.writeFileSync(path.join(root, 'zcode.json'), '{"model":{"main":"provider/model"}}')
+  assert.equal(projectVerificationIdentity('zcode', workdir), null)
+})
+
 test('Agent verification identity changes when the executable is replaced', t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-agent-identity-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
