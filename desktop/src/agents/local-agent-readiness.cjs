@@ -110,6 +110,22 @@ function openCodeReviewSelectedCredential(home, env, credentialSource, presetPro
   const knownPreset = Boolean(nativeKey) || (Array.isArray(presetProviders) && presetProviders.includes(provider))
   const selected = knownPreset ? config.providers?.[provider]
     : Array.isArray(presetProviders) ? config.custom_providers?.[provider] : null
+  const model = typeof selected?.model === 'string' && selected.model.trim()
+    ? selected.model.trim() : (typeof config.model === 'string' ? config.model.trim() : '')
+  if (!model) return { state: 'unknown', source: 'unverified' }
+  const protocol = typeof selected?.protocol === 'string' ? selected.protocol.trim().toLowerCase() : ''
+  if (selected?.protocol != null && typeof selected.protocol !== 'string') return { state: 'unknown', source: 'unverified' }
+  if (!knownPreset || selected?.protocol) {
+    if (!['openai', 'openai-responses', 'anthropic', 'anthropic-bedrock'].includes(protocol)) {
+      return { state: 'unknown', source: 'unverified' }
+    }
+  }
+  if (!knownPreset || selected?.url) {
+    try {
+      const endpoint = new URL(selected.url)
+      if (!['http:', 'https:'].includes(endpoint.protocol)) return { state: 'unknown', source: 'unverified' }
+    } catch { return { state: 'unknown', source: 'unverified' } }
+  }
   const configured = credentialLiteral(selected?.api_key)
   const command = typeof selected?.api_key_cmd === 'string' && selected.api_key_cmd.trim()
   const inherited = !command && nativeKey && credentialLiteral(env[nativeKey])

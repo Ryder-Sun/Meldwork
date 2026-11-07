@@ -90,13 +90,24 @@ test('OpenCodeReview probes native provider names before trusting a custom crede
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))
   const root = path.join(home, '.opencodereview')
   fs.mkdirSync(root)
-  fs.writeFileSync(path.join(root, 'config.json'), JSON.stringify({ provider: 'my-gateway',
-    custom_providers: { 'my-gateway': { api_key: 'synthetic-key' } } }))
+  const config = { provider: 'my-gateway', custom_providers: { 'my-gateway': { api_key: 'synthetic-key' } } }
+  const file = path.join(root, 'config.json')
+  fs.writeFileSync(file, JSON.stringify(config))
   const options = { home, env: {}, executable: '/tmp/ocr',
     execFileFn: async (_command, args) => {
       assert.deepEqual(args, ['llm', 'providers'])
       return { stdout: 'Built-in providers:\n  NAME  PROTOCOL  BASE URL\n  ----  --------  --------\n  anthropic  anthropic  https://example.invalid\n  openai  openai  https://example.invalid\n' }
     } }
+  assert.equal((await resolveNativeCredentialState('opencodereview', options)).state, 'unknown')
+  config.model = 'test-model'
+  fs.writeFileSync(file, JSON.stringify(config))
+  assert.equal((await resolveNativeCredentialState('opencodereview', options)).state, 'unknown')
+  config.custom_providers['my-gateway'].url = 'https://example.invalid/v1'
+  config.custom_providers['my-gateway'].protocol = 'invalid'
+  fs.writeFileSync(file, JSON.stringify(config))
+  assert.equal((await resolveNativeCredentialState('opencodereview', options)).state, 'unknown')
+  config.custom_providers['my-gateway'].protocol = 'openai'
+  fs.writeFileSync(file, JSON.stringify(config))
   assert.equal((await resolveNativeCredentialState('opencodereview', options)).state, 'ready')
   options.execFileFn = async () => { throw new Error('unavailable') }
   assert.equal((await resolveNativeCredentialState('opencodereview', options)).state, 'unknown')
