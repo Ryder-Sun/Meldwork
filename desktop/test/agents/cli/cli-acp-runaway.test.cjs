@@ -63,3 +63,34 @@ setInterval(() => console.log(JSON.stringify({type:'text',text:'已确认，随�
   assert.equal(await readWhenReady(terminated), 'terminated')
   assert.match(events.filter(event => event.type === 'answer_delta').map(event => event.delta).join(''), /已确认/)
 })
+
+test('Hermes ACP cancels repeated private reasoning without publishing it', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-acp-thought-loop-'))
+  t.after(async () => { await adapters.shutdownAcpSessionRuntime(); fs.rmSync(directory, { recursive: true, force: true }) })
+  const cancelled = path.join(directory, 'cancelled')
+  const cli = executable(directory, 'hermes', `
+const fs = require('node:fs')
+const send = value => process.stdout.write(JSON.stringify(value) + '\\n')
+const thought = 'PRIVATE_REASONING_REPEAT: inspect the evidence and evaluate the same option again. '
+let timer, request
+require('node:readline').createInterface({input:process.stdin}).on('line', line => {
+  const message = JSON.parse(line), sessionId = 'native-thought-session'
+  if (message.method === 'initialize') send({jsonrpc:'2.0',id:message.id,result:{protocolVersion:1}})
+  else if (message.method === 'session/new') send({jsonrpc:'2.0',id:message.id,result:{sessionId}})
+  else if (message.method === 'session/set_mode') send({jsonrpc:'2.0',id:message.id,result:{}})
+  else if (message.method === 'session/prompt') {
+    request = message.id
+    timer = setInterval(() => send({jsonrpc:'2.0',method:'session/update',params:{sessionId,update:{sessionUpdate:'agent_thought_chunk',content:{type:'text',text:thought}}}}), 5)
+  } else if (message.method === 'session/cancel') {
+    clearInterval(timer); fs.writeFileSync(${JSON.stringify(cancelled)}, 'cancelled')
+    send({jsonrpc:'2.0',id:request,result:{stopReason:'cancelled'}})
+  }
+})
+`)
+  const events = []
+  await assert.rejects(within(adapters.runAgent({ kind: 'hermes', executable: cli, acpAvailable: true },
+    'return one answer', directory, { onEvent: event => events.push(event) }), 10000),
+  { code: 'LOCAL_AGENT_REPEATED_OUTPUT' })
+  assert.equal(await readWhenReady(cancelled), 'cancelled')
+  assert.doesNotMatch(JSON.stringify(events), /PRIVATE_REASONING_REPEAT/)
+})

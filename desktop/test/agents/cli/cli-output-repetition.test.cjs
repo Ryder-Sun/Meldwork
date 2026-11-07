@@ -38,6 +38,24 @@ test('real tools reset the window but repeated thoughts do not hide an output lo
   assert.equal(repeated, true)
 })
 
+test('detects runaway private reasoning separately from visible answers', () => {
+  const guard = createOutputRepetitionGuard()
+  const thought = 'I should review the evidence before deciding which option best fits the stated requirements. '
+  for (let index = 0; index < 3; index += 1) {
+    assert.equal(guard({ sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: thought } }), false)
+  }
+  let stopped = false
+  for (let index = 0; index < 24 && !stopped; index += 1) {
+    stopped = guard({ sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: thought } })
+  }
+  assert.equal(stopped, true)
+  const ordinary = createOutputRepetitionGuard()
+  for (let index = 0; index < 200; index += 1) {
+    assert.equal(ordinary({ sessionUpdate: 'agent_thought_chunk', content: { type: 'text',
+      text: `Step ${index}: evaluate a distinct part of the user's request. ` } }), false)
+  }
+})
+
 test('independent turns do not share repetition state', () => {
   for (let index = 0; index < 8; index++) assert.equal(createOutputRepetitionGuard()(update(answer.repeat(2))), false)
 })
