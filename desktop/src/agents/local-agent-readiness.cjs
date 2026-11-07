@@ -9,6 +9,7 @@ const JSON5 = require('json5')
 const toml = require('@iarna/toml')
 const { nativeSecretEnvKeys } = require('./cli/native-secret-environment.cjs')
 const { deepseekNativeConfig } = require('./cli/deepseek-native-config.cjs')
+const { hermesProviderFromConfig } = require('./hermes-config-summary.cjs')
 const { prepareCommand, searchPath } = require('./cli/cli-discovery.cjs')
 const { isOpenClawSecretReference } = require('./cli/openclaw-runtime.cjs')
 const { NETWORK_ENV_KEYS, networkEnvironment } = require('./cli/cli-network-environment.cjs')
@@ -205,8 +206,7 @@ function hermesDeclaredCredentialKeys(options = {}) {
     const fallbacks = [config.fallback_providers, config.fallback_model]
       .flatMap(value => Array.isArray(value) ? value : [value])
       .filter(entry => entry && typeof entry === 'object' && !Array.isArray(entry)).slice(0, 32)
-    const nestedModel = model.default && typeof model.default === 'object' ? model.default : {}
-    const currentProvider = String(model.provider || nestedModel.provider || env.HERMES_INFERENCE_PROVIDER || 'auto').trim().toLowerCase()
+    const currentProvider = (hermesProviderFromConfig(config, env) || 'auto').toLowerCase()
     const configuredProviders = config.providers && typeof config.providers === 'object' && !Array.isArray(config.providers)
       ? config.providers : {}
     const modelName = typeof model.default === 'string' ? model.default.trim() : ''
@@ -436,7 +436,7 @@ function hermesSelectedProvider(root, env) {
     if ([config.fallback_providers, config.fallback_model].some(value =>
       Array.isArray(value) ? value.length > 0 : value && typeof value === 'object')) return null
     const model = config.model && typeof config.model === 'object' && !Array.isArray(config.model) ? config.model : {}
-    const provider = String(model.provider || env.HERMES_INFERENCE_PROVIDER || '').trim().toLowerCase()
+    const provider = hermesProviderFromConfig(config, env).toLowerCase()
     const canonical = { openai: 'OPENAI_API_KEY', openrouter: 'OPENROUTER_API_KEY', anthropic: 'ANTHROPIC_API_KEY' }
     if (provider.startsWith('custom:')) {
       const providers = config.providers && typeof config.providers === 'object' && !Array.isArray(config.providers)

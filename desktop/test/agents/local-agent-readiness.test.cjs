@@ -918,6 +918,25 @@ test('Hermes environment readiness follows its selected native provider', t => {
     { state: 'unknown', source: 'unverified' })
 })
 
+test('Hermes credential discovery follows nested and legacy provider configuration', t => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-nested-provider-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const root = path.join(home, '.hermes')
+  fs.mkdirSync(root)
+  const filename = path.join(root, 'config.yaml')
+  fs.writeFileSync(filename, [
+    'model:', '  provider: auto', '  default:', '    provider: "custom:work"', '    model: chosen',
+    'providers:', '  work:', '    base_url: https://example.invalid/v1', '    key_env: WORK_TOKEN',
+    '  other:', '    key_env: OTHER_TOKEN',
+  ].join('\n'))
+  assert.deepEqual(hermesDeclaredCredentialKeys({ home, env: {} }), ['WORK_TOKEN'])
+  assert.equal(nativeCredentialState('hermes', { home, env: { OPENAI_API_KEY: 'other' } }).state, 'unknown')
+  assert.equal(nativeCredentialState('hermes', { home, env: { WORK_TOKEN: 'selected' } }).state, 'ready')
+  fs.writeFileSync(filename, 'provider: openrouter\nmodel: chosen\n')
+  assert.equal(nativeCredentialState('hermes', { home, env: { OPENAI_API_KEY: 'other' } }).state, 'unknown')
+  assert.equal(nativeCredentialState('hermes', { home, env: { OPENROUTER_API_KEY: 'selected' } }).state, 'ready')
+})
+
 test('Hermes named custom provider readiness ignores unrelated account credentials', t => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-hermes-named-provider-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))

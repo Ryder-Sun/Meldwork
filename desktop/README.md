@@ -78,7 +78,7 @@ CLI 解锁；可在 Meldwork 中选择桌面配置里已有且已配置鉴权的
 Meldwork 仅保存模型标识，运行时由主进程读取原生配置，不向渲染层返回密钥。
 Zcode 沿用默认配置；若其默认 Provider 缺少 API Key，需要先修复本机原生配置。
 
-Hermes 的原生配置目录设置会显示 `config.yaml` 中显式指定的 Provider，或配置中没有指定时的
+Hermes 的原生配置目录设置会显示 `config.yaml` 中显式指定的 Provider（包括嵌套模型及旧版根级配置），或配置中没有指定时的
 `HERMES_INFERENCE_PROVIDER`。显示 `auto` 表示交由 Hermes 自动选择，并不代表已经确认最终路由；
 无法读取或没有明确配置时显示未指定。此摘要不返回凭据。
 
