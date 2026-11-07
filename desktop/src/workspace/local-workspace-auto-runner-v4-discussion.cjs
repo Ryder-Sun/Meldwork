@@ -728,7 +728,7 @@ const v4DiscussionMethods = {
 
       if (coordinationPlan) {
         while (!controller.signal.aborted) {
-          const workState = this.v4WorkState(workReceipts, coordinationPlan)
+          const workState = this.v4WorkState(workReceipts, coordinationPlan, controller.runId)
           if (!workState.pending.length) break
           if (!workState.ready.length) return 'failed'
           const readyAssignments = []
@@ -745,7 +745,7 @@ const v4DiscussionMethods = {
             workAssignments: readyAssignments,
           })
           if (!work.ok) return controller.signal.aborted ? 'stopped' : 'failed'
-          const completedAfter = this.v4WorkState(workReceipts, coordinationPlan).completed.size
+          const completedAfter = this.v4WorkState(workReceipts, coordinationPlan, controller.runId).completed.size
           if (completedAfter <= completedBefore) return 'failed'
         }
         if (controller.signal.aborted) return terminalRunStatusForReason(controller.stopReason)

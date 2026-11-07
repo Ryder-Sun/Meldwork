@@ -15,7 +15,7 @@ const v4OutcomeMethods = {
     )) || null
   },
 
-  v4WorkState(workReceipts, coordinationPlan) {
+  v4WorkState(workReceipts, coordinationPlan, runId = '') {
     if (!coordinationPlan) throw new Error('LOCAL_RUN_V4_COORDINATION_PLAN_INVALID')
     const completed = new Map()
     for (const assignment of coordinationPlan.assignments) {
@@ -26,7 +26,16 @@ const v4OutcomeMethods = {
       ))
       if (!exactReceipt) continue
       const record = { receipt: exactReceipt.collaborationReceipt }
-      if (!this.v4ReceiptReferencesComplete(record)
+      const firstArtifact = runId && exactReceipt.artifacts[0]
+        ? this.v4ArtifactIdentity(exactReceipt.artifacts[0].artifactId)
+        : null
+      const expectedProducer = runId ? {
+        runId,
+        agentRunId: firstArtifact?.artifact?.producedBy?.agentRunId,
+        agentKind: assignment.ownerKind,
+        operationId: exactReceipt.operationId,
+      } : null
+      if (!this.v4ReceiptReferencesComplete(record, '', expectedProducer)
           || exactReceipt.artifacts.some((binding) => {
             const identity = this.v4ArtifactIdentity(binding.artifactId)
             return identity.contentHash !== binding.contentHash
@@ -588,7 +597,7 @@ const v4OutcomeMethods = {
       this.v4LatestReceipt(receiptRecords, 'proposal', kind)
     )).filter(Boolean)
     const workState = options.coordinationPlan
-      ? this.v4WorkState(options.workReceipts, options.coordinationPlan)
+      ? this.v4WorkState(options.workReceipts, options.coordinationPlan, options.runId)
       : null
     const referencesComplete = proposals.length === targetKinds.length
       && proposals.every(record => this.v4ReceiptReferencesComplete(record))

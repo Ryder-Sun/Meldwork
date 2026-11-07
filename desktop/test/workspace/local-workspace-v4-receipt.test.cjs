@@ -35,6 +35,26 @@ test('V4 work recovery rejects a completed task whose dependency is missing', ()
   assert.equal(parallel.completed.size, 3)
 })
 
+test('V4 work recovery rejects artifacts and evidence from another run or Agent', () => {
+  const plan = { planHash: 'plan', assignments: [{ taskId: 'work', ownerKind: 'codex', dependsOn: [] }] }
+  const contentRef = { hash: 'a'.repeat(64), mediaType: 'text/plain', size: 4 }
+  const producer = { runId: 'run-current', agentRunId: 'agent-current', agentKind: 'codex' }
+  const identity = { contentHash: contentRef.hash, artifact: { contentRef, producedBy: producer } }
+  const evidence = { recordedBy: { kind: 'agent', ...producer }, subject: { type: 'artifact', artifactId: 'artifact' },
+    refs: [{ type: 'blob', contentHash: contentRef.hash, contentRef }] }
+  const receipt = { status: 'completed', agentKind: 'codex', operationId: 'operation',
+    artifactIds: ['artifact'], evidenceIds: ['evidence'] }
+  const work = { planHash: 'plan', taskId: 'work', ownerKind: 'codex', operationId: 'operation',
+    collaborationReceipt: receipt, artifacts: [{ artifactId: 'artifact', contentHash: contentRef.hash, contentRef }] }
+  const runner = { ...v4OutcomeMethods, v4ArtifactIdentity: () => identity, v4EvidenceRecord: () => evidence }
+  assert.equal(runner.v4WorkState([work], plan, 'run-current').completed.size, 1)
+  identity.artifact.producedBy = { ...producer, runId: 'run-foreign' }
+  assert.throws(() => runner.v4WorkState([work], plan, 'run-current'), { message: 'LOCAL_RUN_V4_WORK_RECEIPT_INVALID' })
+  identity.artifact.producedBy = producer
+  evidence.recordedBy = { kind: 'agent', ...producer, agentKind: 'hermes' }
+  assert.throws(() => runner.v4WorkState([work], plan, 'run-current'), { message: 'LOCAL_RUN_V4_WORK_RECEIPT_INVALID' })
+})
+
 function receiptFor(phase, summary) {
   if (phase === 'proposal') {
     return {

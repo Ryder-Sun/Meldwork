@@ -1736,7 +1736,7 @@ class LocalWorkspace extends EventEmitter {
       let workState
       try {
         workState = this.autoRunner.v4WorkState(
-          cursor.workReceipts || [], cursor.coordinationPlan,
+          cursor.workReceipts || [], cursor.coordinationPlan, controller.runId,
         )
       } catch {
         return false
