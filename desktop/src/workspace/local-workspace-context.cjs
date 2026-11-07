@@ -399,9 +399,10 @@ function clearSessionState(state, groupId) {
   }
 }
 
-function openClawSessionRef(group, generation = '', taskId = '') {
+function openClawSessionRef(group, generation = '', taskId = '', nativeDirectory = '') {
   const groupScope = createHash('sha256')
-    .update(JSON.stringify([String(group.id || ''), String(taskId || '')]))
+    .update(JSON.stringify([String(group.id || ''), String(taskId || ''),
+      ...(nativeDirectory ? [String(nativeDirectory)] : [])]))
     .digest('hex')
     .slice(0, 20)
   const safeGeneration = String(generation || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 32)
@@ -451,7 +452,7 @@ function resolveSessionState({
       const legacyBase = `agent:main:desktop-meldwork-${legacyScope}-openclaw`
       if (candidate === legacyBase || candidate.startsWith(`${legacyBase}-`)) {
         const generation = candidate.slice(legacyBase.length).replace(/^-/, '')
-        candidate = openClawSessionRef(group, generation)
+        candidate = openClawSessionRef(group, generation, '', state.agentPreferences?.openclaw?.nativeConfigDirectory)
         state.sessions[candidateKey] = candidate
         stateChanged = true
       }
@@ -503,7 +504,7 @@ function resolveSessionState({
     }
   }
   if (!stored && kind === 'openclaw') {
-    state.sessions[key] = openClawSessionRef(group)
+    state.sessions[key] = openClawSessionRef(group, '', '', state.agentPreferences?.openclaw?.nativeConfigDirectory)
     state.sessionMeta[key] = completeSessionMeta(
       state.sessionMeta[key], 'conversation', currentTaskId,
     )

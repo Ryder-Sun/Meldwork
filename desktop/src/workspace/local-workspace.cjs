@@ -2636,7 +2636,7 @@ class LocalWorkspace extends EventEmitter {
   }
 
   openClawSessionRef(group, generation = '', taskId = '') {
-    return openClawSessionRef(group, generation, taskId)
+    return openClawSessionRef(group, generation, taskId, this.state.agentPreferences?.openclaw?.nativeConfigDirectory)
   }
 
   sessionState(group, kind, threadRootId = '', taskId = '') {

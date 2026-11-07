@@ -10,6 +10,25 @@ const { LocalWorkspaceConversations } = require('../../src/workspace/local-works
 const { LocalWorkspace } = require('../../src/workspace/local-workspace.cjs')
 const { fixture } = require('../support/local-workspace-test-helpers.cjs')
 
+test('switching OpenClaw native directories creates isolated sessions and restores the original', () => {
+  for (const conversationType of ['direct', 'group']) {
+    const group = { id: `openclaw-${conversationType}`, agentKinds: ['openclaw'], conversationType }
+    const state = { groups: [group], messages: [], sessions: {}, sessionMeta: {}, agentPreferences: {} }
+    const resolve = () => resolveSessionState({ state, group, kind: 'openclaw', save() {} }).sessionRef
+    const original = resolve()
+    switchNativeSessionProfile(state, 'openclaw', '', '/native-b')
+    state.agentPreferences.openclaw = { nativeConfigDirectory: '/native-b' }
+    const selected = resolve()
+    assert.notEqual(selected, original)
+    switchNativeSessionProfile(state, 'openclaw', '/native-b', '')
+    state.agentPreferences.openclaw = { nativeConfigDirectory: '' }
+    assert.equal(resolve(), original)
+    switchNativeSessionProfile(state, 'openclaw', '', '/native-b')
+    state.agentPreferences.openclaw = { nativeConfigDirectory: '/native-b' }
+    assert.equal(resolve(), selected)
+  }
+})
+
 test('switching native profiles preserves direct, group and other Agent sessions across reload', t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-native-sessions-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
