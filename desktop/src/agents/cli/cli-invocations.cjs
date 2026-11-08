@@ -181,6 +181,21 @@ function invocation(kind, executable, workdir, sessionRef = '', options = {}) {
       promptArg: true,
     }
   }
+  if (kind === 'dsh') {
+    // dsh headless answers one task per invocation and emits newline-delimited
+    // run events. danger-full-access is deliberately unreachable: Meldwork
+    // only offers read-only or workspace-write.
+    return {
+      command: executable,
+      args: [
+        '--profile', 'headless', '--json',
+        '--permission-mode', options.sandbox === 'workspace-write' ? 'workspace-write' : 'read-only',
+        ...(sessionRef ? ['--session-id', sessionRef] : []), '-',
+      ],
+      stdin: true,
+      eventTransport: 'json',
+    }
+  }
   if (kind === 'pi') {
     return {
       command: executable,

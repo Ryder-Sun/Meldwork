@@ -252,7 +252,7 @@ const shortcutDefinitions = Object.freeze([
 ])
 const READ_ONLY_ENFORCED_AGENT_KINDS = new Set([
   'codex', 'hermes', 'openclaw', 'workbuddy', 'zcode', 'pi', 'kimi', 'mimo', 'claude', 'qwen', 'gemini',
-  'opencode', 'opencodereview',
+  'opencode', 'opencodereview', 'dsh',
 ])
 const installCatalog = ref({ platform: '', agents: [] })
 const installerState = ref({ taskId: '', kind: '', phase: 'idle', canCancel: false, errorCode: '' })

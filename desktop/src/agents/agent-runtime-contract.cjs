@@ -125,6 +125,10 @@ const AGENT_RUNTIME_CAPABILITIES = Object.freeze({
     contextLimitChars: 20000,
     resumable: false,
   }),
+  dsh: generalProfile({
+    domains: ['general', 'software-development', 'research'],
+    toolClasses: ['filesystem', 'shell'],
+  }),
 })
 
 const DEFAULT_RUNTIME_CAPABILITIES = generalProfile({ resumable: false })

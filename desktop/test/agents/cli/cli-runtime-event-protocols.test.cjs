@@ -69,6 +69,15 @@ const STREAMING_FIXTURES = [
     file: 'opencode.jsonl',
     expectedTypes: ['answer_delta'],
   },
+  {
+    kind: 'dsh',
+    agent: 'DeepSeek Harness',
+    version: '0.2.2-rc.1',
+    protocol: 'dsh-json-events',
+    evidence: 'captured-fixture',
+    file: 'dsh.jsonl',
+    expectedTypes: ['tool_start', 'tool_result_summary', 'answer_delta'],
+  },
 ]
 
 function fixtureRecords(file) {

@@ -1822,6 +1822,13 @@ test('every supported built-in Agent produces an explicit completion outcome', (
     opencodereview: JSON.stringify({
       status: 'success', message: 'OpenCodeReview reply', comments: [],
     }),
+    dsh: [
+      JSON.stringify({ type: 'session', sessionId: 'dsh-session', cwd: '/tmp/work' }),
+      JSON.stringify({ type: 'text', text: 'Dsh reply' }),
+      JSON.stringify({
+        type: 'final', sessionId: 'dsh-session', reason: { kind: 'completed' }, text: 'Dsh reply',
+      }),
+    ].join('\n'),
   }
 
   assert.deepEqual(Object.keys(outputs).sort(), [...ALLOWED_KINDS].sort())
@@ -2063,6 +2070,7 @@ test('recorded fixtures cover every supported built-in output schema', () => {
     opencode: 'OpenCode fixture reply',
     qwen: 'Qwen fixture reply',
     opencodereview: 'OpenCodeReview fixture reply',
+    dsh: 'DeepSeek Harness fixture reply',
   }
   for (const fixture of manifest.fixtures) {
     assert.match(fixture.version, /\d/, fixture.kind)

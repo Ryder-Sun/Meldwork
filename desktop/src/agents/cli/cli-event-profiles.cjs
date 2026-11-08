@@ -9,6 +9,7 @@ const {
   normalizeOpenClawOutput,
   parseClaudeQwenOutput,
   parseCodexOutput,
+  parseDshOutput,
   parseGeminiOutput,
   parseKimiOutput,
   parseMimoOutput,
@@ -26,8 +27,10 @@ const {
   codexRuntimeEvents,
   createAcpRuntimeState,
   createClaudeQwenRuntimeState,
+  createDshRuntimeState,
   createGeminiRuntimeState,
   createPiRuntimeState,
+  dshRuntimeEvents,
   finalOnlyRuntimeEvents,
   geminiStreamJsonRuntimeEvents,
   kimiStreamJsonRuntimeEvents,
@@ -86,6 +89,7 @@ const FINAL_OUTPUT_PARSERS = Object.freeze({
   opencode: parseOpenCodeOutput,
   qwen: parseClaudeQwenOutput,
   opencodereview: parseOpenCodeReviewOutput,
+  dsh: parseDshOutput,
 })
 
 function createFinalOutputAccumulator(kind) {
@@ -372,6 +376,21 @@ const PI_JSON_EVENTS_PROFILE = profile({
   createFinalOutputAccumulator: createFinalOutputAccumulator('pi'),
 })
 
+const DSH_JSON_EVENTS_PROFILE = profile({
+  profileId: 'dsh-json-events-v1',
+  protocol: 'dsh-json-events',
+  framing: 'jsonl',
+  source: 'stdout',
+  capabilities: {
+    answerMode: 'delta', tools: START_RESULT_TOOL_LIFECYCLE,
+    plan: false, reasoning: false, session: true, terminal: true,
+  },
+  createDecoder: createJsonLineParser,
+  createState: createDshRuntimeState,
+  mapEvent: dshRuntimeEvents,
+  createFinalOutputAccumulator: createFinalOutputAccumulator('dsh'),
+})
+
 const OPENCLAW_TERMINAL_DOCUMENT_PROFILE = profile({
   profileId: 'openclaw-terminal-document-v1',
   protocol: 'openclaw-terminal-document',
@@ -551,6 +570,7 @@ const CONNECTOR_EVENT_PROFILES = Object.freeze({
   opencode: OPENCODE_JSON_EVENTS_PROFILE,
   qwen: ANTHROPIC_STREAM_JSON_PROFILE,
   opencodereview: OPENCODE_REVIEW_TERMINAL_DOCUMENT_PROFILE,
+  dsh: DSH_JSON_EVENTS_PROFILE,
 })
 
 const TRANSPORT_EVENT_PROFILES = Object.freeze({
@@ -559,6 +579,7 @@ const TRANSPORT_EVENT_PROFILES = Object.freeze({
   kimi: Object.freeze({ 'stream-json': KIMI_STREAM_JSON_PROFILE }),
   mimo: Object.freeze({ acp: ACP_JSONRPC_PROFILE }),
   pi: Object.freeze({ json: PI_JSON_EVENTS_PROFILE }),
+  dsh: Object.freeze({ json: DSH_JSON_EVENTS_PROFILE }),
   opencode: Object.freeze({ acp: ACP_JSONRPC_PROFILE }),
   workbuddy: Object.freeze({ 'stream-json': ANTHROPIC_STREAM_JSON_PROFILE }),
 })

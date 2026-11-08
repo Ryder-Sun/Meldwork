@@ -413,6 +413,49 @@ function finalOnlyRuntimeEvents() {
   return []
 }
 
+function createDshRuntimeState() {
+  return { tools: new Map() }
+}
+
+// dsh headless --json emits newline-delimited run events: session, status
+// (turn_start/step_start/step_end/turn_end), thinking, tool_call, tool_result,
+// text, final, and error. Thinking text stays here: raw chain-of-thought never
+// enters the renderer or the shared agent context.
+function dshRuntimeEvents(event, state) {
+  if (!event || typeof event !== 'object') return []
+  if (event.type === 'text' && typeof event.text === 'string' && event.text) {
+    return [{ type: 'answer_delta', status: 'running', delta: event.text }]
+  }
+  if (event.type === 'tool_call') {
+    const id = String(event.callId || 'tool')
+    const tool = { tool: event.tool, input: event.input }
+    const summary = runtimeToolOperation(tool)
+    const title = runtimeToolTitle(tool)
+    state?.tools.set(id, { title, summary })
+    return [{
+      id,
+      type: 'tool_start',
+      title,
+      status: 'running',
+      ...(summary ? { summary } : {}),
+    }]
+  }
+  if (event.type === 'tool_result') {
+    const id = String(event.callId || 'tool')
+    const recorded = state?.tools.get(id) || {}
+    const detail = runtimeToolResultDetail(event)
+    return [{
+      id,
+      type: 'tool_result_summary',
+      title: recorded.title || String(event.tool || 'tool'),
+      status: event.status === 'error' || event.isError === true ? 'failed' : 'completed',
+      ...(recorded.summary ? { summary: recorded.summary } : {}),
+      ...(detail ? { detail } : {}),
+    }]
+  }
+  return []
+}
+
 function acpPlanSummary(update) {
   const plan = update.sessionUpdate === 'plan_update' ? update.plan : update
   if (Array.isArray(plan?.entries)) {
@@ -502,7 +545,9 @@ module.exports = {
   codexRuntimeEvents,
   createAcpRuntimeState,
   createClaudeQwenRuntimeState,
+  createDshRuntimeState,
   createGeminiRuntimeState,
+  dshRuntimeEvents,
   finalOnlyRuntimeEvents,
   geminiStreamJsonRuntimeEvents,
   kimiStreamJsonRuntimeEvents,

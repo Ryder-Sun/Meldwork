@@ -82,6 +82,11 @@ const PROFILE_EXPECTATIONS = {
     tools: { start: false, update: false, result: false },
     plan: false, reasoning: false, session: false, terminal: true,
   },
+  dsh: {
+    profileId: 'dsh-json-events-v1', protocol: 'dsh-json-events', framing: 'jsonl',
+    source: 'stdout', answerMode: 'delta', tools: { start: true, update: false, result: true },
+    plan: false, reasoning: false, session: true, terminal: true,
+  },
 }
 
 test('ConnectorEventProfile registry declares the trusted protocol capabilities for every CLI Agent', () => {
@@ -151,6 +156,7 @@ test('every built-in invocation transport resolves its reusable profile and capa
     {
       kind: 'opencodereview', profileId: 'opencodereview-terminal-document-v1', limited: true,
     },
+    { kind: 'dsh', profileId: 'dsh-json-events-v1', limited: false },
   ]
 
   assert.deepEqual(new Set(cases.map(item => item.kind)), new Set(Object.keys(PROFILE_EXPECTATIONS)))

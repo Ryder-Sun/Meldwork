@@ -14,6 +14,7 @@ const AGENT_VERSION_IDENTITIES = Object.freeze({
   opencode: [/\bopencode\b/i, /\bopen\s+code\b/i],
   qwen: [/\bqwen(?:\s+code)?\b/i],
   opencodereview: [/\bopen[-\s]?code[-\s]?review\b/i],
+  dsh: [/\bdsh\b/i, /\bdeepseek\s+harness\b/i],
 })
 const AGENT_EXECUTABLE_NAMES = Object.freeze({
   codex: ['codex'],
@@ -29,6 +30,7 @@ const AGENT_EXECUTABLE_NAMES = Object.freeze({
   opencode: ['opencode'],
   qwen: ['qwen'],
   opencodereview: ['ocr'],
+  dsh: ['dsh'],
 })
 
 const AGENT_COMPATIBILITY = Object.freeze({
@@ -104,6 +106,15 @@ const AGENT_COMPATIBILITY = Object.freeze({
       '--audience', '--format', '--repo', '--background', 'json', 'agent',
     ]),
   ]),
+  // dsh ships rapidly iterating rc builds and reports prerelease versions
+  // (for example 0.2.2-rc.1), so the ceiling stays open and prereleases whose
+  // base version is new enough are trusted; the capability probe still gates
+  // the actual headless contract.
+  dsh: profile('0.2.0', null, [
+    probe('dsh-headless', ['--profile', 'headless', '--help'], [
+      '--json', '--session-id', '--permission-mode', 'workspace-write',
+    ]),
+  ], [], { allowPrereleases: true }),
 })
 
 function probe(id, args, requiredText, validateOutput = null, timeout = null) {
@@ -116,13 +127,14 @@ function probe(id, args, requiredText, validateOutput = null, timeout = null) {
   })
 }
 
-function profile(minVersion, maxVersion, probes, prereleaseVersions = []) {
+function profile(minVersion, maxVersion, probes, prereleaseVersions = [], options = {}) {
   return Object.freeze({
     minVersion,
     maxVersion,
-    supportedVersionRange: `${minVersion}..${maxVersion}`,
+    supportedVersionRange: maxVersion == null ? `${minVersion}+` : `${minVersion}..${maxVersion}`,
     probes: Object.freeze(probes),
     prereleaseVersions: Object.freeze([...prereleaseVersions]),
+    allowPrereleases: options.allowPrereleases === true,
   })
 }
 
@@ -243,12 +255,17 @@ function assessAgentVersion(kind, rawVersion) {
       incompatibilityReason: '',
     }
   }
+  // A prerelease is only trusted when the contract whitelists it or opts into
+  // prereleases generally; a null maxVersion leaves the ceiling open.
+  const baseVersion = resolvedVersion.split('-')[0]
+  const aboveMin = compareReleaseVersions(baseVersion, contract.minVersion) >= 0
+  const belowMax = contract.maxVersion == null
+    || compareReleaseVersions(baseVersion, contract.maxVersion) <= 0
+  const prereleaseAllowed = !resolvedVersion.includes('-') || contract.allowPrereleases === true
   const supported = contract.exactVersion
     ? resolvedVersion === contract.exactVersion
     : contract.prereleaseVersions.includes(resolvedVersion)
-      || (!resolvedVersion.includes('-')
-        && compareReleaseVersions(resolvedVersion, contract.minVersion) >= 0
-        && compareReleaseVersions(resolvedVersion, contract.maxVersion) <= 0)
+      || (aboveMin && belowMax && prereleaseAllowed)
   return supported
     ? {
         ...base,

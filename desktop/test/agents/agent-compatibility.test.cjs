@@ -75,7 +75,11 @@ test('accepts inclusive release ranges and rejects unvalidated versions', () => 
   for (const [kind, contract] of Object.entries(AGENT_COMPATIBILITY)) {
     const supported = contract.exactVersion
       ? [contract.exactVersion]
-      : [contract.minVersion, contract.maxVersion, ...contract.prereleaseVersions]
+      : [
+          contract.minVersion,
+          ...(contract.maxVersion ? [contract.maxVersion] : []),
+          ...contract.prereleaseVersions,
+        ]
     for (const version of supported) {
       assert.equal(assessAgentVersion(kind, version).compatibilityState, 'compatible', kind)
     }
@@ -100,9 +104,20 @@ test('accepts inclusive release ranges and rejects unvalidated versions', () => 
   }
 })
 
+test('trusts dsh prereleases and leaves its ceiling open', () => {
+  // The shipped dsh reports prerelease versions such as 0.2.2-rc.1.
+  assert.equal(assessAgentVersion('dsh', '0.2.2-rc.1').compatibilityState, 'compatible')
+  assert.equal(assessAgentVersion('dsh', '9.9.9').compatibilityState, 'compatible')
+  assert.equal(assessAgentVersion('dsh', '9.9.9-rc.1').compatibilityState, 'compatible')
+  assert.equal(assessAgentVersion('dsh', '0.1.9-rc.1').compatibilityState, 'incompatible')
+  assert.equal(assessAgentVersion('dsh', '0.1.9').compatibilityState, 'incompatible')
+  // Contracts without the prerelease opt-in keep rejecting prereleases.
+  assert.equal(assessAgentVersion('hermes', '0.19.1-beta.1').compatibilityState, 'incompatible')
+})
+
 test('defines required capability probes for every supported connector', () => {
   assert.deepEqual(Object.keys(AGENT_COMPATIBILITY).sort(), [
-    'claude', 'codex', 'gemini', 'hermes', 'kimi', 'mimo', 'openclaw', 'pi',
+    'claude', 'codex', 'dsh', 'gemini', 'hermes', 'kimi', 'mimo', 'openclaw', 'pi',
     'opencode', 'opencodereview', 'qwen', 'workbuddy', 'zcode',
   ].sort())
   for (const kind of Object.keys(AGENT_COMPATIBILITY)) {

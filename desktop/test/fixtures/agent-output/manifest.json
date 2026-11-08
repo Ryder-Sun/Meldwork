@@ -5,7 +5,7 @@
     { "kind": "codex", "agent": "Codex", "version": "0.137.0", "protocol": "codex-app-server", "evidence": "captured-fixture", "file": "codex.jsonl" },
     { "kind": "hermes", "agent": "Hermes", "version": "0.19.1", "protocol": "terminal-text", "evidence": "captured-fixture", "file": "hermes.txt" },
     { "kind": "openclaw", "transport": "legacy", "agent": "OpenClaw", "version": "2026.7.1-2", "protocol": "openclaw-terminal-document", "evidence": "captured-fixture", "file": "openclaw.json" },
-    { "kind": "workbuddy", "agent": "WorkBuddy", "version": "2.115.0", "protocol": "workbuddy-terminal-result-json", "evidence": "source-derived", "file": "workbuddy.jsonl", "variants": [{ "transport": "stream-json", "agent": "WorkBuddy", "version": "2.115.0", "protocol": "anthropic-stream-json", "evidence": "source-derived", "file": "workbuddy-stream-json.jsonl" }] },
+    { "kind": "workbuddy", "agent": "WorkBuddy", "version": "2.115.0", "protocol": "workbuddy-terminal-result-json", "evidence": "captured-fixture", "file": "workbuddy.jsonl", "variants": [{ "transport": "stream-json", "agent": "WorkBuddy", "version": "2.115.0", "protocol": "anthropic-stream-json", "evidence": "source-derived", "file": "workbuddy-stream-json.jsonl" }] },
     { "kind": "pi", "agent": "Pi Agent", "version": "0.84.2", "protocol": "pi-json", "evidence": "captured-fixture", "file": "pi.jsonl" },
     { "kind": "kimi", "transport": "stream-json", "agent": "Kimi", "version": "0.19.2", "protocol": "assistant-jsonl", "evidence": "captured-fixture", "file": "kimi.jsonl" },
     { "kind": "mimo", "agent": "MiMo", "version": "0.1.0", "protocol": "mimo-json-events", "evidence": "captured-fixture", "file": "mimo.jsonl" },
@@ -13,6 +13,7 @@
     { "kind": "gemini", "agent": "Gemini", "version": "0.55.1", "protocol": "gemini-stream-json", "evidence": "source-derived", "file": "gemini.jsonl" },
     { "kind": "opencode", "agent": "OpenCode", "version": "1.18.18", "protocol": "opencode-json-events", "evidence": "captured-fixture", "file": "opencode.jsonl" },
     { "kind": "qwen", "agent": "Qwen", "version": "0.10.0", "protocol": "anthropic-stream-json", "evidence": "captured-fixture", "file": "qwen.jsonl" },
-    { "kind": "opencodereview", "agent": "OpenCodeReview", "version": "1.9.3", "protocol": "opencodereview-terminal-document", "evidence": "captured-fixture", "file": "opencodereview.json" }
+    { "kind": "opencodereview", "agent": "OpenCodeReview", "version": "1.9.3", "protocol": "opencodereview-terminal-document", "evidence": "captured-fixture", "file": "opencodereview.json" },
+    { "kind": "dsh", "agent": "DeepSeek Harness", "version": "0.2.2-rc.1", "protocol": "dsh-json-events", "evidence": "captured-fixture", "file": "dsh.jsonl" }
   ]
 }

@@ -75,6 +75,7 @@ Meldwork detects and invokes compatible locally installed Agent commands. The ca
     <td align="center" valign="top"><img src="frontend/public/agent-logos/opencode.svg" alt="OpenCode logo" width="32" height="32"><br><strong>OpenCode</strong></td>
     <td align="center" valign="top"><img src="frontend/public/agent-logos/qwen.svg" alt="Qwen Code logo" width="32" height="32"><br><strong>Qwen Code</strong></td>
     <td align="center" valign="top"><img src="frontend/public/agent-logos/opencodereview.svg" alt="OpenCodeReview logo" width="32" height="32"><br><strong>OpenCodeReview</strong></td>
+    <td align="center" valign="top"><img src="frontend/public/agent-logos/dsh.png" alt="DeepSeek Harness logo" width="32" height="32"><br><strong>DeepSeek Harness</strong></td>
   </tr>
 </table>
 

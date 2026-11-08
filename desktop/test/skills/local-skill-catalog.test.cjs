@@ -333,3 +333,18 @@ test('catalog links cannot escape approved global or plugin roots', (t) => {
     targetKind: 'codex', namespace: 'global', slug: 'inside', name: 'inside',
   }])
 })
+
+test('dsh reads its skill root and skips symlinks leaving the root', (t) => {
+  const home = fixture(t)
+  const real = writeSkill(path.join(home, '.dsh', 'skills'), 'real-skill')
+  const outside = writeSkill(path.join(home, 'outside'), 'outside-skill')
+  const dshSkills = path.join(home, '.dsh', 'skills')
+  fs.symlinkSync(real, path.join(dshSkills, 'real-skill-link'))
+  fs.symlinkSync(outside, path.join(dshSkills, 'outside-skill'))
+
+  const result = listLocalAgentSkills('dsh', { home })
+  assert.equal(result.supported, true)
+  // A symlinked skill inside the root resolves normally; a link pointing
+  // outside the root is skipped by the traversal boundary.
+  assert.deepEqual(result.skills.map(skill => skill.slug), ['real-skill'])
+})

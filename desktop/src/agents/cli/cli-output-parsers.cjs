@@ -10,7 +10,7 @@ const MAX_RUNTIME_JSON_PENDING_CHARS = 1024 * 1024
 const MAX_STRUCTURED_JSON_BYTES = 64 * 1024 * 1024
 const MAX_STRUCTURED_TEXT_CHARS = 1024 * 1024
 const STRUCTURED_JSONL_KINDS = new Set([
-  'codex', 'workbuddy', 'pi', 'kimi', 'mimo', 'claude', 'gemini', 'opencode', 'qwen',
+  'codex', 'workbuddy', 'pi', 'kimi', 'mimo', 'claude', 'gemini', 'opencode', 'qwen', 'dsh',
 ])
 const STRUCTURED_DOCUMENT_KINDS = new Set(['openclaw', 'opencodereview'])
 function parseCodexOutput(stdout) {
@@ -207,7 +207,11 @@ function ingestStructuredEvent(state, event) {
     return
   }
   if (structuredEventFailed(event)) {
-    markStructuredFailure(state)
+    // A failed dsh tool call is ordinary execution, not a run failure; only
+    // dsh's dedicated error event ends the run, and it carries the message.
+    if (state.kind === 'dsh' && event.type === 'tool_result') return
+    markStructuredFailure(state, 'LOCAL_AGENT_PROCESS_FAILED',
+      state.kind === 'dsh' ? String(event.message || event.error || '').trim() : '')
     return
   }
 
@@ -280,6 +284,24 @@ function ingestStructuredEvent(state, event) {
     if (event.type === 'step_finish' || event.part?.type === 'step-finish') {
       state.outcome = stepFinishOutcome(event.part?.reason || event.reason)
       if (state.outcome === 'failed') markStructuredFailure(state)
+    }
+    return
+  }
+
+  if (state.kind === 'dsh') {
+    if (event.type === 'session' && typeof event.sessionId === 'string') {
+      state.sessionRef = event.sessionId
+    }
+    if (event.type === 'final') {
+      if (typeof event.sessionId === 'string' && event.sessionId) state.sessionRef = event.sessionId
+      state.text = ''
+      appendStructuredText(state, String(event.text || ''), '')
+      state.outcome = event.reason?.kind === 'aborted' ? 'cancelled' : 'completed'
+      if (state.outcome === 'completed') {
+        state.failure = null
+        state.diagnostic = ''
+      }
+      return
     }
     return
   }
@@ -614,6 +636,24 @@ function parseResultOutput(stdout) {
   return { text: raw, sessionRef: '' }
 }
 
+function parseDshOutput(stdout) {
+  const raw = String(stdout || '').trim()
+  if (!raw) return { text: '', sessionRef: '' }
+  const events = parseJsonOutputEvents(raw)
+  if (!events.length) return { text: raw, sessionRef: '' }
+  const final = events.findLast(event => event?.type === 'final')
+  // The `final` event is authoritative for text and session id; fall back to
+  // the session event's id when the run never reached a final answer.
+  const sessionEvent = events.find(event => event?.type === 'session')
+  const sessionRef = typeof final?.sessionId === 'string' && final.sessionId
+    ? final.sessionId
+    : typeof sessionEvent?.sessionId === 'string' ? sessionEvent.sessionId : ''
+  return {
+    text: String(final?.text || '').trim(),
+    sessionRef,
+  }
+}
+
 function parseClaudeQwenOutput(stdout) {
   const raw = String(stdout || '').trim()
   if (!raw) return { text: '', sessionRef: '' }
@@ -875,6 +915,18 @@ function classifyCliOutcome(kind, stdout) {
       || previousTurn?.message?.stopReason || previousTurn?.stopReason
     return { outcome: reason ? stepFinishOutcome(reason) : terminal ? 'completed' : 'partial' }
   }
+  if (kind === 'dsh') {
+    const final = events.findLast(event => event?.type === 'final')
+    if (final) return { outcome: final?.reason?.kind === 'aborted' ? 'cancelled' : 'completed' }
+    const error = events.findLast(event => event?.type === 'error')
+    if (error) {
+      return {
+        outcome: 'failed',
+        failure: agentRuntimeFailure('LOCAL_AGENT_PROCESS_FAILED'),
+      }
+    }
+    return { outcome: 'partial' }
+  }
   if (['mimo', 'opencode'].includes(kind)) {
     const finish = events.findLast(event => (
       event?.type === 'step_finish' || event?.part?.type === 'step-finish'
@@ -986,6 +1038,7 @@ module.exports = {
   normalizeOpenClawOutput,
   parseClaudeQwenOutput,
   parseCodexOutput,
+  parseDshOutput,
   parseGeminiOutput,
   parseJsonOutputEvents,
   parseKimiOutput,

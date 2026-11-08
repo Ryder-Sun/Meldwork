@@ -38,6 +38,7 @@ const AGENT_SKILL_ROOTS = Object.freeze({
     ['.config', 'opencode', 'skills'],
     ['.config', 'opencode', 'skill'],
   ],
+  dsh: [['.dsh', 'skills']],
 })
 
 const SUPPORTED_KINDS = new Set(Object.keys(AGENT_SKILL_ROOTS))

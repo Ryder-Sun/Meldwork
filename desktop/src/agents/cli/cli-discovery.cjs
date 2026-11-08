@@ -25,6 +25,7 @@ const AGENT_PROFILES = {
   opencode: { label: 'OpenCode', commands: ['opencode'] },
   qwen: { label: 'Qwen', commands: ['qwen'] },
   opencodereview: { label: 'OpenCodeReview', commands: ['ocr'] },
+  dsh: { label: 'DeepSeek Harness', commands: ['dsh'] },
 }
 const ALLOWED_KINDS = Object.keys(AGENT_PROFILES)
 const DEFAULT_WINDOWS_PATHEXT = ['.COM', '.EXE', '.BAT', '.CMD']

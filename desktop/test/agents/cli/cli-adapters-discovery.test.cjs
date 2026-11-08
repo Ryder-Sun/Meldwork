@@ -7,6 +7,7 @@ const { EventEmitter } = require('node:events')
 const { PassThrough } = require('node:stream')
 const { launchEnvironment, probeAgentCapabilities } = require('../../../src/agents/cli/cli-discovery.cjs')
 const {
+  ALLOWED_KINDS,
   detectAgents,
   imageAttachmentLimit,
   invocation,
@@ -24,6 +25,7 @@ const {
   runtimeCommandSummary,
   searchPath,
 } = require('../../../src/agents/cli/cli-adapters.cjs')
+const { isSupportedAgentKind } = require('../../../src/workspace/local-workspace-contracts.cjs')
 const {
   executable,
   readJsonWhenReady,
@@ -183,7 +185,7 @@ test('Agent discovery scans independent Agent kinds concurrently', async () => {
   const startedBeforeRelease = started.length
   release()
   assert.deepEqual(await detection, [])
-  assert.equal(startedBeforeRelease, 13)
+  assert.equal(startedBeforeRelease, 14)
 })
 
 test('Hermes capability and ACP checks run concurrently without changing the result', async () => {
@@ -1219,4 +1221,12 @@ test('Windows Agent cancellation terminates the full process tree with taskkill'
   await assert.rejects(outcome, { message: 'LOCAL_AGENT_EXECUTION_STOPPED' })
   assert.equal(calls[1].command, 'taskkill.exe')
   assert.deepEqual(calls[1].args, ['/PID', '4321', '/T', '/F'])
+})
+
+test('every discovered Agent kind is a supported local workspace Agent kind', () => {
+  // A kind missing from the workspace label contract is silently dropped from
+  // workspace conversations, runs and routing, so keep the tables aligned.
+  for (const kind of ALLOWED_KINDS) {
+    assert.equal(isSupportedAgentKind(kind), true, kind)
+  }
 })
