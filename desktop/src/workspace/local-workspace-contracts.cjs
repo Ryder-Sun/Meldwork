@@ -12,6 +12,7 @@ const AGENT_LABELS = {
   gemini: 'Gemini',
   opencode: 'OpenCode',
   opencodereview: 'OpenCodeReview',
+  dsh: 'DeepSeek Harness',
 }
 const CUSTOM_AGENT_KIND = /^custom-[a-f0-9]{16}$/
 const CLOUD_AGENT_KIND = /^cloud-[a-f0-9]{24}$/

@@ -28,6 +28,7 @@ export const AGENTS = Object.freeze([
 // Detected and runnable, but not in AGENTS: listing it there would show a "Not installed" card to everyone.
 const DETECTED_ONLY_AGENTS = Object.freeze([
   { kind: 'gemini', label: 'Gemini CLI', logo: publicAsset('agent-logos/gemini.svg') },
+  { kind: 'dsh', label: 'DeepSeek Harness', logo: publicAsset('agent-logos/dsh.png') },
 ])
 
 const BY_KIND = new Map([...AGENTS, ...DETECTED_ONLY_AGENTS].map(agent => [agent.kind, agent]))

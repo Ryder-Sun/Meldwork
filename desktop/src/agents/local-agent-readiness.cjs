@@ -53,6 +53,7 @@ const CREDENTIAL_ENV_KEYS = Object.freeze({
   gemini: ['GEMINI_API_KEY', 'GOOGLE_API_KEY'],
   opencode: ['OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'OPENROUTER_API_KEY'],
   opencodereview: ['OCR_LLM_TOKEN', 'OPENAI_API_KEY'],
+  dsh: ['DEEPSEEK_API_KEY'],
 })
 const GOOGLE_CLOUD_ENV_KEYS = [
   'GOOGLE_APPLICATION_CREDENTIALS', 'GOOGLE_CLOUD_PROJECT', 'GCLOUD_PROJECT',
@@ -113,6 +114,7 @@ const RUNTIME_ENV_KEYS = Object.freeze({
     'OCR_LLM_TOKEN', 'OCR_LLM_URL', 'OCR_LLM_MODEL', 'OCR_USE_ANTHROPIC',
     'OPENAI_API_KEY', 'OPENAI_BASE_URL', 'OPENAI_MODEL',
   ],
+  dsh: ['DSH_HOME', 'DSH_AGENTS_HOME', 'DEEPSEEK_API_KEY', 'DEEPSEEK_BASE_URL'],
 })
 const SHELL_ENV_KEYS = Object.freeze([...new Set([
   'PATH',
@@ -339,6 +341,7 @@ function nativeCredentialState(kind, options = {}) {
   const codexHome = env.CODEX_HOME || path.join(home, '.codex')
   const claudeHome = env.CLAUDE_CONFIG_DIR || path.join(home, '.claude')
   const piHome = env.PI_CODING_AGENT_DIR || path.join(home, '.pi', 'agent')
+  const dshHome = env.DSH_HOME || path.join(home, '.dsh')
   if (Object.keys(nativeCredentialKeyEnvironment(kind, env)).length) {
     return {
       state: 'ready',
@@ -405,6 +408,7 @@ function nativeCredentialState(kind, options = {}) {
       path.join(home, '.config', 'opencode', '.env'),
     ],
     opencodereview: [path.join(home, '.opencodereview', '.env')],
+    dsh: [path.join(dshHome, '.env'), path.join(dshHome, '.credentials.yaml')],
   }[kind] || []
   if (textFiles.some(textContainsCredential)) {
     return { state: 'ready', source: 'native-credential' }

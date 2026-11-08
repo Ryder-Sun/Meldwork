@@ -347,6 +347,7 @@ async function runAgent(agent, prompt, workdir, options = {}) {
           && !stepFinishContinues(event))
         || (agent.kind === 'gemini' && event.type === 'result')
         || (agent.kind === 'kimi' && event.type === 'session.resume_hint')
+        || (agent.kind === 'dsh' && event.type === 'final')
       )
       if (!terminal) return
       terminalObserved = true

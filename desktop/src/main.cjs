@@ -76,7 +76,7 @@ const { nativeOpenClawOptions } = require('./agents/cli/openclaw-runtime.cjs')
 const { migrateLegacyProductData } = require('./product-data-migration.cjs')
 const LOCAL_AGENT_KINDS = new Set([
   'codex', 'hermes', 'openclaw', 'workbuddy', 'zcode', 'pi', 'kimi', 'mimo', 'claude', 'gemini', 'opencode', 'qwen',
-  'opencodereview',
+  'opencodereview', 'dsh',
 ])
 const QUIT_CLEANUP_TIMEOUT_MS = 2500
 let mainWindow = null
