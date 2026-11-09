@@ -20,9 +20,6 @@ Meldwork 是一个本地优先的多 Agent 协作工作空间，用来连接你�
 
 ## Meldwork 适合什么工作
 
-[![在 YouTube 观看 Meldwork 产品宣传视频](assets/media/meldwork-handoff-preview.jpg)](https://youtu.be/ttyJxo1s9ns)
-
-[在 YouTube 观看产品宣传视频](https://youtu.be/ttyJxo1s9ns)
 <table>
   <tr>
     <td width="33%" align="center" valign="top">

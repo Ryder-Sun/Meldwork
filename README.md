@@ -20,9 +20,6 @@ You do not need to direct every round, but you still set the goal, grant permiss
 
 ## What Meldwork is for
 
-[![Watch the Meldwork product video on YouTube](assets/media/meldwork-handoff-preview.jpg)](https://youtu.be/ttyJxo1s9ns)
-
-[Watch the product video on YouTube](https://youtu.be/ttyJxo1s9ns)
 <table>
   <tr>
     <td width="33%" align="center" valign="top">
