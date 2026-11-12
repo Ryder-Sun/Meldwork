@@ -61,9 +61,12 @@ input.on('line', line => {
   await assert.rejects(runAgent(agent, 'missing key', directory, options), { code: 'LOCAL_AGENT_AUTH_REQUIRED' })
 })
 
-test('DeepSeek invocation pins policy and preserves only its allowed native environment', () => {
-  const read = invocation('deepseek', '/bin/dsh', '/tmp', '', { sandbox: 'read-only' })
-  const write = invocation('deepseek', '/bin/dsh', '/tmp', '', { sandbox: 'workspace-write' })
+test('DeepSeek invocation pins policy and preserves only its allowed native environment', (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-dsh-invocation-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  const env = { DSH_HOME: home }
+  const read = invocation('deepseek', '/bin/dsh', '/tmp', '', { sandbox: 'read-only', env })
+  const write = invocation('deepseek', '/bin/dsh', '/tmp', '', { sandbox: 'workspace-write', env })
   assert.match(read.args.at(-1), /deepseek-read\.yml$/)
   assert.match(write.args.at(-1), /deepseek-write\.yml$/)
   assert.match(fs.readFileSync(read.args[3], 'utf8'), /model: smart-router-v2/)
@@ -73,12 +76,12 @@ test('DeepSeek invocation pins policy and preserves only its allowed native envi
     assert.match(policy, /policy: never/)
     assert.match(policy, /id: permission\s+disabled: true/)
   }
-  const env = childEnvironment({ kind: 'deepseek', executable: '/bin/dsh' }, '/tmp', {
+  const childEnv = childEnvironment({ kind: 'deepseek', executable: '/bin/dsh' }, '/tmp', {
     env: { ZGCI_API_KEY: 'test-key', DSH_HOME: '/tmp/dsh', DSH_PERMISSION_MODE: 'danger-full-access' },
   }, process.platform)
-  assert.equal(env.ZGCI_API_KEY, 'test-key')
-  assert.equal(env.DSH_HOME, '/tmp/dsh')
-  assert.equal(env.DSH_PERMISSION_MODE, undefined)
+  assert.equal(childEnv.ZGCI_API_KEY, 'test-key')
+  assert.equal(childEnv.DSH_HOME, '/tmp/dsh')
+  assert.equal(childEnv.DSH_PERMISSION_MODE, undefined)
 })
 
 test('DeepSeek honors an explicitly configured ACP provider and its declared credential', t => {
