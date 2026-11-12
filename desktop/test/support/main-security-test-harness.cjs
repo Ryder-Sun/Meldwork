@@ -87,6 +87,7 @@ const LOCAL_IPC_CHANNELS = Object.freeze([
   'local-knowledge-connector:citation',
   'local-knowledge-connector:select',
   'local-knowledge-base:status',
+  'local-knowledge-base:install',
   'local-knowledge-base:open-guide',
   'local-knowledge-base:pick-obsidian-vault',
 ])

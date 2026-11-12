@@ -209,6 +209,9 @@ onBeforeUnmount(() => { observer?.disconnect(); stopAnimation(); cancelDrag() })
 .rail-track :deep(.settings-agent-actions button) { min-width:28px; min-height:32px; padding:4px; font-size:11px; white-space:nowrap; }
 .rail-track :deep(.settings-agent-actions button svg) { width:15px; height:15px; flex:none; }
 .compact .rail-track > :deep(article) { height:auto; min-height:0; }
+.rail-track > :deep(article.install-expanded) { height:auto; min-height:280px; overflow:visible; }
+.rail-track :deep(.install-confirm) { display:flex; flex-direction:column; gap:6px; font-size:11px; line-height:1.5; overflow-wrap:anywhere; }
+.rail-track :deep(.install-progress) { font-size:11px; line-height:1.5; overflow-wrap:anywhere; }
 @media (prefers-reduced-motion:reduce) { .rail-track :deep(.rail-card-surface) { transform:none; transition:none; opacity:1; } }
 
 .rail-track :deep(.knowledge-base-action:hover:not(:disabled)) { color:var(--accent-text); background:var(--accent-soft); opacity:1; visibility:visible; }

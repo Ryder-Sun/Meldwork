@@ -147,7 +147,7 @@ test('local preload exposes the complete narrow Knowledge Connector lifecycle', 
   assert.equal(Object.isFrozen(api.localKnowledgeBase), true)
   assert.deepEqual(
     Object.keys(api.localKnowledgeBase).sort(),
-    ['openGuide', 'pickObsidianVault', 'status'],
+    ['install', 'openGuide', 'pickObsidianVault', 'status'],
   )
   assert.equal('readVault' in api.localKnowledgeBase, false)
   assert.equal('runCommand' in api.localKnowledgeBase, false)

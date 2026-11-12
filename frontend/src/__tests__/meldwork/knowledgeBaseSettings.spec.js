@@ -26,6 +26,23 @@ function obsidianStatus(vaultPath) {
 }
 
 describe('knowledge base status requests', () => {
+  it('installs missing CLIs through the narrow desktop API and refreshes status', async () => {
+    const installation = deferred()
+    const source = { kind: 'feishu', accessMode: 'cli', installed: false, probeState: 'ready' }
+    const api = { status: vi.fn(async () => [source]), install: vi.fn(() => installation.promise), openGuide: vi.fn() }
+    const settings = useKnowledgeBaseSettings({ knowledgeBase: ref(api), showError: vi.fn() })
+    await settings.loadKnowledgeBaseStatuses()
+    const action = settings.runKnowledgeBasePrimaryAction(source)
+    expect(api.install).toHaveBeenCalledWith('feishu')
+    expect(settings.knowledgeBasePending(source)).toBe(true)
+    await settings.runKnowledgeBasePrimaryAction(source)
+    expect(api.install).toHaveBeenCalledTimes(1)
+    installation.resolve(null)
+    await action
+    expect(settings.knowledgeBasePending(source)).toBe(false)
+    expect(api.status).toHaveBeenLastCalledWith('feishu')
+    expect(api.openGuide).not.toHaveBeenCalled()
+  })
   it('keeps bundled logos when a status response contains a conflicting logo', async () => {
     const settings = useKnowledgeBaseSettings({
       knowledgeBase: ref({ status: vi.fn(async () => [{ ...obsidianStatus(''), logo: '' }]) }),

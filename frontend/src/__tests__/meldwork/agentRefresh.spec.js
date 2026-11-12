@@ -31,6 +31,18 @@ function fixture() {
 const ready = { agents: [{ kind: 'codex', installed: true, available: true }] }
 
 describe('Agent refresh consistency', () => {
+  it('shows verified installation before a slow workspace scan and preserves it if that scan fails', async () => {
+    const f = fixture()
+    f.installer.value.catalog.mockResolvedValue({ agents: [{ kind: 'pi', installed: true }] })
+    const pending = f.refreshAfterInstall()
+    await Promise.resolve()
+    expect(f.installCatalog.value.agents).toEqual([{ kind: 'pi', installed: true }])
+    expect(f.refreshing.value).toBe(true)
+    f.scan.reject(new Error('readiness scan failed'))
+    await pending
+    expect(f.installCatalog.value.agents[0].installed).toBe(true)
+    expect(f.showError).toHaveBeenCalled()
+  })
   it('reads the catalog only after readiness refresh so both surfaces see the new state', async () => {
     const f = fixture()
     const pending = f.refreshAgents()

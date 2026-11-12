@@ -198,6 +198,7 @@ if (isLocalDocument) Object.assign(desktopApi, {
     discard: ids => ipcRenderer.invoke('local-attachments:discard', ids),
   }),
   localKnowledgeBase: Object.freeze({
+    install: kind => ipcRenderer.invoke('local-knowledge-base:install', kind),
     status: kind => (kind ? ipcRenderer.invoke('local-knowledge-base:status', kind) : ipcRenderer.invoke('local-knowledge-base:status')),
     openGuide: (kind, action) => ipcRenderer.invoke('local-knowledge-base:open-guide', kind, action),
     pickObsidianVault: () => ipcRenderer.invoke('local-knowledge-base:pick-obsidian-vault'),

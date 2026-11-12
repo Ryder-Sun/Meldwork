@@ -3086,6 +3086,17 @@ test('Knowledge Connector IPC exposes a sanitized complete lifecycle with main-o
   assert.equal(reauthorized.instanceId, instance.instanceId)
 })
 
+test('knowledge CLI installation validates its kind and respects native cancellation', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-knowledge-install-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const { harness } = loadMain(directory)
+  await harness.ready()
+  const install = harness.ipcHandlers.get('local-knowledge-base:install')
+  await assert.rejects(install(harness.event(), 'arbitrary-package'), /INSTALL_AGENT_UNSUPPORTED/)
+  await assert.rejects(install(harness.event(), 'feishu', 'npm install anything'), /INSTALL_AGENT_UNSUPPORTED/)
+  assert.equal(await install(harness.event(), 'feishu'), null)
+})
+
 test('Knowledge base status IPC shares concurrent source probes', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'meldwork-knowledge-base-single-flight-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

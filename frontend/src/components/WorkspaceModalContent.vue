@@ -301,7 +301,16 @@
     </section>
 
     <p v-if="formError" class="form-error" role="alert">{{ formError }}</p>
+    <div v-if="installConfirmKind === selectedAgentDetail.kind" class="install-confirm" role="status">
+      <strong>{{ t('installer.confirm', { agent: selectedAgentDetail.label }) }}</strong>
+      <p>{{ t('installer.confirmHint') }}</p>
+    </div>
+    <div v-if="installerState.kind === selectedAgentDetail.kind && installerState.phase !== 'idle'" role="status">
+      <p>{{ installerPhaseLabel }}</p>
+      <p v-if="installerState.errorCode" class="form-error" role="alert">{{ translateError(installerState.errorCode) }}</p>
+    </div>
     <footer class="modal-footer agent-detail-footer">
+      <button v-if="installerState.kind === selectedAgentDetail.kind && installerState.canCancel" class="secondary-button" type="button" @click="cancelInstall">{{ t('installer.cancel') }}</button>
       <button
         v-if="selectedAgentDetail.custom"
         class="danger-button"
@@ -327,11 +336,11 @@
         v-else-if="!selectedAgentDetail.installed && selectedAgentDetail.installSupported"
         class="primary-button"
         type="button"
-        :disabled="installerBusy && installerState.kind !== selectedAgentDetail.kind"
+        :disabled="installerBusy"
         @click="requestInstall(selectedAgentDetail)"
       >
         <DownloadOutline />
-        {{ t('installer.install') }}
+        {{ installConfirmKind === selectedAgentDetail.kind ? t('installer.confirmAction') : t('installer.install') }}
       </button>
     </footer>
   </section>
@@ -351,6 +360,7 @@ import {
 import { skillKey } from '../composables/useComposerContext.js'
 import AgentNativeConfig from './AgentNativeConfig.vue'
 import { desktopApi } from '../desktop.js'
+import { translateError } from '../i18n.js'
 
 const nativeConfigAvailable = Boolean(desktopApi()?.localAgentNativeConfig)
 const nativeConfigKinds = ['hermes', 'openclaw', 'codex', 'claude', 'pi', 'kimi', 'mimo', 'deepseek', 'workbuddy', 'opencode', 'gemini', 'zcode', 'qwen', 'opencodereview']
@@ -382,6 +392,9 @@ const {
   formError,
   groupForm,
   installerBusy,
+  installConfirmKind,
+  installerPhaseLabel,
+  cancelInstall,
   installerState,
   isDirectCreationPending,
   modal,

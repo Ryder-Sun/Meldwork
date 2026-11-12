@@ -454,7 +454,7 @@ const agentRefresh = useAgentRefresh({
   snapshot,
   workspace,
 })
-const { refreshAgents } = agentRefresh
+const { refreshAgents, refreshAfterInstall } = agentRefresh
 const cloudAgentBridges = useCloudAgentBridges({
   bridgeApi: cloudAgentBridge,
   refreshAgents,
@@ -1115,7 +1115,7 @@ watch(activeRunTopicSignature, async (value) => {
 })
 watch(readyAgentSignature, (value) => { if (value) void loadAgentSkillStats() })
 watch(() => installerState.value.phase, (phase, previous) => {
-  if (phase === 'completed' && previous !== 'completed') void refreshAgents()
+  if (phase === 'completed' && previous !== 'completed') void refreshAfterInstall()
 })
 
 onBeforeUnmount(() => {

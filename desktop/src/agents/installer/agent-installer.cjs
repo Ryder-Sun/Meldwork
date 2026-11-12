@@ -93,7 +93,8 @@ class AgentInstaller extends EventEmitter {
   constructor({
     platform = process.platform,
     detectAgents,
-    findCommand = command => defaultFindCommand(command, platform),
+    findCommand = (command, options) => defaultFindCommand(command, platform, options),
+    environment = async () => ({}),
     downloadScript = defaultDownloadScript,
     removeDownload = defaultRemoveDownload,
     runProcess = defaultRunProcess,
@@ -109,6 +110,7 @@ class AgentInstaller extends EventEmitter {
     this.platform = platform
     this.detectAgents = detectAgents
     this.findCommand = findCommand
+    this.environment = environment
     this.downloadScript = downloadScript
     this.removeDownload = removeDownload
     this.runProcess = runProcess
@@ -167,7 +169,7 @@ class AgentInstaller extends EventEmitter {
   async catalog() {
     const installed = new Map((await this.detectedAgents())
       .filter(agent => agent?.kind).map(agent => [agent.kind, agent]))
-    const npm = await this.findCommand(this.platform === 'win32' ? 'npm.cmd' : 'npm')
+    const npm = await this.findCommand(this.platform === 'win32' ? 'npm.cmd' : 'npm', await this.environment())
     return {
       platform: this.platform,
       agents: AGENT_CATALOG.map(profile => {
@@ -242,6 +244,7 @@ class AgentInstaller extends EventEmitter {
   }
 
   async prepareStart({ profile, recipe, signal }) {
+    const environment = await abortable(this.environment(), signal)
     this.invalidateDetectionCache()
     const installed = await abortable(this.detectedAgents(), signal)
     if (signal.aborted) throw abortError()
@@ -254,7 +257,7 @@ class AgentInstaller extends EventEmitter {
     let command = recipe.interpreter || ''
     if (recipe.type === 'npm') {
       command = await abortable(
-        this.findCommand(this.platform === 'win32' ? 'npm.cmd' : 'npm'),
+        this.findCommand(this.platform === 'win32' ? 'npm.cmd' : 'npm', environment),
         signal,
       )
       if (signal.aborted) throw abortError()
@@ -262,7 +265,7 @@ class AgentInstaller extends EventEmitter {
     }
     validateInstallCommand(command, recipe, this.platform)
     if (signal.aborted) throw abortError()
-    this.running = this.runInstall({ profile, recipe, command, signal })
+    this.running = this.runInstall({ profile, recipe, command, signal, environment })
       .finally(() => {
         if (this.controller?.signal === signal) this.controller = null
         this.running = null
@@ -270,7 +273,7 @@ class AgentInstaller extends EventEmitter {
     return this.state()
   }
 
-  async runInstall({ profile, recipe, command, signal }) {
+  async runInstall({ profile, recipe, command, signal, environment }) {
     let downloaded = ''
     try {
       let args
@@ -300,6 +303,7 @@ class AgentInstaller extends EventEmitter {
         try {
           await abortable(
             this.verifyNpmIntegrity(command, recipe, {
+              ...environment,
               signal,
               platform: this.platform,
               readFileFn: this.readCommandFile,
@@ -327,7 +331,7 @@ class AgentInstaller extends EventEmitter {
           })
         : { command, args }
       this.setState({ phase: 'installing' })
-      await this.runProcess(prepared.command, prepared.args, { signal, platform: this.platform })
+      await this.runProcess(prepared.command, prepared.args, { ...environment, signal, platform: this.platform })
       this.setState({ phase: 'verifying', canCancel: false })
       this.invalidateDetectionCache()
       const installed = await this.detectedAgents()

@@ -136,6 +136,7 @@ let attachmentStore = null
 let skillCatalog = null
 let skillTrustStore = null
 let shutdownStarted = false
+const knowledgeInstallShutdown = new AbortController()
 let quitCleanup = null
 let cachedAppIcon
 
@@ -460,11 +461,12 @@ async function loadKnowledgeBaseSources(kind = '') {
     const shared = await knowledgeBaseStatusPromise
     if (!selectedKind || shared.some(source => source?.kind === selectedKind)) return shared
   }
-  const request = resolveKnowledgeBaseSources({
+  const request = Promise.resolve().then(async () => resolveKnowledgeBaseSources({
+    env: (await nativeShellEnvironment()).env,
     store: knowledgeBaseStore,
     home: app.getPath('home'),
     kind: selectedKind,
-  }).then(rememberKnowledgeBaseSources)
+  })).then(rememberKnowledgeBaseSources)
   knowledgeBaseStatusPromise = request
   try {
     return await request
@@ -1003,6 +1005,8 @@ function registerIpc() {
     getKnowledgeConnectors: () => knowledgeConnectors,
     knowledgeBaseGuideUrl,
     loadKnowledgeBaseSources,
+    knowledgeInstallEnvironment: nativeShellEnvironment,
+    knowledgeInstallSignal: knowledgeInstallShutdown.signal,
     localAgentCatalog,
     openExternalUrl,
     getOutcomeStore: () => workspace?.outcomeStore,
@@ -1092,6 +1096,7 @@ if (!hasSingleInstanceLock) {
       },
     })
     installer = new AgentInstaller({
+      environment: nativeShellEnvironment,
       detectAgents: detectLocalAgents,
       listSkills: async kind => {
         await nativeShellEnvironment()
@@ -1153,6 +1158,7 @@ if (!hasSingleInstanceLock) {
     event.preventDefault()
     if (quitCleanup) return
     shutdownStarted = true
+    knowledgeInstallShutdown.abort()
     cloudAgentStartRetry?.cancel()
     cloudAgentStartRetry = null
     installer?.cancelPending()

@@ -1,4 +1,5 @@
 const fs = require('node:fs')
+const { installKnowledgeCli } = require('../knowledge/knowledge-cli-installer.cjs')
 const os = require('node:os')
 const path = require('node:path')
 const { ADOPTION_ACTION_STATUSES } = require('../collaboration/outcome-records.cjs')
@@ -194,6 +195,8 @@ function registerDesktopIpc(options) {
     knowledgeBaseStore,
     knowledgeBaseGuideUrl,
     loadKnowledgeBaseSources,
+    knowledgeInstallEnvironment,
+    knowledgeInstallSignal,
     localAgentCatalog,
     openExternalUrl,
     refreshLocalAgentState,
@@ -924,6 +927,35 @@ function registerDesktopIpc(options) {
   registerTrustedHandle('local-knowledge-base:status', async (kind = '') => (
     loadKnowledgeBaseSources(kind)
   ))
+  let knowledgeInstallBusy = false
+  registerTrustedHandle('local-knowledge-base:install', async (...args) => {
+    if (args.length !== 1 || !['feishu', 'dingtalk'].includes(args[0])) throw new Error('INSTALL_AGENT_UNSUPPORTED')
+    if (knowledgeInstallBusy) throw new Error('INSTALL_AGENT_BUSY')
+    knowledgeInstallBusy = true
+    const controller = new AbortController()
+    let timeout
+    try {
+      const zh = String(app.getLocale?.() || 'en').startsWith('zh')
+      const decision = await dialog.showMessageBox(getMainWindow(), {
+        type: 'question',
+        message: zh ? '安装知识库 CLI？' : 'Install knowledge CLI?',
+        detail: zh ? '将通过 npm 全局安装官方 CLI。安装后仍需登录并授权。' : 'Install the official CLI globally with npm. Sign-in and permissions are still required afterwards.',
+        buttons: zh ? ['安装', '取消'] : ['Install', 'Cancel'], defaultId: 1, cancelId: 1, noLink: true,
+      })
+      if (decision.response !== 0) return null
+      if (isShutdownStarted()) throw new Error('DESKTOP_CLIENT_SHUTTING_DOWN')
+      timeout = setTimeout(() => controller.abort(), 300000)
+      const signal = knowledgeInstallSignal
+        ? AbortSignal.any([controller.signal, knowledgeInstallSignal]) : controller.signal
+      await installKnowledgeCli(args[0], { ...await knowledgeInstallEnvironment(), signal })
+      const sources = await loadKnowledgeBaseSources(args[0])
+      if (!sources.some(source => source.kind === args[0] && source.installed)) throw new Error('INSTALL_AGENT_VERIFY_FAILED')
+      return sources
+    } finally {
+      clearTimeout(timeout)
+      knowledgeInstallBusy = false
+    }
+  })
   registerTrustedHandle('local-knowledge-base:open-guide', async (kind, action) => {
     const url = knowledgeBaseGuideUrl(String(kind || ''), String(action || ''))
     if (!url) return false

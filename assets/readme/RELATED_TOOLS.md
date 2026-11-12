@@ -1,0 +1,24 @@
+# Related tools: sources and scope
+
+Two README infographics give six products equal-sized architecture panels. The first compares task coordination in Meldwork, Orca and Munder Difflin. The second compares persistent teams in OpenRig, organizational governance in Paperclip, and developer composition in Rig. Connectors show selected conceptual relationships, not complete runtime protocols. The Meldwork panel specifically depicts Auto Discussion, not direct chat or manual group batches.
+
+Checked against the following official documentation on 2026-11-12. These are product descriptions, not comparative execution benchmarks. Default-branch features may differ from released builds.
+
+| Project | Source | What the diagram abstracts |
+| --- | --- | --- |
+| Meldwork | [Architecture: Concurrent Collaboration V4](../../architecture.md#concurrent-collaboration-v4), [plan validation](../../desktop/src/collaboration/orchestration-v4-records.cjs), [desktop guide](../../desktop/README.md) | Independent proposals, mutual challenge, unanimous support for a normalized responsibility graph, dependency-based work, one agreed finalizer and separate verifiers. Human gates are conditional. Local checkpoints support bounded recovery. |
+| Orca | [Official README: Orchestrate Agents](https://github.com/stablyai/orca#readme) | A coordinator can split work among workers in separate workspaces and collect results. Worktrees, diffs and PRs remain important workspace concepts. The diagram does not imply that users must relay every prompt or merge a single winning answer. |
+| Munder Difflin | [Official README: How it works](https://github.com/HarnessMD/munder-difflin#how-it-works) | Michael coordinates an office of native CLI Agents; agents communicate through the shared hive, including memory and mailboxes. Peer messaging and coordination are supported. |
+| Paperclip | [Official README: Features](https://github.com/paperclipai/paperclip#features) | Organization goals, reporting roles, task owners, budgets, scheduled routines and governance. It also supports collaboration and review; those are not unique to Meldwork. |
+| OpenRig | [Official README: Teams](https://github.com/mvschwarz/openrig#teams) | Persistent teams, a lead and specialist roles, shared context and owned work. The sketch uses a lead-based team, not a claim that every team has the same topology. |
+| Rig | [Official README](https://github.com/0xplaygrounds/rig#readme) | The Rust LLM library and current main-branch terminal Agent with plugin-based tools, sessions and other components. The README distinguishes main from the last release. Rig is a different project from OpenRig. |
+
+Meldwork's proposition is an explicit task protocol integrated with native Agent configuration, human control and local checkpoints. Participants negotiate responsibilities before execution; finalization and verification have separate roles. That gives users concrete coordination decisions and verification results to inspect. The sources do not establish a unique moat or better task outcomes. OpenRig also separates builders and reviewers; Munder supports peer communication and escalations; Paperclip has approval and review gates; Orca supports coordination and output review. Agreement and independent verification can still miss errors. Unknown writable outcomes require a human gate before retry; checkpoints do not mean unrestricted automatic resumption.
+
+## Normal flow and exceptions
+
+The Meldwork panel starts with the user's request and ends with a deliverable returned to the user. After parallel proposals, Agents discuss, review and execute within shared task context. The shared area represents coordinated context delivery and recorded contributions, not unrestricted access to each Agent's private session. Routine planning and review do not require repeated human approval. Human gates remain exceptional paths for missing authorization or unresolved blockers; the diagram deliberately omits a prominent gate rail. Sources, evidence and review records make the deliverable inspectable, without guaranteeing completeness or correctness.
+
+## Image provenance
+
+The four English and Simplified Chinese images were generated with the built-in GPT Image tool. Chinese versions use the corresponding English image as the layout reference. Exact prompts, including the connector correction, are preserved in [IMAGE_PROMPTS.md](IMAGE_PROMPTS.md). Each image is 1536 × 1024 and scales to the README width; click for the original. The palette comes from [base-foundation.css](../../frontend/src/styles/base-foundation.css): background `#f3f6f8`, surface `#f9fbfc`, border `#d2dde2`, text `#26343c`, accent `#d45f52`, and accent fill `#f7e3df`. Raster rendering may vary slightly. Icons are conceptual symbols, not official product logos.

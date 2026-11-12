@@ -68,8 +68,18 @@ export function useAgentRefresh({
     return refreshPromise
   }
 
+  async function refreshAfterInstall() {
+    try {
+      applyInstallCatalog(await installer.value.catalog())
+    } catch (error) {
+      showError(error)
+    }
+    return refreshAgents()
+  }
+
   return {
     applyInstallCatalog,
     refreshAgents,
+    refreshAfterInstall,
   }
 }

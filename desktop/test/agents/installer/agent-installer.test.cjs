@@ -170,7 +170,7 @@ test('catalog reports installed and recommended Agents', async () => {
   assert.equal(result.platform, 'darwin')
   assert.deepEqual(result.agents.map(agent => agent.kind), [
     'codex', 'claude', 'hermes', 'workbuddy', 'openclaw', 'pi',
-    'opencode', 'opencodereview', 'kimi', 'mimo', 'deepseek', 'qwen',
+    'opencode', 'opencodereview', 'kimi', 'mimo', 'deepseek', 'qwen', 'gemini',
   ])
   assert.equal(result.agents.find(agent => agent.kind === 'workbuddy').installed, true)
   assert.equal(result.agents.find(agent => agent.kind === 'hermes').recommended, true)
@@ -550,7 +550,13 @@ test('npm installation verifies integrity before installing the exact compatible
   const order = []
   let detectCount = 0
   const phases = []
+  const nativeEnvironment = { env: { PATH: '/native/node/bin', HTTPS_PROXY: 'http://localhost:8080' }, home: '/native/home' }
   const service = installer({
+    environment: async () => nativeEnvironment,
+    findCommand: async (_name, options) => {
+      assert.equal(options, nativeEnvironment)
+      return '/usr/local/bin/npm'
+    },
     detectAgents: async () => {
       detectCount += 1
       return detectCount > 1
@@ -562,6 +568,7 @@ test('npm installation verifies integrity before installing the exact compatible
       assert.equal(command, '/usr/local/bin/npm')
       assert.deepEqual(selectedRecipe, recipe)
       assert.equal(options.platform, 'darwin')
+      assert.equal(options.env, nativeEnvironment.env)
       assert.equal(options.signal.aborted, false)
     },
     runProcess: async (...args) => { order.push('install'); calls.push(args) },
@@ -581,6 +588,7 @@ test('npm installation verifies integrity before installing the exact compatible
     ],
   ])
   assert.equal(calls[0][2].platform, 'darwin')
+  assert.equal(calls[0][2].env, nativeEnvironment.env)
   assert.equal(calls[0][2].signal.aborted, false)
   assert.deepEqual(order, ['integrity', 'install'])
   assert.deepEqual(phases, ['checking', 'installing', 'verifying', 'completed'])

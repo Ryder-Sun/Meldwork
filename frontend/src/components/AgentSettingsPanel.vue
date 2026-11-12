@@ -19,7 +19,7 @@
           v-for="agent in category.agents"
           :key="agent.kind"
           class="agent-card settings-agent-card"
-          :class="{ focused: focusedAgentKind === agent.kind }"
+          :class="{ focused: focusedAgentKind === agent.kind, 'install-expanded': installConfirmKind === agent.kind || (installerState.kind === agent.kind && installerState.phase !== 'idle') }"
           @click="$emit('open-agent-detail', agent)"
         >
           <div class="rail-card-surface">
@@ -64,11 +64,11 @@
               <button
                 v-else-if="!agent.installed && agent.installSupported"
                 type="button"
-                :disabled="installerBusy && installerState.kind !== agent.kind"
+                :disabled="installerBusy"
                 @click.stop="$emit('request-install', agent)"
               >
                 <DownloadOutline />
-                {{ installConfirmKind === agent.kind ? t('installer.confirm', { agent: agent.label }) : t('installer.install') }}
+                {{ installConfirmKind === agent.kind ? t('installer.confirmAction') : t('installer.install') }}
               </button>
               <span v-else-if="!agent.installed" class="manager-note">
                 {{ agent.custom

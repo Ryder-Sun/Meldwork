@@ -361,7 +361,15 @@ export function useKnowledgeBaseSettings({ knowledgeBase, showError }) {
     }
     if (source.accessMode === 'cli') {
       if (!source.installed) {
-        await knowledgeBase.value.openGuide?.(source.kind, 'install')
+        refreshingKinds.add(source.kind)
+        try {
+          await knowledgeBase.value.install(source.kind)
+          await loadStatuses(source.kind)
+        } catch (error) {
+          showError(error)
+        } finally {
+          refreshingKinds.delete(source.kind)
+        }
         return
       }
       if (source.loginState === 'missing') {

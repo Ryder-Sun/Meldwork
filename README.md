@@ -69,50 +69,29 @@ Meldwork keeps task context, Agent replies, run state, and deliverables locally 
 
 These records help you inspect collaboration; they do not establish that every claim has been fact-checked. Peer review does not guarantee correctness, and important deliverables still need acceptance checks appropriate to their use.
 
+## Core design and related tools
+
+Give Meldwork your original request. In Auto Discussion, Agents first propose solutions in parallel, then discuss and review them within a shared task context. They agree on responsibilities, carry out the work and verify the candidate without asking you to coordinate each step. The workflow aims to deliver a verifiable, traceable artifact with source references, evidence and review records. Human input is an exception for missing authorization or a blocker the Agents cannot resolve within the agreed scope; you do not routinely approve proposals or relay messages between Agents.
+
+<table><tr>
+<td width="50%"><a href="assets/readme/coordination-models-en.png"><img src="assets/readme/coordination-models-en.png" alt="Meldwork: parallel proposals and autonomous collaboration in shared context. Orca: isolated worktrees. Munder Difflin: a supervisor and agents with shared memory and mailboxes." width="100%"></a></td>
+<td width="50%"><a href="assets/readme/organization-models-en.png"><img src="assets/readme/organization-models-en.png" alt="OpenRig: persistent teams. Paperclip: organization goals and governance. Rig: a Rust library and extensible CLI." width="100%"></a></td>
+</tr></table>
+
+| Project | What organizes the work |
+| --- | --- |
+| **Meldwork** | Your request → parallel proposals → autonomous discussion, review and execution in shared context → a verifiable, traceable deliverable |
+| [Orca](https://github.com/stablyai/orca) | Coding workspaces and worktrees; coordinator Agents can also decompose tasks and manage workers |
+| [Munder Difflin](https://github.com/HarnessMD/munder-difflin) | An Agent office led by Michael, with shared memory and mailboxes |
+| [Paperclip](https://github.com/paperclipai/paperclip) | Organization goals, task ownership, roles, budgets and approvals |
+| [OpenRig](https://github.com/mvschwarz/openrig) | Persistent teams with leads, specialist roles, shared context and owned work |
+| [Rig](https://github.com/0xplaygrounds/rig) | Rust LLM application development; current main also includes a plugin-based terminal Agent |
+
+Choose Meldwork when you want selected native Agents to negotiate and check a shared task within a local desktop workflow. Shared context, peer review and human approvals also exist in the other tools; the protocol and its integration are the distinction to evaluate. Agreement does not guarantee correctness, and this comparison does not establish better outcomes. The diagrams show selected organizing patterns, not exhaustive architectures. Rig and OpenRig are separate projects. [Sources and comparison scope](assets/readme/RELATED_TOOLS.md), checked 2026-11-12.
+
 ## General Agent catalog
 
-Meldwork detects and invokes compatible locally installed Agent commands. The catalog currently includes:
-
-<table>
-  <tr>
-    <td align="center" valign="top"><img src="frontend/public/agent-logos/codex.svg" alt="Codex logo" width="32" height="32"><br><strong>Codex</strong></td>
-    <td align="center" valign="top"><img src="frontend/public/agent-logos/hermes.png" alt="Hermes logo" width="32" height="32"><br><strong>Hermes</strong></td>
-    <td align="center" valign="top"><img src="frontend/public/agent-logos/openclaw-transparent.png" alt="OpenClaw logo" width="32" height="32"><br><strong>OpenClaw</strong></td>
-    <td align="center" valign="top"><img src="frontend/public/agent-logos/workbuddy.png" alt="WorkBuddy logo" width="32" height="32"><br><strong>WorkBuddy</strong></td>
-    <td align="center" valign="top"><img src="frontend/public/agent-logos/zcode.png" alt="Zcode logo" width="32" height="32"><br><strong>Zcode</strong></td>
-    <td align="center" valign="top"><img src="frontend/public/agent-logos/pi.svg" alt="Pi Agent logo" width="32" height="32"><br><strong>Pi Agent</strong></td>
-    <td align="center" valign="top"><img src="frontend/public/agent-logos/kimi.png" alt="Kimi Code logo" width="32" height="32"><br><strong>Kimi Code</strong></td>
-  </tr>
-  <tr>
-    <td align="center" valign="top"><img src="frontend/public/agent-logos/mimo.svg" alt="MiMo Code logo" width="32" height="32"><br><strong>MiMo Code</strong></td>
-    <td align="center" valign="top"><img src="frontend/public/agent-logos/claude.png" alt="Claude Code logo" width="32" height="32"><br><strong>Claude Code</strong></td>
-    <td align="center" valign="top"><img src="frontend/public/agent-logos/gemini.svg" alt="Gemini CLI logo" width="32" height="32"><br><strong>Gemini CLI</strong></td>
-    <td align="center" valign="top"><img src="frontend/public/agent-logos/opencode.svg" alt="OpenCode logo" width="32" height="32"><br><strong>OpenCode</strong></td>
-    <td align="center" valign="top"><img src="frontend/public/agent-logos/qwen.svg" alt="Qwen Code logo" width="32" height="32"><br><strong>Qwen Code</strong></td>
-    <td align="center" valign="top"><img src="frontend/public/agent-logos/opencodereview.svg" alt="OpenCodeReview logo" width="32" height="32"><br><strong>OpenCodeReview</strong></td>
-    <td align="center" valign="top"><img src="frontend/public/agent-logos/deepseek.png" alt="DeepSeek Harness icon" width="32" height="32"><br><strong>DeepSeek Harness</strong></td>
-  </tr>
-</table>
-
-Approved Agent Connectors and custom executable Agents use the desktop connector paths. The [desktop guide](desktop/README.md) contains the current adapter, installation, provider, and capability matrix.
-The [Agent Connector SDK guide](desktop/AGENT_CONNECTOR_SDK.md) explains supported packages, approval, upgrades, and conformance checks.
-
-DeepSeek Harness (`dsh`) supports direct chats and group replies through ACP, with separate resumable sessions and workspace permissions. Its default route is ZGCI `smart-router-v2`; provide `ZGCI_API_KEY` through native credentials or the launch environment. In Settings → Agents → DeepSeek Harness, you can select an existing native `DSH_HOME` directory; detection, execution, and local Skills use that selection. The native `DSH_AGENTS_HOME` environment variable also controls the shared Skills directory. The icon comes from the official macOS application.
-An explicit ACP provider or model in the native profile or DSH home patch takes precedence over this default; credential environment variables declared there are passed to DSH.
-
-WorkBuddy also supports selecting its existing native configuration directory in Settings → Agents. Its model list, execution environment, and local and plugin Skills use the selected directory.
-
-OpenClaw also supports selecting its native state directory in Settings → Agents. Meldwork reads the selected Agent's model configuration from that directory and runs it in its guarded local runtime.
-
-When switching an Agent's native configuration directory, Meldwork keeps separate local conversation sessions for each selected directory and restores them when switching back. Configuration changes are blocked while a run is active or awaiting recovery.
-
-For Zcode, choose an existing `.zcode/cli` directory containing `config.json`. Zcode runs with that directory's parent user home, which also affects its home-relative session and other file paths; project configuration may still override user configuration.
-
-For Qwen Code, choose an existing `.qwen` directory containing settings or credentials. Qwen uses its parent user home for native sessions, Skills and other home-relative files; project and system settings retain their native precedence.
-
-For OpenCodeReview, choose an existing `.opencodereview` directory containing `config.json`. OCR runs with that directory's parent user home, including its native session and other home-relative paths.
-
-Hermes uses its native `config.yaml` and Provider settings. When its model, fallback model, or provider entries declare credential variables with `key_env` or `api_key_env`, Meldwork reads those variables from the launch environment or login shell for Hermes; unrelated variables and unsafe process controls are excluded. Hermes may prepare its own dependencies when started with a new native data directory.
+See the [separate catalog](CATALOG.md) for supported Agents, native configuration directories and authentication, and the [desktop guide](desktop/README.md) for the installation and capability matrix.
 
 ## Context and local boundaries
 

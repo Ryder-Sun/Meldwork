@@ -127,6 +127,7 @@ const AGENT_CATALOG = Object.freeze([
   { kind: 'mimo', label: 'MiMo Code', recommended: false },
   { kind: 'deepseek', label: 'DeepSeek Harness', recommended: false },
   { kind: 'qwen', label: 'Qwen Code', recommended: false },
+  { kind: 'gemini', label: 'Gemini CLI', recommended: false },
 ])
 
 function installRecipe(kind, platform) {
