@@ -345,8 +345,10 @@
 
 .conversation-empty-copy {
   width: min(920px, 100%);
+  min-width: 0;
   min-height: 60px;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   place-items: center;
   gap: 6px;
 }
@@ -355,7 +357,8 @@
   color: var(--text-soft);
   font-size: 16px;
   font-weight: 650;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .conversation-empty-copy p {
@@ -364,14 +367,8 @@
   color: var(--muted);
   font-size: 13px;
   line-height: 1.6;
-  white-space: nowrap;
-}
-
-@media (max-width: 840px) {
-  .conversation-empty-copy strong,
-  .conversation-empty-copy p {
-    white-space: normal;
-  }
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .empty-showcase-enter-active,

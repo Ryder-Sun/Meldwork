@@ -11,6 +11,24 @@ const { RunScheduler } = require('../../src/runs/run-scheduler.cjs')
 const { executable } = require('../support/cli-adapters-test-helpers.cjs')
 const { fixture } = require('../support/local-workspace-test-helpers.cjs')
 
+const testWorkspaces = new Set()
+
+function trackedWorkspace(options) {
+  const workspace = new LocalWorkspace(options)
+  testWorkspaces.add(workspace)
+  return workspace
+}
+
+async function stopTestWorkspaces() {
+  // Crash simulations leave superseded instances alive; stop their checkpoint
+  // retries before removing storage that the restarted instance has replaced.
+  for (const workspace of testWorkspaces) {
+    for (const timer of workspace.runCheckpointTimers.values()) clearTimeout(timer)
+    workspace.runCheckpointTimers.clear()
+  }
+  testWorkspaces.clear()
+}
+
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
@@ -248,11 +266,12 @@ async function createManualPermissionRestart(t, restartOptions = {}) {
   options.runScheduler = new RunScheduler({ taskLimit: 3, workspaceLimit: 3, globalLimit: 3 })
   nativeWorkspaceOptions(options, cli, 'proposal', calls)
   t.after(async () => {
+    await stopTestWorkspaces()
     await adapters.shutdownAcpSessionRuntime()
     fs.rmSync(directory, { recursive: true, force: true })
   })
 
-  let workspace = new LocalWorkspace(options)
+  let workspace = trackedWorkspace(options)
   let send
   await workspace.refreshAgents()
   workspace.messageSubmission.v4WriterKind = () => 'hermes'
@@ -351,7 +370,7 @@ async function createManualPermissionRestart(t, restartOptions = {}) {
     restartedLedger.runs.find(record => record.runId === originalGate.runId)
       .continuation.sessionRefHash = 'f'.repeat(64)
   }
-  const restarted = new LocalWorkspace({
+  const restarted = trackedWorkspace({
     ...options,
     runLedger: restartedLedger,
     runScheduler: new RunScheduler({ taskLimit: 3, workspaceLimit: 3, globalLimit: 3 }),
@@ -397,7 +416,7 @@ test('Manual V4 approval survives a second shutdown during recovery', async t =>
   assert.equal(persisted.continuation.state, 'resuming')
   assert.equal(restarted.humanGateStore.get(originalGate.gateId).status, 'approved')
 
-  const restored = new LocalWorkspace({
+  const restored = trackedWorkspace({
     ...options,
     runLedger: restartedLedger,
     runScheduler: new RunScheduler({ taskLimit: 3, workspaceLimit: 3, globalLimit: 3 }),
@@ -556,11 +575,12 @@ async function createAutoPermissionRestart(t, beforeApproval = null) {
   options.runScheduler = new RunScheduler({ taskLimit: 3, workspaceLimit: 3, globalLimit: 3 })
   nativeWorkspaceOptions(options, cli, 'proposal', calls)
   t.after(async () => {
+    await stopTestWorkspaces()
     await adapters.shutdownAcpSessionRuntime()
     fs.rmSync(directory, { recursive: true, force: true })
   })
 
-  const workspace = new LocalWorkspace(options)
+  const workspace = trackedWorkspace(options)
   await workspace.refreshAgents()
   const group = workspace.createGroup({
     name: 'Auto V4 native read-only restart',
@@ -599,7 +619,7 @@ async function createAutoPermissionRestart(t, beforeApproval = null) {
     now: () => Date.now(),
   })
   restartedLedger.checkpoint(waiting)
-  const restarted = new LocalWorkspace({
+  const restarted = trackedWorkspace({
     ...options,
     runLedger: restartedLedger,
     runScheduler: new RunScheduler({ taskLimit: 3, workspaceLimit: 3, globalLimit: 3 }),
@@ -650,7 +670,7 @@ test('Auto V4 approval survives a second shutdown during recovery', async t => {
   assert.equal(persisted.continuation.state, 'resuming')
   assert.equal(restarted.humanGateStore.get(originalGate.gateId).status, 'approved')
 
-  const restored = new LocalWorkspace({
+  const restored = trackedWorkspace({
     ...options,
     runLedger: restartedLedger,
     runScheduler: new RunScheduler({ taskLimit: 3, workspaceLimit: 3, globalLimit: 3 }),
@@ -673,11 +693,12 @@ test('Auto V4 synthesis native ACP permission restart enters existing recovery G
   let workspace
   let send
   t.after(async () => {
+    await stopTestWorkspaces()
     await adapters.shutdownAcpSessionRuntime()
     fs.rmSync(directory, { recursive: true, force: true })
   })
 
-  workspace = new LocalWorkspace(options)
+  workspace = trackedWorkspace(options)
   await workspace.refreshAgents()
   const group = workspace.createGroup({
     name: 'Auto V4 native synthesis restart',
@@ -729,7 +750,7 @@ test('Auto V4 synthesis native ACP permission restart enters existing recovery G
     now: () => Date.now(),
   })
   restartedLedger.checkpoint(waiting)
-  const restarted = new LocalWorkspace({
+  const restarted = trackedWorkspace({
     ...options,
     runLedger: restartedLedger,
     runScheduler: new RunScheduler({ taskLimit: 3, workspaceLimit: 3, globalLimit: 3 }),

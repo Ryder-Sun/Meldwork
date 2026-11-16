@@ -18,7 +18,7 @@ function skipCourtesyPrefix(value) {
 function agentAliases(profile) {
   const label = String(profile?.label || '').trim()
   const shortLabel = label.replace(/\s+(?:code|cli)$/iu, '').trim()
-  return [...new Set([profile?.kind, label, shortLabel]
+  return [...new Set([profile?.kind, profile?.sourceKind, label, shortLabel]
     .map(value => String(value || '').trim())
     .filter(Boolean))]
 }

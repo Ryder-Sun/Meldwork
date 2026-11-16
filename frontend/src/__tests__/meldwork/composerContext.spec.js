@@ -50,6 +50,25 @@ afterEach(() => {
 })
 
 describe('composer context', () => {
+  it.each(['manual', 'auto', 'auto-beta'])('routes named cloud members and preserves %s mode', (mode) => {
+    const kinds = ['cloud-codex', 'claude', 'hermes']
+    const { activeGroup, composer, scope } = createComposer({
+      mergedCatalog: ref(kinds.map(kind => ({ kind, label: kind, ready: true, available: true,
+        ...(kind === 'cloud-codex' ? { sourceKind: 'codex', label: 'Codex @ Server' } : {}),
+      }))),
+    })
+    activeGroup.value = { id: 'named-members', conversationType: 'group', agentKinds: kinds }
+    composer.resetComposerContext(activeGroup.value)
+    composer.discussionMode.value = mode
+    composer.draft.value = 'codex你和claude去帮我调研下这个'
+    expect(composer.composerTargetKinds.value).toEqual(['cloud-codex', 'claude'])
+    expect(composer.composerMode.value).toBe(mode)
+    composer.draft.value = '帮我调研下这个'
+    expect(composer.composerTargetKinds.value).toEqual(kinds)
+    expect(composer.composerMode.value).toBe(mode)
+    scope.stop()
+  })
+
   it('keeps the selected discussion mode when the current group membership refreshes', () => {
     const { activeGroup, composer, scope } = createComposer()
     activeGroup.value = { id: 'group-auto', agentKinds: ['codex', 'hermes'] }
